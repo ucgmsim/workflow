@@ -3,14 +3,17 @@ requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "PACKAGE NAME HERE"
+name = "workflow"
 authors = [
     {name = "QuakeCoRE" },
 ]
-description = "PACKAGE DESCRIPTION HERE"
+description = "Next generation workflow for type-5 and Pegasus simulations."
 readme = "README.md"
 requires-python = ">=3.9"
 dynamic = ["version", "dependencies"]
+
+[tool.setuptools.package-dir]
+workflow = "workflow"
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
