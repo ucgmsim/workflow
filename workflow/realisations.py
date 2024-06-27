@@ -32,7 +32,7 @@ from schema import And, Literal, Or, Schema, Use
 @dataclasses.dataclass
 class Realisation:
     """Object that holds all the realisation data."""
-    
+
     name: str
     version: str
     # TODO: Replace with proper types
