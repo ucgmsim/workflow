@@ -591,7 +591,7 @@ _REALISATION_SCHEMAS = {
         {
             Literal("name", description="The name of the realisation"): str,
             Literal("version", description="The version of the realisation format"): Or(
-                "5"
+                "1"
             ),
         }
     ),
