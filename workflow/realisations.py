@@ -65,7 +65,7 @@ def to_lat_lon_dictionary(
                 [float(value) for value in lat_lon_array],
             )
         )
-        for lat_lon_pair in np.atleast_2d(lat_lon_array)
+        for lat_lon_array in np.atleast_2d(lat_lon_array)
     ]
 
     if len(lat_lon_array.shape) == 1:
@@ -85,7 +85,7 @@ class SourceConfig:
         Dictionary mapping source names to their definitions.
     """
 
-    sources: dict[str, IsSource]
+    source_geometries: dict[str, IsSource]
 
     def to_dict(self):
         """
@@ -96,7 +96,29 @@ class SourceConfig:
         dict
             Dictionary representation of the object.
         """
-        return dataclasses.asdict(self)
+
+        config_dict = {}
+        for name, geometry in self.source_geometries.items():
+            if isinstance(geometry, sources.Point):
+                config_dict[name] = {
+                    "type": "point",
+                    "coordinates": to_lat_lon_dictionary(geometry.coordinates),
+                    "length": geometry.length_m,
+                    "strike": geometry.strike,
+                    "dip": geometry.dip,
+                    "dip_dir": geometry.dip_dir,
+                }
+            elif isinstance(geometry, sources.Plane):
+                config_dict[name] = {
+                    "type": "plane",
+                    "corners": to_lat_lon_dictionary(geometry.corners),
+                }
+            elif isinstance(geometry, sources.Fault):
+                config_dict[name] = {
+                    "type": "fault",
+                    "corners": to_lat_lon_dictionary(geometry.corners()),
+                }
+        return config_dict
 
 
 @dataclasses.dataclass
@@ -443,11 +465,11 @@ POINT_SCHEMA = Schema(
         },
         Use(
             lambda schema: sources.Point.from_lat_lon_depth(
-                schema["point"],
-                schema["length"],
-                schema["strike"],
-                schema["dip"],
-                schema["dip_dir"],
+                schema["coordinates"],
+                length_m=schema["length"],
+                strike=schema["strike"],
+                dip=schema["dip"],
+                dip_dir=schema["dip_dir"],
             )
         ),
     )
@@ -483,12 +505,11 @@ FAULT_SCHEMA = Schema(
                 description="The corners of the plane (shape 4 x n x 3: lat, lon, depth)",
             ): And(
                 Use(corners_to_array),
-                Use(
-                    lambda corners: corners.reshape(
-                        (-1, 4, 3), error="Corners cannot be reshaped to (n x 4 x 3)."
-                    )
-                ),
                 has_non_negative_depth,
+                Use(
+                    (lambda corners: corners.reshape((-1, 4, 3))),
+                    error="Corners cannot be reshaped to (n x 4 x 3).",
+                ),
             ),
         },
         Use(lambda schema: sources.Fault.from_corners(schema["corners"])),
@@ -497,7 +518,9 @@ FAULT_SCHEMA = Schema(
 
 
 _REALISATION_SCHEMAS = {
-    SourceConfig: Schema({str: Or(POINT_SCHEMA, PLANE_SCHEMA, FAULT_SCHEMA)}),
+    SourceConfig: Schema(
+        {"source_geometries": {str: Or(POINT_SCHEMA, PLANE_SCHEMA, FAULT_SCHEMA)}}
+    ),
     SRFConfig: Schema(
         {
             Literal(
