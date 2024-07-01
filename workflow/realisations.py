@@ -46,14 +46,14 @@ def to_lat_lon_dictionary(
     Parameters
     ----------
     lat_lon_array : np.ndarray
-        The array of values. Should have shape (3,) or (n, 3)
+        The array of values. Should have shape (2,), (3,), (n, 2), or (n, 3)
 
     Returns
     -------
     dict[str, float] or list[dict[str, float]]
         Either a dictionary with keys 'latitude', 'longitude', 'depth'
         or a list of dictionaries with the same keys. The single
-        dictionary is returned only if the input shape is (3,).
+        dictionary is returned only if the input is one-dimensional.
     """
     lat_lon_dicts = [
         dict(
@@ -65,7 +65,7 @@ def to_lat_lon_dictionary(
         for lat_lon_pair in np.atleast_2d(lat_lon_array)
     ]
 
-    if lat_lon_array.shape == (3,):
+    if len(lat_lon_array.shape) == 1:
         return lat_lon_dicts[0]
 
     return lat_lon_dicts
