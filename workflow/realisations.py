@@ -442,7 +442,7 @@ POINT_SCHEMA = Schema(
             ): And(float, is_valid_bearing),
         },
         Use(
-            lambda schema: sources.Point(
+            lambda schema: sources.Point.from_lat_lon_depth(
                 schema["point"],
                 schema["length"],
                 schema["strike"],
