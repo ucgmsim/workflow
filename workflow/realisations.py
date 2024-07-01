@@ -37,6 +37,9 @@ from typing import Any, Protocol, Union
 import numpy as np
 from schema import And, Literal, Or, Schema, Use
 
+from source_modelling import sources
+from source_modelling.sources import IsSource
+
 
 def to_lat_lon_dictionary(
     lat_lon_array: np.ndarray,
@@ -82,7 +85,7 @@ class SourceConfig:
         Dictionary mapping source names to their definitions.
     """
 
-    sources: dict[str, "Source"]
+    sources: dict[str, IsSource]
 
     def to_dict(self):
         """
@@ -416,114 +419,80 @@ LAT_LON_DEPTH_SCHEMA = Schema(
 )
 
 POINT_SCHEMA = Schema(
-    {
-        Literal(
-            "type",
-            description="The type of the source geometry (Point, Plane or Fault)",
-        ): "point",
-        Literal(
-            "coordinates", description="The coordinates of the point source"
-        ): LAT_LON_DEPTH_SCHEMA,
-        Literal("strike", description="The strike bearing of the point source"): And(
-            float, is_valid_bearing
+    And(
+        {
+            Literal(
+                "type",
+                description="The type of the source geometry (Point, Plane or Fault)",
+            ): "point",
+            Literal(
+                "coordinates", description="The coordinates of the point source"
+            ): LAT_LON_DEPTH_SCHEMA,
+            Literal("length", description="The pseudo-length of the point source"): And(
+                float, is_positive
+            ),
+            Literal(
+                "strike", description="The strike bearing of the point source"
+            ): And(float, is_valid_bearing),
+            Literal("dip", description="The dip angle of the point source"): And(
+                float, is_valid_bearing
+            ),
+            Literal(
+                "dip_dir", description="The dip direction bearing of the point source"
+            ): And(float, is_valid_bearing),
+        },
+        Use(
+            lambda schema: sources.Point(
+                schema["point"],
+                schema["length"],
+                schema["strike"],
+                schema["dip"],
+                schema["dip_dir"],
+            )
         ),
-        Literal("dip", description="The dip angle of the point source"): And(
-            float, is_valid_bearing
-        ),
-        Literal(
-            "dip_dir", description="The dip direction bearing of the point source"
-        ): And(float, is_valid_bearing),
-    }
+    )
 )
 
 PLANE_SCHEMA = Schema(
-    {
-        Literal(
-            "type",
-            description="The type of the source geometry (Point, Plane or Fault)",
-        ): "plane",
-        Literal(
-            "corners",
-            description="The corners of the plane (shape 4 x 3: lat, lon, depth)",
-        ): And(Use(corners_to_array), is_correct_corner_shape, has_non_negative_depth),
-    }
+    And(
+        {
+            Literal(
+                "type",
+                description="The type of the source geometry (Point, Plane or Fault)",
+            ): "plane",
+            Literal(
+                "corners",
+                description="The corners of the plane (shape 4 x 3: lat, lon, depth)",
+            ): And(
+                Use(corners_to_array), is_correct_corner_shape, has_non_negative_depth
+            ),
+        },
+        Use(lambda schema: sources.Plane.from_corners(schema["corners"])),
+    )
 )
 
 FAULT_SCHEMA = Schema(
-    {
-        Literal(
-            "type",
-            description="The type of the source geometry (Point, Plane, or Fault)",
-        ): "fault",
-        Literal(
-            "corners",
-            description="The corners of the plane (shape 4n x 3: lat, lon, depth)",
-        ): And(
-            Use(corners_to_array),
-            Use(
-                lambda corners: corners.reshape(
-                    (-1, 4, 3), error="Corners cannot be reshaped to (n x 4 x 3)."
-                )
+    And(
+        {
+            Literal(
+                "type",
+                description="The type of the source geometry (Point, Plane, or Fault)",
+            ): "fault",
+            Literal(
+                "corners",
+                description="The corners of the plane (shape 4 x n x 3: lat, lon, depth)",
+            ): And(
+                Use(corners_to_array),
+                Use(
+                    lambda corners: corners.reshape(
+                        (-1, 4, 3), error="Corners cannot be reshaped to (n x 4 x 3)."
+                    )
+                ),
+                has_non_negative_depth,
             ),
-            has_non_negative_depth,
-        ),
-    }
-)
-
-
-POINT_SCHEMA = Schema(
-    {
-        Literal(
-            "type",
-            description="The type of the source geometry (Point, Plane or Fault)",
-        ): "point",
-        Literal(
-            "coordinates", description="The coordinates of the point source"
-        ): LAT_LON_DEPTH_SCHEMA,
-        Literal("strike", description="The strike bearing of the point source"): And(
-            float, is_valid_bearing
-        ),
-        Literal("dip", description="The dip angle of the point source"): And(
-            float, is_valid_bearing
-        ),
-        Literal(
-            "dip_dir", description="The dip direction bearing of the point source"
-        ): And(float, is_valid_bearing),
-    }
-)
-
-PLANE_SCHEMA = Schema(
-    {
-        Literal(
-            "type",
-            description="The type of the source geometry (Point, Plane or Fault)",
-        ): "plane",
-        Literal(
-            "corners",
-            description="The corners of the plane (shape 4 x 3: lat, lon, depth)",
-        ): And(Use(corners_to_array), is_correct_corner_shape, has_non_negative_depth),
-    }
-)
-
-FAULT_SCHEMA = Schema(
-    {
-        Literal(
-            "type",
-            description="The type of the source geometry (Point, Plane, or Fault)",
-        ): "fault",
-        Literal(
-            "corners",
-            description="The corners of the plane (shape 4n x 3: lat, lon, depth)",
-        ): And(
-            Use(corners_to_array),
-            Use(
-                lambda corners: corners.reshape(
-                    (-1, 4, 3), error="Corners cannot be reshaped to (n x 4 x 3)."
-                )
-            ),
-            has_non_negative_depth,
-        ),
-    }
+        },
+        Use(lambda schema: sources.Fault.from_corners(schema["corners"])),
+    )
 )
 
 

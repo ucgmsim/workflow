@@ -1,2 +1,3 @@
 numpy
 schema
+source_modelling @ git+https://github.com/ucgmsim/source_modelling
