@@ -60,7 +60,7 @@ realisations.write_config_to_realisation(srf_config, 'path/to/realisation.json')
 
 And then, inside the `realisation.json` file you'll find
 
-```python
+```json
 {
   "domain": {
     "resolution": 0.1,
