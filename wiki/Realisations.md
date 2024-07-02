@@ -130,7 +130,6 @@ To add your own realisation config object, you need to:
 1. Create a configuration object,
 2. Populate `_REALISATION_SCHEMAS` with the configuration schema and,
 3. Populate `_REALISATION_KEYS` with the section key your config variables live in.
-4. Update the `LoadableConfig` type union.
 
 We will now walk through an example adding the `DomainParameters` object to the realisation specification.
 
@@ -215,12 +214,3 @@ _REALISATION_KEYS = {
     DomainParameters: "domain",
 }
 ```
-## Update the Loadable Config Type
-The loadable configuration type doesn't need to be updated for the code to work, but it does for type-safety purposes. Simply add your type to the `LoadableConfig` union.
-```python
-LoadableConfig = Union[
-    # ...
-    DomainParameters,
-]
-```
-And you're done!

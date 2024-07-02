@@ -31,7 +31,7 @@ write_config_to_realisation
 import dataclasses
 import json
 from pathlib import Path
-from typing import Union
+from typing import Protocol, Union
 
 import numpy as np
 
@@ -304,17 +304,12 @@ _REALISATION_KEYS = {
 }
 
 
-LoadableConfig = Union[
-    SourceConfig,
-    SRFConfig,
-    DomainParameters,
-    RupturePropagationConfig,
-    RealisationMetadata,
-]
-
-
 class RealisationParseError(Exception):
     pass
+
+
+class LoadableConfig(Protocol):
+    def to_dict(self) -> dict: ...
 
 
 def read_config_from_realisation(config: type, realisation_ffp: Path) -> LoadableConfig:
