@@ -30,26 +30,30 @@ write_config_to_realisation
 
 import dataclasses
 import json
-import sys
 from pathlib import Path
-from typing import Any, Protocol, Union
+from typing import Union
 
 import numpy as np
 from schema import And, Literal, Or, Schema, Use
 
 from source_modelling import sources
+from source_modelling.rupture_propagation import JumpPair
 from source_modelling.sources import IsSource
 
 
-def to_lat_lon_dictionary(
-    lat_lon_array: np.ndarray,
+def to_name_coordinate_dictionary(
+    coordinate_array: np.ndarray,
+    coordinate_names: list[str] = ["latitude", "longitude", "depth"],
 ) -> Union[dict[str, float], list[dict[str, float]]]:
-    """Convert an array of lat, lon and optionally depth values into a serialisable dictionary of lat, lon, depth dictionaries.
+    """Convert an array of coordinates values into a (list of)
+    dictionaries tagged with coordinate names.
 
     Parameters
     ----------
-    lat_lon_array : np.ndarray
-        The array of values. Should have shape (2,), (3,), (n, 2), or (n, 3)
+    coordinate_array : np.ndarray
+        The array of values. Should have shape (k,), (m, k) where k is at most the length of `coordinate_names`.
+    coordinate_names : list[str]
+        The names of the coordinates. Defaults to ['latitude', 'longitude', 'depth'].
 
     Returns
     -------
@@ -57,21 +61,29 @@ def to_lat_lon_dictionary(
         Either a dictionary with keys 'latitude', 'longitude', 'depth'
         or a list of dictionaries with the same keys. The single
         dictionary is returned only if the input is one-dimensional.
+
+    Examples
+    --------
+
+    >>> to_name_coordinate_dictionary(np.array([1, 0]), coordinate_names=['s', 'd'])
+    {'s': 1, 'd': 0}
+    >>> to_name_coordinate_dictionary(np.array([0, 0, 1000]))
+    {'latitude': 0, 'longitude': 0, 'depth': 1000}
     """
-    lat_lon_dicts = [
+    coordinate_dicts = [
         dict(
             zip(
-                ["latitude", "longitude", "depth"],
-                [float(value) for value in lat_lon_array],
+                coordinate_names,
+                [float(value) for value in coordinate_array],
             )
         )
-        for lat_lon_array in np.atleast_2d(lat_lon_array)
+        for coordinate_array in np.atleast_2d(coordinate_array)
     ]
 
-    if len(lat_lon_array.shape) == 1:
-        return lat_lon_dicts[0]
+    if len(coordinate_array.shape) == 1:
+        return coordinate_dicts[0]
 
-    return lat_lon_dicts
+    return coordinate_dicts
 
 
 @dataclasses.dataclass
@@ -102,7 +114,7 @@ class SourceConfig:
             if isinstance(geometry, sources.Point):
                 config_dict[name] = {
                     "type": "point",
-                    "coordinates": to_lat_lon_dictionary(geometry.coordinates),
+                    "coordinates": to_name_coordinate_dictionary(geometry.coordinates),
                     "length": geometry.length_m,
                     "strike": geometry.strike,
                     "dip": geometry.dip,
@@ -111,12 +123,12 @@ class SourceConfig:
             elif isinstance(geometry, sources.Plane):
                 config_dict[name] = {
                     "type": "plane",
-                    "corners": to_lat_lon_dictionary(geometry.corners),
+                    "corners": to_name_coordinate_dictionary(geometry.corners),
                 }
             elif isinstance(geometry, sources.Fault):
                 config_dict[name] = {
                     "type": "fault",
-                    "corners": to_lat_lon_dictionary(geometry.corners()),
+                    "corners": to_name_coordinate_dictionary(geometry.corners()),
                 }
         return config_dict
 
@@ -162,16 +174,26 @@ class RupturePropagationConfig:
 
     Attributes
     ----------
-    rupture_propagation : dict[str, Any]
-        Dictionary defining rupture propagation parameters for different faults.
-        Each key is a fault identifier and its value is a dictionary with:
-        - 'parent': The parent fault triggering this fault (or null if the initial fault).
-        - 'hypocentre': The hypocentre coordinates (or initial rupture point if not the initial fault).
-        - 'magnitude': The total moment magnitude for the rupture on this fault.
-        - 'rake': The fault rake angle.
+    rupture_causality_tree: dict[str, str]
+        A dict where the keys are faults and the values the parent
+        fault (i.e. if fault a triggers fault b then
+        rupture_causality_tree[fault b] = fault a).
+    jump_points: dict[str, JumpPoint]
+        A map from faults to pairs of fault-local coordinates
+        representing jump points. If the rupture jumps from fault a at
+        point a to point b on fault b then jump_points[fault a] =
+        JumpPoint(point b, point a).
+    rakes: dict[str, float]
+        A map from faults to rakes.
+    magnitudes: dict[str, float]
+        A map from faults to the magnitude of the rupture for each fault.
     """
 
-    rupture_propagation: dict[str, Any]
+    rupture_causality_tree: dict[str, str]
+    jump_points: dict[str, JumpPair]
+    rakes: dict[str, float]
+    magnitudes: dict[str, float]
+    hypocentre: np.ndarray
 
     def to_dict(self):
         """
@@ -182,7 +204,20 @@ class RupturePropagationConfig:
         dict
             Dictionary representation of the object.
         """
-        return dataclasses.asdict(self)
+        config_dict = dataclasses.asdict(self)
+        config_dict["jump_points"] = {
+            fault: {
+                "from": to_name_coordinate_dictionary(
+                    jump_point.from_point, ["s", "d"]
+                ),
+                "to": to_name_coordinate_dictionary(jump_point.to_point, ["s", "d"]),
+            }
+            for fault, jump_point in self.jump_points.items()
+        }
+        config_dict["hypocentre"] = to_name_coordinate_dictionary(
+            self.hypocentre, ["s", "d"]
+        )
+        return config_dict
 
 
 @dataclasses.dataclass
@@ -220,7 +255,7 @@ class DomainParameters:
             Dictionary representation of the object.
         """
         param_dict = dataclasses.asdict(self)
-        param_dict["centroid"] = to_lat_lon_dictionary(self.centroid)
+        param_dict["centroid"] = to_name_coordinate_dictionary(self.centroid)
         return param_dict
 
 
