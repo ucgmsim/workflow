@@ -34,11 +34,11 @@ from pathlib import Path
 from typing import Union
 
 import numpy as np
-from schema import And, Literal, Or, Schema, Use
 
 from source_modelling import sources
 from source_modelling.rupture_propagation import JumpPair
 from source_modelling.sources import IsSource
+from workflow import schemas
 
 
 def to_name_coordinate_dictionary(
