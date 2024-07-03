@@ -225,15 +225,15 @@ class DomainParameters:
     Attributes
     ----------
     resolution : float
-        The simulation resolution in kilometers.
+        The simulation resolution in kilometres.
     centroid : np.ndarray
         The centroid location of the model in latitude and longitude coordinates.
     width : float
-        The width of the model in kilometers.
+        The width of the model in kilometres.
     length : float
-        The length of the model in kilometers.
+        The length of the model in kilometres.
     depth : float
-        The depth of the model in kilometers.
+        The depth of the model in kilometres.
     """
 
     resolution: float
@@ -357,7 +357,7 @@ def write_config_to_realisation(
 ) -> None:
     """Write a configuration to a realisation file.
 
-    The default beheviour will update the realisation and replace just
+    The default behaviour will update the realisation and replace just
     the configuration keys specified by `config`. If `update` is set
     to False, then the realisation is completely overwritten and
     populated with only the section pertaining to the config.
