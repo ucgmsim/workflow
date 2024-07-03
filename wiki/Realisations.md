@@ -172,12 +172,12 @@ class DomainParameters:
             Dictionary representation of the object.
         """
         param_dict = dataclasses.asdict(self)
-        param_dict["centroid"] = to_lat_lon_dictionary(self.centroid)
+        param_dict["centroid"] = to_name_coordinate_dictionary(self.centroid)
         return param_dict
     
 ```
 
-We have to write a `to_dict` method for any configuration object we create. This method specifies how to serialise the configuration into a dictionary. The keys and values must be JSON-serialisable python objects. Most of the time, you are fine to just have this method return the output of `dataclasses.asdict`. If you are writing numpy values you will need to write a custom serialisation function. The helper function `to_lat_lon_dictionary` converts numpy arrays of varying shapes into lists of keyword dictionaries specifying coordinates.
+We have to write a `to_dict` method for any configuration object we create. This method specifies how to serialise the configuration into a dictionary. The keys and values must be JSON-serialisable python objects. Most of the time, you are fine to just have this method return the output of `dataclasses.asdict`. If you are writing numpy values you will need to write a custom serialisation function. The helper function `to_name_coordinate_dictionary` converts numpy arrays of varying shapes into lists of keyword dictionaries specifying coordinates.
 ## Creating the Schema
 The next step is specifying the configuration schema. This is done by populating the `_REALISATION_SCHEMAS` variable with your configuration schema. The key should be the type of your configuration object. The value should be the schema. Schemas should validate the types and general bounds of their input variables. They should not perform complex input validation. You should describe each keyword using the `description=` keyword argument and a schema `Literal`. There are a number of prewritten helper functions like `is_positive` to validate certain inputs.
 
