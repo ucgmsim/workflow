@@ -6,7 +6,7 @@ the schemas.
 """
 
 import numpy as np
-from schema import And, Literal, Or, Schema, Use
+from schema import And, Literal, Optional, Or, Schema, Use
 
 from source_modelling import sources
 
@@ -344,5 +344,11 @@ REALISATION_METADATA_SCHEMA = Schema(
         Literal("version", description="The version of the realisation format"): Or(
             "1"
         ),
+        Optional(
+            Literal(
+                "tag",
+                description="Metadata tag for the realisation used to specify the origin or category of the realisation (e.g. NSHM, GCMT or custom).",
+            )
+        ): str,
     }
 )

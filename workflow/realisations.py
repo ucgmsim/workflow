@@ -31,7 +31,7 @@ write_config_to_realisation
 import dataclasses
 import json
 from pathlib import Path
-from typing import Protocol, Union
+from typing import Optional, Protocol, Union
 
 import numpy as np
 
@@ -267,10 +267,14 @@ class RealisationMetadata:
         The name of the realisation.
     version : str
         The version of the realisation format (currently supports version "5").
+    tag : Optional[str]
+        Metadata tag for the realisation used to specify the origin or
+        category of the realisation (e.g. NSHM, GCMT or custom).
     """
 
     name: str
     version: str
+    tag: Optional[str] = None
 
     def to_dict(self):
         """
