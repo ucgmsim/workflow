@@ -1,5 +1,14 @@
+"""Module containing schema definitions for the realisation specification.
+
+See the repository wiki page (specifically the Realisations page, and
+the Realisations Proposal page) for a description of realisations and
+the schemas.
+"""
+
 import numpy as np
 from schema import And, Literal, Or, Schema, Use
+
+from source_modelling import sources
 
 # NOTE: These functions seem silly and short, however there is a good
 # reason for the choice to create functions like this. The reason is
@@ -92,7 +101,7 @@ def is_correct_fault_corner_shape(corners: np.ndarray) -> bool:
 
 
 def has_non_negative_depth(corners: np.ndarray) -> bool:
-    """Checks the depth component of corners array is non-negative.
+    """Check the depth component of corners array is non-negative.
 
     Parameters
     ----------

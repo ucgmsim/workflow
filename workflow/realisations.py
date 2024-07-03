@@ -1,4 +1,4 @@
-"""This module defines the schema for the realisation file format.
+"""The realisations module defines the schema for the realisation file format.
 
 The configuration schemas are contained in `_REALISATION_SCHEMAS`. The
 schemas loosely validates the input data. Input bounds checking is
@@ -45,8 +45,7 @@ def to_name_coordinate_dictionary(
     coordinate_array: np.ndarray,
     coordinate_names: list[str] = ["latitude", "longitude", "depth"],
 ) -> Union[dict[str, float], list[dict[str, float]]]:
-    """Convert an array of coordinates values into a (list of)
-    dictionaries tagged with coordinate names.
+    """Convert an array of coordinates values into a (list of) dictionaries tagged with coordinate names.
 
     Parameters
     ----------
@@ -64,7 +63,6 @@ def to_name_coordinate_dictionary(
 
     Examples
     --------
-
     >>> to_name_coordinate_dictionary(np.array([1, 0]), coordinate_names=['s', 'd'])
     {'s': 1, 'd': 0}
     >>> to_name_coordinate_dictionary(np.array([0, 0, 1000]))
@@ -108,7 +106,6 @@ class SourceConfig:
         dict
             Dictionary representation of the object.
         """
-
         config_dict = {}
         for name, geometry in self.source_geometries.items():
             if isinstance(geometry, sources.Point):
@@ -305,10 +302,14 @@ _REALISATION_KEYS = {
 
 
 class RealisationParseError(Exception):
+    """Realisation JSON parse error."""
+
     pass
 
 
 class LoadableConfig(Protocol):
+    """Protocol describing types that can be written to realisation JSON files."""
+
     def to_dict(self) -> dict: ...
 
 
