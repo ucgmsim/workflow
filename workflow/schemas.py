@@ -8,7 +8,7 @@ the schemas.
 import numpy as np
 from schema import And, Literal, Optional, Or, Schema, Use
 
-from source_modelling import sources
+from source_modelling import sources, rupture_propagation
 
 # NOTE: These functions seem silly and short, however there is a good
 # reason for the choice to create functions like this. The reason is
@@ -320,21 +320,19 @@ DOMAIN_SCHEMA = Schema(
 
 RUPTURE_PROPAGATION_SCHEMA = Schema(
     {
-        str: {
-            Literal(
-                "parent",
-                description="The parent fault that triggers this fault (or null if the initial fault)",
-            ): Or(str, None),
-            Literal(
-                "hypocentre",
-                description="The hypocentre coordinates (or initial rupture point if not the initial fault)",
-            ): FAULT_LOCAL_COORDINATES_SCHEMA,
-            Literal(
-                "magnitude",
-                description="The total moment magnitude for the rupture on this fault",
-            ): And(float, is_plausible_magnitude),
-            Literal("rake", description="The fault rake"): And(float, is_valid_degrees),
-        }
+        Literal(
+            "hypocentre",
+            description="The hypocentre coordinates (or initial rupture point if not the initial fault)",
+        ): FAULT_LOCAL_COORDINATES_SCHEMA,
+        Literal(
+            "magnitudes",
+            description="The total moment magnitude for the rupture on this fault",
+        ): {str: And(float, is_plausible_magnitude)},
+        Literal('jump_points', description='The jump points for the rupture'): {
+            str: And({ 'from_point': FAULT_LOCAL_COORDINATES_SCHEMA, 'to_point': FAULT_LOCAL_COORDINATES_SCHEMA }, Use(lambda pts: rupture_propagation.JumpPair(**pts)))
+        },
+        Literal("rakes", description="The fault rakes"): {str: And(float, is_valid_degrees)},
+        Literal('rupture_causality_tree', description="The fault propagation tree") : {str: Or(str, None)}
     }
 )
 

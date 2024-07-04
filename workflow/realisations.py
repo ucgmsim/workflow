@@ -125,9 +125,9 @@ class SourceConfig:
             elif isinstance(geometry, sources.Fault):
                 config_dict[name] = {
                     "type": "fault",
-                    "corners": to_name_coordinate_dictionary(geometry.corners()),
+                    "corners": to_name_coordinate_dictionary(geometry.corners),
                 }
-        return config_dict
+        return {'source_geometries': config_dict}
 
 
 @dataclasses.dataclass
@@ -204,10 +204,10 @@ class RupturePropagationConfig:
         config_dict = dataclasses.asdict(self)
         config_dict["jump_points"] = {
             fault: {
-                "from": to_name_coordinate_dictionary(
+                "from_point": to_name_coordinate_dictionary(
                     jump_point.from_point, ["s", "d"]
                 ),
-                "to": to_name_coordinate_dictionary(jump_point.to_point, ["s", "d"]),
+                "to_point": to_name_coordinate_dictionary(jump_point.to_point, ["s", "d"]),
             }
             for fault, jump_point in self.jump_points.items()
         }
