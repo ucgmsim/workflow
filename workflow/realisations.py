@@ -34,6 +34,8 @@ from pathlib import Path
 from typing import Optional, Protocol, Union
 
 import numpy as np
+from qcore import coordinates
+from qcore.bounding_box import BoundingBox
 
 from source_modelling import sources
 from source_modelling.rupture_propagation import JumpPair
@@ -127,7 +129,7 @@ class SourceConfig:
                     "type": "fault",
                     "corners": to_name_coordinate_dictionary(geometry.corners),
                 }
-        return {'source_geometries': config_dict}
+        return {"source_geometries": config_dict}
 
 
 @dataclasses.dataclass
@@ -151,6 +153,7 @@ class SRFConfig:
     genslip_seed: int
     genslip_version: str
     srfgen_seed: int
+    genslip_velocity_model: str
 
     def to_dict(self):
         """
@@ -207,7 +210,9 @@ class RupturePropagationConfig:
                 "from_point": to_name_coordinate_dictionary(
                     jump_point.from_point, ["s", "d"]
                 ),
-                "to_point": to_name_coordinate_dictionary(jump_point.to_point, ["s", "d"]),
+                "to_point": to_name_coordinate_dictionary(
+                    jump_point.to_point, ["s", "d"]
+                ),
             }
             for fault, jump_point in self.jump_points.items()
         }
@@ -216,31 +221,43 @@ class RupturePropagationConfig:
         )
         return config_dict
 
+    @property
+    def initial_fault(self) -> str:
+        """The initial fault in the rupture.
+
+        Returns
+        -------
+        str
+            The initial fault in the rupture.
+        """
+        return next(
+            fault_name
+            for fault_name, parent_name in self.rupture_causality_tree.items()
+            if parent_name is None
+        )
+
 
 @dataclasses.dataclass
 class DomainParameters:
     """
-    Parameters defining the spatial domain for simulation.
+    Parameters defining the spatial and temporal domain for simulation.
 
     Attributes
     ----------
     resolution : float
         The simulation resolution in kilometres.
-    centroid : np.ndarray
-        The centroid location of the model in latitude and longitude coordinates.
-    width : float
-        The width of the model in kilometres.
-    length : float
-        The length of the model in kilometres.
+    domain : BoundingBox
+        The bounding box for the domain.
     depth : float
-        The depth of the model in kilometres.
+        The depth of the domain (in metres).
+    duration : float
+        The simulation duration (in seconds).
     """
 
     resolution: float
-    centroid: np.ndarray
-    width: float
-    length: float
+    domain: BoundingBox
     depth: float
+    duration: float
 
     def to_dict(self):
         """
@@ -252,8 +269,21 @@ class DomainParameters:
             Dictionary representation of the object.
         """
         param_dict = dataclasses.asdict(self)
-        param_dict["centroid"] = to_name_coordinate_dictionary(self.centroid)
+        param_dict["domain"] = to_name_coordinate_dictionary(
+            coordinates.nztm_to_wgs_depth(self.domain.corners),
+            ["latitude", "longitude"],
+        )
         return param_dict
+
+
+@dataclasses.dataclass
+class VelocityModelParameters:
+    min_vs: float
+    version: str
+    topo_type: str
+
+    def to_dict(self):
+        return dataclasses.asdict(self)
 
 
 @dataclasses.dataclass
@@ -302,6 +332,7 @@ _REALISATION_KEYS = {
     DomainParameters: "domain",
     RupturePropagationConfig: "rupture_propagation",
     RealisationMetadata: "metadata",
+    VelocityModelParameters: "velocity_model",
 }
 
 

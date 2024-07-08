@@ -5,10 +5,13 @@ the Realisations Proposal page) for a description of realisations and
 the schemas.
 """
 
+from pathlib import Path
+
 import numpy as np
+from qcore.bounding_box import BoundingBox
 from schema import And, Literal, Optional, Or, Schema, Use
 
-from source_modelling import sources, rupture_propagation
+from source_modelling import rupture_propagation, sources
 
 # NOTE: These functions seem silly and short, however there is a good
 # reason for the choice to create functions like this. The reason is
@@ -292,6 +295,9 @@ SRF_SCHEMA = Schema(
             "5.4.2"
         ),
         Literal(
+            "genslip_velocity_model", description="The velocity model used by genslip"
+        ): And(str, Use(Path)),
+        Literal(
             "srfgen_seed",
             description="A second random seed for genslip (TODO: how does genslip use this value?)",
         ): And(int, is_non_negative),
@@ -303,18 +309,15 @@ DOMAIN_SCHEMA = Schema(
         Literal("resolution", description="The simulation resolution (in km)"): And(
             float, is_positive
         ),
-        Literal(
-            "centroid", description="The centroid location of the model"
-        ): LAT_LON_SCHEMA,
-        Literal("width", description="The width of the model (in km)"): And(
-            float, is_positive
-        ),
-        Literal("length", description="The length of the model (in km)"): And(
-            float, is_positive
+        Literal("domain", description="The corners of the simulation domain."): And(
+            Use(corners_to_array), Use(BoundingBox)
         ),
         Literal("depth", description="The depth of the model (in km)"): And(
             float, is_positive
         ),
+        Literal(
+            "duration", description="The duration of the simulation (in seconds)"
+        ): And(float, is_positive),
     }
 )
 
@@ -328,11 +331,35 @@ RUPTURE_PROPAGATION_SCHEMA = Schema(
             "magnitudes",
             description="The total moment magnitude for the rupture on this fault",
         ): {str: And(float, is_plausible_magnitude)},
-        Literal('jump_points', description='The jump points for the rupture'): {
-            str: And({ 'from_point': FAULT_LOCAL_COORDINATES_SCHEMA, 'to_point': FAULT_LOCAL_COORDINATES_SCHEMA }, Use(lambda pts: rupture_propagation.JumpPair(**pts)))
+        Literal("jump_points", description="The jump points for the rupture"): Or(
+            {
+                str: And(
+                    {
+                        "from_point": FAULT_LOCAL_COORDINATES_SCHEMA,
+                        "to_point": FAULT_LOCAL_COORDINATES_SCHEMA,
+                    },
+                    Use(lambda pts: rupture_propagation.JumpPair(**pts)),
+                )
+            },
+            {},
+        ),
+        Literal("rakes", description="The fault rakes"): {
+            str: And(float, is_valid_degrees)
         },
-        Literal("rakes", description="The fault rakes"): {str: And(float, is_valid_degrees)},
-        Literal('rupture_causality_tree', description="The fault propagation tree") : {str: Or(str, None)}
+        Literal("rupture_causality_tree", description="The fault propagation tree"): {
+            str: Or(str, None)
+        },
+    }
+)
+
+VELOCITY_MODEL_SCHEMA = Schema(
+    {
+        Literal(
+            "min_vs",
+            description="The minimum velocity (km/s) produced in the velocity model.",
+        ): And(float, is_positive),
+        Literal("version", "Velocity model version"): "2.06",
+        Literal("topo_type", "Velocity model topology type"): str,
     }
 )
 
