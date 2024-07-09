@@ -1,3 +1,4 @@
-numpy
+numpy<2
 schema
-source_modelling @ git+https://github.com/ucgmsim/source_modelling
+source_modelling @ git+https://github.com/ucgmsim/source_modelling@pegasus
+pegasus-wms
