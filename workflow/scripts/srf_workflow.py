@@ -109,7 +109,7 @@ class ProcessWorkflow:
         self.wf.add_jobs(ls_job)
 
 
-if __name__ == "__main__":
+def main():
     parser = ArgumentParser(description="Pegasus Process Workflow")
 
     parser.add_argument(
@@ -153,3 +153,7 @@ if __name__ == "__main__":
     workflow.create_workflow()
 
     workflow.write()
+
+
+if __name__ == "__main__":
+    main()
