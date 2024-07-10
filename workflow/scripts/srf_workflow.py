@@ -98,15 +98,15 @@ class ProcessWorkflow:
 
         # Add a ls job
         realisation = File("realisation.json")
-        output_directory = Directory("realisation")
-        ls_job = (
+        realisation_srf = File("realisation.srf")
+        srf_generation_job = (
             Job("generate_srf")
-            .add_args(realisation, output_directory)
+            .add_args(realisation, realisation_srf)
             .add_inputs(realisation)
-            .add_outputs(output_directory)
+            .add_outputs(realisation_srf)
         )
 
-        self.wf.add_jobs(ls_job)
+        self.wf.add_jobs(srf_generation_job)
 
 
 def main():
