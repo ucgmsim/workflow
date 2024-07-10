@@ -2,6 +2,6 @@ numpy<2
 pandas
 schema
 source_modelling @ git+https://github.com/ucgmsim/source_modelling@pegasus
-nshmdb git+https://github.com/ucgmsim/nshmdb@source_modelling
+nshmdb @ git+https://github.com/ucgmsim/nshmdb@source_modelling
 typer
 pegasus-wms
