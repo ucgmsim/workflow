@@ -26,9 +26,8 @@ from typing import Annotated, Generator
 
 import numpy as np
 import pandas as pd
-import srf
 import typer
-from qcore import binary_version, coordinates, grid, gsf
+from qcore import binary_version, coordinates, grid, gsf, srf_new
 
 from source_modelling.sources import IsSource
 from workflow import realisations
@@ -38,9 +37,6 @@ from workflow.realisations import (
     SourceConfig,
     SRFConfig,
 )
-
-FAULTSEG2GSFDIPDIR = "fault_seg2gsf_dipdir"
-SRF2STOCH = "srf2stoch"
 
 
 def normalise_name(name: str) -> str:
@@ -241,7 +237,7 @@ def stitch_srf_files(
         fault_points = {}
         header = []
 
-        srf.write_version(srf_file_output)
+        srf_new.write_version(srf_file_output)
 
         for fault_name in order:
             fault = faults[fault_name]
@@ -251,8 +247,8 @@ def stitch_srf_files(
                 "r",
                 encoding="utf-8",
             ) as fault_srf_file:
-                srf.read_version(fault_srf_file)
-                fault_header = srf.read_srf_headers(fault_srf_file)
+                srf_new.read_version(fault_srf_file)
+                fault_header = srf_new.read_srf_headers(fault_srf_file)
                 if parent:
                     for plane in fault_header:
                         # The value of -999, -999 is used in the SRF spec to say
@@ -260,13 +256,13 @@ def stitch_srf_files(
                         plane.shyp = -999
                         plane.dhyp = -999
                 header.extend(fault_header)
-                point_count = srf.read_points_count(fault_srf_file)
-                fault_points[fault_name] = srf.read_srf_n_points(
+                point_count = srf_new.read_points_count(fault_srf_file)
+                fault_points[fault_name] = srf_new.read_srf_n_points(
                     point_count, fault_srf_file
                 )
 
-        srf.write_srf_header(srf_file_output, header)
-        srf.write_point_count(
+        srf_new.write_srf_header(srf_file_output, header)
+        srf_new.write_point_count(
             srf_file_output, sum(len(points) for points in fault_points.values())
         )
         for fault_name in order:
@@ -302,7 +298,7 @@ def stitch_srf_files(
             cur_fault_points = fault_points[fault_name]
             for point in cur_fault_points:
                 point.tinit += t_delay
-                srf.write_srf_point(srf_file_output, point)
+                srf_new.write_srf_point(srf_file_output, point)
 
         return srf_output_filepath
 
