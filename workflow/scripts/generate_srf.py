@@ -20,7 +20,9 @@ import collections
 import functools
 import multiprocessing
 import re
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Annotated, Generator
 
@@ -370,13 +372,10 @@ def main(
             dir_okay=False,
         ),
     ],
-    output_directory: Annotated[
+    output_srf_filepath: Annotated[
         Path,
         typer.Argument(
-            exists=True,
-            writable=True,
-            file_okay=False,
-            help="The output directory path for SRF files.",
+            writable=True, help="The filepath for the final SRF file.", dir_okay=False
         ),
     ],
     subdivision_resolution: Annotated[
@@ -398,19 +397,25 @@ def main(
     metadata: RealisationMetadata = realisations.read_config_from_realisation(
         RealisationMetadata, realisation_filepath
     )
-    generate_fault_srfs_parallel(
-        source_config.source_geometries,
-        rupture_propagation,
-        output_directory,
-        subdivision_resolution,
-        srf_config,
-    )
-    stitch_srf_files(
-        source_config.source_geometries,
-        rupture_propagation,
-        output_directory,
-        normalise_name(metadata.name),
-    )
+
+    with tempfile.TemporaryDirectory() as scratch_directory:
+        scratch_directory = Path(scratch_directory)
+
+        generate_fault_srfs_parallel(
+            source_config.source_geometries,
+            rupture_propagation,
+            scratch_directory,
+            subdivision_resolution,
+            srf_config,
+        )
+        srf_name = normalise_name(metadata.name)
+        stitch_srf_files(
+            source_config.source_geometries,
+            rupture_propagation,
+            scratch_directory,
+            srf_name,
+        )
+        shutil.copyfile(scratch_directory / (srf_name + ".srf"), output_srf_filepath)
 
 
 if __name__ == "__main__":
