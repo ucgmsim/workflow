@@ -247,7 +247,7 @@ def stitch_srf_files(
             with open(
                 output_directory / "srf" / (normalise_name(fault_name) + ".srf"),
                 "r",
-                encoding="utf-8",
+                 encoding="utf-8",
             ) as fault_srf_file:
                 srf_new.read_version(fault_srf_file)
                 fault_header = srf_new.read_srf_headers(fault_srf_file)
@@ -406,25 +406,23 @@ def generate_srf(
         RealisationMetadata, realisation_filepath
     )
 
-    with tempfile.TemporaryDirectory() as scratch_directory:
-        scratch_directory = Path(scratch_directory)
-
-        generate_fault_srfs_parallel(
-            source_config.source_geometries,
-            rupture_propagation,
-            scratch_directory,
-            subdivision_resolution,
-            srf_config,
-            velocity_model_file
-        )
-        srf_name = normalise_name(metadata.name)
-        stitch_srf_files(
-            source_config.source_geometries,
-            rupture_propagation,
-            scratch_directory,
-            srf_name,
-        )
-        shutil.copyfile(scratch_directory / (srf_name + ".srf"), output_srf_filepath)
+    scratch_directory = Path('/out')
+    generate_fault_srfs_parallel(
+        source_config.source_geometries,
+        rupture_propagation,
+        scratch_directory,
+        subdivision_resolution,
+        srf_config,
+        velocity_model_file
+    )
+    srf_name = normalise_name(metadata.name)
+    stitch_srf_files(
+        source_config.source_geometries,
+        rupture_propagation,
+        scratch_directory,
+        srf_name,
+    )
+    shutil.copyfile(scratch_directory / (srf_name + ".srf"), output_srf_filepath)
 
 def main():
     typer.run(generate_srf)
