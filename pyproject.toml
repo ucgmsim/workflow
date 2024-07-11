@@ -14,7 +14,7 @@ dynamic = ["version", "dependencies"]
 
 [project.scripts]
 srf-workflow = "workflow.scripts.srf_workflow:main"
-nshm20222-to-realisation = "workflow.scripts.nshm2022_to_realisation:main"
+nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:main"
 realisation-to-srf = "workflow.scripts.generate_srf:main"
 
 [tool.setuptools.package-dir]
