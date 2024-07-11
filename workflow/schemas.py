@@ -295,9 +295,6 @@ SRF_SCHEMA = Schema(
             "5.4.2"
         ),
         Literal(
-            "genslip_velocity_model", description="The velocity model used by genslip"
-        ): And(str, Use(Path)),
-        Literal(
             "srfgen_seed",
             description="A second random seed for genslip (TODO: how does genslip use this value?)",
         ): And(int, is_non_negative),
