@@ -135,8 +135,6 @@ def generate_fault_srf(
         subdivision_resolution,
     )
 
-    genslip_bin = Path.home() / 'EMOD3D' / 'tools' / 'genslip_v5.4.2'
-
     nx = sum(
         grid.gridpoint_count_in_length(plane.length_m, subdivision_resolution * 1000)
         for plane in fault.planes
@@ -148,7 +146,7 @@ def generate_fault_srf(
         hypocentre_local_coordinates - np.array([-1 / 2, 0])
     )
     genslip_cmd = [
-        str(genslip_bin),
+        '/EMOD3D/tools/genslip_v5.4.2',
         "read_erf=0",
         "write_srf=1",
         "read_gsf=1",
