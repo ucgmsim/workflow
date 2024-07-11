@@ -34,7 +34,6 @@ RUN apt-get update && apt-get install -y \
     python-is-python3
 COPY EMOD3D EMOD3D
 COPY nshmdb.db nshmdb.db
-COPY velocity_model.vmod velocity_mod.vmod
 RUN pip install \
     "git+https://github.com/ucgmsim/workflow@pegasus" \
     --break-system-packages

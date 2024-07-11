@@ -9,4 +9,4 @@
     [[nshm_to_realisation]]
         script = podman run --security-opt label=disable --mount type=bind,source=$CYLC_WORKFLOW_SHARE_DIR,dst=/share,rw=true --mount type=bind,source=.,dst=/out,rw=true -it runner nshm2022-to-realisation /nshmdb.db 0 /share/realisation.json
     [[realisation_to_srf]]
-        script =  podman run --security-opt label=disable --mount type=bind,source=$CYLC_WORKFLOW_SHARE_DIR,dst=/share,rw=true --mount type=bind,source=.,dst=/out,rw=true -it runner realisation-to-srf /share/realisation.json /share/realisation.srf /velocity_mod.vmod
+        script =  podman run --security-opt label=disable --mount type=bind,source=$CYLC_WORKFLOW_SHARE_DIR,dst=/share,rw=true --mount type=bind,source=.,dst=/out,rw=true -it runner realisation-to-srf /share/realisation.json /share/realisation.srf

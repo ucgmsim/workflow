@@ -22,7 +22,6 @@ import multiprocessing
 import re
 import shutil
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import Annotated, Generator
 
@@ -111,7 +110,7 @@ def generate_fault_srf(
     output_directory: Path,
     subdivision_resolution: float,
     srf_config: SRFConfig,
-    velocity_model_file: Path
+    velocity_model_path: Path,
 ):
     """Generate an SRF file for a given fault.
 
@@ -146,7 +145,7 @@ def generate_fault_srf(
         hypocentre_local_coordinates - np.array([-1 / 2, 0])
     )
     genslip_cmd = [
-        '/EMOD3D/tools/genslip_v5.4.2',
+        "/EMOD3D/tools/genslip_v5.4.2",
         "read_erf=0",
         "write_srf=1",
         "read_gsf=1",
@@ -158,7 +157,7 @@ def generate_fault_srf(
         "ns=1",
         "nh=1",
         f"seed={srf_config.genslip_seed}",
-        f"velfile={velocity_model_file}",
+        f"velfile={velocity_model_path}",
         f"shypo={genslip_hypocentre_coords[0]}",
         f"dhypo={genslip_hypocentre_coords[1]}",
         f"dt={srf_config.genslip_dt}",
@@ -176,7 +175,7 @@ def generate_fault_srf(
 
     srf_file_path = output_directory / "srf" / (name + ".srf")
     with open(srf_file_path, "w", encoding="utf-8") as srf_file_handle:
-        print(' '.join(genslip_cmd))
+        print(" ".join(genslip_cmd))
         subprocess.run(
             genslip_cmd, stdout=srf_file_handle, stderr=subprocess.PIPE, check=True
         )
@@ -247,7 +246,7 @@ def stitch_srf_files(
             with open(
                 output_directory / "srf" / (normalise_name(fault_name) + ".srf"),
                 "r",
-                 encoding="utf-8",
+                encoding="utf-8",
             ) as fault_srf_file:
                 srf_new.read_version(fault_srf_file)
                 fault_header = srf_new.read_srf_headers(fault_srf_file)
@@ -311,7 +310,7 @@ def generate_fault_srfs_parallel(
     output_directory: Path,
     subdivision_resolution: float,
     srf_config: SRFConfig,
-    velocity_model_file: Path
+    velocity_model_path: Path,
 ):
     """Generate fault SRF files in parallel.
 
@@ -329,7 +328,6 @@ def generate_fault_srfs_parallel(
     gsf_directory.mkdir(exist_ok=True)
     srf_directory = output_directory / "srf"
     srf_directory.mkdir(exist_ok=True)
-    fault_names = [normalise_name(fault_name) for fault_name in faults]
     magnitudes = rupture_propagation_config.magnitudes
     rakes = rupture_propagation_config.rakes
     hypocentres = {
@@ -350,20 +348,19 @@ def generate_fault_srfs_parallel(
         )
         for fault_name in faults
     ]
-    for fault_name, fault, rake, magnitude, hypocentre in srf_generation_parameters:
-        generate_fault_srf(
-            fault_name,
-            fault,
-            rake,
-            magnitude,
-            hypocentre,
-            output_directory=output_directory,
-            subdivision_resolution=subdivision_resolution,
-            srf_config=srf_config,
-            velocity_model_file=velocity_model_file
-            
+
+    with multiprocessing.Pool() as worker_pool:
+        worker_pool.starmap(
+            functools.partial(
+                generate_fault_srf,
+                output_directory=output_directory,
+                subdivision_resolution=subdivision_resolution,
+                srf_config=srf_config,
+                velocity_model_path=velocity_model_path,
+            ),
+            srf_generation_parameters,
         )
-    
+
 
 def generate_srf(
     realisation_filepath: Annotated[
@@ -381,14 +378,23 @@ def generate_srf(
             writable=True, help="The filepath for the final SRF file.", dir_okay=False
         ),
     ],
-    velocity_model_file: Annotated[
-        Path,
-        typer.Argument(readable=True, dir_okay=False, help='The path to the velocity model for genslip.')
-    ],
     subdivision_resolution: Annotated[
         float, typer.Option(help="Geometry resolution (in km)", min=0)
     ] = 0.1,
-    
+    work_directory: Annotated[
+        Path,
+        typer.Option(
+            help="Path to output intermediate geometry and SRF files",
+            exists=True,
+            file_okay=False,
+        ),
+    ] = Path("/out"),
+    velocity_model: Annotated[
+        Path,
+        typer.Option(
+            "Path to the genslip velocity model.", readable=True, dir_okay=False
+        ),
+    ] = "/share/genslip_velocity_model.vmod",
 ):
     """Generate a type-5 SRF file from a given realisation specification."""
     srf_config: SRFConfig = realisations.read_config_from_realisation(
@@ -406,26 +412,27 @@ def generate_srf(
         RealisationMetadata, realisation_filepath
     )
 
-    scratch_directory = Path('/out')
     generate_fault_srfs_parallel(
         source_config.source_geometries,
         rupture_propagation,
-        scratch_directory,
+        work_directory,
         subdivision_resolution,
         srf_config,
-        velocity_model_file
+        velocity_model,
     )
     srf_name = normalise_name(metadata.name)
     stitch_srf_files(
         source_config.source_geometries,
         rupture_propagation,
-        scratch_directory,
+        work_directory,
         srf_name,
     )
-    shutil.copyfile(scratch_directory / (srf_name + ".srf"), output_srf_filepath)
+    shutil.copyfile(work_directory / (srf_name + ".srf"), output_srf_filepath)
+
 
 def main():
     typer.run(generate_srf)
+
 
 if __name__ == "__main__":
     main()
