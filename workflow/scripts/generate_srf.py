@@ -178,8 +178,9 @@ def generate_fault_srf(
 
     srf_file_path = output_directory / "srf" / (name + ".srf")
     with open(srf_file_path, "w", encoding="utf-8") as srf_file_handle:
+        print(' '.join(genslip_cmd))
         subprocess.run(
-            genslip_cmd, stdout=srf_file_handle, stderr=subprocess.PIPE, check=True, shell=True
+            genslip_cmd, stdout=srf_file_handle, stderr=subprocess.PIPE, check=True
         )
 
 
