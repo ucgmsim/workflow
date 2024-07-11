@@ -362,7 +362,7 @@ def generate_fault_srfs_parallel(
         )
 
 
-def main(
+def generate_srf(
     realisation_filepath: Annotated[
         Path,
         typer.Argument(
@@ -417,6 +417,8 @@ def main(
         )
         shutil.copyfile(scratch_directory / (srf_name + ".srf"), output_srf_filepath)
 
+def main():
+    typer.run(generate_srf)
 
 if __name__ == "__main__":
-    typer.run(main)
+    main()

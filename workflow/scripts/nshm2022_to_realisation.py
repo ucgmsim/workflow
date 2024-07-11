@@ -41,7 +41,7 @@ def expected_hypocentre() -> np.ndarray:
     return np.array([1 / 2, distributions.truncated_weibull_expected_value(1)])
 
 
-def main(
+def generate_realisation(
     nshm_db_file: Annotated[
         Path,
         typer.Argument(
@@ -117,5 +117,8 @@ def main(
         realisations.write_config_to_realisation(section, realisation_ffp)
 
 
+def main():
+    typer.run(generate_realisation)
+        
 if __name__ == "__main__":
-    typer.run(main)
+    main()
