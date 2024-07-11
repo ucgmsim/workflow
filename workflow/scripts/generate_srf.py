@@ -351,19 +351,20 @@ def generate_fault_srfs_parallel(
         )
         for fault_name in faults
     ]
-
-    with multiprocessing.Pool() as worker_pool:
-        worker_pool.starmap(
-            functools.partial(
-                generate_fault_srf,
-                output_directory=output_directory,
-                subdivision_resolution=subdivision_resolution,
-                srf_config=srf_config,
-                velocity_model_file=velocity_model_file
-            ),
-            srf_generation_parameters,
+    for fault_name, fault, rake, magnitude, hypocentre in srf_generation_parameters:
+        generate_fault_srf(
+            fault_name,
+            fault,
+            rake,
+            magnitude,
+            hypocentre,
+            output_directory=output_directory,
+            subdivision_resolution=subdivision_resolution,
+            srf_config=srf_config,
+            velocity_model_file=velocity_model_file
+            
         )
-
+    
 
 def generate_srf(
     realisation_filepath: Annotated[
