@@ -135,7 +135,7 @@ def generate_fault_srf(
         subdivision_resolution,
     )
 
-    genslip_bin = 'genslip_v5.4.2'
+    genslip_bin = Path.home() / 'EMOD3D' / 'tools' / 'genslip_v5.4.2'
 
     nx = sum(
         grid.gridpoint_count_in_length(plane.length_m, subdivision_resolution * 1000)
