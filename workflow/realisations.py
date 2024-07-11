@@ -153,7 +153,6 @@ class SRFConfig:
     genslip_seed: int
     genslip_version: str
     srfgen_seed: int
-    genslip_velocity_model: str
 
     def to_dict(self):
         """
