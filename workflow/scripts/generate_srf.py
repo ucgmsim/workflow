@@ -148,7 +148,7 @@ def generate_fault_srf(
         hypocentre_local_coordinates - np.array([-1 / 2, 0])
     )
     genslip_cmd = [
-        genslip_bin,
+        str(genslip_bin),
         "read_erf=0",
         "write_srf=1",
         "read_gsf=1",
