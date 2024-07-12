@@ -1,0 +1,152 @@
+#+TITLE: Cylc on NeSI
+
+* Setup for NESI
+
+To properly use =cylc= on NESI you need to set the two environment variables =PROJECT= and =CYLC_VERSION=. The default cylc version is =7.x= which is very old, so set it to the latest.
+
+#+begin_src bash
+  export PROJECT=nesi00213
+  export CYLC_VERSION=8.3.0 # latest at the time of writing
+#+end_src
+* Running in containers
+To run in a container, you need to load the =Apptainer= module and then execute the script with =apptainer exec=.
+
+In your =flow.cylc=:
+#+begin_src conf
+  [runtime]
+      [[root]]
+          platform = mahuika-slurm
+          pre-script = """
+          module load Apptainer
+          """
+#+end_src
+
+The special =root= runtime specifies global configuration inherited by
+all jobs. It is exactly equivalent to adding the =pre-script= and
+=platform= variables to every job you define.
+
+and then you need to have the something like the following in your =runtime= section.
+
+#+begin_src conf
+  [[nshm_to_realisation]]
+      script = apptainer exec --bind "$CYLC_WORKFLOW_WORK_DIR:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" ~/runner_latest.sif nshm2022-to-realisation /nshmdb.db 0 /share/realisation.json
+#+end_src
+
+Notice the =--bind= argument. This needs to be passed to every job
+executing the container if you want to actually read the output of the
+job (otherwise there is no communication with the host and the data is
+destroyed at the end). For some reason it is not possible to set the
+=APPTAINER_BIND= environment variable in the =environment= subsection
+under =root=. This would allow us extract the bind directives and simply have
+
+#+begin_src conf
+  [runtime]
+      [[root]]
+          platform = mahuika-slurm
+          pre-script = """
+          module load Apptainer
+          """
+      [[nshm_to_realisation]]
+          script = apptainer exec ~/runner_latest.sif nshm2022-to-realisation /nshmdb.db 0 /share/realisation.json
+#+end_src
+
+* The Cylc Install Process
+According to the [[https://cylc.github.io/cylc-doc/stable/html/user-guide/installing-workflows.html#the-cylc-install-process][cylc install documentation]] inside the
+=cylc-src/workflow= directory defining the workflow, directories and
+files are copied to =cylc-run/workflow=. In addition
+=cylc-run/workflow/bin= is in =PATH= for all jobs executed in the
+workflow.
+
+This means that an alternative to setting =APPTAINER_BIND= could simply be a file =workflow/bin/exec-in-container=
+
+#+begin_src bash
+  #!/usr/bin/env bash
+
+  apptainer exec --bind "$CYLC_WORKFLOW_WORK_DIR:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" $CONTAINER $0
+#+end_src
+
+and then a runtime like
+#+begin_src conf
+  [runtime]
+      [[root]]
+          platform = mahuika-slurm
+          pre-script = """
+          module load Apptainer
+          """
+          [[[environment]]]
+              CONTAINER = ~/runner_latest.sif
+      [[nshm_to_realisation]]
+          script = exec-in-container nshm2022-to-realisation /nshmdb.db 0 /share/realisation.json
+#+end_src
+
+* Cylc + Jinja Templating: For large-scale and variable workflows?
+Still unsure if cylc workflows should be one per realisation or one
+workflow per cybershake run. Initially thought it was obviously one
+per realisation, but now believe that cylc wants you to have multiple
+different jobs run under the same workflow and then manage the
+generation of jobs with jinja templating.
+
+Here is the example they give for running multiple simulation for different cities:
+#+begin_src conf
+  #!Jinja2
+  [meta]
+      title = "Jinja2 city workflow example."
+      description = """
+          Illustrates use of variables and math expressions, and programmatic
+          generation of groups of related dependencies and runtime properties.
+      """
+
+  [scheduler]
+      allow implicit tasks = True
+
+  {% set HOST = "SuperComputer" %}
+  {% set CITIES = 'NewYork', 'Philadelphia', 'Newark', 'Houston', 'SantaFe', 'Chicago' %}
+  {% set CITYJOBS = 'one', 'two', 'three', 'four' %}
+  {% set LIMIT_MINS = 20 %}
+
+  {% set CLEANUP = True %}
+
+  [scheduling]
+      initial cycle point = 2011-08-08T12
+      [[graph]]
+  {% if CLEANUP %}
+          T23 = "clean"
+  {% endif %}
+          T00,T12 = """
+              setup => get_lbc & get_ic # foo
+      {% for CITY in CITIES %} {# comment #}
+              get_lbc => {{ CITY }}_one
+              get_ic => {{ CITY }}_two
+              {{ CITY }}_one & {{ CITY }}_two => {{ CITY }}_three & {{ CITY }}_four
+          {% if CLEANUP %}
+              {{ CITY }}_three & {{ CITY }}_four => cleanup
+      {% endif %}
+  {% endfor %}
+          """
+
+  [runtime]
+      [[on_{{ HOST }} ]]
+          [[[remote]]]
+              host = {{ HOST }}
+              # (remote cylc directory is set in site/user config for this host)
+          [[[directives]]]
+              wall_clock_limit = "00:{{ LIMIT_MINS|int() + 2 }}:00,00:{{ LIMIT_MINS }}:00"
+
+  {% for CITY in CITIES %}
+      [[ {{ CITY }} ]]
+          inherit = on_{{ HOST }}
+      {% for JOB in CITYJOBS %}
+      [[ {{ CITY }}_{{ JOB }} ]]
+          inherit = {{ CITY }}
+      {% endfor %}
+  {% endfor %}
+#+end_src
+
+Note that they do not encourage creating one =flow.cylc= per city and build a template instead. This to me closely mirrors how we run cybershake over multiple faults.
+Perhaps the best approach would be to use jinja to compile one huge =flow.cylc= for each cybershake run. Configuration via command line switches using jinja is also allowed. So a hypothetical =flow.cylc= file might be installed like
+
+#+begin_src bash
+  cylc install cybershake --gcmt --no-hf --no-bb --for-solutions $GCMT_SOLUTION_IDS # etc..
+#+end_src
+
+and then =cylc run cybershake/run1= would get start the cylc job running.
