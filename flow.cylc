@@ -13,9 +13,7 @@
         """
         [[[directives]]]
             --account = nesi00213
-        [[[environment]]]
-            APPTAINER_BIND = "$CYLC_WORKFLOW_WORK_DIR:/out,$CYLC_WORKFLOW_SHARE_DIR:/share"
     [[nshm_to_realisation]]
-        script = apptainer exec ~/runner_latest.sif nshm2022-to-realisation /nshmdb.db 0 /share/realisation.json
+        script = apptainer exec --bind "$CYLC_WORKFLOW_WORK_DIR:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" ~/runner_latest.sif nshm2022-to-realisation /nshmdb.db 0 /share/realisation.json
     [[realisation_to_srf]]
-        script = apptainer exec ~/runner_latest.sif realisation-to-srf /share/realisation.json /share/realisation.srf
+        script = apptainer exec --bind "$CYLC_WORKFLOW_WORK_DIR:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" ~/runner_latest.sif realisation-to-srf /share/realisation.json /share/realisation.srf
