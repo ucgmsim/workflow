@@ -42,4 +42,7 @@ RUN cd /EMOD3D && \
     cd build && \
     cmake .. && \
     make genslip_v5.4.2 srf2stoch
-ENV PATH="$PATH:/EMOD3D/tools"
+RUN git clone --depth 1 https://github.com/ucgmsim/Velocity-Model.git && \
+    cd Velocity-Model && \
+    make parallel
+ENV PATH="$PATH:/EMOD3D/tools:/Velocity-Model"
