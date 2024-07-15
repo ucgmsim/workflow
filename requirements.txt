@@ -3,7 +3,7 @@ fiona
 geopandas
 nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB@source_modelling
 numpy<2
-oq-engine @ git+https://github.com/gem/oq-engine
+openquake-engine @ git+https://github.com/gem/oq-engine
 pandas
 pegasus-wms
 qcore @ git+https://github.com/ucgmsim/qcore@pegasus
