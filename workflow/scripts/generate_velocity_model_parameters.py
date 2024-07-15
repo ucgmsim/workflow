@@ -39,8 +39,6 @@ from workflow.realisations import (
     VelocityModelParameters,
 )
 
-NZ_LAND_OUTLINE = Path(__file__).resolve().parent / "../SrfGen/NHM/res/rough_land.txt"
-
 
 def get_nz_outline_polygon() -> Polygon:
     """

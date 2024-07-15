@@ -323,6 +323,7 @@ _REALISATION_SCHEMAS = {
     DomainParameters: schemas.DOMAIN_SCHEMA,
     RupturePropagationConfig: schemas.RUPTURE_PROPAGATION_SCHEMA,
     RealisationMetadata: schemas.REALISATION_METADATA_SCHEMA,
+    VelocityModelParameters: schemas.VELOCITY_MODEL_SCHEMA,
 }
 
 _REALISATION_KEYS = {
