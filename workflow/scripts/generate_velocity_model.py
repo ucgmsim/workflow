@@ -70,6 +70,7 @@ def generate_velocity_model(
             help="Path to output velocity model directory.",
             writable=True,
             file_okay=False,
+            exists=False,
         ),
     ],
     velocity_model_bin_path: Annotated[
@@ -112,7 +113,8 @@ def generate_velocity_model(
     )
     run_nzvm(velocity_model_bin_path, nzvm_config_path, num_threads)
     shutil.copytree(
-        velocity_model_intermediate_path, velocity_model_output / "Velocity_Model"
+        velocity_model_intermediate_path / "Velocity_Model",
+        velocity_model_output / "Velocity_Model",
     )
 
 
