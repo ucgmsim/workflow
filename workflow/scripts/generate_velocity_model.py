@@ -80,7 +80,7 @@ def generate_velocity_model(
         Path,
         typer.Option(
             help="Directory to intermediate output files to.",
-            exists=True,
+            exists=False,
             writable=True,
             file_okay=False,
         ),
