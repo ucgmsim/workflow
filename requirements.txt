@@ -1,4 +1,4 @@
-empiricalt @ git+https://github.com/ucgmsim/Empirical_Engine
+empirical @ git+https://github.com/ucgmsim/Empirical_Engine
 geopandas
 nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB@source_modelling
 numpy<2
