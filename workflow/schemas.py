@@ -307,7 +307,7 @@ DOMAIN_SCHEMA = Schema(
             float, is_positive
         ),
         Literal("domain", description="The corners of the simulation domain."): And(
-            Use(corners_to_array), Use(BoundingBox)
+            Use(corners_to_array), Use(BoundingBox.from_wgs84_coordinates)
         ),
         Literal("depth", description="The depth of the model (in km)"): And(
             float, is_positive
