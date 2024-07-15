@@ -85,6 +85,13 @@ def generate_velocity_model(
             file_okay=False,
         ),
     ] = "/out/Velocity_Model",
+    num_threads: Annotated[
+        int,
+        typer.Option(
+            help="Number of threads to use for velocity model generation (-1 for inferred thread count).",
+            min=-1,
+        ),
+    ] = -1,
 ) -> None:
     """Generate velocity model for a realisation."""
     domain_parameters: DomainParameters = realisations.read_config_from_realisation(
@@ -102,7 +109,7 @@ def generate_velocity_model(
         nzvm_config_path,
         output_path=scratch_directory,
     )
-    run_nzvm(velocity_model_bin_path, nzvm_config_path)
+    run_nzvm(velocity_model_bin_path, nzvm_config_path, num_threads)
     copy_nzvm_files(scratch_directory, velocity_model_output)
 
 
