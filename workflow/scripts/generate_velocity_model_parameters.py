@@ -295,7 +295,9 @@ def generate_velocity_model_parameters(
     ] = 0.5,
     ds_multiplier: Annotated[float, typer.Option(help="Ds multiplier")] = 1.2,
     vm_version: Annotated[str, typer.Option(help="Velocity model version.")] = "2.06",
-    vm_topo_type: Annotated[str, typer.Option(help="VM topology type")] = "SQUASHED",
+    vm_topo_type: Annotated[
+        str, typer.Option(help="VM topology type")
+    ] = "SQUASHED_TAPERED",
 ):
     """Generate velocity model parameters for a realisation."""
     source_config: SourceConfig = realisations.read_config_from_realisation(
