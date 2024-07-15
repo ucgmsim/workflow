@@ -54,11 +54,6 @@ def run_nzvm(nzvm_binary_ffp: Path, nzvm_config_ffp: Path, num_threads: int) -> 
     )
 
 
-def copy_nzvm_files(scratch_directory: Path, velocity_model_output: Path) -> None:
-    generated_velocity_model_files = scratch_directory / "Velocity_Model"
-    shutil.copytree(generated_velocity_model_files, velocity_model_output)
-
-
 def generate_velocity_model(
     realisation_filepath: Annotated[
         Path,
@@ -116,8 +111,8 @@ def generate_velocity_model(
         output_path=velocity_model_intermediate_path,
     )
     run_nzvm(velocity_model_bin_path, nzvm_config_path, num_threads)
-    copy_nzvm_files(
-        velocity_model_intermediate_path / "Velocity_Model", velocity_model_output
+    shutil.copytree(
+        velocity_model_intermediate_path, velocity_model_output / "Velocity_Model"
     )
 
 
