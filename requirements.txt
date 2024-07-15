@@ -1,7 +1,12 @@
+empiricalt @ git+https://github.com/ucgmsim/Empirical_Engine
+geopandas
+nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB@source_modelling
 numpy<2
 pandas
-schema
-source_modelling @ git+https://github.com/ucgmsim/source_modelling@pegasus
-nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB@source_modelling
-typer
 pegasus-wms
+qcore @ git+https://github.com/ucgmsim/qcore@pegasus
+schema
+scipy
+shapely
+source_modelling @ git+https://github.com/ucgmsim/source_modelling@pegasus
+typer
