@@ -112,7 +112,7 @@ def generate_velocity_model(
         nzvm_config_path,
         output_path=velocity_model_intermediate_path,
     )
-    run_nzvm(velocity_model_bin_path, velocity_model_intermediate_path, num_threads)
+    run_nzvm(velocity_model_bin_path, nzvm_config_path, num_threads)
     copy_nzvm_files(
         velocity_model_intermediate_path / "Velocity_Model", velocity_model_output
     )
