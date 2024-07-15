@@ -394,7 +394,7 @@ def generate_srf(
         typer.Option(
             help="Path to the genslip velocity model.", readable=True, dir_okay=False
         ),
-    ] = Path("/share/genslip_velocity_model.vmod"),
+    ] = Path("/genslip_velocity_model.vmod"),
 ):
     """Generate a type-5 SRF file from a given realisation specification."""
     srf_config: SRFConfig = realisations.read_config_from_realisation(

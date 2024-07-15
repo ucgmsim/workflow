@@ -34,6 +34,7 @@ RUN apt-get update && apt-get install -y \
     python-is-python3
 COPY EMOD3D EMOD3D
 COPY nshmdb.db nshmdb.db
+COPY genslip_velocity_model.vmod genslip_velocity_model.vmod
 RUN pip install \
     "git+https://github.com/ucgmsim/workflow@pegasus" \
     --break-system-packages
