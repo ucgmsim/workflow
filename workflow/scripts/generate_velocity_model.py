@@ -103,13 +103,14 @@ def generate_velocity_model(
         )
     )
     nzvm_config_path = scratch_directory / "nzvm.cfg"
+    velocity_model_intermediate_path = scratch_directory / "Velocity_Model"
+
     write_nzvm_config(
         domain_parameters,
         velocity_model_parameters,
         nzvm_config_path,
-        output_path=scratch_directory,
+        output_path=velocity_model_intermediate_path,
     )
-    velocity_model_intermediate_path = scratch_directory / "Velocity_Model"
     run_nzvm(velocity_model_bin_path, velocity_model_intermediate_path, num_threads)
     copy_nzvm_files(
         velocity_model_intermediate_path / "Velocity_Model", velocity_model_output
