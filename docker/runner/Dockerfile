@@ -37,6 +37,7 @@ COPY nshmdb.db nshmdb.db
 RUN pip install \
     "git+https://github.com/ucgmsim/workflow@pegasus" \
     --break-system-packages
+RUN python -c "from qcore.data import download_data; download_data.download_data()"
 RUN cd /EMOD3D && \
     mkdir build && \
     cd build && \
