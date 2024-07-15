@@ -19,20 +19,22 @@ def write_nzvm_config(
     with open(nzvm_config_path, mode="w", encoding="utf-8") as nzvm_file_handle:
         nzvm_file_handle.write(
             "\n".join(
-                "CALL_TYPE=GENERATE_VELOCITY_MOD",
-                f"MODEL_VERSION={velocity_model_parameters.version}",
-                f"OUTPUT_DIR={output_path}",
-                f"ORIGIN_LAT={domain_parameters.domain.origin[0]}",
-                f"ORIGIN_LON={domain_parameters.domain.origin[1]}",
-                f"ORIGIN_ROT={domain_parameters.domain.bearing}",
-                f"EXTENT_X={domain_parameters.domain.extent_x}",
-                f"EXTENT_Y={domain_parameters.domain.extent_y}",
-                "EXTENT_ZMIN=0",  # TODO: CHANGE THIS
-                f"EXTENT_ZMAX={domain_parameters.depth}",
-                f"EXTENT_Z_SPACING={domain_parameters.resolution}",
-                f"EXTENT_LATLON_SPACING={domain_parameters.resolution}",
-                f"MIN_VS={velocity_model_parameters.min_vs}",
-                f"TOPO_TYPE={velocity_model_parameters.topo_type}",
+                [
+                    "CALL_TYPE=GENERATE_VELOCITY_MOD",
+                    f"MODEL_VERSION={velocity_model_parameters.version}",
+                    f"OUTPUT_DIR={output_path}",
+                    f"ORIGIN_LAT={domain_parameters.domain.origin[0]}",
+                    f"ORIGIN_LON={domain_parameters.domain.origin[1]}",
+                    f"ORIGIN_ROT={domain_parameters.domain.bearing}",
+                    f"EXTENT_X={domain_parameters.domain.extent_x}",
+                    f"EXTENT_Y={domain_parameters.domain.extent_y}",
+                    "EXTENT_ZMIN=0",  # TODO: CHANGE THIS
+                    f"EXTENT_ZMAX={domain_parameters.depth}",
+                    f"EXTENT_Z_SPACING={domain_parameters.resolution}",
+                    f"EXTENT_LATLON_SPACING={domain_parameters.resolution}",
+                    f"MIN_VS={velocity_model_parameters.min_vs}",
+                    f"TOPO_TYPE={velocity_model_parameters.topo_type}",
+                ]
             )
         )
 
