@@ -84,7 +84,7 @@ def generate_velocity_model(
             writable=True,
             file_okay=False,
         ),
-    ] = "/out/Velocity_Model",
+    ] = "/out",
     num_threads: Annotated[
         int,
         typer.Option(
@@ -109,8 +109,11 @@ def generate_velocity_model(
         nzvm_config_path,
         output_path=scratch_directory,
     )
-    run_nzvm(velocity_model_bin_path, nzvm_config_path, num_threads)
-    copy_nzvm_files(scratch_directory, velocity_model_output)
+    velocity_model_intermediate_path = scratch_directory / "Velocity_Model"
+    run_nzvm(velocity_model_bin_path, velocity_model_intermediate_path, num_threads)
+    copy_nzvm_files(
+        velocity_model_intermediate_path / "Velocity_Model", velocity_model_output
+    )
 
 
 def main():
