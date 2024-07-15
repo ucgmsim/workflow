@@ -16,6 +16,8 @@ dynamic = ["version", "dependencies"]
 srf-workflow = "workflow.scripts.srf_workflow:main"
 nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:main"
 realisation-to-srf = "workflow.scripts.realisation_to_srf:main"
+generate-velocity-model-parameters = "workflow.scripts.generate_velocity_model_parameters:main"
+generate-velocity-model = "workflow.scripts.generate_velocity_model:main"
 
 [tool.setuptools.package-dir]
 workflow = "workflow"

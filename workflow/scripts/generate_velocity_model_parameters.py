@@ -279,7 +279,7 @@ def total_magnitude(magnitudes: np.ndarray) -> float:
     return mag_scaling.mom2mag(np.sum(mag_scaling.mag2mom(magnitudes)))
 
 
-def main(
+def generate_velocity_model_parameters(
     realisation_filepath: Annotated[
         Path,
         typer.Argument(
@@ -382,5 +382,9 @@ def main(
     )
 
 
+def main():
+    typer.run(generate_velocity_model_parameters)
+
+
 if __name__ == "__main__":
-    typer.run(main)
+    main()
