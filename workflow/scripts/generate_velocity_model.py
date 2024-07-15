@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -46,8 +47,8 @@ def run_nzvm(nzvm_binary_ffp: Path, nzvm_config_ffp: Path, num_threads: int) -> 
         [str(nzvm_binary_ffp), str(nzvm_config_ffp)],
         cwd=nzvm_binary_ffp.parent,
         env=environment,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
         check=True,
     )
 
