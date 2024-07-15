@@ -35,6 +35,7 @@ def write_nzvm_config(
                     f"EXTENT_LATLON_SPACING={domain_parameters.resolution}",
                     f"MIN_VS={velocity_model_parameters.min_vs}",
                     f"TOPO_TYPE={velocity_model_parameters.topo_type}",
+                    "",
                 ]
             )
         )
