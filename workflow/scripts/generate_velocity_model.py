@@ -47,6 +47,7 @@ def run_nzvm(nzvm_binary_ffp: Path, nzvm_config_ffp: Path, num_threads: int) -> 
         cwd=nzvm_binary_ffp.parent,
         env=environment,
         capture_output=True,
+        check=True,
     )
 
 
