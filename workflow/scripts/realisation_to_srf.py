@@ -6,14 +6,6 @@ This script facilitates the generation of SRF files from realisation
 specifications. It generates fault geometries, generates SRF
 files from fault geometries, and stitches together these files in the order
 of rupture propagation.
-
-Usage
------
-To generate a SRF file from a realisation specification:
-
-```
-$ python srf_generation.py path/to/realisation.yaml output_directory
-```
 """
 
 import collections
@@ -28,9 +20,9 @@ from typing import Annotated, Generator
 import numpy as np
 import pandas as pd
 import typer
-from qcore import binary_version, coordinates, grid, gsf, srf_new
-
+from qcore import coordinates, grid, gsf, srf_new
 from source_modelling.sources import IsSource
+
 from workflow import realisations
 from workflow.realisations import (
     RealisationMetadata,

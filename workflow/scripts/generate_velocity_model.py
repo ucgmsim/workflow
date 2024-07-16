@@ -1,3 +1,16 @@
+"""
+Generate Velocity Model Script
+
+This script generates a velocity model using NZVM based on parameters extracted from a realisation JSON file.
+
+Usage:
+------
+
+To run the script, use the command line:
+$ python generate_velocity_model.py <realisation_filepath> <velocity_model_output> [OPTIONS]
+
+"""
+
 import os
 import shutil
 import subprocess
@@ -14,9 +27,23 @@ from workflow.realisations import DomainParameters, VelocityModelParameters
 def write_nzvm_config(
     domain_parameters: DomainParameters,
     velocity_model_parameters: VelocityModelParameters,
-    nzvm_config_path: Path,
     output_path: Path,
+    nzvm_config_path: Path,
 ) -> None:
+    """Write NZVM configuration file.
+
+    Parameters
+    ----------
+    domain_parameters : DomainParameters
+        Domain parameters extracted from realisation JSON.
+    velocity_model_parameters : VelocityModelParameters
+        Velocity model parameters extracted from realisation JSON.
+    output_path : Path
+        Path to the output directory for generated velocity model files.
+    nzvm_config_path : Path
+        Path to the NZVM configuration file to be written.
+
+    """
     with open(nzvm_config_path, mode="w", encoding="utf-8") as nzvm_file_handle:
         nzvm_file_handle.write(
             "\n".join(
@@ -42,6 +69,17 @@ def write_nzvm_config(
 
 
 def run_nzvm(nzvm_binary_ffp: Path, nzvm_config_ffp: Path, num_threads: int) -> None:
+    """Run NZVM executable with specified configuration.
+
+    Parameters
+    ----------
+    nzvm_binary_ffp : Path
+        Path to the NZVM binary executable.
+    nzvm_config_ffp : Path
+        Path to the NZVM configuration file.
+    num_threads : int
+        Number of threads to use for velocity model generation.
+    """
     environment = os.environ.copy()
     environment["OMP_NUM_THREADS"] = str(num_threads)
     subprocess.run(
@@ -93,7 +131,18 @@ def generate_velocity_model(
         ),
     ] = -1,
 ) -> None:
-    """Generate velocity model for a realisation."""
+    """
+    Generate a velocity model for a seismic realisation using NZVM.
+
+    This program reads parameters from a JSON file describing the seismic
+    domain and velocity model specifications, generates a configuration file
+    for NZVM (New Zealand Velocity Model), runs NZVM to generate the velocity
+    model, and saves the output to a specified directory.
+
+    Example usage:
+    $ generate_velocity_model path/to/realisation.json /path/to/save/velocity_model
+    """
+
     domain_parameters: DomainParameters = realisations.read_config_from_realisation(
         DomainParameters, realisation_filepath
     )
@@ -108,8 +157,8 @@ def generate_velocity_model(
     write_nzvm_config(
         domain_parameters,
         velocity_model_parameters,
+        velocity_model_intermediate_path,
         nzvm_config_path,
-        output_path=velocity_model_intermediate_path,
     )
     run_nzvm(velocity_model_bin_path, nzvm_config_path, num_threads)
     shutil.copytree(

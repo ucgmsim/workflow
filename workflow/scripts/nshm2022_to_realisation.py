@@ -5,10 +5,6 @@ Generate realisation stub files from ruptures in the NSHM 2022 database.
 This script generates YAML realisation stub files from ruptures in the NSHM 2022
 database. It extracts fault geometry, computes causality information from the database
 and incorporates default parameter values to generate the realisation.
-
-Usage
------
-$ nshm2022_to_realisation.py NSHM_DB_FILE RUPTURE_ID YAML_FILE
 """
 
 from pathlib import Path
@@ -18,9 +14,9 @@ import numpy as np
 import typer
 from nshmdb import nshmdb
 from qcore.uncertainties import distributions, mag_scaling
-
 from source_modelling import rupture_propagation
 from source_modelling.sources import Fault
+
 from workflow import realisations
 
 
@@ -119,6 +115,7 @@ def generate_realisation(
 
 def main():
     typer.run(generate_realisation)
-        
+
+
 if __name__ == "__main__":
     main()
