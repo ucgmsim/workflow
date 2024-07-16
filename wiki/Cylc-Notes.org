@@ -71,6 +71,11 @@ then I think cylc will evaluate =$(nproc)= at the login node (and so count way t
   script = apptainer exec --bind "$CYLC_WORKFLOW_WORK_DIR:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc)'
 #+end_src
 I am not actually sure if this is how it works, but I think it is and it cost nothing but an extra =sh= call to completely escape it. Maybe test this assumption?
+** Containers should encapsulate scientific state
+The container should contain /everything/, within reason. Default
+parameter values, default velocity models, velocity model binaries,
+etc. We want to minimise the places simulation state exists to
+simplify validation and verification. See also [[Median event verification -> simulation]]
 * Workflow
 ** Cylc workflows seem to lack ways of supplying initial inputs??
 This is a problem for the initial input to the scripts (especially
@@ -254,6 +259,22 @@ Perhaps the best approach would be to use jinja to compile one huge =flow.cylc= 
 #+end_src
 
 and then =cylc run cybershake/run1= would get start the cylc job running.
+
+** Median event verification -> simulation workflow pipeline
+Sung, Joel and I discussed how best to enable verification runs in Cybershake. The basic workflow would seem to be:
+
+1. Simulate median events up to IM calculations and possible plotting. Enough information to verify the run.
+2. Take *all* non-pertubated state: velocity models in particular and copy it over to the full Cybershake run.
+3. The cybershake run will then execute *without generating any new data shared with the Median events*.
+
+The reason to do this is to remove as many variables as possible
+between verification and full runs. The software is the same (because
+of containers), and all simulation data that is not being changed for
+each realisation is also fixed between verification and full runs. If
+instead we independently regenerate the velocity model (and other
+data) for the full run, then we must account for the possibility that
+a failed Cybershake run results from changes from the verification
+run. This kinda defeats the purpose of a verification run.
 * NESI
 
 To properly use =cylc= on NESI you need to set the two environment variables =PROJECT= and =CYLC_VERSION=. The default cylc version is =7.x= which is very old, so set it to the latest.
