@@ -21,7 +21,7 @@
     [[generate_velocity_model_parameters]]
         script = apptainer exec --bind "$CYLC_WORKFLOW_WORK_DIR:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-velocity-model-parameters /share/realisation.json --resolution 0.4
     [[generate_velocity_model]]
-        script = apptainer exec --bind "$CYLC_WORKFLOW_WORK_DIR:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif sh -c 'echo $(nproc) >> /out/cpus_count && generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc)'
+        script = apptainer exec --bind "$CYLC_WORKFLOW_WORK_DIR:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc)'
         [[[directives]]]
                 --cpus-per-task = 32
                 --time = 01:00:00
