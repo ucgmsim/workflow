@@ -17,7 +17,61 @@ allow the bound =/share= and =/out= directories to be visible as =root
 root= in the container rather than =ubuntu ubuntu= and be read/write
 by no-one (including root!).
 
-* Workflows
+** Running in containers
+To run in a container, you need to load the =Apptainer= module and then execute the script with =apptainer exec=.
+
+In your =flow.cylc=:
+#+begin_src conf
+  [runtime]
+      [[root]]
+          platform = mahuika-slurm
+          pre-script = """
+          module load Apptainer
+          """
+#+end_src
+
+The special =root= runtime specifies global configuration inherited by
+all jobs. It is exactly equivalent to adding the =pre-script= and
+=platform= variables to every job you define.
+
+and then you need to have the something like the following in your =runtime= section.
+
+#+begin_src conf
+  [[nshm_to_realisation]]
+      script = apptainer exec --bind "$CYLC_WORKFLOW_WORK_DIR:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" ~/runner_latest.sif nshm2022-to-realisation /nshmdb.db 0 /share/realisation.json
+#+end_src
+
+Notice the =--bind= argument. This needs to be passed to every job
+executing the container if you want to actually read the output of the
+job (otherwise there is no communication with the host and the data is
+destroyed at the end). For some reason it is not possible to set the
+=APPTAINER_BIND= environment variable in the =environment= subsection
+under =root=. This would allow us extract the bind directives and simply have
+
+#+begin_src conf
+  [runtime]
+      [[root]]
+          platform = mahuika-slurm
+          pre-script = """
+          module load Apptainer
+          """
+      [[nshm_to_realisation]]
+          script = apptainer exec ~/runner_latest.sif nshm2022-to-realisation /nshmdb.db 0 /share/realisation.json
+#+end_src
+
+** Correctly setting the number of processes for multi-threaded applications (MAYBE?)
+Some applications (Velocity Model generation, in particular) need to
+be configured with the number of processes available to multithread
+over. You can use the =nproc= utility to count the number of cores availible to the process. However, I think you need to be careful about precisely how you invoke the command. If you invoke it like
+#+begin_src bash
+  script = apptainer exec --bind "$CYLC_WORKFLOW_WORK_DIR:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc)
+#+end_src
+then I think cylc will evaluate =$(nproc)= at the login node (and so count way too few processors). Instead, you should invoke =$(nproc)= inside the container by escaping it with =sh=
+#+begin_src bash
+  script = apptainer exec --bind "$CYLC_WORKFLOW_WORK_DIR:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc)'
+#+end_src
+I am not actually sure if this is how it works, but I think it is and it cost nothing but an extra =sh= call to completely escape it. Maybe test this assumption?
+* Workflow
 ** Cylc workflows seem to lack ways of supplying initial inputs??
 This is a problem for the initial input to the scripts (especially
 in custom generation scenarios). The best solution I can think of is
@@ -100,57 +154,7 @@ Cylc workflow files should live in the =~/cylc-src= directory. Workflows are ins
 ** Philosophically: what is a cylc workflow???
 Is a cybershake run a number of independent cylc workflow generated from a template? Or, is it one cylc workflow that iterates over multiple faults. Not sure which of these two constitutes the happy path for cylc.
 
-* Setup for NESI
-
-To properly use =cylc= on NESI you need to set the two environment variables =PROJECT= and =CYLC_VERSION=. The default cylc version is =7.x= which is very old, so set it to the latest.
-
-#+begin_src bash
-  export PROJECT=nesi00213
-  export CYLC_VERSION=8.3.0 # latest at the time of writing
-#+end_src
-* Running in containers
-To run in a container, you need to load the =Apptainer= module and then execute the script with =apptainer exec=.
-
-In your =flow.cylc=:
-#+begin_src conf
-  [runtime]
-      [[root]]
-          platform = mahuika-slurm
-          pre-script = """
-          module load Apptainer
-          """
-#+end_src
-
-The special =root= runtime specifies global configuration inherited by
-all jobs. It is exactly equivalent to adding the =pre-script= and
-=platform= variables to every job you define.
-
-and then you need to have the something like the following in your =runtime= section.
-
-#+begin_src conf
-  [[nshm_to_realisation]]
-      script = apptainer exec --bind "$CYLC_WORKFLOW_WORK_DIR:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" ~/runner_latest.sif nshm2022-to-realisation /nshmdb.db 0 /share/realisation.json
-#+end_src
-
-Notice the =--bind= argument. This needs to be passed to every job
-executing the container if you want to actually read the output of the
-job (otherwise there is no communication with the host and the data is
-destroyed at the end). For some reason it is not possible to set the
-=APPTAINER_BIND= environment variable in the =environment= subsection
-under =root=. This would allow us extract the bind directives and simply have
-
-#+begin_src conf
-  [runtime]
-      [[root]]
-          platform = mahuika-slurm
-          pre-script = """
-          module load Apptainer
-          """
-      [[nshm_to_realisation]]
-          script = apptainer exec ~/runner_latest.sif nshm2022-to-realisation /nshmdb.db 0 /share/realisation.json
-#+end_src
-
-* The Cylc Install Process
+** The Cylc Install Process
 According to the [[https://cylc.github.io/cylc-doc/stable/html/user-guide/installing-workflows.html#the-cylc-install-process][cylc install documentation]] inside the
 =cylc-src/workflow= directory defining the workflow, directories and
 files are copied to =cylc-run/workflow=. In addition
@@ -179,7 +183,7 @@ and then a runtime like
           script = exec-in-container nshm2022-to-realisation /nshmdb.db 0 /share/realisation.json
 #+end_src
 
-* Cylc + Jinja Templating: For large-scale and variable workflows?
+** Cylc + Jinja Templating: For large-scale and variable workflows?
 Still unsure if cylc workflows should be one per realisation or one
 workflow per cybershake run. Initially thought it was obviously one
 per realisation, but now believe that cylc wants you to have multiple
@@ -250,3 +254,11 @@ Perhaps the best approach would be to use jinja to compile one huge =flow.cylc= 
 #+end_src
 
 and then =cylc run cybershake/run1= would get start the cylc job running.
+* NESI
+
+To properly use =cylc= on NESI you need to set the two environment variables =PROJECT= and =CYLC_VERSION=. The default cylc version is =7.x= which is very old, so set it to the latest.
+
+#+begin_src bash
+  export PROJECT=nesi00213
+  export CYLC_VERSION=8.3.0 # latest at the time of writing
+#+end_src
