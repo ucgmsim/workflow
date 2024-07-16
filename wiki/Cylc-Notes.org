@@ -283,3 +283,28 @@ To properly use =cylc= on NESI you need to set the two environment variables =PR
   export PROJECT=nesi00213
   export CYLC_VERSION=8.3.0 # latest at the time of writing
 #+end_src
+Add these to your =.bashrc=
+* The Install Fault Step
+The old workflow had an install fault step. It's job appeared to be to
+generate coordinates for the stations and gridpoints for EMOD3D
+simulations. It's written with a mix of old python and Rob's C code. I
+think this can be done away with using some of the new qcore
+geometry functions =qcore.grid= and =qcore.coordinates= in particular.
+
+The files generated are gridpoint locations of stations loaded from a
+plain text file listing the exact locations of the stations ={lon}
+{lat} {station_name}=. Comments in this file have either =#= or =%= at
+the start. This file can be read quickly with =pd.read_csv=.
+
+In fact, all the files here can be read and written using
+=pd.read_csv= and =pd.write_csv=.
+** The statcord files
+These files are plain text files recording the station locations in
+EMOD3D gridpoint coordinates with each row having the format ={x:5d}
+{y:5d} {depth?:5d} {station_name}=.
+** The ll files
+These files record latitude and longitude of the /grid points/ of the
+stations. They have the format ={lat:11.5f} {lon:11.5f}
+{station_name}=. Some stations are skipped if they inhabit the same
+gridpoint.
+
