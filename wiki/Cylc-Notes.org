@@ -275,6 +275,18 @@ instead we independently regenerate the velocity model (and other
 data) for the full run, then we must account for the possibility that
 a failed Cybershake run results from changes from the verification
 run. This kinda defeats the purpose of a verification run.
+
+** Cylc Does Plugins?
+
+Reading the cylc documentation for some inspiration. It looks like we
+can write plugins to cylc's main loop. I wonder if we could use this
+to automatically record the core hour usage statistics for every job
+that gets submitted? [[https://cylc.github.io/cylc-doc/stable/html/plugins/main-loop/index.html][See the main loop plugins docs]].
+
+** Rose does archiving?
+if we can figure out how to use rose we get a whole bunch of other
+things for free. In particular, rose has support to archive workflows
+(see [[https://cylc.github.io/cylc-doc/stable/html/workflow-design-guide/general-principles.html#confining-output-to-the-run-directory][here]], which refers to [[https://cylc.github.io/cylc-doc/stable/html/workflow-design-guide/general-principles.html#workflow-housekeeping][here]]).
 * NESI
 
 To properly use =cylc= on NESI you need to set the two environment variables =PROJECT= and =CYLC_VERSION=. The default cylc version is =7.x= which is very old, so set it to the latest.
