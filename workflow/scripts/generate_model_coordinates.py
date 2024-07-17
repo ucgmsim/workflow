@@ -22,10 +22,10 @@ def generate_fd_files(
             help="Output path for station files", file_okay=False, writable=True
         ),
     ],
-    keep_dup_station: bool = Annotated[
-        True,
+    keep_dup_station: Annotated[
+        bool,
         typer.Option(help="Keep stations whose gridpoint coordinates are identical"),
-    ],
+    ] = True,
     stat_file: Annotated[
         Path,
         typer.Option(
@@ -36,12 +36,12 @@ def generate_fd_files(
     """Generate station gridpoint coordinates for a station list."""
     output_path.mkdir(exist_ok=True)
     domain_parameters: DomainParameters = realisations.read_config_from_realisation(
-        DomainParameters,
+        DomainParameters, realisations_ffp
     )
     model_origin = domain_parameters.domain.origin
     hh = domain_parameters.resolution
     nx = np.ceil(domain_parameters.domain.extent_x / hh)
-    ny = np.ceil(domain_parameters.domain.extent_x / hh)
+    ny = np.ceil(domain_parameters.domain.extent_y / hh)
 
     # where to save gridpoint and longlat station files
     gp_out = output_path / "stations.statcords"
@@ -49,12 +49,12 @@ def generate_fd_files(
 
     # retrieve in station names, latitudes and longitudes
     stations = pd.read_csv(
-        stat_file, delimiter=" ", comment="#", columns=["name", "lat", "lon"]
+        stat_file, delimiter=" ", comment="#", names=["lon", "lat", "name"]
     )
 
     # convert ll to grid points
     xy = geo.ll2gp_multi(
-        stations[["lat", "lon"]].to_numpy(),
+        stations[["lon", "lat"]].to_numpy(),
         model_origin[1],
         model_origin[0],
         domain_parameters.domain.bearing,
@@ -65,18 +65,18 @@ def generate_fd_files(
     )
 
     # store gridpoints and names if unique position
-    sxy = []
+    sxy = set()
     suname = []
     for i in range(len(xy)):
         station_name = stations.iloc[i]["name"]
         if xy[i] is None or xy[i][0] == nx - 1 or xy[i][1] == ny - 1:
             print(f"Station outside domain: {station_name}")
-        elif xy[i] not in sxy:
-            sxy.append(xy[i])
+        elif tuple(xy[i]) not in sxy:
+            sxy.add(tuple(xy[i]))
             suname.append(station_name)
         elif keep_dup_station:
             # still adds in the station but raise a warning
-            sxy.append(xy[i])
+            sxy.add(tuple(xy[i]))
             suname.append(station_name)
             print(
                 f"Duplicate Station added: {station_name} at {xy[i]}",
@@ -87,15 +87,15 @@ def generate_fd_files(
     # create grid point file
     with open(gp_out, "w", encoding="utf-8") as gpf:
         # file starts with number of entries
-        gpf.write(f"{sxy}\n")
+        gpf.write(f"{len(sxy)}\n")
         # x, y, z, name
         for xy, station_name in zip(sxy, suname):
-            gpf.write(f"{xy[0]:5d} {xy:5d} {1:5d} {station_name}")
+            gpf.write(f"{xy[0]:5d} {xy[1]:5d} {1:5d} {station_name}\n")
 
     # convert unique grid points back to ll
     # warning: modifies sxy
     ll = geo.gp2ll_multi(
-        sxy,
+        [list(xy) for xy in sxy],
         model_origin[0],
         model_origin[1],
         domain_parameters.domain.bearing,
@@ -107,12 +107,12 @@ def generate_fd_files(
     # create ll file
     with open(ll_out, "w", encoding="utf-8") as llf:
         for pos, station_name in zip(ll, suname):
-            llf.write(f"{pos[0]:11.5f} {pos[1]:11.5f} {station_name}")
+            llf.write(f"{pos[0]:11.5f} {pos[1]:11.5f} {station_name}\n")
 
 
 def main():
     typer.run(generate_fd_files)
 
 
-if __name__ == "__name__":
+if __name__ == "__main__":
     main()
