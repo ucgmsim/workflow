@@ -31,7 +31,8 @@ RUN apt-get update && apt-get install -y \
     graphicsmagick \
     ffmpeg \
     python3-pip \
-    python-is-python3
+    python-is-python3 \
+    wget
 COPY EMOD3D EMOD3D
 COPY nshmdb.db nshmdb.db
 COPY genslip_velocity_model.vmod genslip_velocity_model.vmod
@@ -45,7 +46,7 @@ RUN git clone --depth 1 https://github.com/ucgmsim/Velocity-Model.git && \
     cd Velocity-Model && \
     make parallel
 RUN mkdir -p /usr/local/lib/python3.12/dist-packages/qcore/data/ && \
-    wget 'https://www.dropbox.com/scl/fi/p5so9irbx43c9g96jr2qr/qcore_resources.tar.xz?rlkey=pgmn69e212c0zx0fauxuikgky&dl=0' -o /tmp/qcore-resources.tar.xz && \
+    wget 'https://www.dropbox.com/scl/fi/p5so9irbx43c9g96jr2qr/qcore_resources.tar.xz?rlkey=pgmn69e212c0zx0fauxuikgky&dl=0' -O /tmp/qcore-resources.tar.xz && \
     tar xvf /tmp/qcore-resources.tar.xz -C /usr/local/lib/python3.12/dist-packages/qcore/data/
 ARG anchor cached
 RUN pip install \
