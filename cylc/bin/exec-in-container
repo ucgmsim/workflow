@@ -2,7 +2,7 @@
 # Execute a command in the runner container. Bind mounts the relevant
 # input, share and work directories to the container.
 module load Apptainer
-CONTAINER = /nesi/nobackup/nesi00213/containers/runner_latest.sif
+export CONTAINER = "/nesi/nobackup/nesi00213/containers/runner_latest.sif"
 # Binds:
 #
 # $PWD -> /out (this is the work directory from cylc).
@@ -11,5 +11,5 @@ CONTAINER = /nesi/nobackup/nesi00213/containers/runner_latest.sif
 #
 # $CYLC_WORKFLOW_RUN_DIR/input -> /input (this folder contains simulation inputs, and is mounted in read-only to ensure it doesn't change).
 #
-apptainer exec --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" $CONTAINER $0
+apptainer exec --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" $CONTAINER $@
 
