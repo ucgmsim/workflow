@@ -5,7 +5,6 @@ nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB@source_modelling
 numpy<2
 openquake-engine @ git+https://github.com/gem/oq-engine
 pandas
-pegasus-wms
 qcore @ git+https://github.com/ucgmsim/qcore@pegasus
 schema
 scipy
