@@ -15,13 +15,13 @@
         [[[directives]]]
             --account = nesi00213
     [[nshm_to_realisation]]
-        script = apptainer exec --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif nshm2022-to-realisation /nshmdb.db 0 /share/realisation.json
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif nshm2022-to-realisation /nshmdb.db 0 /share/realisation.json
     [[realisation_to_srf]]
-        script = apptainer exec --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif realisation-to-srf /share/realisation.json /share/realisation.srf
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif realisation-to-srf /share/realisation.json /share/realisation.srf
     [[generate_velocity_model_parameters]]
-        script = apptainer exec --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-velocity-model-parameters /share/realisation.json --resolution 0.4
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-velocity-model-parameters /share/realisation.json --resolution 0.4
     [[generate_velocity_model]]
-        script = apptainer exec --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc)'
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc)'
         [[[directives]]]
                 --cpus-per-task = 32
                 --time = 01:00:00
