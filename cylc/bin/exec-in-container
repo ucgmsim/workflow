@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Execute a command in the runner container. Bind mounts the relevant
+# input, share and work directories to the container.
+
+# Binds:
+#
+# $PWD -> /out (this is the work directory from cylc).
+#
+# $CYLC_WORKFLOW_SHARE_DIR -> /share (this is the folder for shared data, contains completed output from tasks).
+#
+# $CYLC_WORKFLOW_RUN_DIR/input -> /input (this folder contains simulation inputs, and is mounted in read-only to ensure it doesn't change).
+#
+apptainer exec --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" $CONTAINER $0
+
