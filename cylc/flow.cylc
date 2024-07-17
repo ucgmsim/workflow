@@ -25,3 +25,5 @@
         [[[directives]]]
                 --cpus-per-task = 32
                 --time = 01:00:00
+    [[generate_model_coordinates]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-model-coordinates /share/realisation.json /share/stations
