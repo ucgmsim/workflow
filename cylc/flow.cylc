@@ -14,8 +14,6 @@
         """
         [[[directives]]]
             --account = nesi00213
-        [[[environment]]]
-            CONTAINER = /nesi/nobackup/nesi00213/containers/runner_latest.sif
     [[nshm_to_realisation]]
         script = exec-in-container nshm2022-to-realisation /nshmdb.db 0 /share/realisation.json
     [[realisation_to_srf]]

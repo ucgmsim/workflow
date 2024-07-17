@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Execute a command in the runner container. Bind mounts the relevant
 # input, share and work directories to the container.
-
+module load Apptainer
+CONTAINER = /nesi/nobackup/nesi00213/containers/runner_latest.sif
 # Binds:
 #
 # $PWD -> /out (this is the work directory from cylc).
