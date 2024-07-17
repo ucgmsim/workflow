@@ -35,16 +35,18 @@ RUN apt-get update && apt-get install -y \
 COPY EMOD3D EMOD3D
 COPY nshmdb.db nshmdb.db
 COPY genslip_velocity_model.vmod genslip_velocity_model.vmod
+RUN cd /EMOD3D && \
+    git checkout gcc14 && \
+    mkdir build && \
+    cd build && \
+    cmake .. && \
+    make genslip_v5.4.2 srf2stoch ll2xy xy2ll
+RUN git clone --depth 1 https://github.com/ucgmsim/Velocity-Model.git && \
+    cd Velocity-Model && \
+    make parallel
+ARG anchor cached
 RUN pip install \
     "git+https://github.com/ucgmsim/workflow@pegasus" \
     --break-system-packages
 RUN python -c "from qcore.data import download_data; download_data.download_data()"
-RUN cd /EMOD3D && \
-    mkdir build && \
-    cd build && \
-    cmake .. && \
-    make genslip_v5.4.2 srf2stoch
-RUN git clone --depth 1 https://github.com/ucgmsim/Velocity-Model.git && \
-    cd Velocity-Model && \
-    make parallel
 ENV PATH="$PATH:/EMOD3D/tools:/Velocity-Model"

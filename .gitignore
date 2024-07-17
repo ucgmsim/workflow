@@ -4,6 +4,7 @@
 
 docker/runner/EMOD3D/
 docker/runner/nshmdb.db
+docker/runner/genslip_velocity_model.vmod
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
