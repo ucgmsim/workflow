@@ -315,6 +315,9 @@ DOMAIN_SCHEMA = Schema(
         Literal(
             "duration", description="The duration of the simulation (in seconds)"
         ): And(float, is_positive),
+        Literal("dt", "The resolution of the domain in time (in seconds)."): And(
+            float, is_positive
+        ),
     }
 )
 

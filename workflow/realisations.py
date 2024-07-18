@@ -251,12 +251,15 @@ class DomainParameters:
         The depth of the domain (in metres).
     duration : float
         The simulation duration (in seconds).
+    dt : float
+        The resolution of the domain in time (in seconds).
     """
 
     resolution: float
     domain: BoundingBox
     depth: float
     duration: float
+    dt: float
 
     def to_dict(self):
         """
