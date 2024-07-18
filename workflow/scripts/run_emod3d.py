@@ -181,3 +181,11 @@ def run_emod3d(
         | emod3d_metadata(metadata, emod3d_version)
     )
     write_emod3d_parameters(scratch_ffp / "e3d.par", emod3d_parameters)
+
+
+def main():
+    typer.run(run_emod3d)
+
+
+if __name__ == "__main__":
+    main()

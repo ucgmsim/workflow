@@ -20,6 +20,7 @@ generate-velocity-model-parameters = "workflow.scripts.generate_velocity_model_p
 generate-velocity-model = "workflow.scripts.generate_velocity_model:main"
 generate-station-coordinates = "workflow.scripts.generate_station_coordinates:main"
 generate-model-coordinates = "workflow.scripts.generate_model_coordinates:main"
+run-emod3d = "workflow.scripts.run_emod3d:main"
 
 [tool.setuptools.package-dir]
 workflow = "workflow"
