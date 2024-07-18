@@ -35,7 +35,14 @@ def emod3d_duration_parameters(
     flo = min_vs / (5 * domain_parameters.resolution)
     extended_simulation_duration = domain_parameters.duration + 3 / flo
     nt = np.round(extended_simulation_duration / domain_parameters.dt)
-    return {"nt": nt, "dump_itinc": nt, "flo": flo, "dt": domain_parameters.dt}
+    return {
+        "nt": nt,
+        "sim_duration": extended_simulation_duration,
+        "dump_itinc": nt,
+        "flo": flo,
+        "dt": domain_parameters.dt,
+        "ts_total": extended_simulation_duration / (domain_parameters.dt * dtts),
+    }
 
 
 def emod3d_input_directories(
