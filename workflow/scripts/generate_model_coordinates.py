@@ -52,7 +52,7 @@ def generate_model_coordinates(
                 f"ylen={y_len}",
                 f"{0:10.4f} {y_len:10.4f} {resolution:13.6e}",
                 f"zlen={z_len}",
-                f"{0:10.4f} {z_len:10.4f} {resolution:13.6e}",
+                f"{0:10.4f} {z_len:10.4f} {resolution:13.6e}\n",
             ]
         )
     )
