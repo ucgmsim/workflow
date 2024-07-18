@@ -47,11 +47,11 @@ def generate_model_coordinates(
     grid_file.write_text(
         "\n".join(
             [
-                f"xlen={x_len}",
+                f"xlen={x_len:.4f}",
                 f"{0:10.4f} {x_len:10.4f} {resolution:13.6e}",
-                f"ylen={y_len}",
+                f"ylen={y_len:.4f}",
                 f"{0:10.4f} {y_len:10.4f} {resolution:13.6e}",
-                f"zlen={z_len}",
+                f"zlen={z_len:.4f}",
                 f"{0:10.4f} {z_len:10.4f} {resolution:13.6e}\n",
             ]
         )
