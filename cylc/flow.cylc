@@ -4,7 +4,7 @@
     [[graph]]
         R1 = """
             nshm_to_realisation => realisation_to_srf & generate_velocity_model_parameters
-            generate_velocity_model_parameters => generate_velocity_model
+            generate_velocity_model_parameters => generate_velocity_model & generate_model_coordinates
         """
 [runtime]
     [[root]]
