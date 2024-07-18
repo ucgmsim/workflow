@@ -174,7 +174,7 @@ def run_emod3d(
         | emod3d_duration_parameters(
             domain_parameters,
             min_vs=velocity_model_parameters.min_vs,
-            dtts=emod3d_defaults["ddts"],
+            dtts=emod3d_defaults["dtts"],
         )
         | emod3d_input_directories(srf_file_ffp, velocity_model_ffp, stations_ffp)
         | emod3d_output_directories(scratch_ffp)
