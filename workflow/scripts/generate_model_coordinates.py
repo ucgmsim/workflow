@@ -85,3 +85,11 @@ def generate_model_coordinates(
         or model_coords["y"] in {0, domain_parameters.ny - 1}
     ]
     model_boundary.to_csv(model_bounds, delimiter=" ", float_format=".6f")
+
+
+def main():
+    typer.run(generate_model_coordinates)
+
+
+if __name__ == "__main__":
+    main()
