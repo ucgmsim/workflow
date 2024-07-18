@@ -139,7 +139,7 @@ def run_emod3d(
             writable=True,
             file_okay=False,
         ),
-    ] = "/out",
+    ] = Path("/out"),
     defaults_version: Annotated[
         str, typer.Option(help="The version of the EMOD3D defaults to use.")
     ] = "22.2.2.1",
@@ -151,7 +151,7 @@ def run_emod3d(
             readable=True,
             dir_okay=False,
         ),
-    ] = "/EMOD3D/tools/emod3d-3.0.8-mpi",
+    ] = Path("/EMOD3D/tools/emod3d-3.0.8-mpi"),
     emod3d_version: Annotated[
         str, typer.Option(help="The version of the EMOD3D binary to use.")
     ] = "3.0.8",
@@ -178,7 +178,7 @@ def run_emod3d(
         )
         | emod3d_input_directories(srf_file_ffp, velocity_model_ffp, stations_ffp)
         | emod3d_output_directories(scratch_ffp)
-        | emod3d_metadata(metadata, emod3d_version)
+        | emod3d_metadata(metadata, emod3d_path, emod3d_version)
     )
     write_emod3d_parameters(scratch_ffp / "e3d.par", emod3d_parameters)
 
