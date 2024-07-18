@@ -1,5 +1,5 @@
 """
-Generate Velocity Model Script
+Generate Velocity Model Script.
 
 This script generates a velocity model using NZVM based on parameters extracted from a realisation JSON file.
 
@@ -131,8 +131,7 @@ def generate_velocity_model(
         ),
     ] = -1,
 ) -> None:
-    """
-    Generate a velocity model for a seismic realisation using NZVM.
+    """Generate a velocity model for a seismic realisation using NZVM.
 
     This program reads parameters from a JSON file describing the seismic
     domain and velocity model specifications, generates a configuration file
@@ -142,7 +141,6 @@ def generate_velocity_model(
     Example usage:
     $ generate_velocity_model path/to/realisation.json /path/to/save/velocity_model
     """
-
     domain_parameters: DomainParameters = realisations.read_config_from_realisation(
         DomainParameters, realisation_filepath
     )
