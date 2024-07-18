@@ -87,10 +87,10 @@ def emod3d_metadata(
 
 
 def format_as_emod3d_value(value: int | float | str | Path) -> str:
-    if isinstance(value, Path):
-        return repr(str(value))
+    if isinstance(value, (Path, str)):
+        return f'"{value}"'
     else:
-        return repr(value)
+        return str(value)
 
 
 def write_emod3d_parameters(
