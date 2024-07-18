@@ -1,3 +1,13 @@
+"""
+Generate model coordinates for EMOD3D for a single realisation.
+
+This script outputs the model coordinates in three places:
+
+1. A model coordinates file, containing the discretisation of the domain.
+2. A model bounds file, containing the boundary of the model.
+3. A model params file, containing metadata about the discretisation.
+"""
+
 import subprocess
 from pathlib import Path
 from typing import Annotated
@@ -31,6 +41,7 @@ def generate_model_coordinates(
         ),
     ] = Path("/EMOD3D/tools/gen_model_cords"),
 ) -> None:
+    """Generate model coordinates for EMOD3D."""
     output_ffp.mkdir(exist_ok=True)
     domain_parameters: DomainParameters = realisations.read_config_from_realisation(
         DomainParameters, realisation_ffp
