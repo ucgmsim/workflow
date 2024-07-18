@@ -1,4 +1,4 @@
-"""Generate model station coordinates for EMOD3D."""
+"""Generate station coordinates for EMOD3D."""
 
 from pathlib import Path
 from typing import Annotated
