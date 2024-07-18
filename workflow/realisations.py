@@ -261,6 +261,16 @@ class DomainParameters:
     duration: float
     dt: float
 
+    @property
+    def nx(self) -> int:
+        """int: The number of x coordinate positions in the discretised domain."""
+        return int(np.ceil(self.domain.extent_x / self.resolution))
+
+    @property
+    def ny(self) -> int:
+        """int: The number of x coordinate positions in the discretised domain."""
+        return int(np.ceil(self.domain.extent_x / self.resolution))
+
     def to_dict(self):
         """
         Convert the object to a dictionary representation.
