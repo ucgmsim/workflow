@@ -65,8 +65,8 @@ def generate_model_coordinates(
     )
     model_origin = domain_parameters.domain.origin
     model_corners = coordinates.nztm_to_wgs_depth(domain_parameters.domain.corners)
-    x_shift = (domain_parameters.domain.extent_x - domain_parameters.resolution) / 2
-    y_shift = (domain_parameters.domain.extent_y - domain_parameters.resolution) / 2
+    x_shift = -(domain_parameters.domain.extent_x - domain_parameters.resolution) / 2
+    y_shift = -(domain_parameters.domain.extent_y - domain_parameters.resolution) / 2
     model_params.write_text(
         "\n".join(
             [
@@ -74,7 +74,8 @@ def generate_model_coordinates(
                 f" lon= {model_origin[1]:10.5f} lat= {model_origin[0]:10.5f} rotate= {domain_parameters.domain.bearing:7.2f}",
                 "",
                 "Model origin shift (cartesian vs. geographic):",
-                f" xshift(km)= {x_shift:12.5f} yshift(km)= {y_shift:12.5f}" "",
+                f" xshift(km)= {x_shift:12.5f} yshift(km)= {y_shift:12.5f}",
+                "",
                 "Model corners:",
             ]
             + [
