@@ -14,6 +14,7 @@ from typing import Annotated
 
 import pandas as pd
 import typer
+from qcore import coordinates
 
 from workflow import realisations
 from workflow.realisations import DomainParameters
@@ -51,10 +52,7 @@ def generate_model_coordinates(
     z_len = domain_parameters.depth
     resolution = domain_parameters.resolution
     grid_file = output_ffp / "gridfile"
-    grid_out = output_ffp / "gridout"
-    model_coords = output_ffp / "model_coords"
     model_params = output_ffp / "model_params"
-    model_bounds = output_ffp / "model_bounds"
     grid_file.write_text(
         "\n".join(
             [
@@ -68,34 +66,33 @@ def generate_model_coordinates(
         )
     )
     model_origin = domain_parameters.domain.origin
-    with model_params.open(mode="w") as model_params_out:
-        subprocess.check_call(
+    model_corners = coordinates.nztm_to_wgs_depth(domain_parameters.domain.corners)
+    x_shift = (domain_parameters.extent_x - domain_parameters.resolution) / 2
+    y_shift = (domain_parameters.extent_y - domain_parameters.resolution) / 2
+    model_params.write_text(
+        "\n".join(
             [
-                str(gen_model_coords_ffp),
-                "geoproj=1",
-                f"gridfile={grid_file}",
-                f"gridout={grid_out}",
-                "centreorigin=1",
-                "docoords=1",
-                "nzout=1",
-                f"name='{model_coords}'",
-                "gzip=0",
-                "latfirst=0",
-                f"modellon={model_origin[1]}",
-                f"modellat={model_origin[0]}",
-                f"modelrot={domain_parameters.domain.bearing}",
-            ],
-            stdout=model_params_out,
+                "Model origin coordinates:",
+                f" lon= {model_origin[1]:10.5f} lat= {model_origin[0]:10.5f} rotate= {domain_parameters.bearing:7.2f}",
+                "",
+                "Model origin shift (cartesian vs. geographic):",
+                f" xshift(km)= {x_shift:12.5f} yshift(km)= {y_shift:12.5f}" "",
+                "Model corners:",
+            ]
+            + [
+                f" c{i + 1}= {corner[1]:10.5f} {corner[0]:10.5f}"
+                for i, corner in enumerate(model_corners)
+            ]
+            + [
+                "",
+                "Model Dimensions:",
+                f" xlen= {x_len:10.4f} km",
+                f" ylen= {y_len:10.4f} km",
+                f" zlen= {z_len:10.4f} km",
+                "",
+            ]
         )
-
-    model_coords_frame = pd.read_csv(
-        model_coords, delimiter="\s+", header=None, names=["lon", "lat", "x", "y"]
     )
-    model_boundary = model_coords_frame[
-        model_coords_frame["x"] in {0, domain_parameters.nx - 1}
-        or model_coords["y"] in {0, domain_parameters.ny - 1}
-    ]
-    model_boundary.to_csv(model_bounds, delimiter=" ", float_format=".6f")
 
 
 def main():
