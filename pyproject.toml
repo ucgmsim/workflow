@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
+requires = ["setuptools", "setuptools-scm", "cython"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -21,6 +21,7 @@ generate-velocity-model = "workflow.scripts.generate_velocity_model:main"
 generate-station-coordinates = "workflow.scripts.generate_station_coordinates:main"
 generate-model-coordinates = "workflow.scripts.generate_model_coordinates:main"
 run-emod3d = "workflow.scripts.run_emod3d:main"
+merge-ts = "merge_ts.merge_ts:main"
 
 [tool.setuptools.package-dir]
 workflow = "workflow"
