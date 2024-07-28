@@ -42,9 +42,13 @@ RUN cd /EMOD3D && \
     cd build && \
     cmake .. && \
     make genslip_v5.4.2 srf2stoch ll2xy xy2ll gen_model_cords emod3d
-RUN git clone --depth 1 https://github.com/ucgmsim/Velocity-Model.git && \
+RUN apt-get remove -y libopenmpi-dev
+RUN wget "https://www.dropbox.com/scl/fi/xomwzo5xagrxzbdmm7z7w/Velocity-Model-1.0.0.tar.gz?rlkey=0vc6kevs851qos39kkmd4ffol&dl=0" -O /Velocity-Model.tar.gz && \
+    tar xvf /Velocity-Model.tar.gz && \
+    mv Velocity-Model-1.0.0 Velocity-Model && \
     cd Velocity-Model && \
-    make parallel
+    make parallel && \
+    rm /Velocity-Model.tar.gz
 RUN mkdir -p /usr/local/lib/python3.12/dist-packages/qcore/ && \
     wget 'https://www.dropbox.com/scl/fi/p5so9irbx43c9g96jr2qr/qcore_resources.tar.xz?rlkey=pgmn69e212c0zx0fauxuikgky&dl=0' -O /tmp/qcore-resources.tar.xz && \
     tar xvf /tmp/qcore-resources.tar.xz -C /usr/local/lib/python3.12/dist-packages/qcore/ && \
