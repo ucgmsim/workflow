@@ -48,7 +48,7 @@ def generate_model_coordinates(
     y_len = domain_parameters.domain.extent_y
     z_len = domain_parameters.depth
     resolution = domain_parameters.resolution
-    grid_file = output_ffp / "gridfile"
+    grid_file = output_ffp / "grid_file"
     model_params = output_ffp / "model_params"
     grid_file.write_text(
         "\n".join(
