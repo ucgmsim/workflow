@@ -29,7 +29,6 @@ def generate_model_coordinates(
         Path,
         typer.Argument(
             help="Path to directory to output model coordinates",
-            exists=True,
             writable=True,
         ),
     ],

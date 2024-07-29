@@ -234,7 +234,7 @@ def run_emod3d(
     ],
     output_ffp: Annotated[
         Path,
-        typer.Argument(help="Output path", exists=True, writable=True, file_okay=False),
+        typer.Argument(help="Output path", writable=True, file_okay=False),
     ],
     scratch_ffp: Annotated[
         Path,
@@ -256,12 +256,13 @@ def run_emod3d(
             readable=True,
             dir_okay=False,
         ),
-    ] = Path("/EMOD3D/tools/emod3d-3.0.8-mpi"),
+    ] = Path("/EMOD3D/tools/emod3d-mpi_v3.0.8"),
     emod3d_version: Annotated[
         str, typer.Option(help="The version of the EMOD3D binary to use.")
     ] = "3.0.8",
 ):
     """Run EMOD3D using parameters sourced from a realisation file."""
+    output_ffp.mkdir(exist_ok=True)
     domain_parameters: DomainParameters = realisations.read_config_from_realisation(
         DomainParameters, realisation_ffp
     )
@@ -282,7 +283,9 @@ def run_emod3d(
             min_vs=velocity_model_parameters.min_vs,
             dtts=emod3d_defaults["dtts"],
         )
-        | emod3d_input_directories(srf_file_ffp, velocity_model_ffp, stations_ffp)
+        | emod3d_input_directories(
+            srf_file_ffp, velocity_model_ffp, stations_ffp, grid_ffp
+        )
         | emod3d_output_directories(scratch_ffp)
         | emod3d_metadata(metadata, emod3d_path, emod3d_version)
     )
