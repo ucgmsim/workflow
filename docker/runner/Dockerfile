@@ -42,7 +42,6 @@ RUN cd /EMOD3D && \
     cd build && \
     cmake .. && \
     make genslip_v5.4.2 srf2stoch ll2xy xy2ll gen_model_cords emod3d
-RUN apt-get remove -y libopenmpi-dev
 RUN wget "https://www.dropbox.com/scl/fi/xomwzo5xagrxzbdmm7z7w/Velocity-Model-1.0.0.tar.gz?rlkey=0vc6kevs851qos39kkmd4ffol&dl=0" -O /Velocity-Model.tar.gz && \
     tar xvf /Velocity-Model.tar.gz && \
     mv Velocity-Model-1.0.0 Velocity-Model && \
