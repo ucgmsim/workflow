@@ -297,7 +297,6 @@ def run_emod3d(
             for key, value in emod3d_parameters.items()
         )
     )
-    subprocess.check_call([str(emod3d_path), "-args", f"par={e3d_par_ffp}"])
 
 
 def main():

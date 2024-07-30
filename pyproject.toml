@@ -13,14 +13,13 @@ requires-python = ">=3.9"
 dynamic = ["version", "dependencies"]
 
 [project.scripts]
-srf-workflow = "workflow.scripts.srf_workflow:main"
 nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:main"
 realisation-to-srf = "workflow.scripts.realisation_to_srf:main"
 generate-velocity-model-parameters = "workflow.scripts.generate_velocity_model_parameters:main"
 generate-velocity-model = "workflow.scripts.generate_velocity_model:main"
 generate-station-coordinates = "workflow.scripts.generate_station_coordinates:main"
 generate-model-coordinates = "workflow.scripts.generate_model_coordinates:main"
-run-emod3d = "workflow.scripts.run_emod3d:main"
+create-e3d-par = "workflow.scripts.create_e3d_par:main"
 merge-ts = "merge_ts.merge_ts:main"
 
 [tool.setuptools.package-dir]
