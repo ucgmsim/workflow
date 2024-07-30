@@ -5,7 +5,8 @@
         R1 = """
             nshm_to_realisation => realisation_to_srf & generate_velocity_model_parameters
             generate_velocity_model_parameters => generate_velocity_model & generate_station_coordinates & generate_model_coordinates & create_e3d_par
-            realisation_to_srf & generate_velocity_model & generate_station_coordinates & generate_model_coordinates & create_e3d_par => run_emod3d
+            realisation_to_srf & generate_velocity_model & generate_station_coordinates & generate_model_coordinates =>  create_e3d_par
+            create_e3d_par => run_emod3d
             """
 [runtime]
     [[root]]
