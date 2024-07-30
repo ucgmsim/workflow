@@ -235,7 +235,6 @@ def create_e3d_par(
         Path,
         typer.Option(
             help="Scratch filepath for intermediate output.",
-            exists=True,
             writable=True,
             file_okay=False,
         ),
@@ -258,6 +257,7 @@ def create_e3d_par(
 ):
     """Create EMOD3D parameters sourced from a realisation file."""
     output_ffp.mkdir(exist_ok=True)
+    scratch_ffp.mkdir(exist_ok=True)
     domain_parameters: DomainParameters = realisations.read_config_from_realisation(
         DomainParameters, realisation_ffp
     )
