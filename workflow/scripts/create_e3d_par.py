@@ -1,10 +1,5 @@
-"""
-Run EMOD3D with parameters sourced from a realisation file.
+"""Create EMOD3D parameters sourced from a realisation file."""
 
-The output of EMOD3D is written to the output directory and then all non-log files are copied to the share directory.
-"""
-
-import subprocess
 from pathlib import Path
 from typing import Annotated
 
@@ -200,7 +195,7 @@ def format_as_emod3d_value(value: int | float | str | Path) -> str:
         return str(value)
 
 
-def run_emod3d(
+def create_e3d_par(
     realisation_ffp: Annotated[
         Path,
         typer.Argument(
@@ -261,7 +256,7 @@ def run_emod3d(
         str, typer.Option(help="The version of the EMOD3D binary to use.")
     ] = "3.0.8",
 ):
-    """Run EMOD3D using parameters sourced from a realisation file."""
+    """Create EMOD3D parameters sourced from a realisation file."""
     output_ffp.mkdir(exist_ok=True)
     domain_parameters: DomainParameters = realisations.read_config_from_realisation(
         DomainParameters, realisation_ffp
@@ -300,7 +295,7 @@ def run_emod3d(
 
 
 def main():
-    typer.run(run_emod3d)
+    typer.run(create_e3d_par)
 
 
 if __name__ == "__main__":
