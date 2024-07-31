@@ -29,13 +29,10 @@ def emod3d_domain_parameters(
     dict[str, int | float]
         A dictionary containing the EMOD3D domain parameters.
     """
-    nx = int(np.ceil(domain_parameters.domain.extent_x / domain_parameters.resolution))
-    ny = int(np.ceil(domain_parameters.domain.extent_y / domain_parameters.resolution))
-    nz = int(np.ceil(domain_parameters.depth / domain_parameters.resolution))
     return {
-        "nx": nx,
-        "ny": ny,
-        "nz": nz,
+        "nx": domain_parameters.nx,
+        "ny": domain_parameters.ny,
+        "nz": domain_parameters.nz,
         "h": domain_parameters.resolution,
         "modellat": domain_parameters.domain.origin[0],
         "modellon": domain_parameters.domain.origin[1],

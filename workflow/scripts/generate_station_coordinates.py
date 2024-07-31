@@ -40,8 +40,8 @@ def generate_fd_files(
     )
     model_origin = domain_parameters.domain.origin
     hh = domain_parameters.resolution
-    nx = np.ceil(domain_parameters.domain.extent_x / hh)
-    ny = np.ceil(domain_parameters.domain.extent_y / hh)
+    nx = domain_parameters.nx
+    ny = domain_parameters.ny
 
     # where to save gridpoint and longlat station files
     gp_out = output_path / "stations.statcords"

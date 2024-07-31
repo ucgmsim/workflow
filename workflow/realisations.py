@@ -264,12 +264,17 @@ class DomainParameters:
     @property
     def nx(self) -> int:
         """int: The number of x coordinate positions in the discretised domain."""
-        return int(np.ceil(self.domain.extent_x / self.resolution))
+        return int(np.round(int(self.domain.extent_x / self.resolution)))
 
     @property
     def ny(self) -> int:
         """int: The number of x coordinate positions in the discretised domain."""
-        return int(np.ceil(self.domain.extent_x / self.resolution))
+        return int(np.round(int(self.domain.extent_x / self.resolution)))
+
+    @property
+    def nz(self) -> int:
+        """int: The number of z coordinate positions in the discretised domain."""
+        return int(np.round(int(self.depth / self.resolution)))
 
     def to_dict(self):
         """
