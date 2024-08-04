@@ -201,7 +201,9 @@ def estimate_simulation_duration(
     float
         An estimated simulation duration time.
     """
-    fault_corners = np.vstack([fault.corners for fault in faults])
+    fault_corners = coordinates.wgs_depth_to_nztm(
+        np.vstack([fault.corners for fault in faults])
+    )
     fault_centroid = np.mean(fault_corners, axis=0)
     box_corners = np.append(
         bounding_box.corners,
@@ -221,14 +223,11 @@ def estimate_simulation_duration(
     avg_rake = np.mean(rakes)
     oq_dataframe = pd.DataFrame.from_dict(
         {
-            "vs30": [500],
+            "vs30": [vs30],
             "z1pt0": [z_model_calculations.chiou_young_08_calc_z1p0(vs30)],
             "rrup": [largest_corner_distance],
             "mag": [magnitude],
             "rake": [avg_rake],
-            "dip": [
-                0
-            ],  # This is a dummy value that must be included for the oq engine to work
         }
     )
 
