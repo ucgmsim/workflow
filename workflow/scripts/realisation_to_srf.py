@@ -21,8 +21,8 @@ import numpy as np
 import pandas as pd
 import typer
 from qcore import coordinates, grid, gsf, srf_new
-from source_modelling.sources import IsSource
 
+from source_modelling.sources import IsSource
 from workflow import realisations
 from workflow.realisations import (
     RealisationMetadata,
@@ -76,7 +76,7 @@ def generate_fault_gsf(
                 "length": plane.length,
                 "width": plane.width,
                 "rake": rake,
-                "meshgrid": grid.coordinate_meshgrid(
+                "meshgrid": grid.coordinate_patchgrid(
                     plane.corners[0],
                     plane.corners[1],
                     plane.corners[-1],
@@ -103,6 +103,7 @@ def generate_fault_srf(
     subdivision_resolution: float,
     srf_config: SRFConfig,
     velocity_model_path: Path,
+    genslip_path: Path,
 ):
     """Generate an SRF file for a given fault.
 
@@ -128,16 +129,20 @@ def generate_fault_srf(
 
     nx = sum(
         grid.gridpoint_count_in_length(plane.length_m, subdivision_resolution * 1000)
+        - 1
         for plane in fault.planes
     )
-    ny = grid.gridpoint_count_in_length(
-        fault.planes[0].width_m, subdivision_resolution * 1000
+    ny = (
+        grid.gridpoint_count_in_length(
+            fault.planes[0].width_m, subdivision_resolution * 1000
+        )
+        - 1
     )
     genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
         hypocentre_local_coordinates - np.array([-1 / 2, 0])
     )
     genslip_cmd = [
-        "/EMOD3D/tools/genslip_v5.4.2",
+        str(genslip_path),
         "read_erf=0",
         "write_srf=1",
         "read_gsf=1",
@@ -265,11 +270,11 @@ def stitch_srf_files(
                 # find closest grid point to the jump location
                 # compute the time delay as equal to the tinit of this point (for now)
                 fault = faults[fault_name]
-                jump_pair = fault.fault_coordinates_to_wgs_depth_coordinates(
-                    rupture_propogation.jump_points[fault_name]
+                from_point = fault.fault_coordinates_to_wgs_depth_coordinates(
+                    rupture_propogation.jump_points[fault_name].from_point
                 )
                 parent_coords = fault.fault_coordinates_to_wgs_depth_coordinates(
-                    coordinates.wgs_depth_to_nztm(jump_pair.from_point)
+                    from_point
                 )
                 parent_fault_points = fault_points[parent]
                 grid_points = coordinates.wgs_depth_to_nztm(
@@ -303,6 +308,7 @@ def generate_fault_srfs_parallel(
     subdivision_resolution: float,
     srf_config: SRFConfig,
     velocity_model_path: Path,
+    genslip_path: Path,
 ):
     """Generate fault SRF files in parallel.
 
@@ -349,6 +355,7 @@ def generate_fault_srfs_parallel(
                 subdivision_resolution=subdivision_resolution,
                 srf_config=srf_config,
                 velocity_model_path=velocity_model_path,
+                genslip_path=genslip_path,
             ),
             srf_generation_parameters,
         )
@@ -387,6 +394,10 @@ def generate_srf(
             help="Path to the genslip velocity model.", readable=True, dir_okay=False
         ),
     ] = Path("/genslip_velocity_model.vmod"),
+    genslip_path: Annotated[
+        Path,
+        typer.Option(help="Path to genslip binary.", readable=True, dir_okay=False),
+    ] = Path("/EMOD3D/tools/genslip_v5.4.2"),
 ):
     """Generate a type-5 SRF file from a given realisation specification."""
     srf_config: SRFConfig = realisations.read_config_from_realisation(
@@ -411,6 +422,7 @@ def generate_srf(
         subdivision_resolution,
         srf_config,
         velocity_model,
+        genslip_path,
     )
     srf_name = normalise_name(metadata.name)
     stitch_srf_files(
