@@ -130,20 +130,21 @@ def emod3d_output_directories(scratch_ffp: Path) -> dict[str, Path]:
     dict[str, Path]
         A dictionary of all the configured output paths.
     """
-    directories = {
+    outputs = {
         "main_dump_dir": scratch_ffp / "OutBin",
         "user_scratch": scratch_ffp,
         "sim_dir": scratch_ffp,
         "seisdir": scratch_ffp / "SeismoBin",
         "restartdir": scratch_ffp / "Restart",
         "logdir": scratch_ffp / "Log",
-        "ts_file": scratch_ffp / "OutBin" / "waveform_xyts.e3d",
         "ts_out_dir": scratch_ffp / "TSFiles",
         "slipout": scratch_ffp / "SlipOut",
     }
-    for directory in directories.values():
+    for directory in outputs.values():
         directory.mkdir(exist_ok=True)
-    return directories
+
+    outputs["ts_file"] = scratch_ffp / "OutBin" / "waveform_xyts.e3d"
+    return outputs
 
 
 def emod3d_metadata(
