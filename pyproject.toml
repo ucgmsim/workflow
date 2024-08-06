@@ -22,6 +22,7 @@ generate-model-coordinates = "workflow.scripts.generate_model_coordinates:main"
 create-e3d-par = "workflow.scripts.create_e3d_par:main"
 generate-stoch = "workflow.scripts.generate_stoch:main"
 merge-ts = "merge_ts.merge_ts:main"
+plot-ts = "workflow.scripts.plot_ts:main"
 
 [tool.setuptools.package-dir]
 workflow = "workflow"
