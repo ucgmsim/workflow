@@ -16,22 +16,23 @@ FROM ubuntu:latest
 # python3-pip
 RUN apt-get update && apt-get install -y \
     build-essential \
-    libfftw3-dev \
-    libpapi-dev \
-    libopenmpi-dev \
-    gfortran \
-    git \
     cmake \
-    sqlite3 \
+    ffmpeg \
+    gdal-bin \
+    gfortran \
+    ghostscript \
+    git \
+    gmt \
     gmt \
     gmt-dcw \
     gmt-gshhg \
-    ghostscript \
-    gdal-bin \
     graphicsmagick \
-    ffmpeg \
-    python3-pip \
+    libfftw3-dev \
+    libopenmpi-dev \
+    libpapi-dev \
     python-is-python3 \
+    python3-pip \
+    sqlite3 \
     wget
 COPY EMOD3D EMOD3D
 COPY nshmdb.db nshmdb.db

@@ -115,7 +115,7 @@ def emod3d_input_directories(
     return input_paths
 
 
-def emod3d_output_directories(scratch_ffp: Path) -> dict[str, Path]:
+def emod3d_outputs(metadata: RealisationMetadata, scratch_ffp: Path) -> dict[str, Path]:
     """Create a dictionary of the output directories for EMOD3D.
 
     This function also creates all the directories if they do not already exist.
@@ -143,7 +143,7 @@ def emod3d_output_directories(scratch_ffp: Path) -> dict[str, Path]:
     for directory in outputs.values():
         directory.mkdir(exist_ok=True)
 
-    outputs["ts_file"] = scratch_ffp / "OutBin" / "waveform_xyts.e3d"
+    outputs["ts_file"] = scratch_ffp / "OutBin" / f"{metadata.name}_xyts.e3d"
     return outputs
 
 
@@ -279,7 +279,7 @@ def create_e3d_par(
         | emod3d_input_directories(
             srf_file_ffp, velocity_model_ffp, stations_ffp, grid_ffp
         )
-        | emod3d_output_directories(scratch_ffp)
+        | emod3d_outputs(scratch_ffp)
         | emod3d_metadata(metadata, emod3d_path, emod3d_version)
     )
     e3d_par_ffp = scratch_ffp / "e3d.par"
