@@ -1,20 +1,18 @@
-import functools
-import multiprocessing
-from pathlib import Path
-from typing import Annotated
-
-import numpy as np
-import typer
-from pygmt_helper import plotting
-from qcore.xyts import XYTSFile
-from source_modelling import srf
+import subprocess
 
 from merge_ts import merge_ts
 
 
 def plot_timeslice(
-    srf_file: srf.SrfFile, xyts_file: XYTSFile, work_directory: Path, timeslice: int
+    srf_file: srf.SrfFile,
+    xyts_file: XYTSFile,
+    work_directory: Path,
+    pgv_limits: tuple[float, float, float],
+    timeslice: int,
 ) -> None:
+    import pygmt
+
+    reload(pygmt)
     corners = np.array(xyts_file.corners())
     region = (
         corners[:, 0].min() - 0.5,
@@ -22,9 +20,6 @@ def plot_timeslice(
         corners[:, 1].min() - 0.25,
         corners[:, 1].max() + 0.25,
     )
-    slip_quantile = srf_file.points["slip"].quantile(0.98)
-    slip_cb_max = max(int(np.round(slip_quantile, -1)), 10)
-    cmap_limits = (0, slip_cb_max, slip_cb_max / 10)
 
     fig = plotting.gen_region_fig(region=region, map_data=None)
     i = 0
@@ -33,30 +28,6 @@ def plot_timeslice(
         ndip = int(segment["ndip"])
         point_count = nstk * ndip
         segment_points = srf_file.points.iloc[i : i + point_count]
-        cur_grid = plotting.create_grid(
-            segment_points,
-            "slip",
-            grid_spacing="5e/5e",
-            region=(
-                segment_points["lon"].min(),
-                segment_points["lon"].max(),
-                segment_points["lat"].min(),
-                segment_points["lat"].max(),
-            ),
-            set_water_to_nan=False,
-        )
-        plotting.plot_grid(
-            fig,
-            cur_grid,
-            "hot",
-            cmap_limits,
-            ("white", "black"),
-            transparency=0,
-            reverse_cmap=True,
-            plot_contours=False,
-            cb_label="slip",
-            continuous_cmap=True,
-        )
         corners = segment_points.iloc[[0, nstk - 1, -1, (ndip - 1) * nstk]]
         fig.plot(
             x=corners["lon"].iloc[list(range(len(corners))) + [0]].to_list(),
@@ -65,6 +36,43 @@ def plot_timeslice(
         )
 
         i += point_count
+
+    tslice = pd.DataFrame(
+        data=xyts_file.tslice_get(timeslice), columns=["lon", "lat", "motion"]
+    )
+    _, pgv_max, _ = pgv_limits
+    cur_grid = plotting.create_grid(
+        tslice[tslice["motion"] > 0.02 * pgv_max],
+        "motion",
+        grid_spacing="100e/100e",
+        region=(
+            tslice["lon"].min(),
+            tslice["lon"].max(),
+            tslice["lat"].min(),
+            tslice["lat"].max(),
+        ),
+        set_water_to_nan=False,
+    )
+
+    plotting.plot_grid(
+        fig,
+        cur_grid,
+        "hot",
+        pgv_limits,
+        ("white", "black"),
+        transparency=50,
+        reverse_cmap=True,
+        cb_label="ground motion [cm/s]",
+        continuous_cmap=True,
+    )
+
+    fig.grdcontour(
+        annotation="-",
+        interval=1,
+        grid=cur_grid,
+        pen="0.1p",
+    )
+    fig.savefig(work_directory / f"ts{timeslice:05d}.png", dpi=120, anti_alias=True)
 
 
 def plot_ts(
@@ -91,9 +99,9 @@ def plot_ts(
     legend: Annotated[
         str, typer.Option(help="Colour scale legend text.")
     ] = "sim2 - sim1 ground motion [cm/s]",
-    border: Annotated[bool, typer.Option("Opaque map margins")] = True,
+    border: Annotated[bool, typer.Option(help="Opaque map margins")] = True,
     scale: Annotated[
-        float, typer.Option("Speed of animation (multiple of real time).")
+        float, typer.Option(help="Speed of animation (multiple of real time).")
     ] = 1.0,
 ):
     merged_xyts_ffp = work_directory / "timeslices-xyts.e3d"
@@ -106,13 +114,23 @@ def plot_ts(
         + srf_file.points["slip2"] ** 2
         + srf_file.points["slip3"] ** 2
     )
+    pgv = pd.DataFrame(xyts_file.pgv(), columns=["lon", "lat", "pgv"])
+
+    pgv_quantile = pgv["pgv"].quantile(0.995)
+    pgv_cb_max = max(int(np.round(pgv_quantile, -1)), 10)
+    cmap_limits = (0, pgv_cb_max, pgv_cb_max / 10)
     with multiprocessing.Pool() as pool:
         pool.map(
             functools.partial(
-                plot_timeslice,
-                srf_file,
-                xyts_file,
-                work_directory,
+                plot_timeslice, srf_file, xyts_file, work_directory, cmap_limits
             ),
             range(xyts_file.nt),
         )
+
+
+def main():
+    typer.run(plot_ts)
+
+
+if __name__ == "__main__":
+    main()
