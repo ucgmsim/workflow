@@ -14,7 +14,7 @@ $ python vm_params_generation.py path/to/realisation.yaml output/vm_params.yaml
 """
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 import geopandas as gpd
 import numpy as np
@@ -29,8 +29,8 @@ from qcore import bounding_box, coordinates, gmt
 from qcore.bounding_box import BoundingBox
 from qcore.uncertainties import mag_scaling
 from shapely import Polygon
-
 from source_modelling import sources
+
 from workflow import realisations
 from workflow.realisations import (
     DomainParameters,
@@ -294,8 +294,11 @@ def generate_velocity_model_parameters(
     ] = 0.5,
     ds_multiplier: Annotated[float, typer.Option(help="Ds multiplier")] = 1.2,
     dt: Annotated[
-        float, typer.Option(help="The resolution of time (in seconds)")
-    ] = 0.05,
+        Optional[float],
+        typer.Option(
+            help="The resolution of time (in seconds). If not specified, use resolution / 20."
+        ),
+    ] = None,
     vm_version: Annotated[str, typer.Option(help="Velocity model version.")] = "2.06",
     vm_topo_type: Annotated[
         str, typer.Option(help="VM topology type")
@@ -371,7 +374,7 @@ def generate_velocity_model_parameters(
         domain=model_domain,
         depth=max_depth,
         duration=sim_duration,
-        dt=dt,
+        dt=dt or resolution / 20,
     )
     velocity_model_parameters = VelocityModelParameters(
         min_vs=min_vs, version=vm_version, topo_type=vm_topo_type
