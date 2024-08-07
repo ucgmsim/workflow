@@ -194,7 +194,7 @@ class RupturePropagationConfig:
     magnitudes: dict[str, float]
     hypocentre: np.ndarray
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         """
         Convert the object to a dictionary representation.
 
@@ -276,7 +276,7 @@ class DomainParameters:
         """int: The number of z coordinate positions in the discretised domain."""
         return int(np.round(self.depth / self.resolution))
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         """
         Convert the object to a dictionary representation.
 
@@ -295,11 +295,29 @@ class DomainParameters:
 
 @dataclasses.dataclass
 class VelocityModelParameters:
+    """Parameters defining the velocity model.
+
+    min_vs : float
+        The minimum velocity in the velocity model.
+    version : str
+        The velocity model version.
+    topo_type : str
+        The topology type of the velocity model.
+    """
+
     min_vs: float
     version: str
     topo_type: str
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
+        """
+        Convert the object to a dictionary representation.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the object.
+        """
         return dataclasses.asdict(self)
 
 
