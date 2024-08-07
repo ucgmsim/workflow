@@ -270,31 +270,27 @@ def stitch_srf_files(
             if parent:
                 # find closest grid point to the jump location
                 # compute the time delay as equal to the tinit of this point (for now)
-                fault = faults[fault_name]
-                from_point = fault.fault_coordinates_to_wgs_depth_coordinates(
+                fault = faults[parent]
+                parent_coords = fault.fault_coordinates_to_wgs_depth_coordinates(
                     rupture_propogation.jump_points[fault_name].from_point
                 )
-                parent_coords = fault.fault_coordinates_to_wgs_depth_coordinates(
-                    from_point
-                )
                 parent_fault_points = fault_points[parent]
-                grid_points = coordinates.wgs_depth_to_nztm(
-                    np.array(
-                        [
-                            [point.lat, point.lon, point.dep * 1000]
-                            for point in parent_fault_points
-                        ]
-                    )
+                grid_points = np.array(
+                    [
+                        [point.lat, point.lon, point.dep * 1000]
+                        for point in parent_fault_points
+                    ]
                 )
                 jump_index = int(
                     np.argmin(
                         coordinates.distance_between_wgs_depth_coordinates(
-                            parent_coords, grid_points
+                            grid_points, parent_coords
                         )
                     )
                 )
                 t_delay = parent_fault_points[jump_index].tinit
             cur_fault_points = fault_points[fault_name]
+            print(f"Delaying {fault_name} by {t_delay}")
             for point in cur_fault_points:
                 point.tinit += t_delay
                 srf_new.write_srf_point(srf_file_output, point)
