@@ -139,7 +139,7 @@ def generate_fault_srf(
         - 1
     )
     genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
-        hypocentre_local_coordinates - np.array([-1 / 2, 0])
+        hypocentre_local_coordinates - np.array([1 / 2, 0])
     )
     genslip_cmd = [
         str(genslip_path),
@@ -240,6 +240,7 @@ def stitch_srf_files(
         for fault_name in order:
             fault = faults[fault_name]
             parent = rupture_propogation.rupture_causality_tree[fault_name]
+
             with open(
                 output_directory / "srf" / (normalise_name(fault_name) + ".srf"),
                 "r",
