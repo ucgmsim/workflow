@@ -14,9 +14,9 @@ import numpy as np
 import typer
 from nshmdb import nshmdb
 from qcore.uncertainties import distributions, mag_scaling
+
 from source_modelling import rupture_propagation
 from source_modelling.sources import Fault
-
 from workflow import realisations
 
 
@@ -27,8 +27,13 @@ def a_to_mw_leonard(area: float, rake: float) -> float:
 def default_magnitude_estimation(
     faults: dict[str, Fault], rakes: dict[str, float]
 ) -> dict[str, float]:
+    total_area = sum(fault.area() for fault in faults.values())
+    avg_rake = np.mean(list(rakes.values()))
+    estimated_mw = a_to_mw_leonard(total_area, avg_rake)
+    estimated_moment = mag_scaling.mag2mom(estimated_mw)
+    print(estimated_moment)
     return {
-        fault_name: a_to_mw_leonard(fault.area(), rakes[fault_name])
+        fault_name: mag_scaling.mom2mag((fault.area() / total_area) * estimated_moment)
         for fault_name, fault in faults.items()
     }
 
