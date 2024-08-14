@@ -391,17 +391,6 @@ class VelocityModelParameters(RealisationConfiguration):
     version: str
     topo_type: str
 
-    def to_dict(self) -> dict:
-        """
-        Convert the object to a dictionary representation.
-
-        Returns
-        -------
-        dict
-            Dictionary representation of the object.
-        """
-        return dataclasses.asdict(self)
-
 
 @dataclasses.dataclass
 class RealisationMetadata(RealisationConfiguration):
@@ -425,14 +414,3 @@ class RealisationMetadata(RealisationConfiguration):
     name: str
     version: str
     tag: Optional[str] = None
-
-    def to_dict(self):
-        """
-        Convert the object to a dictionary representation.
-
-        Returns
-        -------
-        dict
-            Dictionary representation of the object.
-        """
-        return dataclasses.asdict(self)
