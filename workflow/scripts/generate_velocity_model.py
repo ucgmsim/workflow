@@ -141,14 +141,8 @@ def generate_velocity_model(
     Example usage:
     $ generate_velocity_model path/to/realisation.json /path/to/save/velocity_model
     """
-    domain_parameters: DomainParameters = realisations.read_config_from_realisation(
-        DomainParameters, realisation_filepath
-    )
-    velocity_model_parameters: VelocityModelParameters = (
-        realisations.read_config_from_realisation(
-            VelocityModelParameters, realisation_filepath
-        )
-    )
+    domain_parameters = DomainParameters.read_from_realisation(realisation_filepath)
+    velocity_model_parameters = VelocityModelParameters.read_from_realisation(realisation_filepath)
     nzvm_config_path = scratch_directory / "nzvm.cfg"
     velocity_model_intermediate_path = scratch_directory / "Velocity_Model"
 

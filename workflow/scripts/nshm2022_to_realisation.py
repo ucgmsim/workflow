@@ -114,7 +114,7 @@ def generate_realisation(
     )
 
     for section in [metadata, source_config, srf_config, rupture_propagation_config]:
-        realisations.write_config_to_realisation(section, realisation_ffp)
+        section.write_to_realisation(realisation_ffp)
 
 
 def main():

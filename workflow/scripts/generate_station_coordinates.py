@@ -34,9 +34,7 @@ def generate_fd_files(
 ) -> None:
     """Generate station gridpoint coordinates for a station list."""
     output_path.mkdir(exist_ok=True)
-    domain_parameters: DomainParameters = realisations.read_config_from_realisation(
-        DomainParameters, realisations_ffp
-    )
+    domain_parameters = DomainParameters.read_from_realisation(realisations_ffp)
     model_origin = domain_parameters.domain.origin
     hh = domain_parameters.resolution
     nx = domain_parameters.nx

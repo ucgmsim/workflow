@@ -29,8 +29,8 @@ from qcore import bounding_box, coordinates, gmt
 from qcore.bounding_box import BoundingBox
 from qcore.uncertainties import mag_scaling
 from shapely import Polygon
-from source_modelling import sources
 
+from source_modelling import sources
 from workflow import realisations
 from workflow.realisations import (
     DomainParameters,
@@ -305,14 +305,10 @@ def generate_velocity_model_parameters(
     ] = "SQUASHED_TAPERED",
 ):
     """Generate velocity model parameters for a realisation."""
-    source_config: SourceConfig = realisations.read_config_from_realisation(
-        SourceConfig, realisation_filepath
-    )
+    source_config = SourceConfig.read_from_realisation(realisation_filepath)
 
-    rupture_propagation: RupturePropagationConfig = (
-        realisations.read_config_from_realisation(
-            RupturePropagationConfig, realisation_filepath
-        )
+    rupture_propagation = RupturePropagationConfig.read_from_realisation(
+        realisation_filepath
     )
     magnitudes = rupture_propagation.magnitudes
 
@@ -365,7 +361,7 @@ def generate_velocity_model_parameters(
         model_domain,
         rupture_magnitude,
         list(source_config.source_geometries.values()),
-        list(rupture_propagation.rakes.values()),
+        np.fromiter(rupture_propagation.rakes.values()),
         ds_multiplier,
     )
 
@@ -380,10 +376,8 @@ def generate_velocity_model_parameters(
         min_vs=min_vs, version=vm_version, topo_type=vm_topo_type
     )
 
-    realisations.write_config_to_realisation(domain_parameters, realisation_filepath)
-    realisations.write_config_to_realisation(
-        velocity_model_parameters, realisation_filepath
-    )
+    domain_parameters.write_to_realisation(realisation_filepath)
+    velocity_model_parameters.write_to_realisation(realisation_filepath)
 
 
 def main():

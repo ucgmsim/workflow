@@ -41,9 +41,7 @@ def generate_model_coordinates(
 ) -> None:
     """Generate model coordinates for EMOD3D."""
     output_ffp.mkdir(exist_ok=True)
-    domain_parameters: DomainParameters = realisations.read_config_from_realisation(
-        DomainParameters, realisation_ffp
-    )
+    domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     x_len = domain_parameters.domain.extent_x
     y_len = domain_parameters.domain.extent_y
     z_len = domain_parameters.depth

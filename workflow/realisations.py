@@ -30,12 +30,14 @@ write_config_to_realisation
 
 import dataclasses
 import json
+from abc import ABC
 from pathlib import Path
-from typing import Optional, Protocol, Union
+from typing import Any, ClassVar, Optional, Self, Union
 
 import numpy as np
 from qcore import coordinates
 from qcore.bounding_box import BoundingBox
+from schema import Schema
 
 from source_modelling import sources
 from source_modelling.rupture_propagation import JumpPair
@@ -71,12 +73,7 @@ def to_name_coordinate_dictionary(
     {'latitude': 0, 'longitude': 0, 'depth': 1000}
     """
     coordinate_dicts = [
-        dict(
-            zip(
-                coordinate_names,
-                [float(value) for value in coordinate_array],
-            )
-        )
+        dict(zip(coordinate_names, coordinate_array.tolist()))
         for coordinate_array in np.atleast_2d(coordinate_array)
     ]
 
@@ -86,8 +83,90 @@ def to_name_coordinate_dictionary(
     return coordinate_dicts
 
 
+class RealisationParseError(Exception):
+    """Realisation JSON parse error."""
+
+    pass
+
+
 @dataclasses.dataclass
-class SourceConfig:
+class RealisationConfiguration(ABC):
+    """Abstract base class for RealisationConfiguration."""
+
+    _config_key: ClassVar[str]
+    _schema: ClassVar[Schema]
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the object to a dictionary representation.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the object.
+        """
+        return dataclasses.asdict(self)
+
+    @classmethod
+    def read_from_realisation(cls, realisation_ffp: Path) -> Self:
+        """Read configuration from a realisation file.
+
+        Parameters
+        ----------
+        realisation_ffp : Path
+            The filepath to read from.
+
+        Returns
+        -------
+        LoadableConfig
+            The configuration loaded from the realisation filepath. The
+            configuration schema is looked up from `cls._config_key`
+            and the key within the config is specified
+            `cls._schema`.
+
+        Raises
+        ------
+        RealisationParseError
+            If the key in `cls._config_key` is not present in
+            the realisation filepath.
+        """
+        with open(realisation_ffp, "r", encoding="utf-8") as realisation_file_handle:
+            realisation_config = json.load(realisation_file_handle)
+            if cls._config_key not in realisation_config:
+                raise RealisationParseError(
+                    f"No {cls._config_key} in realisation configuration"
+                )
+        return cls(**cls._schema.validate(realisation_config[cls._config_key]))
+
+    def write_to_realisation(self, realisation_ffp: Path, update: bool = True) -> None:
+        """Write a configuration to a realisation file.
+
+        The default behaviour will update the realisation and replace just
+        the configuration keys specified by `config`. If `update` is set
+        to False, then the realisation is completely overwritten and
+        populated with only the section pertaining to the config.
+
+        Parameters
+        ----------
+        realisation_ffp : Path
+            The realisation filepath to write to.
+        update : bool
+            If True, then the realisation is updated, rather than
+            replaced. Default is True.
+        """
+        realisation_configuration = {}
+        if realisation_ffp.exists() and update:
+            with open(
+                realisation_ffp, "r", encoding="utf-8"
+            ) as realisation_file_handle:
+                realisation_configuration = json.load(realisation_file_handle)
+        realisation_configuration.update({self._config_key: self.to_dict()})
+        with open(realisation_ffp, "w", encoding="utf-8") as realisation_file_handle:
+            json.dump(realisation_configuration, realisation_file_handle)
+
+
+@dataclasses.dataclass
+class SourceConfig(RealisationConfiguration):
     """
     Configuration for defining sources.
 
@@ -96,6 +175,9 @@ class SourceConfig:
     sources : dict[str, "Source"]
         Dictionary mapping source names to their definitions.
     """
+
+    _config_key: ClassVar[str] = "sources"
+    _schema: ClassVar[Schema] = schemas.SOURCE_SCHEMA
 
     source_geometries: dict[str, IsSource]
 
@@ -133,7 +215,7 @@ class SourceConfig:
 
 
 @dataclasses.dataclass
-class SRFConfig:
+class SRFConfig(RealisationConfiguration):
     """
     Configuration for SRF generation.
 
@@ -149,25 +231,17 @@ class SRFConfig:
         A second random seed for genslip, used for specific purposes in the generation process.
     """
 
+    _config_key: ClassVar[str] = "srf"
+    _schema: ClassVar[Schema] = schemas.SRF_SCHEMA
+
     genslip_dt: float
     genslip_seed: int
     genslip_version: str
     srfgen_seed: int
 
-    def to_dict(self):
-        """
-        Convert the object to a dictionary representation.
-
-        Returns
-        -------
-        dict
-            Dictionary representation of the object.
-        """
-        return dataclasses.asdict(self)
-
 
 @dataclasses.dataclass
-class RupturePropagationConfig:
+class RupturePropagationConfig(RealisationConfiguration):
     """
     Configuration for rupture propagation.
 
@@ -188,13 +262,16 @@ class RupturePropagationConfig:
         A map from faults to the magnitude of the rupture for each fault.
     """
 
+    _config_key: ClassVar[str] = "rupture_propagation"
+    _schema: ClassVar[Schema] = schemas.RUPTURE_PROPAGATION_SCHEMA
+
     rupture_causality_tree: dict[str, str]
     jump_points: dict[str, JumpPair]
     rakes: dict[str, float]
     magnitudes: dict[str, float]
     hypocentre: np.ndarray
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert the object to a dictionary representation.
 
@@ -237,7 +314,7 @@ class RupturePropagationConfig:
 
 
 @dataclasses.dataclass
-class DomainParameters:
+class DomainParameters(RealisationConfiguration):
     """
     Parameters defining the spatial and temporal domain for simulation.
 
@@ -254,6 +331,9 @@ class DomainParameters:
     dt : float
         The resolution of the domain in time (in seconds).
     """
+
+    _config_key: ClassVar[str] = "domain"
+    _schema: ClassVar[Schema] = schemas.DOMAIN_SCHEMA
 
     resolution: float
     domain: BoundingBox
@@ -288,13 +368,12 @@ class DomainParameters:
         param_dict = dataclasses.asdict(self)
         param_dict["domain"] = to_name_coordinate_dictionary(
             coordinates.nztm_to_wgs_depth(self.domain.corners),
-            ["latitude", "longitude"],
         )
         return param_dict
 
 
 @dataclasses.dataclass
-class VelocityModelParameters:
+class VelocityModelParameters(RealisationConfiguration):
     """Parameters defining the velocity model.
 
     min_vs : float
@@ -304,6 +383,9 @@ class VelocityModelParameters:
     topo_type : str
         The topology type of the velocity model.
     """
+
+    _config_key: ClassVar[str] = "velocity_model"
+    _schema: ClassVar[Schema] = schemas.VELOCITY_MODEL_SCHEMA
 
     min_vs: float
     version: str
@@ -322,7 +404,7 @@ class VelocityModelParameters:
 
 
 @dataclasses.dataclass
-class RealisationMetadata:
+class RealisationMetadata(RealisationConfiguration):
     """
     Metadata for describing a realisation.
 
@@ -336,6 +418,9 @@ class RealisationMetadata:
         Metadata tag for the realisation used to specify the origin or
         category of the realisation (e.g. NSHM, GCMT or custom).
     """
+
+    _config_key: ClassVar[str] = "metadata"
+    _schema: ClassVar[Schema] = schemas.REALISATION_METADATA_SCHEMA
 
     name: str
     version: str
@@ -351,99 +436,3 @@ class RealisationMetadata:
             Dictionary representation of the object.
         """
         return dataclasses.asdict(self)
-
-
-_REALISATION_SCHEMAS = {
-    SourceConfig: schemas.SOURCE_SCHEMA,
-    SRFConfig: schemas.SRF_SCHEMA,
-    DomainParameters: schemas.DOMAIN_SCHEMA,
-    RupturePropagationConfig: schemas.RUPTURE_PROPAGATION_SCHEMA,
-    RealisationMetadata: schemas.REALISATION_METADATA_SCHEMA,
-    VelocityModelParameters: schemas.VELOCITY_MODEL_SCHEMA,
-}
-
-_REALISATION_KEYS = {
-    SourceConfig: "sources",
-    SRFConfig: "srf",
-    DomainParameters: "domain",
-    RupturePropagationConfig: "rupture_propagation",
-    RealisationMetadata: "metadata",
-    VelocityModelParameters: "velocity_model",
-}
-
-
-class RealisationParseError(Exception):
-    """Realisation JSON parse error."""
-
-    pass
-
-
-class LoadableConfig(Protocol):
-    """Protocol describing types that can be written to realisation JSON files."""
-
-    def to_dict(self) -> dict: ...
-
-
-def read_config_from_realisation(config: type, realisation_ffp: Path) -> LoadableConfig:
-    """Read configuration from a realisation file.
-
-    Parameters
-    ----------
-    config : type (one of the LoadableConfig types)
-        The configuration to read.
-    realisation_ffp : Path
-        The filepath to read from.
-
-    Returns
-    -------
-    LoadableConfig
-        The configuration loaded from the realisation filepath. The
-        configuration schema is looked up from `_REALISATION_SCHEMAS`
-        and the key within the config is specified
-        `_REALISATION_KEYS`.
-
-    Raises
-    ------
-    RealisationParseError
-        If the key in `_REALISATION_KEYS[config]` is not present in
-        the realisation filepath.
-    """
-    with open(realisation_ffp, "r", encoding="utf-8") as realisation_file_handle:
-        realisation_config = json.load(realisation_file_handle)
-        config_key = _REALISATION_KEYS[config]
-        schema = _REALISATION_SCHEMAS[config]
-        if config_key not in realisation_config:
-            raise RealisationParseError(
-                f"No '{config_key}' key in realisation configuration."
-            )
-        return config(**schema.validate(realisation_config[config_key]))
-
-
-def write_config_to_realisation(
-    config: LoadableConfig, realisation_ffp: Path, update: bool = True
-) -> None:
-    """Write a configuration to a realisation file.
-
-    The default behaviour will update the realisation and replace just
-    the configuration keys specified by `config`. If `update` is set
-    to False, then the realisation is completely overwritten and
-    populated with only the section pertaining to the config.
-
-    Parameters
-    ----------
-    config : LoadableConfig
-        The configuration object to write.
-    realisation_ffp : Path
-        The realisation filepath to write to.
-    update : bool
-        If True, then the realisation is updated, rather than
-        replaced. Default is True.
-    """
-    existing_realisation_configuration = {}
-    if realisation_ffp.exists() and update:
-        with open(realisation_ffp, "r", encoding="utf-8") as realisation_file_handle:
-            existing_realisation_configuration = json.load(realisation_file_handle)
-    config_key = _REALISATION_KEYS[config.__class__]
-    existing_realisation_configuration.update({config_key: config.to_dict()})
-    with open(realisation_ffp, "w", encoding="utf-8") as realisation_file_handle:
-        json.dump(existing_realisation_configuration, realisation_file_handle)

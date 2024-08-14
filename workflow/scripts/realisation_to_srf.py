@@ -397,20 +397,10 @@ def generate_srf(
     ] = Path("/EMOD3D/tools/genslip_v5.4.2"),
 ):
     """Generate a type-5 SRF file from a given realisation specification."""
-    srf_config: SRFConfig = realisations.read_config_from_realisation(
-        SRFConfig, realisation_filepath
-    )
-    rupture_propagation: RupturePropagationConfig = (
-        realisations.read_config_from_realisation(
-            RupturePropagationConfig, realisation_filepath
-        )
-    )
-    source_config: SourceConfig = realisations.read_config_from_realisation(
-        SourceConfig, realisation_filepath
-    )
-    metadata: RealisationMetadata = realisations.read_config_from_realisation(
-        RealisationMetadata, realisation_filepath
-    )
+    srf_config = SRFConfig.read_from_realisation(realisation_filepath)
+    rupture_propagation = RupturePropagationConfig.read_from_realisation(realisation_filepath)
+    source_config = SourceConfig.read_from_realisation(realisation_filepath)
+    metadata = RealisationMetadata.read_from_realisation(realisation_filepath)
 
     generate_fault_srfs_parallel(
         source_config.source_geometries,

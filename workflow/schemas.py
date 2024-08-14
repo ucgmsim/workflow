@@ -5,8 +5,6 @@ the Realisations Proposal page) for a description of realisations and
 the schemas.
 """
 
-from pathlib import Path
-
 import numpy as np
 from qcore.bounding_box import BoundingBox
 from schema import And, Literal, Optional, Or, Schema, Use

@@ -256,17 +256,9 @@ def create_e3d_par(
     """Create EMOD3D parameters sourced from a realisation file."""
     output_ffp.mkdir(exist_ok=True)
     scratch_ffp.mkdir(exist_ok=True)
-    domain_parameters: DomainParameters = realisations.read_config_from_realisation(
-        DomainParameters, realisation_ffp
-    )
-    velocity_model_parameters: VelocityModelParameters = (
-        realisations.read_config_from_realisation(
-            VelocityModelParameters, realisation_ffp
-        )
-    )
-    metadata: RealisationMetadata = realisations.read_config_from_realisation(
-        RealisationMetadata, realisation_ffp
-    )
+    domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
+    velocity_model_parameters = VelocityModelParameters.read_from_realisation(realisation_ffp)
+    metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     emod3d_defaults = defaults.load_emod3d_defaults(defaults_version)
     emod3d_parameters = (
         emod3d_defaults
