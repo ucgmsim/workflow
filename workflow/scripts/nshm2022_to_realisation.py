@@ -31,7 +31,6 @@ def default_magnitude_estimation(
     avg_rake = np.mean(list(rakes.values()))
     estimated_mw = a_to_mw_leonard(total_area, avg_rake)
     estimated_moment = mag_scaling.mag2mom(estimated_mw)
-    print(estimated_moment)
     return {
         fault_name: mag_scaling.mom2mag((fault.area() / total_area) * estimated_moment)
         for fault_name, fault in faults.items()
