@@ -32,7 +32,7 @@ import dataclasses
 import json
 from abc import ABC
 from pathlib import Path
-from typing import Any, ClassVar, Optional, Self, Union
+from typing import Any, ClassVar, Literal, Optional, Self, Union
 
 import numpy as np
 from qcore import coordinates
@@ -42,7 +42,8 @@ from schema import Schema
 from source_modelling import sources
 from source_modelling.rupture_propagation import JumpPair
 from source_modelling.sources import IsSource
-from workflow import schemas
+from workflow import defaults, schemas
+from workflow.defaults import DefaultsVersion
 
 
 def to_name_coordinate_dictionary(
@@ -118,7 +119,7 @@ class RealisationConfiguration(ABC):
 
         Returns
         -------
-        LoadableConfig
+        RealisationConfiguration
             The configuration loaded from the realisation filepath. The
             configuration schema is looked up from `cls._config_key`
             and the key within the config is specified
@@ -137,6 +138,67 @@ class RealisationConfiguration(ABC):
                     f"No {cls._config_key} in realisation configuration"
                 )
         return cls(**cls._schema.validate(realisation_config[cls._config_key]))
+
+    @classmethod
+    def read_from_defaults(cls, defaults_version: DefaultsVersion) -> Self:
+        """Read default values for this configuration.
+
+        Parameters
+        ----------
+        defaults_version : DefaultsVersion
+            The default parameter version to load with.
+
+        Returns
+        -------
+        RealisationConfiguration
+            The configuration loaded from the defaults. The configuration
+            schema is looked up from `cls._config_key` and the key within
+            the config is specified `cls._schema`.
+
+        Raises
+        ------
+        RealisationParseError
+            If the key in `cls._config_key` is not present in the scientific
+            defaults configuration.
+        """
+        default_config = defaults.load_defaults(defaults_version)
+        if cls._config_key not in default_config:
+            raise RealisationParseError(
+                f"No {cls._config_key} in defaults configuration"
+            )
+        return cls(**cls._schema.validate(default_config[cls._config_key]))
+
+    @classmethod
+    def read_from_realisation_or_defaults(
+        cls, realisation_ffp: Path, defaults_version: DefaultsVersion
+    ) -> Self:
+        """Read configuration from realisation, or read from defaults and write to realisation.
+
+        Parameters
+        ----------
+        defaults_version : DefaultsVersion
+            The default parameter version to load with.
+
+        Returns
+        -------
+        RealisationConfiguration
+            The configuration loaded from the realisation filepath, or the
+            defaults if the realisation does not contain the configuration
+            key. The configuration schema is looked up from `cls._config_key`
+            and the key within the config is specified `cls._schema`.
+
+        Raises
+        ------
+        RealisationParseError
+            If the key in `cls._config_key` is not present in
+            the realisation or scientific defaults configuration.
+        """
+        try:
+            return cls.read_from_realisation(realisation_ffp)
+        except RealisationParseError:
+            default_config = cls.read_from_defaults(defaults_version)
+            default_config.write_to_realisation(realisation_ffp)
+            return default_config
 
     def write_to_realisation(self, realisation_ffp: Path, update: bool = True) -> None:
         """Write a configuration to a realisation file.
@@ -237,6 +299,7 @@ class SRFConfig(RealisationConfiguration):
     genslip_dt: float
     genslip_seed: int
     genslip_version: str
+    resolution: float
     srfgen_seed: int
 
 
@@ -390,6 +453,11 @@ class VelocityModelParameters(RealisationConfiguration):
     min_vs: float
     version: str
     topo_type: str
+    dt: float
+    ds_multiplier: float
+    resolution: float
+    vs30: float
+    s_wave_velocity: float
 
 
 @dataclasses.dataclass
@@ -413,4 +481,207 @@ class RealisationMetadata(RealisationConfiguration):
 
     name: str
     version: str
+    defaults_version: DefaultsVersion
     tag: Optional[str] = None
+
+
+@dataclasses.dataclass
+class HFConfig(RealisationConfiguration):
+    """High frequency simulation configuration.
+
+    Attributes
+    ----------
+    nbu: float
+        Unknown!
+    ift: float
+        Unknown!
+    flo: float
+        Unknown!
+    fhi: float
+        Unknown!
+    nl_skip: int
+        Skip empty lines in input?
+    vp_sig: float
+        Unknown!
+    vsh_sig: float
+        Unknown!
+    rho_sig: float
+        Unknown!
+    qs_sig: float
+        Unknown!
+    ic_flag: bool
+        Unknown!
+    velocity_name: str
+        Unknown
+    dt: float
+        High frequency time resolution.
+    t_sec: float
+        High frequency output start time.
+    sdrop: float
+        Stress drop average (bars)
+    rayset: list[Literal[1, 2]]
+        ray types 1: direct, 2: moho
+    no_siteamp: bool
+        Disable BJ97 site amplification factors
+    fmax: float
+        Max simulation frequency
+    kappa: float
+        Unknown!
+    qfexp: float
+        Q frequency exponent
+    rvfac: float
+        Rupture velocity factor (rupture : Vs)
+    rvfac_shal: float
+        rvfac shallow fault multiplier
+    rvfac_deep: float
+        rvfac deep fault multiplier
+    czero: float
+        C0 coefficient
+    calpha: float
+        Ca coefficient
+    mom: Optional[float]
+        Seismic moment for HF simulation (or None, to infer value)
+    rupv: Optional[float]
+        Rupture velocity (or binary default)
+    site_specific: bool
+        Enable site-specific calculation
+    vs_moho: float
+        vs of moho layer
+    fa_sig1: float
+        Fourier amplitude uncertainty (1)
+    fa_sig2: float
+        Fourier amplitude uncertainty (2)
+    rv_sig1: float
+        Rupture velocity uncertainty
+    seed: float
+        HF seed.
+    path_dur: Literal[0, 1, 2, 11, 12]
+        path duration model.
+        - 0: GP2010
+        - 1: WUS modification trail/errol
+        - 2: ENA modificiation trial/error
+        - 11: WUS formulatian of BT2014
+        - 12: ENA formulation of BT2015. Models 11 and 12 overpredict for multiple rays.
+    dpath_pert: float
+        Log of path duration multiplier
+    stress_parameter_adjustment_tect_type: Literal[0, 1, 2]
+        Adjustment option 0 = off, 1 = active tectonic, 2 = stable continent
+    stress_parameter_adjustment_target_magnitude: Optional[float]
+        Target magnitude (or inferred if None)
+    stress_parameter_adjustment_fault_area: Optional[float]
+        Target magnitude (or inferred if None)
+    stress_parameter_fault_area: Optional[float]
+        Fault area (or inferred if None)
+    """
+
+    _config_key: ClassVar[str] = "hf"
+    _schema: ClassVar[Schema] = schemas.HF_CONFIG_SCHEMA
+
+    dt: float
+    nbu: float
+    ift: float
+    flo: float
+    fhi: float
+    nl_skip: int
+    vp_sig: float
+    vsh_sig: float
+    qs_sig: float
+    rho_sig: float
+    ic_flag: bool
+    velocity_name: str
+    t_sec: float
+    sdrop: float
+    rayset: list[Literal[1, 2]]
+    no_siteamp: bool
+    fmax: float
+    kappa: float
+    qfexp: float
+    rvfac: float
+    rvfac_shal: float
+    rvfac_deep: float
+    seed: float
+    czero: float
+    calpha: float
+    mom: Optional[float]
+    rupv: Optional[float]
+    site_specific: bool
+    vs_moho: float
+    fa_sig1: float
+    fa_sig2: float
+    rv_sig1: float
+    path_dur: Literal[0, 1, 2, 11, 12]
+    dpath_pert: float
+    stress_parameter_adjustment_tect_type: Literal[0, 1, 2]
+    stress_parameter_adjustment_target_magnitude: Optional[float]
+    stress_parameter_adjustment_fault_area: Optional[float]
+
+
+@dataclasses.dataclass
+class EMOD3DParameters(RealisationConfiguration):
+    _config_key: ClassVar[str] = "emod3d"
+    _schema: ClassVar[Schema] = schemas.EMOD3D_PARAMETERS_SCHEMA
+
+    all_in_one: int
+    bfilt: int
+    bforce: int
+    dampwidth: int
+    dblcpl: int
+    dmodfile: str
+    dtts: int
+    dump_dtinc: int
+    dxout: int
+    dxts: int
+    dyout: int
+    dyts: int
+    dzout: int
+    dzts: int
+    elas_only: int
+    enable_output_dump: int
+    enable_restart: int
+    ffault: int
+    fhi: float
+    fmax: float
+    fmin: float
+    freesurf: int
+    geoproj: int
+    intmem: int
+    ix_ts: int
+    ix_ys: int
+    ix_zs: int
+    iy_ts: int
+    iy_xs: int
+    iy_zs: int
+    iz_ts: int
+    iz_xz: int
+    iz_ys: int
+    lonlat_out: int
+    maxmem: int
+    model_style: int
+    nseis: int
+    order: int
+    pmodfile: str
+    pointmt: int
+    qbndmax: float
+    qpfrac: float
+    qpqs_factor: float
+    qsfrac: float
+    read_restart: int
+    report: int
+    restart_itinc: int
+    scale: int
+    smodfile: str
+    span: int
+    stype: str
+    swap_bytes: int
+    ts_inc: int
+    ts_start: int
+    ts_total: int
+    ts_xy: int
+    ts_xz: int
+    ts_yz: int
+    tzero: float
+    vmodel_swapb: int
+    xseis: int
+    yseis: int
+    zseis: int
+    pertbfile: str

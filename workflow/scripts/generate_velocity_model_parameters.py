@@ -14,7 +14,7 @@ $ python vm_params_generation.py path/to/realisation.yaml output/vm_params.yaml
 """
 
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import geopandas as gpd
 import numpy as np
@@ -34,6 +34,7 @@ from source_modelling import sources
 from workflow import realisations
 from workflow.realisations import (
     DomainParameters,
+    RealisationMetadata,
     RupturePropagationConfig,
     SourceConfig,
     VelocityModelParameters,
@@ -180,6 +181,8 @@ def estimate_simulation_duration(
     faults: list[sources.IsSource],
     rakes: np.ndarray,
     ds_multiplier: float,
+    vs30: float,
+    s_wave_velocity: float,
 ) -> float:
     """Estimate the simulation duration for a realisation simulated in a given domain.
 
@@ -211,15 +214,13 @@ def estimate_simulation_duration(
         axis=1,
     )
     maximum_distance = np.max(np.linalg.norm(box_corners - fault_centroid, axis=1))
-    s_wave_m_per_s = 3500
-    s_wave_arrival_time = maximum_distance / s_wave_m_per_s
+    s_wave_arrival_time = maximum_distance / s_wave_velocity
 
     # compute the pairwise distance between the domain corners and the fault corners
     pairwise_distance = np.linalg.norm(
         box_corners[np.newaxis, :, :] - fault_corners[:, np.newaxis, :], axis=2
     )
     largest_corner_distance = np.max(np.min(pairwise_distance, axis=1)) / 1000
-    vs30 = 500
     avg_rake = np.mean(rakes)
     oq_dataframe = pd.DataFrame.from_dict(
         {
@@ -277,38 +278,24 @@ def total_magnitude(magnitudes: np.ndarray) -> float:
 
 
 def generate_velocity_model_parameters(
-    realisation_filepath: Annotated[
+    realisation_ffp: Annotated[
         Path,
         typer.Argument(
             help="The path to the realisation to generate VM parameters for."
         ),
     ],
-    resolution: Annotated[
-        float, typer.Option(help="The resolution of the simulation in kilometres.")
-    ] = 0.1,
-    min_vs: Annotated[
-        float,
-        typer.Option(
-            help="The minimum velocity (km/s) produced in the velocity model."
-        ),
-    ] = 0.5,
-    ds_multiplier: Annotated[float, typer.Option(help="Ds multiplier")] = 1.2,
-    dt: Annotated[
-        Optional[float],
-        typer.Option(
-            help="The resolution of time (in seconds). If not specified, use resolution / 20."
-        ),
-    ] = None,
-    vm_version: Annotated[str, typer.Option(help="Velocity model version.")] = "2.06",
-    vm_topo_type: Annotated[
-        str, typer.Option(help="VM topology type")
-    ] = "SQUASHED_TAPERED",
 ):
     """Generate velocity model parameters for a realisation."""
-    source_config = SourceConfig.read_from_realisation(realisation_filepath)
+    metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
+    source_config = SourceConfig.read_from_realisation(realisation_ffp)
+    velocity_model_parameters = (
+        VelocityModelParameters.read_from_realisation_or_defaults(
+            realisation_ffp, metadata.defaults_version
+        )
+    )
 
     rupture_propagation = RupturePropagationConfig.read_from_realisation(
-        realisation_filepath
+        realisation_ffp
     )
     magnitudes = rupture_propagation.magnitudes
 
@@ -361,23 +348,20 @@ def generate_velocity_model_parameters(
         model_domain,
         rupture_magnitude,
         list(source_config.source_geometries.values()),
-        np.fromiter(rupture_propagation.rakes.values()),
-        ds_multiplier,
+        np.fromiter(rupture_propagation.rakes.values(), float),
+        velocity_model_parameters.ds_multiplier,
+        velocity_model_parameters.vs30,
+        velocity_model_parameters.s_wave_velocity,
     )
 
     domain_parameters = DomainParameters(
-        resolution=resolution,
+        resolution=velocity_model_parameters.resolution,
         domain=model_domain,
         depth=max_depth,
         duration=sim_duration,
-        dt=dt or resolution / 20,
+        dt=velocity_model_parameters.dt,
     )
-    velocity_model_parameters = VelocityModelParameters(
-        min_vs=min_vs, version=vm_version, topo_type=vm_topo_type
-    )
-
-    domain_parameters.write_to_realisation(realisation_filepath)
-    velocity_model_parameters.write_to_realisation(realisation_filepath)
+    domain_parameters.write_to_realisation(realisation_ffp)
 
 
 def main():

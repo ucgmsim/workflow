@@ -100,7 +100,6 @@ def generate_fault_srf(
     magnitude: float,
     hypocentre_local_coordinates: np.ndarray,
     output_directory: Path,
-    subdivision_resolution: float,
     srf_config: SRFConfig,
     velocity_model_path: Path,
     genslip_path: Path,
@@ -124,17 +123,16 @@ def generate_fault_srf(
         fault,
         rake,
         gsf_output_directory,
-        subdivision_resolution,
+        srf_config.resolution,
     )
 
     nx = sum(
-        grid.gridpoint_count_in_length(plane.length_m, subdivision_resolution * 1000)
-        - 1
+        grid.gridpoint_count_in_length(plane.length_m, srf_config.resolution * 1000) - 1
         for plane in fault.planes
     )
     ny = (
         grid.gridpoint_count_in_length(
-            fault.planes[0].width_m, subdivision_resolution * 1000
+            fault.planes[0].width_m, srf_config.resolution * 1000
         )
         - 1
     )
@@ -290,7 +288,6 @@ def stitch_srf_files(
                 )
                 t_delay = parent_fault_points[jump_index].tinit
             cur_fault_points = fault_points[fault_name]
-            print(f"Delaying {fault_name} by {t_delay}")
             for point in cur_fault_points:
                 point.tinit += t_delay
                 srf_new.write_srf_point(srf_file_output, point)
@@ -302,7 +299,6 @@ def generate_fault_srfs_parallel(
     faults: dict[str, IsSource],
     rupture_propagation_config: RupturePropagationConfig,
     output_directory: Path,
-    subdivision_resolution: float,
     srf_config: SRFConfig,
     velocity_model_path: Path,
     genslip_path: Path,
@@ -349,7 +345,6 @@ def generate_fault_srfs_parallel(
             functools.partial(
                 generate_fault_srf,
                 output_directory=output_directory,
-                subdivision_resolution=subdivision_resolution,
                 srf_config=srf_config,
                 velocity_model_path=velocity_model_path,
                 genslip_path=genslip_path,
@@ -359,7 +354,7 @@ def generate_fault_srfs_parallel(
 
 
 def generate_srf(
-    realisation_filepath: Annotated[
+    realisation_ffp: Annotated[
         Path,
         typer.Argument(
             exists=True,
@@ -374,9 +369,6 @@ def generate_srf(
             writable=True, help="The filepath for the final SRF file.", dir_okay=False
         ),
     ],
-    subdivision_resolution: Annotated[
-        float, typer.Option(help="Geometry resolution (in km)", min=0)
-    ] = 0.1,
     work_directory: Annotated[
         Path,
         typer.Option(
@@ -397,16 +389,20 @@ def generate_srf(
     ] = Path("/EMOD3D/tools/genslip_v5.4.2"),
 ):
     """Generate a type-5 SRF file from a given realisation specification."""
-    srf_config = SRFConfig.read_from_realisation(realisation_filepath)
-    rupture_propagation = RupturePropagationConfig.read_from_realisation(realisation_filepath)
-    source_config = SourceConfig.read_from_realisation(realisation_filepath)
-    metadata = RealisationMetadata.read_from_realisation(realisation_filepath)
+    metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
+    srf_config = SRFConfig.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
+
+    rupture_propagation = RupturePropagationConfig.read_from_realisation(
+        realisation_ffp
+    )
+    source_config = SourceConfig.read_from_realisation(realisation_ffp)
 
     generate_fault_srfs_parallel(
         source_config.source_geometries,
         rupture_propagation,
         work_directory,
-        subdivision_resolution,
         srf_config,
         velocity_model,
         genslip_path,
@@ -418,6 +414,8 @@ def generate_srf(
         work_directory,
         srf_name,
     )
+    srf_config.write_to_realisation(realisation_ffp)
+
     shutil.copyfile(work_directory / (srf_name + ".srf"), output_srf_filepath)
 
 

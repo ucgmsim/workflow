@@ -1,12 +1,20 @@
 """Functions to load default parameters for EMOD-3D simulations."""
 
 import importlib
+from enum import Enum
 from importlib import resources
 
 import yaml
 
 
-def load_emod3d_defaults(version: str) -> dict[str, int | float | str]:
+class DefaultsVersion(str, Enum):
+    """Enum of versions that can be loaded by load_defaults."""
+
+    v24_2_2_1 = "24.2.2.1"
+    develop = "develop"
+
+
+def load_defaults(version: DefaultsVersion) -> dict[str, int | float | str]:
     """Load default parameters for EMOD3D simulation from a YAML file.
 
     Parameters
@@ -21,11 +29,9 @@ def load_emod3d_defaults(version: str) -> dict[str, int | float | str]:
         The keys are strings representing parameter names, and the values can be
         integers, floats, or strings depending on the parameter.
     """
-    emod3d_defaults_package = importlib.import_module(
-        f'workflow.default_parameters.v{version.replace('.', '_')}'
+    defaults_package = importlib.import_module(
+        f'workflow.default_parameters.v{version.value.replace('.', '_')}'
     )
-    emod3d_defaults_path = (
-        resources.files(emod3d_defaults_package) / "emod3d_defaults.yaml"
-    )
-    with emod3d_defaults_path.open(encoding="utf-8") as emod3d_defaults_file_handle:
+    defaults_path = resources.files(defaults_package) / "defaults.yaml"
+    with defaults_path.open(encoding="utf-8") as emod3d_defaults_file_handle:
         return yaml.safe_load(emod3d_defaults_file_handle)

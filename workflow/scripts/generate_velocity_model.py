@@ -113,7 +113,7 @@ def generate_velocity_model(
     ],
     velocity_model_bin_path: Annotated[
         Path, typer.Option(help="Path to NZVM binary.", exists=True, readable=True)
-    ] = "/Velocity-Model/NZVM",
+    ] = Path("/Velocity-Model/NZVM"),
     scratch_directory: Annotated[
         Path,
         typer.Option(
@@ -122,7 +122,7 @@ def generate_velocity_model(
             writable=True,
             file_okay=False,
         ),
-    ] = "/out",
+    ] = Path("/out"),
     num_threads: Annotated[
         int,
         typer.Option(
@@ -142,7 +142,6 @@ def generate_velocity_model(
     $ generate_velocity_model path/to/realisation.json /path/to/save/velocity_model
     """
     domain_parameters = DomainParameters.read_from_realisation(realisation_filepath)
-    velocity_model_parameters = VelocityModelParameters.read_from_realisation(realisation_filepath)
     nzvm_config_path = scratch_directory / "nzvm.cfg"
     velocity_model_intermediate_path = scratch_directory / "Velocity_Model"
 

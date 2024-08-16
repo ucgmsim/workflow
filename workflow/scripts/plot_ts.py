@@ -23,7 +23,7 @@ def plot_ts(
     ],
     work_directory: Annotated[
         Path, typer.Option(help="Intermediate output directory")
-    ] = "/out",
+    ] = Path("/out"),
 ):
     merged_xyts_ffp = work_directory / "timeslices-xyts.e3d"
     merge_ts.merge_ts(xyts_input_directory, merged_xyts_ffp)

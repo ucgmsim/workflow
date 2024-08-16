@@ -18,6 +18,7 @@ from qcore.uncertainties import distributions, mag_scaling
 from source_modelling import rupture_propagation
 from source_modelling.sources import Fault
 from workflow import realisations
+from workflow.defaults import DefaultsVersion
 
 
 def a_to_mw_leonard(area: float, rake: float) -> float:
@@ -60,23 +61,12 @@ def generate_realisation(
         Path,
         typer.Argument(help="Location to write out the realisation.", writable=True),
     ],
-    dt: Annotated[
-        float, typer.Option(help="Time resolution for source modelling.", min=0)
-    ] = 0.05,
-    genslip_seed: Annotated[
-        int,
-        typer.Option(
-            help="Seed for genslip, used to initialise slip distribution on fault."
-        ),
-    ] = 1,
-    srfgen_seed: Annotated[
-        int,
-        typer.Option(
-            help="Seed for srfgen, used to initialise slip distribution on fault."
-        ),
-    ] = 1,
+    defaults_version: Annotated[
+        DefaultsVersion,
+        typer.Argument(help="Scientific default parameters version to use"),
+    ],
 ):
-    "Generate realisation stub files from ruptures in the NSHM 2022 database."
+    """Generate realisation stub files from ruptures in the NSHM 2022 database."""
     db = nshmdb.NSHMDB(nshm_db_file)
     faults = db.get_rupture_faults(rupture_id)
     faults_info = db.get_rupture_fault_info(rupture_id)
@@ -91,12 +81,6 @@ def generate_realisation(
 
     source_config = realisations.SourceConfig(faults)
 
-    srf_config = realisations.SRFConfig(
-        genslip_seed=genslip_seed,
-        genslip_dt=dt,
-        srfgen_seed=srfgen_seed,
-        genslip_version="5.4.2",
-    )
     rakes = {
         fault_name: fault_info.rake for fault_name, fault_info in faults_info.items()
     }
@@ -110,10 +94,13 @@ def generate_realisation(
         hypocentre=expected_hypocentre(),
     )
     metadata = realisations.RealisationMetadata(
-        name=f"Rupture {rupture_id}", version="1", tag="nshm"
+        name=f"Rupture {rupture_id}",
+        version="1",
+        tag="nshm",
+        defaults_version=defaults_version,
     )
 
-    for section in [metadata, source_config, srf_config, rupture_propagation_config]:
+    for section in [metadata, source_config, rupture_propagation_config]:
         section.write_to_realisation(realisation_ffp)
 
 

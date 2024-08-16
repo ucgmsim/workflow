@@ -10,6 +10,7 @@ from qcore.bounding_box import BoundingBox
 from schema import And, Literal, Optional, Or, Schema, Use
 
 from source_modelling import rupture_propagation, sources
+from workflow.defaults import DefaultsVersion
 
 # NOTE: These functions seem silly and short, however there is a good
 # reason for the choice to create functions like this. The reason is
@@ -296,6 +297,9 @@ SRF_SCHEMA = Schema(
             "srfgen_seed",
             description="A second random seed for genslip (TODO: how does genslip use this value?)",
         ): And(int, is_non_negative),
+        Literal("resolution", description="Subdivision resolution."): And(
+            float, is_positive
+        ),
     }
 )
 
@@ -358,6 +362,15 @@ VELOCITY_MODEL_SCHEMA = Schema(
         ): And(float, is_positive),
         Literal("version", "Velocity model version"): "2.06",
         Literal("topo_type", "Velocity model topology type"): str,
+        Literal("dt", "Velocity model timestep resolution"): And(float, is_positive),
+        Literal("ds_multiplier", "Velocity model ds multiplier"): And(
+            float, is_positive
+        ),
+        Literal("resolution", "Velocity model spatial resolution"): And(
+            float, is_positive
+        ),
+        Literal("vs30", "VS30 value"): And(float, is_positive),
+        Literal("s_wave_velocity", "S-wave velocity"): And(float, is_positive),
     }
 )
 
@@ -373,5 +386,147 @@ REALISATION_METADATA_SCHEMA = Schema(
                 description="Metadata tag for the realisation used to specify the origin or category of the realisation (e.g. NSHM, GCMT or custom).",
             )
         ): str,
+        Literal(
+            "defaults_version", description="Simulation default parameters version."
+        ): And(str, Use(DefaultsVersion)),
+    }
+)
+
+HF_CONFIG_SCHEMA = Schema(
+    {
+        Literal("nbu", description="Unknown!"): float,
+        Literal("ift", description="Unknown!"): float,
+        Literal("flo", description="Unknown!"): float,
+        Literal("fhi", description="Unknown!"): float,
+        Literal("nl_skip", description="Skip empty lines in input?"): int,
+        Literal("vp_sig", description="Unknown!"): float,
+        Literal("vsh_sig", description="Unknown!"): float,
+        Literal("rho_sig", description="Unknown!"): float,
+        Literal("qs_sig", description="Unknown!"): float,
+        Literal("ic_flag", description="Unknown!"): bool,
+        Literal("velocity_name", description="Unknown!"): str,
+        Literal("dt", description="Time resolution for HF simulation"): And(
+            float, is_positive
+        ),
+        Literal("t_sec", description="High frequency output start time."): And(
+            float, is_non_negative
+        ),
+        Literal("sdrop", description="Stress drop average (bars)"): float,
+        Literal("rayset", description="ray types 1: direct, 2: moho"): [Or(1, 2)],
+        Literal(
+            "no_siteamp", description="Disable BJ97 site amplification factors"
+        ): bool,
+        Literal("fmax", description="Max simulation frequency"): And(
+            float, is_positive
+        ),
+        Literal("kappa", description="Unknown!"): float,
+        Literal("qfexp", description="Q frequency exponent"): float,
+        Literal("rvfac", description="Rupture velocity factor (rupture : Vs)"): And(
+            float, is_non_negative
+        ),
+        Literal("rvfac_shal", description="rvfac shallow fault multiplier"): float,
+        Literal("rvfac_deep", description="rvfac deep fault multiplier"): float,
+        Literal("czero", description="C0 coefficient"): float,
+        Literal("calpha", description="Ca coefficient"): float,
+        Literal("mom", description="Seimic moment (or null, to infer value)"): Or(
+            float, None
+        ),
+        Literal("rupv", description="Rupture velocity (or binary default)"): Or(
+            float, None
+        ),
+        Literal("site_specific", description="Enable site-specific calculation"): bool,
+        Literal("vs_moho", description="vs of moho layer"): float,
+        Literal("fa_sig1", "Fourier amplitude uncertainty (1)"): float,
+        Literal("fa_sig2", description="Fourier amplitude uncertainty (2)"): float,
+        Literal("rv_sig1", description="Rupture velocity uncertainty"): And(
+            float, is_non_negative
+        ),
+        Literal(
+            "path_dur",
+            description="path duration model. 0: GP2010, 1: WUS modification trail/errol, 2: ENA modificiation trial/error"
+            ", 11: WUS formutian of BT2014, 12: ENA formulation of BT2015. Models 11 and 12 overpredict for multiple rays.",
+        ): Or(0, 1, 2, 11, 12),
+        Literal("dpath_pert", description="Log of path duration multiplier"): float,
+        Literal(
+            "stress_parameter_adjustment_tect_type",
+            description="Adjustment option 0 = off, 1 = active tectonic, 2 = stable continent",
+        ): Or(0, 1, 2),
+        Literal(
+            "stress_parameter_adjustment_target_magnitude",
+            description="Target magnitude (or inferred if null)",
+        ): Or(float, None),
+        Literal(
+            "stress_parameter_adjustment_fault_area", "Fault area (or inferred if null)"
+        ): Or(float, None),
+        Literal("seed", description="HF seed"): int,
+    }
+)
+
+EMOD3D_PARAMETERS_SCHEMA = Schema(
+    {
+        "all_in_one": int,
+        "bfilt": int,
+        "bforce": int,
+        "dampwidth": int,
+        "dblcpl": int,
+        "dmodfile": str,
+        "dtts": int,
+        "dump_dtinc": int,
+        "dxout": int,
+        "dxts": int,
+        "dyout": int,
+        "dyts": int,
+        "dzout": int,
+        "dzts": int,
+        "elas_only": int,
+        "enable_output_dump": int,
+        "enable_restart": int,
+        "ffault": int,
+        "fhi": float,
+        "fmax": float,
+        "fmin": float,
+        "freesurf": int,
+        "geoproj": int,
+        "intmem": int,
+        "ix_ts": int,
+        "ix_ys": int,
+        "ix_zs": int,
+        "iy_ts": int,
+        "iy_xs": int,
+        "iy_zs": int,
+        "iz_ts": int,
+        "iz_xz": int,
+        "iz_ys": int,
+        "lonlat_out": int,
+        "maxmem": int,
+        "model_style": int,
+        "nseis": int,
+        "order": int,
+        "pmodfile": str,
+        "pointmt": int,
+        "qbndmax": float,
+        "qpfrac": float,
+        "qpqs_factor": float,
+        "qsfrac": float,
+        "read_restart": int,
+        "report": int,
+        "restart_itinc": int,
+        "scale": int,
+        "smodfile": str,
+        "span": int,
+        "stype": str,
+        "swap_bytes": int,
+        "ts_inc": int,
+        "ts_start": int,
+        "ts_total": int,
+        "ts_xy": int,
+        "ts_xz": int,
+        "ts_yz": int,
+        "tzero": float,
+        "vmodel_swapb": int,
+        "xseis": int,
+        "yseis": int,
+        "zseis": int,
+        "pertbfile": str,
     }
 )

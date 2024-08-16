@@ -9,6 +9,7 @@ import typer
 from workflow import defaults, realisations
 from workflow.realisations import (
     DomainParameters,
+    EMOD3DParameters,
     RealisationMetadata,
     VelocityModelParameters,
 )
@@ -257,21 +258,25 @@ def create_e3d_par(
     output_ffp.mkdir(exist_ok=True)
     scratch_ffp.mkdir(exist_ok=True)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
-    velocity_model_parameters = VelocityModelParameters.read_from_realisation(realisation_ffp)
+    velocity_model_parameters = VelocityModelParameters.read_from_realisation(
+        realisation_ffp
+    )
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
-    emod3d_defaults = defaults.load_emod3d_defaults(defaults_version)
-    emod3d_parameters = (
-        emod3d_defaults
+    emod3d_parameters = EMOD3DParameters.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
+    e3d_par_values = (
+        emod3d_parameters.to_dict()
         | emod3d_domain_parameters(domain_parameters)
         | emod3d_duration_parameters(
             domain_parameters,
             min_vs=velocity_model_parameters.min_vs,
-            dtts=emod3d_defaults["dtts"],
+            dtts=emod3d_parameters.dtts,
         )
         | emod3d_input_directories(
             srf_file_ffp, velocity_model_ffp, stations_ffp, grid_ffp
         )
-        | emod3d_outputs(scratch_ffp)
+        | emod3d_outputs(metadata, scratch_ffp)
         | emod3d_metadata(metadata, emod3d_path, emod3d_version)
     )
     e3d_par_ffp = scratch_ffp / "e3d.par"
@@ -279,7 +284,7 @@ def create_e3d_par(
     e3d_par_ffp.write_text(
         "\n".join(
             f"{key}={format_as_emod3d_value(value)}"
-            for key, value in emod3d_parameters.items()
+            for key, value in e3d_par_values.items()
         )
     )
 

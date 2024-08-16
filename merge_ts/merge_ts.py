@@ -12,6 +12,7 @@ Note:
     This module assumes the input XYTS files have the same temporal dimensions
     (i.e. nt is constant).
 """
+
 import os
 from pathlib import Path
 
@@ -42,7 +43,6 @@ def merge_ts(
     ] = "*xyts-*.e3d",
 ):
     """Merge XYTS files."""
-
     component_xyts_files = sorted(
         [
             xyts.XYTSFile(
@@ -105,7 +105,7 @@ def merge_ts(
 
 # The following function is here to define an entrypoint for the setup.py file.
 def main():
-    """Main script entrypoint."""
+    """Entrypoint to main script."""
     typer.run(merge_ts)
 
 
