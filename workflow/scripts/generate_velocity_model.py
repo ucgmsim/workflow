@@ -93,7 +93,7 @@ def run_nzvm(nzvm_binary_ffp: Path, nzvm_config_ffp: Path, num_threads: int) -> 
 
 
 def generate_velocity_model(
-    realisation_filepath: Annotated[
+    realisation_ffp: Annotated[
         Path,
         typer.Argument(
             help="Path to realisation JSON file.",
@@ -141,7 +141,10 @@ def generate_velocity_model(
     Example usage:
     $ generate_velocity_model path/to/realisation.json /path/to/save/velocity_model
     """
-    domain_parameters = DomainParameters.read_from_realisation(realisation_filepath)
+    domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
+    velocity_model_parameters = VelocityModelParameters.read_from_realisation(
+        realisation_ffp
+    )
     nzvm_config_path = scratch_directory / "nzvm.cfg"
     velocity_model_intermediate_path = scratch_directory / "Velocity_Model"
 

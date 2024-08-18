@@ -29,9 +29,14 @@ def load_defaults(version: DefaultsVersion) -> dict[str, int | float | str]:
         The keys are strings representing parameter names, and the values can be
         integers, floats, or strings depending on the parameter.
     """
-    defaults_package = importlib.import_module(
-        f'workflow.default_parameters.v{version.value.replace('.', '_')}'
-    )
+    if version == DefaultsVersion.develop:
+        defaults_package = importlib.import_module(
+            "workflow.default_parameters.develop"
+        )
+    else:
+        defaults_package = importlib.import_module(
+            f'workflow.default_parameters.v{version.value.replace('.', '_')}'
+        )
     defaults_path = resources.files(defaults_package) / "defaults.yaml"
     with defaults_path.open(encoding="utf-8") as emod3d_defaults_file_handle:
         return yaml.safe_load(emod3d_defaults_file_handle)
