@@ -8,14 +8,13 @@ files from fault geometries, and stitches together these files in the order
 of rupture propagation.
 """
 
-import collections
 import functools
 import multiprocessing
 import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Annotated, Generator, Iterable, Optional
+from typing import Annotated, Iterable, Optional
 
 import numpy as np
 import pandas as pd
@@ -24,7 +23,7 @@ import typer
 from qcore import coordinates, grid, gsf
 from scipy.sparse import csr_array
 
-from source_modelling import srf
+from source_modelling import rupture_propagation, srf
 from source_modelling.sources import IsSource
 from workflow.realisations import (
     RealisationMetadata,
@@ -178,38 +177,25 @@ def generate_fault_srf(
         )
 
 
-def tree_nodes_in_order(
-    tree: dict[str, str],
-) -> Generator[str, None, None]:
-    """Generate faults in topologically sorted order.
+def concatenate_csr_arrays(csr_arrays: list[csr_array]) -> csr_array:
+    """Concatenate a list of sparse arrays.
+
+    Concatenates a list of sparse arrays with varying column
+    widths. It will do this by padding the arrays and assuming that
+    all returned arrays should be left-aligned.
 
     Parameters
     ----------
-    faults : list[RealisationFault]
-        List of RealisationFault objects.
+    csr_arrays : list[csr_array]
+        The sparse arrays to concatenate.
 
-    Yields
-    ------
-    RealisationFault
-        The next fault in the topologically sorted order.
+    Returns
+    -------
+    csr_array
+        The left-aligned and concatenated sparse array. If the arrays have
+        dimensions (r_i, c_i), then the output array will have dimensions
+        (∑ r_i, max {c_i}).
     """
-    tree_child_map = collections.defaultdict(list)
-    for cur, parent in tree.items():
-        if parent:
-            tree_child_map[parent].append(cur)
-
-    def in_order_traversal(
-        node: str,
-    ) -> Generator[str, None, None]:
-        yield node
-        for child in tree_child_map[node]:
-            yield from in_order_traversal(child)
-
-    initial_fault = next(cur for cur, parent in tree.items() if not parent)
-    yield from in_order_traversal(initial_fault)
-
-
-def fast_concat(csr_arrays: list[csr_array]):
     max_columns = max(arr.shape[1] for arr in csr_arrays)
     padded_arrays = [
         sp.sparse.hstack(
@@ -225,16 +211,29 @@ def fast_concat(csr_arrays: list[csr_array]):
 def concatenate_slip_values(
     slip_values: Iterable[csr_array],
 ) -> Optional[csr_array]:
+    """Concatenate a list of slip arrays.
+
+    Parameters
+    ----------
+    slip_values : Iterable[csr_array]
+        The slip arrays to concatenate.
+
+    Returns
+    -------
+    Optional[csr_array]
+        The concatenated slip array, or None if the slip array
+        contains no non-zero values.
+    """
     slip_values = list(slip_values)
     if sum(slip.count_nonzero() for slip in slip_values) == 0:
         return None
-    concatenated_slip = fast_concat(slip_values)
+    concatenated_slip = concatenate_csr_arrays(slip_values)
     return concatenated_slip
 
 
 def stitch_srf_files(
     faults: dict[str, IsSource],
-    rupture_propagation: RupturePropagationConfig,
+    rupture_propagation_config: RupturePropagationConfig,
     output_directory: Path,
     output_name: str,
 ) -> Path:
@@ -253,12 +252,16 @@ def stitch_srf_files(
         The path to the stitched together SRF file.
     """
     srf_output_filepath = output_directory / f"{output_name}.srf"
-    order = list(tree_nodes_in_order(rupture_propagation.rupture_causality_tree))
+    order = list(
+        rupture_propagation.tree_nodes_in_order(
+            rupture_propagation_config.rupture_causality_tree
+        )
+    )
     srf_files: dict[str, srf.SrfFile] = {}
 
     for fault_name in order:
         fault = faults[fault_name]
-        parent = rupture_propagation.rupture_causality_tree[fault_name]
+        parent = rupture_propagation_config.rupture_causality_tree[fault_name]
         srf_ffp = output_directory / "srf" / (normalise_name(fault_name) + ".srf")
         srf_file = srf.read_srf(srf_ffp)
         if parent:
@@ -268,7 +271,7 @@ def stitch_srf_files(
             srf_file.header["dhyp"] = -999
             parent_srf = srf_files[parent]
             parent_coords = fault.fault_coordinates_to_wgs_depth_coordinates(
-                rupture_propagation.jump_points[fault_name].from_point
+                rupture_propagation_config.jump_points[fault_name].from_point
             )
             jump_index = int(
                 np.argmin(
