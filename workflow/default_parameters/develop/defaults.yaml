@@ -102,7 +102,7 @@ hf:
   stress_parameter_adjustment_fault_area: null
   seed: 0
 srf:
-  resolution: 0.4
+  resolution: 0.1
   genslip_seed: 1
   genslip_dt: 0.05
   srfgen_seed: 1
