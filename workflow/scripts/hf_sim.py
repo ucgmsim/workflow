@@ -67,7 +67,7 @@ def run_hf(
             velocity_model,
             hf_config.vs_moho,
             f"{hf_config.nl_skip:d} {hf_config.vp_sig} {hf_config.vsh_sig} {hf_config.rho_sig} {hf_config.qs_sig} {hf_config.ic_flag:d}",
-            velocity_name,
+            hf_config.velocity_name,
             f"{hf_config.fa_sig1} {hf_config.fa_sig2} {hf_config.rv_sig1}",
             hf_config.path_dur,
             f"{hf_config.stress_parameter_adjustment_fault_area or -1} "
