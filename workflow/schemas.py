@@ -394,8 +394,8 @@ REALISATION_METADATA_SCHEMA = Schema(
 
 HF_CONFIG_SCHEMA = Schema(
     {
-        Literal("nbu", description="Unknown!"): float,
-        Literal("ift", description="Unknown!"): float,
+        Literal("nbu", description="Unknown!"): int,
+        Literal("ift", description="Unknown!"): int,
         Literal("flo", description="Unknown!"): float,
         Literal("fhi", description="Unknown!"): float,
         Literal("nl_skip", description="Skip empty lines in input?"): int,
