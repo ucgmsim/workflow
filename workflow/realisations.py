@@ -558,10 +558,10 @@ class HFConfig(RealisationConfiguration):
     path_dur: Literal[0, 1, 2, 11, 12]
         path duration model.
         - 0: GP2010
-        - 1: WUS modification trail/errol
-        - 2: ENA modificiation trial/error
-        - 11: WUS formulatian of BT2014
-        - 12: ENA formulation of BT2015. Models 11 and 12 overpredict for multiple rays.
+        - 1: WUS modification trail/error
+        - 2: ENA modification trial/error
+        - 11: WUS formulation of BT2014
+        - 12: ENA formulation of BT2015. Models 11 and 12 over predict for multiple rays.
     dpath_pert: float
         Log of path duration multiplier
     stress_parameter_adjustment_tect_type: Literal[0, 1, 2]
@@ -618,6 +618,8 @@ class HFConfig(RealisationConfiguration):
 
 @dataclasses.dataclass
 class EMOD3DParameters(RealisationConfiguration):
+    """Parameters for EMOD3D LF simulation."""
+
     _config_key: ClassVar[str] = "emod3d"
     _schema: ClassVar[Schema] = schemas.EMOD3D_PARAMETERS_SCHEMA
 
