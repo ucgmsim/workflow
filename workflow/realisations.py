@@ -578,8 +578,8 @@ class HFConfig(RealisationConfiguration):
     _schema: ClassVar[Schema] = schemas.HF_CONFIG_SCHEMA
 
     dt: float
-    nbu: float
-    ift: float
+    nbu: int
+    ift: int
     flo: float
     fhi: float
     nl_skip: int

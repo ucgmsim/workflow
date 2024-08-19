@@ -64,8 +64,8 @@ emod3d:
   zseis: 0
   pertbfile: test
 hf:
-  nbu: 4.0
-  ift: 0.0
+  nbu: 4
+  ift: 0
   flo: 0.02
   fhi: 19.9
   nl_skip: -99
@@ -114,5 +114,5 @@ velocity_model:
   dt: 0.2
   version: "2.06"
   topo_type: "SQUASHED_TAPERED"
-  vs30: 500
-  s_wave_velocity: 3500
+  vs30: 500.0
+  s_wave_velocity: 3500.0
