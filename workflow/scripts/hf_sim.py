@@ -90,7 +90,6 @@ def run_hf(
         text=True,
         stderr=subprocess.PIPE,
     )
-
     # for some reason, e_dist values are not part of the stdout
     e_dist = np.fromstring(output.stderr, dtype="f4", sep="\n")
     if e_dist.size != number_of_stations:
@@ -104,3 +103,11 @@ def run_hf(
             out.seek(HEAD_STAT - 2 * FLOAT_SIZE, 1)
             e_dist[i].tofile(out)
             vs.tofile(out)
+
+
+def main():
+    typer.run(run_hf)
+
+
+if __name__ == "__main__":
+    main()
