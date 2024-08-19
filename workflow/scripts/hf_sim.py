@@ -12,8 +12,8 @@ import typer
 
 from workflow.realisations import DomainParameters, HFConfig, RealisationMetadata
 
-HEAD_STAT = 0x18
-FLOAT_SIZE = 0x4
+HEAD_STAT = 24
+FLOAT_SIZE = 4
 
 
 def format_hf_input(input_lines: Iterable[Any]) -> str:
