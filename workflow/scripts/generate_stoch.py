@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+
 from source_modelling import srf
 
 
@@ -19,15 +20,12 @@ def generate_stoch(
 ):
     "Generate stoch file from SRF."
     srf_data = srf.read_srf(srf_ffp)
-    first_segment = srf_data.header.iloc[0]
-    dx = first_segment["len"] / first_segment["nstk"]
-    dy = first_segment["wid"] / first_segment["ndip"]
 
     subprocess.check_call(
         [
             str(srf2stoch_path),
-            f"dx={dx}",
-            f"dy={dy}",
+            "dx=2",
+            "dy=2",
             f"infile={srf_ffp}",
             f"outfile={stoch_ffp}",
         ]
