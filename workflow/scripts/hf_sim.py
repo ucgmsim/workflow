@@ -53,7 +53,7 @@ def hf_simulate_station(
                 int(not hf_config.no_siteamp),
                 f"{hf_config.nbu} {hf_config.ift} {hf_config.flo} {hf_config.fhi}",
                 hf_config.seed,
-                1,
+                1,  # one station in the input
                 f"{domain_parameters.duration} {hf_config.dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",
                 f"{hf_config.rvfac} {hf_config.rvfac_shal} {hf_config.rvfac_deep} {hf_config.czero} {hf_config.calpha}",
                 f"{hf_config.mom or -1} {hf_config.rupv or -1}",
@@ -64,11 +64,11 @@ def hf_simulate_station(
                 hf_config.velocity_name,
                 f"{hf_config.fa_sig1} {hf_config.fa_sig2} {hf_config.rv_sig1}",
                 hf_config.path_dur,
-                0,
+                0,  # maybe don't need this?
                 f"{hf_config.stress_parameter_adjustment_fault_area or -1} "
                 f"{hf_config.stress_parameter_adjustment_target_magnitude or -1} "
                 f"{hf_config.stress_parameter_adjustment_tect_type or -1}",
-                0,
+                0,  # seek bytes to 0 (no binary offset for this output)
                 "",
             ]
         )
