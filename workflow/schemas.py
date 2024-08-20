@@ -528,5 +528,11 @@ EMOD3D_PARAMETERS_SCHEMA = Schema(
         "yseis": int,
         "zseis": int,
         "pertbfile": str,
+        Literal("stoch_dx", description="Standard dx for stoch file generation"): And(
+            float, is_positive
+        ),
+        Literal("stoch_dy", description="Standard dy for stoch file generation"): And(
+            float, is_positive
+        ),
     }
 )

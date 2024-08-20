@@ -101,6 +101,8 @@ hf:
   stress_parameter_adjustment_target_magnitude: null
   stress_parameter_adjustment_fault_area: null
   seed: 0
+  stoch_dx: 2.0
+  stoch_dy: 2.0
 srf:
   resolution: 0.1
   genslip_seed: 1

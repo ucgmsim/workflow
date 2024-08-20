@@ -614,6 +614,9 @@ class HFConfig(RealisationConfiguration):
     stress_parameter_adjustment_tect_type: Literal[0, 1, 2]
     stress_parameter_adjustment_target_magnitude: Optional[float]
     stress_parameter_adjustment_fault_area: Optional[float]
+    # these are used in stoch generation, rather than HF invocation
+    stoch_dx: float
+    stoch_dy: float
 
 
 @dataclasses.dataclass
