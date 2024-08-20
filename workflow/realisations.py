@@ -599,7 +599,7 @@ class HFConfig(RealisationConfiguration):
     rvfac: float
     rvfac_shal: float
     rvfac_deep: float
-    seed: float
+    seed: int
     czero: float
     calpha: float
     mom: Optional[float]

@@ -12,4 +12,5 @@ scipy
 shapely
 source_modelling @ git+https://github.com/ucgmsim/source_modelling@pegasus
 typer
+tqdm
 visualization @ git+https://github.com/ucgmsim/visualization
