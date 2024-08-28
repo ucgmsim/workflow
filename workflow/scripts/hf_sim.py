@@ -110,7 +110,7 @@ def run_hf(
         Path, typer.Argument(help="Filepath for HF output.", file_okay=False)
     ],
     hf_sim_path: Annotated[Path, typer.Option(help="Path to HF sim binary")] = Path(
-        "/EMOD3D/tools/hf"
+        "/EMOD3D/tools/hb_high_binmod_v6.0.3"
     ),
     velocity_model: Annotated[
         Path,
