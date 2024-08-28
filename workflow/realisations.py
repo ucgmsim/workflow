@@ -411,8 +411,8 @@ class DomainParameters(RealisationConfiguration):
 
     @property
     def ny(self) -> int:
-        """int: The number of x coordinate positions in the discretised domain."""
-        return int(np.round(self.domain.extent_x / self.resolution))
+        """int: The number of y coordinate positions in the discretised domain."""
+        return int(np.round(self.domain.extent_y / self.resolution))
 
     @property
     def nz(self) -> int:
