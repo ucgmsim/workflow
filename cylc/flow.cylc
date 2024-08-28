@@ -48,5 +48,10 @@
             --ntasks = 80
             --hint = nomultithread
             --time = 00:30:00
+    [[run_hf]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif run-hf /share/realisation.json /share/realisation.stoch /share/stations.ll /share/realisation.hf
+        [[directives]]
+                --cpus-per-task = 128
+                --time = 01:00:00
     [[plot_ts]]
         script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif plot-ts /share/LF/OutBin /share/simulation.m4v
