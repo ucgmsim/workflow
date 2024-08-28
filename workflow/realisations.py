@@ -35,13 +35,13 @@ from pathlib import Path
 from typing import Any, ClassVar, Literal, Optional, Self, Union
 
 import numpy as np
-from qcore import coordinates
-from qcore.bounding_box import BoundingBox
 from schema import Schema
 
+from qcore import coordinates
 from source_modelling import sources
 from source_modelling.rupture_propagation import JumpPair
 from source_modelling.sources import IsSource
+from velocity_modelling.bounding_box import BoundingBox
 from workflow import defaults, schemas
 from workflow.defaults import DefaultsVersion
 

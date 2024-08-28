@@ -22,15 +22,15 @@ import pandas as pd
 import scipy as sp
 import shapely
 import typer
+from shapely import Polygon
+
 from empirical.util import openquake_wrapper_vectorized as openquake
 from empirical.util import z_model_calculations
 from empirical.util.classdef import GMM, TectType
 from qcore import bounding_box, coordinates, gmt
-from qcore.bounding_box import BoundingBox
 from qcore.uncertainties import mag_scaling
-from shapely import Polygon
-
 from source_modelling import sources
+from velocity_modelling.bounding_box import BoundingBox
 from workflow import realisations
 from workflow.realisations import (
     DomainParameters,
