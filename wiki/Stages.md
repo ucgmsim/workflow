@@ -60,5 +60,12 @@ Many of the stages will run in a _container_. A container is a self-contained ex
 
 - **Environment**: Can be run in the cybershake container. Can also be run from your own computer using the `realisation-to-srf` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you are executing on your own computer you also need to specify the work directory (with the `--work-directory` flag), a 1D velocity model (`--velocity-model-ffp`), and the path to a genslip binary (`--genslip-path`).
 
-- **For More Help:** See the output of `realisation-to-srf --help` or [realisation\_to\_srf.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/realisation_to_srf.py)
-- **Visualisation:** You can visualise the output of this stage using the SRF plotting tools in the [source modelling](https://github.com/ucgmsim/source_modelling) repository. Many of the tools take realisations as optional arguments to enhance the plot output.
+- **For More Help:** See the output of `realisation-to-srf --help` or [realisation_to_srf.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/realisation_to_srf.py)
+- **Visualisation:** You can visualise the output of this stage using the SRF plotting tools in the [source modelling](https://github.com/ucgmsim/source_modelling/blob/plots/wiki/Plotting-Tools.md) repository. Many of the tools take realisations as optional arguments to enhance the plot output.
+
+## Stoch Generation
+- **Description:** Generate Stoch file for HF simulation. This file is just a down-sampled version of the SRF.
+- **Inputs:** A realisation file containing a metadata configuration, and a generated SRF file.
+- **Outputs:** A [Stoch](https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation#FileFormatsUsedInGroundMotionSimulation-Stochformat) file containing a down-sampled version of the SRF.
+- **Environment**: Can be run in the cybershake container. Can also be run from your own computer using the `generate-stoch` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you are executing on your own computer you also need to specify the `srf2stoch` path (`--srf2stoch-path`).
+- **For More Help:** See the output of `generate-stoch --help` or [generate_stoch.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/generate_stoch.py)
