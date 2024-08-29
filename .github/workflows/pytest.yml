@@ -1,0 +1,28 @@
+name: Pytest Check
+
+on: [pull_request, workflow_dispatch]
+
+jobs:
+  test:
+    runs-on: testing
+    container:
+      image: docker.io/earthquakesuc/testing
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      - name: Run tests
+        run: |
+          pytest --cov=workflow --cov-report=json tests --nshmdb-path /nshmdb.db --genslip-path /EMOD3D/tools/genslip_v5.4.2 --velocity-model-path /genslip_velocity-mode.vmod
+      - name: Test that module coverage is at least 95% for every module
+        run: "[[ -z $(jq '.files | to_entries[] | .value.summary.percent_covered | select(. < 95)' coverage.json) ]]"

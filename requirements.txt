@@ -6,11 +6,13 @@ numpy<2
 openquake-engine @ git+https://github.com/gem/oq-engine
 pandas
 pyyaml
+pytest
 qcore @ git+https://github.com/ucgmsim/qcore@pegasus
 schema
 scipy
 shapely
 source_modelling @ git+https://github.com/ucgmsim/source_modelling@pegasus
+velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling@cylc
 typer
 tqdm
 visualization @ git+https://github.com/ucgmsim/visualization
