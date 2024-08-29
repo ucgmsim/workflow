@@ -35,7 +35,7 @@ def load_defaults(version: DefaultsVersion) -> dict[str, int | float | str]:
         )
     else:
         defaults_package = importlib.import_module(
-            f'workflow.default_parameters.v{version.value.replace('.', '_')}'
+            f"workflow.default_parameters.v{version.value.replace('.', '_')}"
         )
     defaults_path = resources.files(defaults_package) / "defaults.yaml"
     with defaults_path.open(encoding="utf-8") as emod3d_defaults_file_handle:
