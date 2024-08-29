@@ -69,3 +69,12 @@ Many of the stages will run in a _container_. A container is a self-contained ex
 - **Outputs:** A [Stoch](https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation#FileFormatsUsedInGroundMotionSimulation-Stochformat) file containing a down-sampled version of the SRF.
 - **Environment**: Can be run in the cybershake container. Can also be run from your own computer using the `generate-stoch` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you are executing on your own computer you also need to specify the `srf2stoch` path (`--srf2stoch-path`).
 - **For More Help:** See the output of `generate-stoch --help` or [generate_stoch.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/generate_stoch.py)
+## Domain Generation
+- **Description:** Find a suitable simulation domain, estimating a rupture radius that captures significant ground motion, and the time the simulation should run for to capture this ground motion.
+- **Inputs:** A realisation file containing a metadata configuration, source definitions and rupture propagation information.
+
+- **Outputs:** A realisation file containing velocity model and domain extent parameters.
+
+- **Environment**: Can be run in the cybershake container. Can also be run from your own computer using the `generate-velocity-model-parameters` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+
+- **For More Help:** See the output of `generate-velocity-model-parameters --help` or [generate_velocity_model_parameters.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/generate_velocity_model_parameters.py).
