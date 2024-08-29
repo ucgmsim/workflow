@@ -459,6 +459,8 @@ HF_CONFIG_SCHEMA = Schema(
             "stress_parameter_adjustment_fault_area", "Fault area (or inferred if null)"
         ): Or(float, None),
         Literal("seed", description="HF seed"): int,
+        Literal("stoch_dx", description="Stoch file dx"): And(float, is_positive),
+        Literal("stoch_dy", description="Stoch file dy"): And(float, is_positive),
     }
 )
 

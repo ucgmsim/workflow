@@ -23,6 +23,12 @@ def pytest_addoption(parser: Parser):
         type=Path,
         help="Path to nshmdb",
     )
+    parser.addoption(
+        "--srf2stoch-path",
+        action="store",
+        type=Path,
+        help="Path to srf2stoch",
+    )
 
 
 @pytest.fixture
@@ -38,3 +44,8 @@ def velocity_model_path(request):
 @pytest.fixture
 def nshmdb_path(request):
     return request.config.getoption("--nshmdb-path")
+
+
+@pytest.fixture
+def srf2stoch_path(request):
+    return request.config.getoption("--srf2stoch-path")

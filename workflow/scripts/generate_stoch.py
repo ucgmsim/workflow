@@ -9,7 +9,7 @@ from workflow.realisations import HFConfig, RealisationMetadata
 
 def generate_stoch(
     realisation_ffp: Annotated[
-        Path, typer.Argument("Path to realisation", exists=True, dir_okay=False)
+        Path, typer.Argument(help="Path to realisation", exists=True, dir_okay=False)
     ],
     srf_ffp: Annotated[
         Path, typer.Argument(help="Path to SRF.", exists=True, dir_okay=False)

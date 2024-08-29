@@ -1,26 +1,22 @@
-import hashlib
 import shutil
 from pathlib import Path
 
+import numpy as np
 import pytest
 
+from source_modelling import srf
 from workflow.scripts import realisation_to_srf
 
 REALISATION_FILES = Path("tests/realisations")
-
-
-def md5file(filepath: Path) -> str:
-    with open(filepath, "rb") as handle:
-        return hashlib.file_digest(handle, "md5").hexdigest()
+SRF_FILES = Path("tests/srfs")
 
 
 @pytest.mark.parametrize(
-    "rupture_id,valid_srf_hash",
+    "rupture_id",
     [
-        (0, "08bcaaa78e8a38cf3d0afb32df2d626b"),
-        (1, "02d50bdea955b0d044b1402bac62207c"),
-        (599, "fcb66cce0e5576014a600b7fbcf8bb13"),
-        (1190, "478e506fc86638f31be8289124a53ce2"),
+        (0),
+        (1),
+        (599),
     ],
 )
 def test_realisation_to_srf(
@@ -28,13 +24,13 @@ def test_realisation_to_srf(
     genslip_path: Path,
     velocity_model_path: Path,
     rupture_id: int,
-    valid_srf_hash: str,
 ):
     realisation_path = tmp_path / "realisation.json"
     work_directory = tmp_path / "work"
     srf_path = tmp_path / "realisation.srf"
     work_directory.mkdir()
     shutil.copy(REALISATION_FILES / f"rupture_{rupture_id}.json", realisation_path)
+
     realisation_to_srf.generate_srf(
         realisation_path,
         srf_path,
@@ -42,4 +38,16 @@ def test_realisation_to_srf(
         velocity_model=velocity_model_path,
         genslip_path=genslip_path,
     )
-    assert md5file(srf_path) == valid_srf_hash
+    generated_srf = srf.read_srf(srf_path)
+    test_srf = srf.read_srf(SRF_FILES / f"rupture_{rupture_id}.srf")
+    max_slip_diff = np.max(
+        np.abs(generated_srf.points["slip"] - generated_srf.points["slip"])
+    )
+    # There can be small differences in the slip output due to
+    # differences in platform, hardware, etc. So rather than file
+    # diffing, we will diff on the actual values of the srf.
+    assert max_slip_diff < 0.1
+    max_tinit_diff = np.max(
+        np.abs(generated_srf.points["tinit"] - test_srf.points["tinit"])
+    )
+    assert max_tinit_diff < 0.1

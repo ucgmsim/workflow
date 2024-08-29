@@ -27,10 +27,12 @@ RUN apt-get update && apt-get install -y \
     gmt-dcw \
     gmt-gshhg \
     graphicsmagick \
+    jq \
     libgmt-dev \
     libfftw3-dev \
     libopenmpi-dev \
     libpapi-dev \
+    nodejs \
     python-is-python3 \
     python3-pip \
     sqlite3 \
@@ -44,8 +46,4 @@ RUN cd /EMOD3D && \
     cmake .. && \
     make genslip_v5.4.2 srf2stoch ll2xy xy2ll gen_model_cords
 RUN wget "https://www.dropbox.com/scl/fi/50kww45wpsnmtf3pn2okz/nshmdb.db?rlkey=4mjuomuevl1963fjwfximgldm&st=o5p83zab&dl=0" -O /nshmdb.db
-RUN mkdir -p /usr/local/lib/python3.12/dist-packages/qcore/ && \
-    wget 'https://www.dropbox.com/scl/fi/p5so9irbx43c9g96jr2qr/qcore_resources.tar.xz?rlkey=pgmn69e212c0zx0fauxuikgky&dl=0' -O /tmp/qcore-resources.tar.xz && \
-    tar xvf /tmp/qcore-resources.tar.xz -C /usr/local/lib/python3.12/dist-packages/qcore/ && \
-    rm /tmp/qcore-resources.tar.xz
 ENV PATH="$PATH:/EMOD3D/tools"

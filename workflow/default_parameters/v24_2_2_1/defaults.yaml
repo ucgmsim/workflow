@@ -64,8 +64,8 @@ emod3d:
   zseis: 0
   pertbfile: test
 hf:
-  nbu: 4.0
-  ift: 0.0
+  nbu: 4
+  ift: 0
   flo: 0.02
   fhi: 19.9
   nl_skip: -99
@@ -100,13 +100,15 @@ hf:
   stress_parameter_adjustment_tect_type: 1
   stress_parameter_adjustment_target_magnitude: null
   stress_parameter_adjustment_fault_area: null
+  stoch_dx: 2.0
+  stoch_dy: 2.0
   seed: 0
 srf:
   resolution: 0.1
   genslip_seed: 1
   genslip_dt: 0.05
   srfgen_seed: 1
-  genslip_version: 5.4.2 
+  genslip_version: 5.4.2
 velocity_model:
   min_vs: 0.5
   resolution: 0.1
