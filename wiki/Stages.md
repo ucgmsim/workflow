@@ -10,7 +10,7 @@ workflow stages, their inputs, outputs and environments.
 
 ```mermaid
 graph LR
-    A[<a href="#nshm-to-realisation">NSHM To Realisation</a>] --> B[<a href="#srf-generation">SRF Generation</a>]
+    A[NSHM To Realisation] --> B[SRF Generation]
     A --> C[Domain Generation]
     B --> D[Stoch Generation]
     C --> E[Velocity Model Generation]
@@ -27,14 +27,7 @@ graph LR
 ```
 
 
-Many of the stages will run in a _container_. A container is a
-self-contained execution environment with all the system and Python
-libraries required to execute workflow stages. It is also isolated
-from the host system and may not be able to access certain
-directories. We maintain a [cybershake
-container](https://hub.docker.com/r/earthquakesuc/runner) that has a
-copy of the latest validated workflow, and environment. Use this
-container as much as possible in your own scripts to run your code.
+Many of the stages will run in a _container_. A container is a self-contained execution environment with all the system and Python libraries required to execute workflow stages. It is also isolated from the host system and may not be able to access certain directories. We maintain a [cybershake container](https://hub.docker.com/r/earthquakesuc/runner) that has a copy of the latest validated workflow, and environment. Use this container as much as possible in your own scripts to run your code.
 
 ## NSHM To Realisation
 
@@ -68,3 +61,4 @@ container as much as possible in your own scripts to run your code.
 - **Environment**: Can be run in the cybershake container. Can also be run from your own computer using the `realisation-to-srf` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you are executing on your own computer you also need to specify the work directory (with the `--work-directory` flag), a 1D velocity model (`--velocity-model-ffp`), and the path to a genslip binary (`--genslip-path`).
 
 - **For More Help:** See the output of `realisation-to-srf --help` or [realisation\_to\_srf.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/realisation_to_srf.py)
+- **Visualisation:** You can visualise the output of this stage using the SRF plotting tools in the [source modelling](https://github.com/ucgmsim/source_modelling) repository. Many of the tools take realisations as optional arguments to enhance the plot output.
