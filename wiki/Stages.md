@@ -41,8 +41,9 @@ Many of the stages will run in a _container_. A container is a self-contained ex
   2. A rupture propagation plan (i.e. how the rupture jumps between faults, and where),
   3. The estimated rupture magnitude and apportionment to the involved faults.
   4. The definition of the rakes.
-- **Environment**: Can be run in the cybershake container. Can also be run from your own computer using the `nshm2022-to-realisation` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
-- **For More Help**: See the output of `nshm2022-to-realisation --help` or [nshm2022\_to\_realisation.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/nshm2022_to_realisation.py).
+- **Environment:** Can be run in the cybershake container. Can also be run from your own computer using the `nshm2022-to-realisation` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+- **Usage:** `nshm2022-to-realisation [OPTIONS] NSHM_DB_FILE RUPTURE_ID REALISATION_FFP DEFAULTS_VERSION`
+- **For More Help:** See the output of `nshm2022-to-realisation --help` or [nshm2022\_to\_realisation.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/nshm2022_to_realisation.py).
 
 
 ## SRF Generation
@@ -58,8 +59,8 @@ Many of the stages will run in a _container_. A container is a self-contained ex
   1. An [SRF](https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation#FileFormatsUsedInGroundMotionSimulation-SRFFormat) file containing the source slip definition for the realisation,
   2. An updated realisation file containing the parameters used for SRF generation copied from the scientific defaults.
 
-- **Environment**: Can be run in the cybershake container. Can also be run from your own computer using the `realisation-to-srf` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you are executing on your own computer you also need to specify the work directory (with the `--work-directory` flag), a 1D velocity model (`--velocity-model-ffp`), and the path to a genslip binary (`--genslip-path`).
-
+- **Environment:** Can be run in the cybershake container. Can also be run from your own computer using the `realisation-to-srf` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you are executing on your own computer you also need to specify the work directory (with the `--work-directory` flag), a 1D velocity model (`--velocity-model-ffp`), and the path to a genslip binary (`--genslip-path`).
+- **Usage:** `realisation-to-srf [OPTIONS] REALISATION_FFP OUTPUT_SRF_FILEPATH`
 - **For More Help:** See the output of `realisation-to-srf --help` or [realisation_to_srf.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/realisation_to_srf.py)
 - **Visualisation:** You can visualise the output of this stage using the SRF plotting tools in the [source modelling](https://github.com/ucgmsim/source_modelling/blob/plots/wiki/Plotting-Tools.md) repository. Many of the tools take realisations as optional arguments to enhance the plot output.
 
@@ -67,6 +68,7 @@ Many of the stages will run in a _container_. A container is a self-contained ex
 - **Description:** Generate Stoch file for HF simulation. This file is just a down-sampled version of the SRF.
 - **Inputs:** A realisation file containing a metadata configuration, and a generated SRF file.
 - **Outputs:** A [Stoch](https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation#FileFormatsUsedInGroundMotionSimulation-Stochformat) file containing a down-sampled version of the SRF.
+- **Usage:** `generate-stoch [OPTIONS] REALISATION_FFP SRF_FFP STOCH_FFP`
 - **Environment**: Can be run in the cybershake container. Can also be run from your own computer using the `generate-stoch` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you are executing on your own computer you also need to specify the `srf2stoch` path (`--srf2stoch-path`).
 - **For More Help:** See the output of `generate-stoch --help` or [generate_stoch.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/generate_stoch.py)
 ## Domain Generation
@@ -76,5 +78,6 @@ Many of the stages will run in a _container_. A container is a self-contained ex
 - **Outputs:** A realisation file containing velocity model and domain extent parameters.
 
 - **Environment**: Can be run in the cybershake container. Can also be run from your own computer using the `generate-velocity-model-parameters` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+- **Usage:** `generate-velocity-model-parameters [OPTIONS] REALISATION_FFP`
 
 - **For More Help:** See the output of `generate-velocity-model-parameters --help` or [generate_velocity_model_parameters.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/generate_velocity_model_parameters.py).
