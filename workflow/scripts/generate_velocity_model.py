@@ -20,7 +20,6 @@ from typing import Annotated
 
 import typer
 
-from workflow import realisations
 from workflow.realisations import DomainParameters, VelocityModelParameters
 
 
