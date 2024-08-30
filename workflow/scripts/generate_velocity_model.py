@@ -114,7 +114,7 @@ def generate_velocity_model(
     velocity_model_bin_path: Annotated[
         Path, typer.Option(help="Path to NZVM binary.", exists=True, readable=True)
     ] = Path("/Velocity-Model/NZVM"),
-    scratch_directory: Annotated[
+    work_directory: Annotated[
         Path,
         typer.Option(
             help="Directory to intermediate output files to.",
@@ -145,8 +145,8 @@ def generate_velocity_model(
     velocity_model_parameters = VelocityModelParameters.read_from_realisation(
         realisation_ffp
     )
-    nzvm_config_path = scratch_directory / "nzvm.cfg"
-    velocity_model_intermediate_path = scratch_directory / "Velocity_Model"
+    nzvm_config_path = work_directory / "nzvm.cfg"
+    velocity_model_intermediate_path = work_directory / "Velocity_Model"
 
     write_nzvm_config(
         domain_parameters,
