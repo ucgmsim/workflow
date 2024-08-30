@@ -106,3 +106,24 @@ Construct a realisation from a rupture in the [NSHM 2022](https://nshm.gns.cri.n
 
 ### For More Help
  See the output of `generate-velocity-model-parameters --help` or [generate_velocity_model_parameters.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/generate_velocity_model_parameters.py).
+
+## Velocity Model Generation
+### Description
+Generate a velocity model for a domain.
+### Inputs
+A realisation file containing:
+
+1. Domain parameters,
+2. Velocity model parameters.
+
+### Outputs
+A directory consisting of [velocity model files](https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation#FileFormatsUsedInGroundMotionSimulation-VelocityModelFiles).
+
+### Environment
+ Can be run in the cybershake container. Can also be run from your own computer using the `generate-velocity-model` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you are executing on your own computer you also need to specify the `NZVM` path (`--velocity-model-bin-path`) and the work directory (`--work-directory`).
+
+### Usage
+`generate-velocity-model [OPTIONS] REALISATION_FFP VELOCITY_MODEL_OUTPUT`
+
+### For More Help
+See the output of `generate-velocity-model --help` or [generate_velocity_model.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/generate_velocity_model.py)
