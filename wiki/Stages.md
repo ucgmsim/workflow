@@ -104,5 +104,5 @@ Construct a realisation from a rupture in the [NSHM 2022](https://nshm.gns.cri.n
 ### Usage
  `generate-velocity-model-parameters [OPTIONS] REALISATION_FFP`
 
-### For More Help:
+### For More Help
  See the output of `generate-velocity-model-parameters --help` or [generate_velocity_model_parameters.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/generate_velocity_model_parameters.py).
