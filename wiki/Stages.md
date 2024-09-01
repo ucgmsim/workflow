@@ -14,15 +14,15 @@ graph LR
     A --> C[Domain Generation]
     B --> D[Stoch Generation]
     C --> E[Velocity Model Generation]
-    C --> F[Station Coordinate Generation]
-    C --> G[Model Coordinate Generation]
+    C --> F[Station Selection]
+    C --> G[Write Model Coordinates]
     B --> H[Create EMOD3D Parameters]
     E --> H
     F --> H
     G --> H
-    H --> I[Run EMOD3D]
-    D --> J[Run HF Simulation]
-    I -->|Optionally| K[Run Merge TS]
+    H --> I[EMOD3D]
+    D --> J[High Frequency Simulation]
+    I -->|Optionally| K[Merge Timeslices]
     K --> L[Create Simulation Video]
 ```
 
@@ -89,7 +89,7 @@ Construct a realisation from a rupture in the [NSHM 2022](https://nshm.gns.cri.n
 ### Environment
  Can be run in the cybershake container. Can also be run from your own computer using the `generate-stoch` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you are executing on your own computer you also need to specify the `srf2stoch` path (`--srf2stoch-path`).
 ### For More Help
- See the output of `generate-stoch --help` or [generate_stoch.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/generate_stoch.py)
+See the output of `generate-stoch --help` or [generate_stoch.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/generate_stoch.py).
 ## Domain Generation
 ### Description
  Find a suitable simulation domain, estimating a rupture radius that captures significant ground motion, and the time the simulation should run for to capture this ground motion.
@@ -127,3 +127,122 @@ A directory consisting of [velocity model files](https://wiki.canterbury.ac.nz/d
 
 ### For More Help
 See the output of `generate-velocity-model --help` or [generate_velocity_model.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/generate_velocity_model.py)
+
+## Station Selection
+
+### Description
+Filter a station list for in-domain stations to simulate high frequency and broadband output for.
+### Inputs
+1. A station list and,
+2. A realisation file containing domain parameters.
+### Outputs
+1. A station list containing only stations in-domain and with unique discretised coordinate positions in two formats:
+   - Stations in the format "longitude latitude name" format in "stations.ll",
+   - Stations in the format "x y name" format in "stations.statcord". The x and y are the discretised positions of each station in the domain.
+### Environment
+Can be run in the cybershake container. Can also be run from your own computer using the `generate-station-coordinates` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you do run this on your own computer, you need a version of `ll2gp` installed.
+### Usage
+`generate-station-coordinates [OPTIONS] REALISATIONS_FFP OUTPUT_PATH`
+### For More Help
+See the output of `generate-station-coordinates --help` or [generate_station_coordinates.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/generate_station_coordinates.py) for more help.
+
+## Write Model Coordinates
+### Description
+Write out model parameters for EMOD3D.
+### Inputs
+1. A realisation file containing domain parameters.
+### Outputs
+1. A model parameters file describing the location of the domain in latitude, longitude,
+2. A grid parameters file describing the discretisation of the domain.
+### Environment
+Can be run in the cybershake container. Can also be run from your own computer using the `generate-model-coordinates` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+### Usage
+`generate-station-coordinates [OPTIONS] REALISATIONS_FFP OUTPUT_PATH`
+### For More Help
+See the output of `generate-model-coordinates --help` or [generate_model_coordinates.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/generate_model_coordinates.py) for more help.
+
+## EMOD3D
+### Description
+Run a low frequency ground motion simulation using EMOD3D.
+### Inputs
+1. A parameter file in "key=value" format,
+2. An SRF file,
+3. A station file list (latitude, longitude, and x, y), see .
+### Outputs
+1. Ground acceleration timeslice files, one per core.
+2. Seismograms, one per station.
+### Environment
+This stage must be run on a system with MPI installed. Typically, we run this stage in Maui on NeSI HPCs or Kisti. Due to high computational requirements, this stage usually cannot be run locally.
+### Usage
+On an HPC with slurm enabled `srun emod3d-mpi_v3.0.8 -args "par=$CYLC_WORKFLOW_SHARE_DIR/LF/e3d.par"` will run EMOD3D. Depending on the number of cores rerequested, this may invoke multiple proesses on different compute nodes (for Maui, this will occur when the number of cores exceeds 40). EMOD3D has support for checkpointing, so repeat invocations will continue from their previous checkpointed stage.
+### For More Help
+See Graves, 1996[^1] for a description of the mathematical and technical details of EMOD3D's implementation.
+
+[^1]: Graves, Robert W. "Simulating seismic wave propagation in 3D elastic media using staggered-grid finite differences." Bulletin of the seismological society of America 86.4 (1996): 1091-1106.
+
+## High Frequency Simulation
+### Description
+Generate stochastic high frequency ground acceleration data for a number of stations.
+### Inputs
+1. A station list (in the "latitude longitude name" format),
+2. A 1D velocity model,
+3. A stoch file,
+4. A realisation with domain parameters and metadata.
+### Outputs
+1. A combined HF simulation output containing ground acceleration data for each station.
+### Environment
+Can be run in the cybershake container. Can also be run from your own computer using the `hf-sim` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you do run this on your own computer, you need a version of `hb_high_binmod` installed.
+
+> [!NOTE]
+> The high-frequency code is very brittle. It is recommended you have both versions 6.0.3 and 5.4.5 built to run with. Sometimes it is necessary to switch between versions if one does not work.
+### Usage
+`hf-sim [OPTIONS] REALISATION_FFP STOCH_FFP STATION_FILE OUT_FILE`
+### For More Help
+See the output of `hf-sim --help` or [hf_sim.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/hf_sim.py).
+
+## Create EMOD3D Parameters
+
+### Description
+Write parameters for EMOD3D simulation.
+### Inputs
+1. A realisation file containing domain parameters, velocity model parameters, and realisation metadata,
+2. An SRF file,
+3. A generated velocity model,
+4. Station coordinates.
+### Outputs
+An EMOD3D parameter file containing a mixture of simulations parameters. Parameters source values from the defaults specified the realisation defaults version. The `emod3d` section of the realisation file overrides default values.
+### Environment
+Can be run in the cybershake container. Can also be run from your own computer using the `create-e3d-par` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+### Usage
+`create-e3d-par [OPTIONS] REALISATION_FFP SRF_FILE_FFP VELOCITY_MODEL_FFP STATIONS_FFP GRID_FFP OUTPUT_FFP`
+### For More Help
+See the output of `create-e3d-par --help` or [create_e3d_par.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/create_e3d_par.py).
+See our description of the [EMOD3D Parameters](https://wiki.canterbury.ac.nz/pages/viewpage.action?pageId=100794983) for documentation on the EMOD3D parameter file format.
+
+## Merge Timeslices
+### Description
+Merge the output timeslice files of EMOD3D.
+### Inputs
+1. A directory containing EMOD3D timeslice files.
+### Outputs
+1. A merged output timeslice file.
+### Environment
+Can be run in the cybershake container. Can also be run from your own computer using the `merge-ts` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+### Usage
+`merge_ts XYTS_DIRECTORY XYTS_DIRECTORY/output.e3d`
+### For More Help
+See the output of `merge-ts --help` or [merge_ts.py](https://github.com/ucgmsim/workflow/blob/pegasus/merge_ts/merge_ts.py).
+
+## Create Simulation Video
+### Description
+Create a simulation video from the low frequency simulation output.
+### Inputs
+1. A merged timeslice file.
+### Outputs
+1. An animation of the low frequency simulation output. See [youtube](https://www.youtube.com/watch?v=Crdk3k0Prew) for an example of these videos.
+### Environment
+Can be run in the cybershake container. Can also be run from your own computer using the `plot-ts` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If running on your own computer, you need to install [gmt](https://www.generic-mapping-tools.org/) and [ffmpeg](https://www.ffmpeg.org/). This stage does not run well on Windows, and is very dependent on the gmt version installed. Hypocentre is already setup to run `plot_ts.py` without installing anything.
+### Usage
+`plot-ts [OPTIONS] SRF_FFP XYTS_INPUT_DIRECTORY OUTPUT_FFP`
+### For More Help
+See the output of `plot-ts --help` or [plot_ts.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/plot_ts.py)
