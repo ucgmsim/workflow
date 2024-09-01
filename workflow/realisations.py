@@ -430,7 +430,7 @@ class DomainParameters(RealisationConfiguration):
         """
         param_dict = dataclasses.asdict(self)
         param_dict["domain"] = to_name_coordinate_dictionary(
-            coordinates.nztm_to_wgs_depth(self.domain.corners),
+            self.domain.corners,
         )
         return param_dict
 
