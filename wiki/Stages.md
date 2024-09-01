@@ -9,7 +9,7 @@ Cybershake workflow. Below you will find documentation for all the
 workflow stages, their inputs, outputs and environments.
 
 ```mermaid
-graph LR
+flowchart LR
     A[NSHM To Realisation] --> B[SRF Generation]
     A --> C[Domain Generation]
     B --> D[Stoch Generation]
