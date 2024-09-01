@@ -30,7 +30,7 @@ def generate_fd_files(
         typer.Option(
             help="The location of the station files.", readable=True, exists=True
         ),
-    ] = "/input/stations.ll",
+    ] = Path("/input/stations.ll"),
 ) -> None:
     """Generate station gridpoint coordinates for a station list."""
     output_path.mkdir(exist_ok=True)
