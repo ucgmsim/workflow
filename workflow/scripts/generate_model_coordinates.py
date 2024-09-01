@@ -14,7 +14,6 @@ from typing import Annotated
 import typer
 from qcore import coordinates
 
-from workflow import realisations
 from workflow.realisations import DomainParameters
 
 
@@ -32,12 +31,6 @@ def generate_model_coordinates(
             writable=True,
         ),
     ],
-    gen_model_coords_ffp: Annotated[
-        Path,
-        typer.Argument(
-            help="Path to the gen model coords binary", exists=True, readable=True
-        ),
-    ] = Path("/EMOD3D/tools/gen_model_cords"),
 ) -> None:
     """Generate model coordinates for EMOD3D."""
     output_ffp.mkdir(exist_ok=True)
