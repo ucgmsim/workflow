@@ -10,22 +10,28 @@ slightly as some components of the implementation have changed.
 
 Realisations are created by instantiating configuration objects, and
 then reading or writing these to a realisation file. Realisations can
-be incompelete in the sense that they may miss configuration
+be incomplete in the sense that they may miss configuration
 components at certain steps in realisation generation. To reflect this, the library interface is modular. Let's take a look at an example:
 
 ```python
 from workflow import realisations
+from velocity_modelling import bounding_box
 import numpy as np
 
 domain_parameters = realisations.DomainParameters(
     resolution=0.1, # a 0.1km resolution
-    centroid=np.array([-43.53092, 172.63701]),
-    width=100.0,
-    length=100.0,
-    depth=40.0
+    domain=bounding_box.BoundingBox.from_centroid_bearing_extents(
+        centroid=np.array([-43.53092, 172.63701]),
+        bearing=45,
+        extent_x=100,
+        extent_y=100
+    ),
+    depth=40.0,
+    duration=60.0,
+    dt=0.005
 )
 
-realisations.write_config_to_realisation(domain_parameters, 'path/to/realisation.json')
+domain_parameters.write_to_realisation('path/to/realisation.json')
 ```
 
 Inside the `realisation.json` file you would find the following
@@ -34,13 +40,27 @@ Inside the `realisation.json` file you would find the following
 {
   "domain": {
     "resolution": 0.1,
-    "centroid": {
-      "latitude": -43.53092,
-      "longitude": 172.63701
-    },
-    "width": 100.0,
-    "length": 100.0,
-    "depth": 40.0
+    "domain": [
+      {
+        "latitude": -43.524793866326725,
+        "longitude": 171.76204128885567
+      },
+      {
+        "latitude": -42.894200350955856,
+        "longitude": 172.64076673694242
+      },
+      {
+        "latitude": -43.53034935969409,
+        "longitude": 173.51210368762364
+      },
+      {
+        "latitude": -44.16756820707226,
+        "longitude": 172.63312824122775
+      }
+    ],
+    "depth": 40.0,
+    "duration": 60.0,
+    "dt": 0.005
   }
 }
 ```
@@ -52,10 +72,11 @@ srf_config = realisations.SRFConfig(
     genslip_dt = 1.0,
     genslip_seed=1,
     genslip_version='5.4.2',
+    resolution=0.1,
     srfgen_seed=1
 )
 
-realisations.write_config_to_realisation(srf_config, 'path/to/realisation.json')
+srf_config.write_to_realisation('path/to/realisation.json')
 ```
 
 And then, inside the `realisation.json` file you'll find
@@ -64,13 +85,27 @@ And then, inside the `realisation.json` file you'll find
 {
   "domain": {
     "resolution": 0.1,
-    "centroid": {
-      "latitude": -43.53092,
-      "longitude": 172.63701
-    },
-    "width": 100.0,
-    "length": 100.0,
-    "depth": 40.0
+    "domain": [
+      {
+        "latitude": -43.524793866326725,
+        "longitude": 171.76204128885567
+      },
+      {
+        "latitude": -42.894200350955856,
+        "longitude": 172.64076673694242
+      },
+      {
+        "latitude": -43.53034935969409,
+        "longitude": 173.51210368762364
+      },
+      {
+        "latitude": -44.16756820707226,
+        "longitude": 172.63312824122775
+      }
+    ],
+    "depth": 40.0,
+    "duration": 60.0,
+    "dt": 0.005
   },
   "srf": {
     "genslip_dt": 1.0,
@@ -85,19 +120,33 @@ Notice that the srf config script did not need to read domain parameters to upda
 
 # Reading Realisations
 
-To read a realisation, you simply call `read_config_from_realisation` with the filepath of the realisation and the type of config you wish to read. For example, if the `realisations.json` is as in the previous section
+To read a realisation, you simply call the `read_from_realisation` classmethod with the filepath of the realisation and from the type of config you wish to read. For example, if the `realisations.json` is as in the previous section
 
 ```json
 {
   "domain": {
     "resolution": 0.1,
-    "centroid": {
-      "latitude": -43.53092,
-      "longitude": 172.63701
-    },
-    "width": 100.0,
-    "length": 100.0,
-    "depth": 40.0
+    "domain": [
+      {
+        "latitude": -43.524793866326725,
+        "longitude": 171.76204128885567
+      },
+      {
+        "latitude": -42.894200350955856,
+        "longitude": 172.64076673694242
+      },
+      {
+        "latitude": -43.53034935969409,
+        "longitude": 173.51210368762364
+      },
+      {
+        "latitude": -44.16756820707226,
+        "longitude": 172.63312824122775
+      }
+    ],
+    "depth": 40.0,
+    "duration": 60.0,
+    "dt": 0.005
   },
   "srf": {
     "genslip_dt": 1.0,
@@ -111,13 +160,13 @@ To read a realisation, you simply call `read_config_from_realisation` with the f
 Then, we may read the domain parameters with the following code
 
 ```python
->>> realisations.read_config_from_realisation(realisations.DomainParameters, 'path/to/realisations.json')
-DomainParameters(resolution=0.1, centroid=array([-43.53092, 172.63701]), width=100.0, length=100.0, depth=40.0)
+>>> realisations.DomainParameters.read_from_realisation('path/to/realisations.json')
+DomainParameters(resolution=0.1, domain=..., depth=40.0, duration=60.0, dt=0.005)
 ```
 
 At read time, basic input validation checks are made. If we made the `resolution` parameter 0, then we get an error
 ```python
->>> realisations.read_config_from_realisation(realisations.DomainParameters, 'path/to/realisations.json')
+>>> realisations.DomainParameters.read_from_realisation('path/to/realisations.json')
 Traceback (most recent call last):
 ...
 schema.SchemaError: Key 'resolution' error:
@@ -126,10 +175,7 @@ is_positive(0.0) should evaluate to True
 
 # Creating Your Own Configuration Section
 
-To add your own realisation config object, you need to:
-1. Create a configuration object,
-2. Populate `_REALISATION_SCHEMAS` with the configuration schema and,
-3. Populate `_REALISATION_KEYS` with the section key your config variables live in.
+To add your own realisation config object, you need to create a configuration object inheriting from `RealisationConfiguration` and assign the object a matching schema.
 
 We will now walk through an example adding the `DomainParameters` object to the realisation specification.
 
@@ -138,31 +184,49 @@ We first create the class with the all the domain parameters we need for our sim
 
 ```python
 @dataclasses.dataclass
-class DomainParameters:
+class DomainParameters(RealisationConfiguration):
     """
-    Parameters defining the spatial domain for simulation.
+    Parameters defining the spatial and temporal domain for simulation.
 
     Attributes
     ----------
     resolution : float
-        The simulation resolution in kilometers.
-    centroid : np.ndarray
-        The centroid location of the model in latitude and longitude coordinates.
-    width : float
-        The width of the model in kilometers.
-    length : float
-        The length of the model in kilometers.
+        The simulation resolution in kilometres.
+    domain : BoundingBox
+        The bounding box for the domain.
     depth : float
-        The depth of the model in kilometers.
+        The depth of the domain (in metres).
+    duration : float
+        The simulation duration (in seconds).
+    dt : float
+        The resolution of the domain in time (in seconds).
     """
 
-    resolution: float
-    centroid: np.ndarray
-    width: float
-    length: float
-    depth: float
+    _config_key: ClassVar[str] = "domain"
+    _schema: ClassVar[Schema] = schemas.DOMAIN_SCHEMA
 
-    def to_dict(self):
+    resolution: float
+    domain: BoundingBox
+    depth: float
+    duration: float
+    dt: float
+
+    @property
+    def nx(self) -> int:
+        """int: The number of x coordinate positions in the discretised domain."""
+        return int(np.round(self.domain.extent_x / self.resolution))
+
+    @property
+    def ny(self) -> int:
+        """int: The number of y coordinate positions in the discretised domain."""
+        return int(np.round(self.domain.extent_y / self.resolution))
+
+    @property
+    def nz(self) -> int:
+        """int: The number of z coordinate positions in the discretised domain."""
+        return int(np.round(self.depth / self.resolution))
+
+    def to_dict(self) -> dict:
         """
         Convert the object to a dictionary representation.
 
@@ -172,45 +236,36 @@ class DomainParameters:
             Dictionary representation of the object.
         """
         param_dict = dataclasses.asdict(self)
-        param_dict["centroid"] = to_name_coordinate_dictionary(self.centroid)
+        param_dict["domain"] = to_name_coordinate_dictionary(
+            self.domain.corners,
+        )
         return param_dict
-    
 ```
 
 We have to write a `to_dict` method for any configuration object we create. This method specifies how to serialise the configuration into a dictionary. The keys and values must be JSON-serialisable python objects. Most of the time, you are fine to just have this method return the output of `dataclasses.asdict`. If you are writing numpy values you will need to write a custom serialisation function. The helper function `to_name_coordinate_dictionary` converts numpy arrays of varying shapes into lists of keyword dictionaries specifying coordinates.
+
+The value of `_config_key` is the key the configuration is read and written to from the realisation. The `_schema` class variable points to the schema to validate input with when loading the realisation.
 ## Creating the Schema
-The next step is specifying the configuration schema. This is done by populating the `_REALISATION_SCHEMAS` variable with your configuration schema. The key should be the type of your configuration object. The value should be the schema. Schemas should validate the types and general bounds of their input variables. They should not perform complex input validation. You should describe each keyword using the `description=` keyword argument and a schema `Literal`. There are a number of prewritten helper functions like `is_positive` to validate certain inputs.
+The next step is specifying the configuration schema. Schemas should validate the types and general bounds of their input variables. They should not perform complex input validation. You should describe each keyword using the `description=` keyword argument and a schema `Literal`. There are a number of prewritten helper functions like `is_positive` to validate certain inputs.
 
 ```python
-_REALISATION_SCHEMAS = {
-    # ...
-    DomainParameters: Schema(
-        {
-            Literal("resolution", description="The simulation resolution (in km)"): And(
-                float, is_positive
-            ),
-            Literal(
-                "centroid", description="The centroid location of the model"
-            ): LAT_LON_SCHEMA,
-            Literal("width", description="The width of the model (in km)"): And(
-                float, is_positive
-            ),
-            Literal("length", description="The length of the model (in km)"): And(
-                float, is_positive
-            ),
-            Literal("depth", description="The depth of the model (in km)"): And(
-                float, is_positive
-            ),
-        }
-    ),
-}
-```
-## Specifying the Configuration Key
-We now need to update the `_REALISATION_KEYS` variable to tell the configuration loader where to find our configuration in the realisation file. The domain parameters should be loaded under the `domain` section, so we specify this as the realisation key.
-
-```python
-_REALISATION_KEYS = {
-    # ...
-    DomainParameters: "domain",
-}
+DOMAIN_SCHEMA = Schema(
+    {
+        Literal("resolution", description="The simulation resolution (in km)"): And(
+            float, is_positive
+        ),
+        Literal("domain", description="The corners of the simulation domain."): And(
+            Use(corners_to_array), Use(BoundingBox.from_wgs84_coordinates)
+        ),
+        Literal("depth", description="The depth of the model (in km)"): And(
+            float, is_positive
+        ),
+        Literal(
+            "duration", description="The duration of the simulation (in seconds)"
+        ): And(float, is_positive),
+        Literal("dt", "The resolution of the domain in time (in seconds)."): And(
+            float, is_positive
+        ),
+    }
+)
 ```
