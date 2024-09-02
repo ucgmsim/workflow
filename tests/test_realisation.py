@@ -165,7 +165,7 @@ def test_bad_config_key(tmp_path: Path):
         json.dumps(
             {
                 "not the correct domain key": {
-                    "resolution": 0.1,  # Set to 0
+                    "resolution": 0.1,
                     "domain": [
                         {
                             "latitude": -43.524793866326725,
