@@ -319,23 +319,76 @@ def test_rupture_prop_properties():
     )
     assert rup_prop.initial_fault == "A"
 
+
 def test_hf_config(tmp_path):
-    test_realisation = tmp_path / 'realisation.json'
-    test_realisation.write_text('{}')
-    hf_config = realisations.HFConfig.read_from_realisation_or_defaults(test_realisation, defaults.DefaultsVersion.v24_2_2_1)
+    test_realisation = tmp_path / "realisation.json"
+    test_realisation.write_text("{}")
+    hf_config = realisations.HFConfig.read_from_realisation_or_defaults(
+        test_realisation, defaults.DefaultsVersion.v24_2_2_1
+    )
     hf_config.write_to_realisation(test_realisation)
     assert realisations.HFConfig.read_from_realisation(test_realisation) == hf_config
     # Test that realisation parameters override defaults.
     hf_config.dt = 0.1
     hf_config.write_to_realisation(test_realisation)
-    assert realisations.HFConfig.read_from_realisation_or_defaults(test_realisation, defaults.DefaultsVersion.v24_2_2_1) == hf_config
+    assert (
+        realisations.HFConfig.read_from_realisation_or_defaults(
+            test_realisation, defaults.DefaultsVersion.v24_2_2_1
+        )
+        == hf_config
+    )
 
-def test_emod3d(tmp_path):
-    test_realisation = tmp_path / 'realisation.json'
-    test_realisation.write_text('{}')
-    emod3d = realisations.EMOD3DParameters.read_from_realisation_or_defaults(test_realisation, defaults.DefaultsVersion.v24_2_2_1)
+
+def test_emod3d(tmp_path: Path):
+    test_realisation = tmp_path / "realisation.json"
+    test_realisation.write_text("{}")
+    emod3d = realisations.EMOD3DParameters.read_from_realisation_or_defaults(
+        test_realisation, defaults.DefaultsVersion.v24_2_2_1
+    )
     emod3d.write_to_realisation(test_realisation)
-    assert realisations.EMOD3DParameters.read_from_realisation(test_realisation) == emod3d
+    assert (
+        realisations.EMOD3DParameters.read_from_realisation(test_realisation) == emod3d
+    )
     emod3d.dt = 0.1
     emod3d.write_to_realisation(test_realisation)
-    assert realisations.EMOD3DParameters.read_from_realisation_or_defaults(test_realisation, defaults.DefaultsVersion.v24_2_2_1) == emod3d
+    assert (
+        realisations.EMOD3DParameters.read_from_realisation_or_defaults(
+            test_realisation, defaults.DefaultsVersion.v24_2_2_1
+        )
+        == emod3d
+    )
+
+
+def test_broadband_parameters(tmp_path: Path):
+    test_realisation = tmp_path / "realisation.json"
+    broadband_parameters = realisations.BroadbandParameters(
+        flo=0.5, dt=0.005, fmidbot=0.5, fmin=0.25
+    )
+    broadband_parameters.write_to_realisation(test_realisation)
+    with open(test_realisation, "r") as realisation_handle:
+        assert json.load(realisation_handle) == {
+            "bb": {"flo": 0.5, "dt": 0.005, "fmidbot": 0.5, "fmin": 0.25}
+        }
+    assert (
+        realisations.BroadbandParameters.read_from_realisation(test_realisation)
+        == broadband_parameters
+    )
+
+
+@pytest.mark.parametrize(
+    "realisation_config",
+    [
+        realisations.EMOD3DParameters,
+        realisations.HFConfig,
+        realisations.SRFConfig,
+        realisations.VelocityModelParameters,
+        realisations.BroadbandParameters,
+    ],
+)
+@pytest.mark.parametrize("defaults_version", list(defaults.DefaultsVersion))
+def test_defaults_are_loadable(
+    tmp_path: Path,
+    realisation_config: realisations.RealisationConfiguration,
+    defaults_version: defaults.DefaultsVersion,
+):
+    realisation_config.read_from_defaults(defaults_version)
