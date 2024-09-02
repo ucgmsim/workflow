@@ -633,7 +633,7 @@ class EMOD3DParameters(RealisationConfiguration):
     dblcpl: int
     dmodfile: str
     dtts: int
-    dump_dtinc: int
+    dump_itinc: int
     dxout: int
     dxts: int
     dyout: int
@@ -657,7 +657,7 @@ class EMOD3DParameters(RealisationConfiguration):
     iy_xs: int
     iy_zs: int
     iz_ts: int
-    iz_xz: int
+    iz_xs: int
     iz_ys: int
     lonlat_out: int
     maxmem: int

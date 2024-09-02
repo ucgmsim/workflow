@@ -385,7 +385,7 @@ REALISATION_METADATA_SCHEMA = Schema(
                 "tag",
                 description="Metadata tag for the realisation used to specify the origin or category of the realisation (e.g. NSHM, GCMT or custom).",
             )
-        ): str,
+        ): Or(str, None),
         Literal(
             "defaults_version", description="Simulation default parameters version."
         ): And(str, Use(DefaultsVersion)),
@@ -473,7 +473,7 @@ EMOD3D_PARAMETERS_SCHEMA = Schema(
         "dblcpl": int,
         "dmodfile": str,
         "dtts": int,
-        "dump_dtinc": int,
+        "dump_itinc": int,
         "dxout": int,
         "dxts": int,
         "dyout": int,
@@ -497,7 +497,7 @@ EMOD3D_PARAMETERS_SCHEMA = Schema(
         "iy_xs": int,
         "iy_zs": int,
         "iz_ts": int,
-        "iz_xz": int,
+        "iz_xs": int,
         "iz_ys": int,
         "lonlat_out": int,
         "maxmem": int,
@@ -530,11 +530,6 @@ EMOD3D_PARAMETERS_SCHEMA = Schema(
         "yseis": int,
         "zseis": int,
         "pertbfile": str,
-        Literal("stoch_dx", description="Standard dx for stoch file generation"): And(
-            float, is_positive
-        ),
-        Literal("stoch_dy", description="Standard dy for stoch file generation"): And(
-            float, is_positive
-        ),
+
     }
 )
