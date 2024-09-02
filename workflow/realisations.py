@@ -690,3 +690,28 @@ class EMOD3DParameters(RealisationConfiguration):
     yseis: int
     zseis: int
     pertbfile: str
+
+
+@dataclasses.dataclass
+class BroadbandParameters(RealisationConfiguration):
+    """Parameters for broadband waveform merger.
+
+    Attributes
+    ----------
+    flo : float
+        low/high frequency cutoff.
+    dt : float
+        simulation time resolution.
+    fmin : float
+        fmin for site amplification.
+    fmidbot : float
+        fmidbot for site amplification
+    """
+
+    _config_key: ClassVar[str] = "bb"
+    _schema: ClassVar[Schema] = schemas.BROADBAND_PARAMETERS_SCHEMA
+
+    flo: float
+    dt: float
+    fmidbot: float
+    fmin: float

@@ -530,6 +530,22 @@ EMOD3D_PARAMETERS_SCHEMA = Schema(
         "yseis": int,
         "zseis": int,
         "pertbfile": str,
+    }
+)
 
+BROADBAND_PARAMETERS_SCHEMA = Schema(
+    {
+        Literal("flo", description="low/high frequency cutoff"): And(
+            float, is_non_negative
+        ),
+        Literal("dt", description="simulation time resolution"): And(
+            float, is_positive
+        ),
+        Literal("fmidbot", description="fmidbot for site amplification"): And(
+            float, is_non_negative
+        ),
+        Literal("fmin", description="fmin for site amplification"): And(
+            float, is_non_negative
+        ),
     }
 )
