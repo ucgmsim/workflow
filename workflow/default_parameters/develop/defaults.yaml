@@ -18,7 +18,7 @@ emod3d:
   enable_restart: 1
   ffault: 2
   fhi: 0.0
-  fmax: 25
+  fmax: 25.0
   fmin: 0.01
   freesurf: 1
   geoproj: 1
@@ -40,9 +40,9 @@ emod3d:
   pmodfile: vp3dfile.p
   pointmt: 0
   qbndmax: 100.0
-  qpfrac: 100
+  qpfrac: 100.0
   qpqs_factor: 2.0
-  qsfrac: 50
+  qsfrac: 50.0
   read_restart: 0
   report: 100
   restart_itinc: 20000
@@ -108,7 +108,7 @@ srf:
   genslip_seed: 1
   genslip_dt: 0.05
   srfgen_seed: 1
-  genslip_version: 5.4.2 
+  genslip_version: 5.4.2
 velocity_model:
   min_vs: 0.5
   resolution: 0.4
@@ -118,3 +118,8 @@ velocity_model:
   topo_type: "SQUASHED_TAPERED"
   vs30: 500.0
   s_wave_velocity: 3500.0
+bb:
+  flo: 0.5
+  dt: 0.005
+  fmidbot: 0.5
+  fmin: 0.25
