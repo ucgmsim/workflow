@@ -715,3 +715,4 @@ class BroadbandParameters(RealisationConfiguration):
     dt: float
     fmidbot: float
     fmin: float
+    site_amp_version: str
