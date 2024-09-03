@@ -33,7 +33,7 @@ jobs:
       - run: pip install pdoc
       # ADJUST THIS: build your documentation into docs/.
       # We use a custom build script for pdoc itself, ideally you just run `pdoc -o docs/ ...` here.
-      - run: mkdir docs; pdoc -o docs -d numpy workflow velocity_modelling source_modelling
+      - run: mkdir docs; PDOC_ALLOW_EXEC=1 pdoc -o docs -d numpy workflow velocity_modelling source_modelling
 
       - uses: actions/upload-pages-artifact@v3
         with:
