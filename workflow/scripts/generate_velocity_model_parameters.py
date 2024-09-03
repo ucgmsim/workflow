@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-VM Parameters Generation.
+"""VM Parameters Generation.
 
 This script generates the velocity model parameters used to generate the velocity model.
 
@@ -42,12 +41,12 @@ from workflow.realisations import (
 
 
 def get_nz_outline_polygon() -> Polygon:
-    """
-    Get the outline polygon of New Zealand.
+    """Get the outline polygon of New Zealand.
 
     Returns
     -------
-        Polygon: The outline polygon of New Zealand.
+    Polygon
+        The outline polygon of New Zealand.
     """
     coastline_path = gmt.regional_resource("NZ", "coastline")
     gpd_df = gpd.read_file(coastline_path)
@@ -68,8 +67,7 @@ def get_nz_outline_polygon() -> Polygon:
 
 
 def pgv_estimate_from_magnitude(magnitude: np.ndarray) -> np.ndarray:
-    """
-    Return PGV for a given magnitude based on default scaling relationship.
+    """Return PGV for a given magnitude based on default scaling relationship.
 
     Parameters
     ----------
@@ -83,7 +81,7 @@ def pgv_estimate_from_magnitude(magnitude: np.ndarray) -> np.ndarray:
 
     References
     ----------
-    See the "Custom Models Used in VM Params" wiki page for an explanation of this function.
+    See the 'Custom Models Used in VM Params' wiki page for an explanation of this function.
     """
     return np.interp(
         magnitude,
@@ -127,10 +125,7 @@ def find_rrup(magnitude: float, avg_dip: float, avg_rake: float) -> float:
 
     References
     ----------
-    [0]: Chiou BS-J, Youngs RR. Update of the
-    Chiou and Youngs NGA Model for the Average Horizontal Component of
-    Peak Ground Motion and Response Spectra. Earthquake
-    Spectra. 2014;30(3):1117-1153.
+    [0]: Chiou BS-J, Youngs RR. Update of the Chiou and Youngs NGA Model for the Average Horizontal Component of Peak Ground Motion and Response Spectra. Earthquake Spectra. 2014;30(3):1117-1153.
     """
     pgv_target = pgv_estimate_from_magnitude(magnitude)
 
