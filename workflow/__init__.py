@@ -46,6 +46,8 @@ flowchart LR
     G --> H
     H --> I[EMOD3D]
     D --> J[High Frequency Simulation]
+    I --> M[Broadband Simulation]
+    J --> M
     I -->|Optionally| K[Merge Timeslices]
     K --> L[Create Simulation Video]
 ```
