@@ -1,3 +1,35 @@
+"""Broadband Simulation.
+
+Combine high-frequency and low-frequency simulation waveforms for each station into a broadband simulation file.
+
+Inputs
+------
+1. A realisation file containing:
+   - Realisation metadata,
+   - Domain parameters.
+2. Station list (latitude, longitude, name),
+3. Stations VS30 reference values,
+4. Low frequency waveform directory,
+5. High frequency output file,
+6. Velocity model directory.
+
+Outputs
+-------
+An output [broadband file](https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation#FileFormatsUsedInGroundMotionSimulation-LF/HF/BBbinaryformat).
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own
+computer using the `bb-sim` command which is installed after running
+`pip install workflow@git+https://github.com/ucgmsim/workflow`. If
+running on your own computer, you need to configure a work directory
+(`--work-directory`).
+
+Usage
+-----
+`bb-sim REALISATION_FFP STATION_FFP STATION_VS30_FFP LOW_FREQUENCY_WAVEFORM_DIRECTORY HIGH_FREQUENCY_WAVEFORM_FILE VELOCITY_MODEL_DIRECTORY OUTPUT_FFP`
+"""
+
 import functools
 import multiprocessing
 import shutil
@@ -32,7 +64,36 @@ def bb_simulate_station(
     station_vs: float,
     station_vs30: float,
 ):
-    """bad docstring"""
+    """Simulate broadband seismic for a single station.
+
+    Combines the low frequency and high frequency waveforms together
+    for a single station with appropriate filtering and padding.
+    Writes the simulated broadband acceleration data to a file in the
+    work directory.
+
+    Parameters
+    ----------
+    lf : timeseries.LFSeis
+        Low-frequency seismic data object.
+    hf : timeseries.HFSeis
+        High-frequency seismic data object.
+    hf_padding : tuple[int, int]
+        Padding for the high-frequency data (start, end).
+    lf_padding : tuple[int, int]
+        Padding for the low-frequency data (start, end).
+    broadband_config : BroadbandParameters
+        Configuration parameters for broadband simulation.
+    n2 : float
+        Site amplification parameter.
+    work_directory : Path
+        Directory for temporary files.
+    station_name : str
+        Name of the seismic station.
+    station_vs : float
+        vs value of the station site.
+    station_vs30 : float
+        VS30 value for the station site.
+    """
     lf_acc = np.copy(lf.acc(station_name, dt=broadband_config.dt))
     hf_acc = np.copy(hf.acc(station_name, dt=broadband_config.dt))
     pga = np.max(np.abs(hf_acc), axis=0) / 981.0
@@ -127,7 +188,31 @@ def combine_hf_and_lf(
         ),
     ],
 ):
-    """bad docstrings"""
+    """Combine low-frequency and high-frequency seismic waveforms.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        Path to the realisation file containing parameters for the simulation.
+    station_ffp : Path
+        Path to the station list file containing station metadata.
+    station_vs30_ffp : Path
+        Path to the file containing VS30 reference values for stations.
+    low_frequency_waveform_directory : Path
+        Directory containing low-frequency waveform data files.
+    high_frequency_waveform_file : Path
+        File containing high-frequency waveform data.
+    velocity_model_directory : Path
+        Directory containing velocity model files.
+    output_ffp : Path
+        Path to the output file where the combined broadband waveforms will be saved.
+    work_directory : Path
+        Directory for temporary work files.
+
+    See Also
+    --------
+    - [Broadband file format](https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation#FileFormatsUsedInGroundMotionSimulation-LF/HF/BBbinaryformat)
+    """
     # load data stores
     lf = timeseries.LFSeis(low_frequency_waveform_directory)
     hf = timeseries.HFSeis(high_frequency_waveform_file)
