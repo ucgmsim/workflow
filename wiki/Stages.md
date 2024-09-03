@@ -246,3 +246,23 @@ Can be run in the cybershake container. Can also be run from your own computer u
 `plot-ts [OPTIONS] SRF_FFP XYTS_INPUT_DIRECTORY OUTPUT_FFP`
 ### For More Help
 See the output of `plot-ts --help` or [plot_ts.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/plot_ts.py)
+## Broadband Simulation
+### Description
+Combine high-frequency and low-frequency simulation waveforms for each station into a broadband simulation file.
+### Inputs
+1. A realisation file containing:
+   - Realisation metadata,
+   - Domain parameters.
+2. Station list (latitude, longitude, name),
+3. Stations VS30 reference values,
+4. Low frequency waveform directory,
+5. High frequency output file,
+6. Velocity model directory.
+### Outputs
+An output [broadband file](https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation#FileFormatsUsedInGroundMotionSimulation-LF/HF/BBbinaryformat).
+### Environment
+Can be run in the cybershake container. Can also be run from your own computer using the `bb-sim` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If running on your own computer, you need to configure a work directory (`--work-directory`).
+### Usage
+`bb-sim REALISATION_FFP STATION_FFP STATION_VS30_FFP LOW_FREQUENCY_WAVEFORM_DIRECTORY HIGH_FREQUENCY_WAVEFORM_FILE VELOCITY_MODEL_DIRECTORY OUTPUT_FFP`
+### For More Help
+See the output of `bb-sim --help` or [bb_sim.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/bb_sim.py) for more help.
