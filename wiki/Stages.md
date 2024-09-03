@@ -38,7 +38,7 @@ Construct a realisation from a rupture in the [NSHM 2022](https://nshm.gns.cri.n
    1. A copy of the [NSHM 2022 database](https://www.dropbox.com/scl/fi/50kww45wpsnmtf3pn2okz/nshmdb.db?rlkey=4mjuomuevl1963fjwfximgldm&st=50ax73gl&dl=0).
    2. A rupture id to simulate. You can find a rupture id from the [rupture explorer](https://nshm.gns.cri.nz/RuptureMap). Alternatively, you can use the visualisation tools to find one.
    3. The version of the [scientific defaults](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/default_parameters/README.md#L1) to use. If you don't know what version to use, choose the latest version. Versions are specified as `YY.M.D.R`, where `R` is the resolution of the simulation (1 = 100m). For example `24.2.2.1`. The special `develop` version is for testing workflow iterations and not to be used for accurate scientific simulation.
-### Outputs:
+### Outputs
  A realisation file containing:
   1. The definition of all the faults in the the rupture,
   2. A rupture propagation plan (i.e. how the rupture jumps between faults, and where),
