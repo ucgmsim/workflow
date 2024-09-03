@@ -1,11 +1,39 @@
 #!/usr/bin/env python
-"""
-SRF file generation.
+"""SRF Generation.
 
-This script facilitates the generation of SRF files from realisation
-specifications. It generates fault geometries, generates SRF
-files from fault geometries, and stitches together these files in the order
-of rupture propagation.
+Description
+-----------
+Produce an SRF from a realisation.
+
+Inputs
+------
+A realisation file containing:
+1. A source configuration,
+2. A rupture propagation configuration,
+3. A metadata configuration.
+
+Typically, this information comes from a stage like [NSHM To Realisation](#nshm-to-realisation).
+
+Outputs
+-------
+1. An [SRF](https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation#FileFormatsUsedInGroundMotionSimulation-SRFFormat) file containing the source slip definition for the realisation,
+2. An updated realisation file containing the parameters used for SRF generation copied from the scientific defaults.
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own computer using the `realisation-to-srf` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you are executing on your own computer you also need to specify the work directory (with the `--work-directory` flag), a 1D velocity model (`--velocity-model-ffp`), and the path to a genslip binary (`--genslip-path`).
+
+Usage
+-----
+`realisation-to-srf [OPTIONS] REALISATION_FFP OUTPUT_SRF_FILEPATH`
+
+For More Help
+-------------
+See the output of `realisation-to-srf --help`.
+
+Visualisation
+-------------
+You can visualise the output of this stage using the SRF plotting tools in the [source modelling](https://github.com/ucgmsim/source_modelling/blob/plots/wiki/Plotting-Tools.md) repository. Many of the tools take realisations as optional arguments to enhance the plot output.
 """
 
 import functools

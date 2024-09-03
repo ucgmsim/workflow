@@ -1,12 +1,40 @@
-"""Generate station coordinates for EMOD3D."""
+"""Station Selection.
+
+Description
+-----------
+Filter a station list for in-domain stations to simulate high frequency and broadband output for.
+
+Inputs
+------
+1. A station list and,
+2. A realisation file containing domain parameters.
+
+Outputs
+-------
+1. A station list containing only stations in-domain and with unique discretised coordinate positions in two formats:
+   - Stations in the format "longitude latitude name" format in "stations.ll",
+   - Stations in the format "x y name" format in "stations.statcord". The x and y are the discretised positions of each station in the domain.
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own computer using the `generate-station-coordinates` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you do run this on your own computer, you need a version of `ll2gp` installed.
+
+Usage
+-----
+`generate-station-coordinates [OPTIONS] REALISATIONS_FFP OUTPUT_PATH`
+
+For More Help
+-------------
+See the output of `generate-station-coordinates --help`.
+"""
 
 from pathlib import Path
 from typing import Annotated
 
 import pandas as pd
 import typer
-from qcore import geo
 
+from qcore import geo
 from workflow import realisations
 from workflow.realisations import DomainParameters
 

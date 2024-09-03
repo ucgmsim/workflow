@@ -1,19 +1,37 @@
-"""
-Generate model coordinates for EMOD3D for a single realisation.
+"""Write Model Coordinates.
 
-This script outputs the model coordinates in three places:
+Description
+-----------
+Write out model parameters for EMOD3D.
 
-1. A model coordinates file, containing the discretisation of the domain.
-2. A model bounds file, containing the boundary of the model.
-3. A model params file, containing metadata about the discretisation.
+Inputs
+------
+1. A realisation file containing domain parameters.
+
+Outputs
+-------
+1. A model parameters file describing the location of the domain in latitude, longitude,
+2. A grid parameters file describing the discretisation of the domain.
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own computer using the `generate-model-coordinates` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+
+Usage
+-----
+`generate-station-coordinates [OPTIONS] REALISATIONS_FFP OUTPUT_PATH`
+
+For More Help
+-------------
+See the output of `generate-model-coordinates --help`.
 """
 
 from pathlib import Path
 from typing import Annotated
 
 import typer
-from qcore import coordinates
 
+from qcore import coordinates
 from workflow.realisations import DomainParameters
 
 

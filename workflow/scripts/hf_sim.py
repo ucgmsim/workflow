@@ -1,6 +1,35 @@
 #!/usr/bin/env python
-"""
-Simulates high frequency seismograms for stations.
+"""High Frequency Simulation.
+
+Description
+-----------
+Generate stochastic high frequency ground acceleration data for a number of stations.
+
+Inputs
+------
+1. A station list (in the "latitude longitude name" format),
+2. A 1D velocity model,
+3. A stoch file,
+4. A realisation with domain parameters and metadata.
+
+Outputs
+-------
+1. A combined HF simulation output containing ground acceleration data for each station.
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own computer using the `hf-sim` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you do run this on your own computer, you need a version of `hb_high_binmod` installed.
+
+> [!NOTE]
+> The high-frequency code is very brittle. It is recommended you have both versions 6.0.3 and 5.4.5 built to run with. Sometimes it is necessary to switch between versions if one does not work.
+
+Usage
+-----
+`hf-sim [OPTIONS] REALISATION_FFP STOCH_FFP STATION_FILE OUT_FILE`
+
+For More Help
+-------------
+See the output of `hf-sim --help`.
 """
 
 import functools

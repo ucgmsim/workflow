@@ -1,14 +1,35 @@
-"""
-Generate Velocity Model Script.
+"""Velocity Model Generation.
 
-This script generates a velocity model using NZVM based on parameters extracted from a realisation JSON file.
+Description
+-----------
+Generate a velocity model for a domain.
 
-Usage:
+Inputs
 ------
+A realisation file containing:
 
-To run the script, use the command line:
-$ python generate_velocity_model.py <realisation_filepath> <velocity_model_output> [OPTIONS]
+1. Domain parameters,
+2. Velocity model parameters.
 
+Outputs
+-------
+A directory consisting of [velocity model files](https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation#FileFormatsUsedInGroundMotionSimulation-VelocityModelFiles).
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own computer using the `generate-velocity-model` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you are executing on your own computer you also need to specify the `NZVM` path (`--velocity-model-bin-path`) and the work directory (`--work-directory`).
+
+Usage
+-----
+`generate-velocity-model [OPTIONS] REALISATION_FFP VELOCITY_MODEL_OUTPUT`
+
+For More Help
+-------------
+See the output of `generate-velocity-model --help`.
+
+Visualisation
+-------------
+The velocity modelling repository contains some tools to plot velocity models. See `velocity_modelling.scripts.plot_velocity_model`.
 """
 
 import os
@@ -41,7 +62,6 @@ def write_nzvm_config(
         Path to the output directory for generated velocity model files.
     nzvm_config_path : Path
         Path to the NZVM configuration file to be written.
-
     """
     with open(nzvm_config_path, mode="w", encoding="utf-8") as nzvm_file_handle:
         nzvm_file_handle.write(

@@ -1,4 +1,32 @@
-"""Create EMOD3D parameters sourced from a realisation file."""
+"""Create EMOD3D Parameters.
+
+Description
+-----------
+Write parameters for EMOD3D simulation.
+
+Inputs
+------
+1. A realisation file containing domain parameters, velocity model parameters, and realisation metadata,
+2. An SRF file,
+3. A generated velocity model,
+4. Station coordinates.
+
+Outputs
+-------
+An EMOD3D parameter file containing a mixture of simulations parameters. Parameters source values from the defaults specified the realisation defaults version. The `emod3d` section of the realisation file overrides default values.
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own computer using the `create-e3d-par` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+
+Usage
+-----
+`create-e3d-par [OPTIONS] REALISATION_FFP SRF_FILE_FFP VELOCITY_MODEL_FFP STATIONS_FFP GRID_FFP OUTPUT_FFP`
+
+For More Help
+-------------
+See the output of `create-e3d-par --help`. See our description of the [EMOD3D Parameters](https://wiki.canterbury.ac.nz/pages/viewpage.action?pageId=100794983) for documentation on the EMOD3D parameter file format.
+"""
 
 from pathlib import Path
 from typing import Annotated
@@ -6,7 +34,6 @@ from typing import Annotated
 import numpy as np
 import typer
 
-from workflow import defaults, realisations
 from workflow.realisations import (
     DomainParameters,
     EMOD3DParameters,

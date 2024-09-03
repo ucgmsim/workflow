@@ -1,26 +1,39 @@
 #!/usr/bin/env python3
-"""
-Module for merging XYTS files.
+"""Merge EMOD3D Timeslices.
 
-This module provides functionality for merging XYTS files. It takes multiple
-input XYTS files, representing small patches of a larger simulation domain, and
-merges them into one large output.
+Description
+-----------
+Merge the output timeslice files of EMOD3D.
 
-$ merge_ts XYTS_DIRECTORY XYTS_DIRECTORY/output.e3d
+Inputs
+------
+1. A directory containing EMOD3D timeslice files.
 
-Note:
-    This module assumes the input XYTS files have the same temporal dimensions
-    (i.e. nt is constant).
+Outputs
+-------
+1. A merged output timeslice file.
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own computer using the `merge-ts` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+
+Usage
+-----
+`merge_ts XYTS_DIRECTORY XYTS_DIRECTORY/output.e3d`
+
+For More Help
+-------------
+See the output of `merge-ts --help`.
 """
 
 import os
 from pathlib import Path
 
 import typer
-from qcore import xyts
 from typing_extensions import Annotated
 
 from merge_ts import merge_ts_loop
+from qcore import xyts
 
 
 def merge_ts(

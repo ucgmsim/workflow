@@ -1,3 +1,30 @@
+"""Stoch Generation.
+
+Description
+-----------
+Generate Stoch file for HF simulation. This file is just a down-sampled version of the SRF.
+
+Inputs
+------
+A realisation file containing a metadata configuration, and a generated SRF file.
+
+Outputs
+-------
+A [Stoch](https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation#FileFormatsUsedInGroundMotionSimulation-Stochformat) file containing a down-sampled version of the SRF.
+
+Usage
+-----
+`generate-stoch [OPTIONS] REALISATION_FFP SRF_FFP STOCH_FFP`
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own computer using the `generate-stoch` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you are executing on your own computer you also need to specify the `srf2stoch` path (`--srf2stoch-path`).
+
+For More Help
+-------------
+See the output of `generate-stoch --help` or `workflow.scripts.generate_stoch`.
+"""
+
 import subprocess
 from pathlib import Path
 from typing import Annotated

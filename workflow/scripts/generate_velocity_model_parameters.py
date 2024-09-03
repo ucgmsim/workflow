@@ -1,15 +1,29 @@
 #!/usr/bin/env python3
-"""VM Parameters Generation.
+"""Domain Generation.
 
-This script generates the velocity model parameters used to generate the velocity model.
+Description
+-----------
+Find a suitable simulation domain, estimating a rupture radius that captures significant ground motion, and the time the simulation should run for to capture this ground motion.
+
+Inputs
+------
+A realisation file containing a metadata configuration, source definitions and rupture propagation information.
+
+Outputs
+-------
+A realisation file containing velocity model and domain extent parameters.
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own computer using the `generate-velocity-model-parameters` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
 
 Usage
 -----
-To generate VM parameters for a Type-5 realisation:
+`generate-velocity-model-parameters [OPTIONS] REALISATION_FFP`
 
-```
-$ python vm_params_generation.py path/to/realisation.yaml output/vm_params.yaml
-```
+For More Help
+-------------
+See the output of `generate-velocity-model-parameters --help` or `workflow.scripts.generate_velocity_model_parameters`.
 """
 
 from pathlib import Path

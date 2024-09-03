@@ -1,3 +1,30 @@
+"""Create Simulation Video.
+
+Description
+-----------
+Create a simulation video from the low frequency simulation output.
+
+Inputs
+------
+1. A merged timeslice file.
+
+Outputs
+-------
+1. An animation of the low frequency simulation output. See [youtube](https://www.youtube.com/watch?v=Crdk3k0Prew) for an example of these videos.
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own computer using the `plot-ts` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If running on your own computer, you need to install [gmt](https://www.generic-mapping-tools.org/) and [ffmpeg](https://www.ffmpeg.org/). This stage does not run well on Windows, and is very dependent on the gmt version installed. Hypocentre is already setup to run `plot_ts.py` without installing anything.
+
+Usage
+-----
+`plot-ts [OPTIONS] SRF_FFP XYTS_INPUT_DIRECTORY OUTPUT_FFP`
+
+For More Help
+-------------
+See the output of `plot-ts --help`.
+"""
+
 import multiprocessing
 import subprocess
 from pathlib import Path

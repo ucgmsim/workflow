@@ -1,10 +1,37 @@
 #!/usr/bin/env python3
-"""
-Generate realisation stub files from ruptures in the NSHM 2022 database.
+"""NSHM To Realisation.
 
-This script generates YAML realisation stub files from ruptures in the NSHM 2022
-database. It extracts fault geometry, computes causality information from the database
-and incorporates default parameter values to generate the realisation.
+Description
+-----------
+Construct a realisation from a rupture in the [NSHM 2022](https://nshm.gns.cri.nz/RuptureMap).
+
+Inputs
+------
+
+1. A copy of the [NSHM 2022 database](https://www.dropbox.com/scl/fi/50kww45wpsnmtf3pn2okz/nshmdb.db?rlkey=4mjuomuevl1x963fjwfximgldm&st=50ax73gl&dl=0).
+2. A rupture id to simulate. You can find a rupture id from the [rupture explorer](https://nshm.gns.cri.nz/RuptureMap). Alternatively, you can use the visualisation tools to find one.
+3. The version of the [scientific defaults](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/default_parameters/README.md#L1) to use. If you don't know what version to use, choose the latest version. Versions are specified as `YY.M.D.R`, where `R` is the resolution of the simulation (1 = 100m). For example `24.2.2.1`. The special `develop` version is for testing workflow iterations and not to be used for accurate scientific simulation.
+
+Outputs
+-------
+A realisation file containing:
+
+1. The definition of all the faults in the the rupture,
+2. A rupture propagation plan (i.e. how the rupture jumps between faults, and where),
+3. The estimated rupture magnitude and apportionment to the involved faults.
+4. The definition of the rakes.
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own computer using the `nshm2022-to-realisation` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+
+Usage
+-----
+`nshm2022-to-realisation [OPTIONS] NSHM_DB_FILE RUPTURE_ID REALISATION_FFP DEFAULTS_VERSION`
+
+For More Help
+-------------
+See the output of `nshm2022-to-realisation --help`.
 """
 
 from pathlib import Path
