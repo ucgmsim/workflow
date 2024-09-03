@@ -21,14 +21,15 @@ jobs:
     steps:
       - uses: awalsh128/cache-apt-pkgs-action@latest
         with:
-          packages: gmt, libgmt-dev, ghostscript
-          version: 1.0
+          packages: gmt, libgmt-dev, ghostscript nodejs
+          version: 1.0;
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       # ADJUST THIS: install all dependencies (including pdoc)
+      - run: npm install -g mermaid
       - run: pip install -e .
       - run: pip install pdoc
       # ADJUST THIS: build your documentation into docs/.
