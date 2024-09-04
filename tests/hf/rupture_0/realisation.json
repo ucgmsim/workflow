@@ -1,0 +1,278 @@
+{
+  "metadata": {
+    "name": "Rupture 0",
+    "version": "1",
+    "defaults_version": "24.2.2.1",
+    "tag": "nshm"
+  },
+  "sources": {
+    "source_geometries": {
+      "Acton": {
+        "type": "fault",
+        "corners": [
+          {
+            "latitude": -45.4444,
+            "longitude": 168.3711,
+            "depth": 0.0
+          },
+          {
+            "latitude": -45.476099999999995,
+            "longitude": 168.3553,
+            "depth": 0.0
+          },
+          {
+            "latitude": -45.494576338695666,
+            "longitude": 168.55362002012393,
+            "depth": 27120.0
+          },
+          {
+            "latitude": -45.46284490350139,
+            "longitude": 168.56931656800552,
+            "depth": 27120.0
+          },
+          {
+            "latitude": -45.476099999999995,
+            "longitude": 168.3553,
+            "depth": 0.0
+          },
+          {
+            "latitude": -45.4898,
+            "longitude": 168.3417,
+            "depth": 0.0
+          },
+          {
+            "latitude": -45.50830164600003,
+            "longitude": 168.54006165704124,
+            "depth": 27120.0
+          },
+          {
+            "latitude": -45.494576338695666,
+            "longitude": 168.55362002012393,
+            "depth": 27120.0
+          },
+          {
+            "latitude": -45.4898,
+            "longitude": 168.3417,
+            "depth": 0.0
+          },
+          {
+            "latitude": -45.5328,
+            "longitude": 168.3074,
+            "depth": 0.0
+          },
+          {
+            "latitude": -45.55136662396805,
+            "longitude": 168.5058963599694,
+            "depth": 27120.0
+          },
+          {
+            "latitude": -45.50830164600003,
+            "longitude": 168.54006165704124,
+            "depth": 27120.0
+          },
+          {
+            "latitude": -45.5328,
+            "longitude": 168.3074,
+            "depth": 0.0
+          },
+          {
+            "latitude": -45.53676000000001,
+            "longitude": 168.30343,
+            "depth": 0.0
+          },
+          {
+            "latitude": -45.5553340160046,
+            "longitude": 168.50193840071114,
+            "depth": 27120.0
+          },
+          {
+            "latitude": -45.55136662396805,
+            "longitude": 168.5058963599694,
+            "depth": 27120.0
+          },
+          {
+            "latitude": -45.53676000000001,
+            "longitude": 168.30343,
+            "depth": 0.0
+          },
+          {
+            "latitude": -45.5659,
+            "longitude": 168.2742,
+            "depth": 0.0
+          },
+          {
+            "latitude": -45.584528463965455,
+            "longitude": 168.47279704524476,
+            "depth": 27120.0
+          },
+          {
+            "latitude": -45.5553340160046,
+            "longitude": 168.50193840071114,
+            "depth": 27120.0
+          },
+          {
+            "latitude": -45.5659,
+            "longitude": 168.2742,
+            "depth": 0.0
+          },
+          {
+            "latitude": -45.5758,
+            "longitude": 168.2716,
+            "depth": 0.0
+          },
+          {
+            "latitude": -45.594434275640076,
+            "longitude": 168.47023060209847,
+            "depth": 27120.0
+          },
+          {
+            "latitude": -45.584528463965455,
+            "longitude": 168.47279704524476,
+            "depth": 27120.0
+          },
+          {
+            "latitude": -45.5758,
+            "longitude": 168.2716,
+            "depth": 0.0
+          },
+          {
+            "latitude": -45.60549999999999,
+            "longitude": 168.2652,
+            "depth": 0.0
+          },
+          {
+            "latitude": -45.62414929198912,
+            "longitude": 168.46393203027938,
+            "depth": 27120.0
+          },
+          {
+            "latitude": -45.594434275640076,
+            "longitude": 168.47023060209847,
+            "depth": 27120.0
+          },
+          {
+            "latitude": -45.60549999999999,
+            "longitude": 168.2652,
+            "depth": 0.0
+          },
+          {
+            "latitude": -45.62720000000001,
+            "longitude": 168.28380000000004,
+            "depth": 0.0
+          },
+          {
+            "latitude": -45.64581991967586,
+            "longitude": 168.48261710735062,
+            "depth": 27120.0
+          },
+          {
+            "latitude": -45.62414929198912,
+            "longitude": 168.46393203027938,
+            "depth": 27120.0
+          },
+          {
+            "latitude": -45.62720000000001,
+            "longitude": 168.28380000000004,
+            "depth": 0.0
+          },
+          {
+            "latitude": -45.63023,
+            "longitude": 168.285881,
+            "depth": 0.0
+          },
+          {
+            "latitude": -45.6488467110479,
+            "longitude": 168.484709752194,
+            "depth": 27120.0
+          },
+          {
+            "latitude": -45.64581991967586,
+            "longitude": 168.48261710735062,
+            "depth": 27120.0
+          }
+        ]
+      }
+    }
+  },
+  "rupture_propagation": {
+    "rupture_causality_tree": {
+      "Acton": null
+    },
+    "jump_points": {},
+    "rakes": {
+      "Acton": 110.0
+    },
+    "magnitudes": {
+      "Acton": 6.862097189246764
+    },
+    "hypocentre": {
+      "s": 0.5,
+      "d": 0.5465986642702483
+    }
+  },
+  "domain": {
+    "resolution": 0.1,
+    "depth": 40.0,
+    "duration": 60.0,
+    "dt": 0.005,
+    "domain": [
+      {
+        "latitude": -46.2955016,
+        "longitude": 167.70557409
+      },
+      {
+        "latitude": -44.95099281,
+        "longitude": 167.83098652
+      },
+      {
+        "latitude": -45.02124674,
+        "longitude": 169.7285422
+      },
+      {
+        "latitude": -46.36911362,
+        "longitude": 169.64890043
+      }
+    ]
+  },
+  "hf": {
+    "dt": 0.005,
+    "nbu": 4,
+    "ift": 0,
+    "flo": 0.02,
+    "fhi": 19.9,
+    "nl_skip": -99,
+    "vp_sig": 0.0,
+    "vsh_sig": 0.0,
+    "qs_sig": 0.0,
+    "rho_sig": 0.0,
+    "ic_flag": true,
+    "velocity_name": "-1",
+    "t_sec": 0.0,
+    "sdrop": 50.0,
+    "rayset": [1, 2],
+    "no_siteamp": false,
+    "fmax": 10.0,
+    "kappa": 0.045,
+    "qfexp": 0.6,
+    "rvfac": 0.8,
+    "rvfac_shal": 0.7,
+    "rvfac_deep": 0.7,
+    "seed": 0,
+    "czero": 2.1,
+    "calpha": -99.0,
+    "mom": null,
+    "rupv": null,
+    "site_specific": false,
+    "vs_moho": 999.9,
+    "fa_sig1": 0.0,
+    "fa_sig2": 0.0,
+    "rv_sig1": 0.1,
+    "path_dur": 1,
+    "dpath_pert": 0.0,
+    "stress_parameter_adjustment_tect_type": 1,
+    "stress_parameter_adjustment_target_magnitude": null,
+    "stress_parameter_adjustment_fault_area": null,
+    "stoch_dx": 2.0,
+    "stoch_dy": 2.0
+  }
+}

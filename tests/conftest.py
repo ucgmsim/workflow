@@ -29,6 +29,12 @@ def pytest_addoption(parser: Parser):
         type=Path,
         help="Path to srf2stoch",
     )
+    parser.addoption(
+        "--hf-sim-path",
+        action="store",
+        type=Path,
+        help="Path to hb_high_binmod",
+    )
 
 
 @pytest.fixture
@@ -49,3 +55,7 @@ def nshmdb_path(request):
 @pytest.fixture
 def srf2stoch_path(request):
     return request.config.getoption("--srf2stoch-path")
+
+@pytest.fixture
+def hf_sim_path(request):
+    return request.config.getoption('--hf-sim-path')
