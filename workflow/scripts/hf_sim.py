@@ -40,7 +40,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Annotated, Any, Iterable
+from typing import Annotated, Any
 
 import numpy as np
 import pandas as pd
@@ -49,12 +49,10 @@ import typer
 
 from workflow.realisations import DomainParameters, HFConfig, RealisationMetadata
 
+app = typer.Typer()
+
 HEAD_STAT = 24
 FLOAT_SIZE = 4
-
-
-def format_hf_input(input_lines: Iterable[Any]) -> str:
-    return "\n".join(str(line) for line in input_lines)
 
 
 def hf_simulate_station(
@@ -68,39 +66,71 @@ def hf_simulate_station(
     latitude: float,
     name: str,
 ) -> None:
+    """Simulate a seismic station using the HF (High-Frequency) simulation tool.
+
+    Parameters
+    ----------
+    hf_config : HFConfig
+        Configuration object containing the parameters for the high-frequency simulation.
+    domain_parameters : DomainParameters
+        Domain parameters such as simulation duration and other domain-specific settings.
+    velocity_model : Path
+        Path to the velocity model file used in the simulation.
+    stoch_ffp : Path
+        Path to the stoch file used as input for the simulation.
+    output_directory : Path
+        Directory where the HF output file will be saved.
+    hf_sim_path : Path
+        Path to the HF simulation binary.
+    longitude : float
+        Longitude of the seismic station.
+    latitude : float
+        Latitude of the seismic station.
+    name : str
+        Name of the seismic station, used for naming the output file.
+
+    Returns
+    -------
+    float
+        The epicenter distance obtained from the simulation output.
+
+    Raises
+    ------
+    ValueError
+        If the output does not contain exactly one epicenter distance value.
+    """
     raw_hf_output_ffp = output_directory / f"{name}.hf"
     with tempfile.NamedTemporaryFile(mode="w") as station_input_file:
         station_input_file.write(f"{longitude} {latitude} {name}\n")
         station_input_file.flush()
-        hf_sim_input = format_hf_input(
-            [
-                "",
-                hf_config.sdrop,
-                station_input_file.name,
-                raw_hf_output_ffp,
-                f"{len(hf_config.rayset)} {' '.join(str(ray) for ray in hf_config.rayset)}",
-                int(not hf_config.no_siteamp),
-                f"{hf_config.nbu} {hf_config.ift} {hf_config.flo} {hf_config.fhi}",
-                hf_config.seed,
-                1,  # one station in the input
-                f"{domain_parameters.duration} {hf_config.dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",
-                f"{hf_config.rvfac} {hf_config.rvfac_shal} {hf_config.rvfac_deep} {hf_config.czero} {hf_config.calpha}",
-                f"{hf_config.mom or -1} {hf_config.rupv or -1}",
-                stoch_ffp,
-                velocity_model,
-                hf_config.vs_moho,
-                f"{hf_config.nl_skip} {hf_config.vp_sig} {hf_config.vsh_sig} {hf_config.rho_sig} {hf_config.qs_sig} {int(hf_config.ic_flag)}",
-                hf_config.velocity_name,
-                f"{hf_config.fa_sig1} {hf_config.fa_sig2} {hf_config.rv_sig1}",
-                hf_config.path_dur,
-                0,  # maybe don't need this?
-                f"{hf_config.stress_parameter_adjustment_fault_area or -1} "
-                f"{hf_config.stress_parameter_adjustment_target_magnitude or -1} "
-                f"{hf_config.stress_parameter_adjustment_tect_type or -1}",
-                0,  # seek bytes to 0 (no binary offset for this output)
-                "",
-            ]
-        )
+        hf_sim_input = [
+            "",
+            hf_config.sdrop,
+            station_input_file.name,
+            raw_hf_output_ffp,
+            f"{len(hf_config.rayset)} {' '.join(str(ray) for ray in hf_config.rayset)}",
+            int(not hf_config.no_siteamp),
+            f"{hf_config.nbu} {hf_config.ift} {hf_config.flo} {hf_config.fhi}",
+            hf_config.seed,
+            1,  # one station in the input
+            f"{domain_parameters.duration} {hf_config.dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",
+            f"{hf_config.rvfac} {hf_config.rvfac_shal} {hf_config.rvfac_deep} {hf_config.czero} {hf_config.calpha}",
+            f"{hf_config.mom or -1} {hf_config.rupv or -1}",
+            stoch_ffp,
+            velocity_model,
+            hf_config.vs_moho,
+            f"{hf_config.nl_skip} {hf_config.vp_sig} {hf_config.vsh_sig} {hf_config.rho_sig} {hf_config.qs_sig} {int(hf_config.ic_flag)}",
+            hf_config.velocity_name,
+            f"{hf_config.fa_sig1} {hf_config.fa_sig2} {hf_config.rv_sig1}",
+            hf_config.path_dur,
+            0,  # maybe don't need this?
+            f"{hf_config.stress_parameter_adjustment_fault_area or -1} "
+            f"{hf_config.stress_parameter_adjustment_target_magnitude or -1} "
+            f"{hf_config.stress_parameter_adjustment_tect_type or -1}",
+            0,  # seek bytes to 0 (no binary offset for this output)
+            "",
+        ]
+        hf_sim_path = "\n".join(str(line) for line in hf_sim_input)
 
         try:
             output = subprocess.run(
@@ -123,9 +153,13 @@ def hf_simulate_station(
 
 
 def hf_simulate_station_worker(*args):
+    """Multi-processing wrapper for `hf_simulate_station`."""
     return hf_simulate_station(*args[:-1], *args[-1])
 
 
+@app.command(
+    help="Run the HF (High-Frequency) simulation and generate the HF output file."
+)
 def run_hf(
     realisation_ffp: Annotated[Path, typer.Argument(help="Path to realisation file.")],
     stoch_ffp: Annotated[
@@ -154,6 +188,38 @@ def run_hf(
         ),
     ] = Path("/out"),
 ):
+    """Run the HF (High-Frequency) simulation and generate the HF output file.
+
+    This function performs the following steps:
+    1. Reads configuration and domain parameters from the realisation file.
+    2. Filters stations based on their location relative to the domain.
+    3. Uses multiprocessing to simulate each station and calculate epicentre distances.
+    4. Reads the velocity model and calculates the `vs` value.
+    5. Writes the HF output file, including header and station-specific data.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        Path to the JSON file containing realisation data.
+    stoch_ffp : Path
+        Path to the input stochastic file.
+    station_file : Path
+        Path to the file containing station locations and names.
+    out_file : Path
+        Filepath where the HF output will be saved.
+    hf_sim_path : Path, optional
+        Path to the HF simulation binary.
+    velocity_model : Path, optional
+        Path to the 1D velocity model. Ignored if site-specific model
+        is set is set in the `HFConfig` of `realisation_ffp`.
+    work_directory : Path, optional
+        Directory for intermediate files. Must be writable.
+
+    Returns
+    -------
+    None
+        The function does not return any value. It writes the HF output directly to `out_file`.
+    """
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     hf_config = HFConfig.read_from_realisation_or_defaults(
@@ -274,11 +340,3 @@ def run_hf(
                 shutil.copyfileobj(station_file_data, output_file_handle)
 
     print(f"Merging time took: {time.process_time() - start}")
-
-
-def main():
-    typer.run(run_hf)
-
-
-if __name__ == "__main__":
-    main()

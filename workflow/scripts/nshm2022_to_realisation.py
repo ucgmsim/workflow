@@ -39,22 +39,60 @@ from typing import Annotated
 
 import numpy as np
 import typer
+
 from nshmdb import nshmdb
 from qcore.uncertainties import distributions, mag_scaling
-
 from source_modelling import rupture_propagation
 from source_modelling.sources import Fault
 from workflow import realisations
 from workflow.defaults import DefaultsVersion
 
+app = typer.Typer()
+
 
 def a_to_mw_leonard(area: float, rake: float) -> float:
+    """
+    Convert fault area and rake to moment magnitude using the Leonard scaling relation.
+
+    Parameters
+    ----------
+    area : float
+        The area of the fault in square kilometres.
+    rake : float
+        The rake angle of the fault in degrees.
+
+    Returns
+    -------
+    float
+        The estimated moment magnitude of the fault.
+
+    References
+    ----------
+    Leonard, M. (2010). Earthquake fault scaling: Self-consistent
+    relating of rupture length, width, average displacement, and
+    moment release. Bulletin of the Seismological Society of America,
+    100(5A), 1971-1988.
+    """
     return mag_scaling.a_to_mw_leonard(area, 4, 3.99, rake)
 
 
 def default_magnitude_estimation(
     faults: dict[str, Fault], rakes: dict[str, float]
 ) -> dict[str, float]:
+    """Estimate the magnitudes for a set of faults based on their areas and average rake.
+
+    Parameters
+    ----------
+    faults : dict
+        A dictionary where the keys are fault names and the values are `Fault` objects containing information about each fault.
+    rakes : dict
+        A dictionary where the keys are fault names and the values are rake angles (in degrees) for each fault.
+
+    Returns
+    -------
+    dict
+        A dictionary where the keys are fault names and the values are the estimated magnitudes for each fault.
+    """
     total_area = sum(fault.area() for fault in faults.values())
     avg_rake = np.mean(list(rakes.values()))
     estimated_mw = a_to_mw_leonard(total_area, avg_rake)
@@ -65,10 +103,7 @@ def default_magnitude_estimation(
     }
 
 
-def expected_hypocentre() -> np.ndarray:
-    return np.array([1 / 2, distributions.truncated_weibull_expected_value(1)])
-
-
+@app.command(help='Generate realisation stub files from ruptures in the NSHM 2022 database.')
 def generate_realisation(
     nshm_db_file: Annotated[
         Path,
@@ -92,8 +127,26 @@ def generate_realisation(
         DefaultsVersion,
         typer.Argument(help="Scientific default parameters version to use"),
     ],
+
 ):
-    """Generate realisation stub files from ruptures in the NSHM 2022 database."""
+    """Generate realisation stub files from ruptures in the NSHM 2022 database.
+
+    This function initializes a connection to the NSHM database, retrieves the faults and fault information for
+    the given rupture ID, estimates the most likely rupture propagation, and creates configurations and metadata
+    for the realisation. The resulting realisation is then written to the specified file path.
+
+    Parameters
+    ----------
+    nshm_db_file : Path
+        The NSHM sqlite database containing rupture information and fault geometry.
+    rupture_id : int
+        The ID of the rupture to generate the realisation stub for. Find this using the NSHM Rupture Explorer.
+    realisation_ffp : Path
+        Location to write out the realisation.
+    defaults_version : DefaultsVersion
+        Scientific default parameters version to use.
+    """
+
     db = nshmdb.NSHMDB(nshm_db_file)
     faults = db.get_rupture_faults(rupture_id)
     faults_info = db.get_rupture_fault_info(rupture_id)
@@ -111,6 +164,7 @@ def generate_realisation(
     rakes = {
         fault_name: fault_info.rake for fault_name, fault_info in faults_info.items()
     }
+    expected_hypocentre =  np.array([1 / 2, distributions.truncated_weibull_expected_value(1)])
     rupture_propagation_config = realisations.RupturePropagationConfig(
         magnitudes=default_magnitude_estimation(faults, rakes),
         rupture_causality_tree=rupture_causality_tree,
@@ -118,7 +172,7 @@ def generate_realisation(
             faults, rupture_causality_tree
         ),
         rakes=rakes,
-        hypocentre=expected_hypocentre(),
+        hypocentre=expected_hypocentre
     )
     metadata = realisations.RealisationMetadata(
         name=f"Rupture {rupture_id}",
@@ -129,11 +183,3 @@ def generate_realisation(
 
     for section in [metadata, source_config, rupture_propagation_config]:
         section.write_to_realisation(realisation_ffp)
-
-
-def main():
-    typer.run(generate_realisation)
-
-
-if __name__ == "__main__":
-    main()

@@ -40,11 +40,11 @@ from shapely import Polygon
 from empirical.util import openquake_wrapper_vectorized as openquake
 from empirical.util import z_model_calculations
 from empirical.util.classdef import GMM, TectType
-from qcore import bounding_box, coordinates, gmt
+from qcore import coordinates, gmt
 from qcore.uncertainties import mag_scaling
 from source_modelling import sources
+from velocity_modelling import bounding_box
 from velocity_modelling.bounding_box import BoundingBox
-from workflow import realisations
 from workflow.realisations import (
     DomainParameters,
     RealisationMetadata,
@@ -52,6 +52,8 @@ from workflow.realisations import (
     SourceConfig,
     VelocityModelParameters,
 )
+
+app = typer.Typer()
 
 
 def get_nz_outline_polygon() -> Polygon:
@@ -107,6 +109,31 @@ def pgv_estimate_from_magnitude(magnitude: np.ndarray) -> np.ndarray:
 def rrup_buffer_polygon(
     faults: dict[str, sources.IsSource], rrups: dict[str, float]
 ) -> shapely.Polygon:
+    """
+    Create a buffer polygon around fault corners based on rupture radius.
+
+    The function creates buffer zones around the corners of each fault using the provided rupture radius.
+    These buffer zones are then combined into a single polygon that encompasses all buffered areas.
+
+    Parameters
+    ----------
+    faults : dict
+        A dictionary where keys are fault names and values are fault objects.
+    rrups : dict
+        A dictionary where keys are fault names and values are rupture radii (in kilometres).
+
+    Returns
+    -------
+    shapely.Polygon
+        A polygon representing the union of buffered areas around fault corners.
+
+    Example
+    -------
+    >>> faults = {'fault1': source1, 'fault2': source2}
+    >>> rrups = {'fault1': 10.0, 'fault2': 15.0}
+    >>> buffer_polygon = rrup_buffer_polygon(faults, rrups)
+    >>> print(buffer_polygon)
+    """
     rrup_polygons = [
         shapely.buffer(shapely.Point(corner), rrups[fault_name] * 1000)
         for fault_name, fault in faults.items()
@@ -193,25 +220,33 @@ def estimate_simulation_duration(
     vs30: float,
     s_wave_velocity: float,
 ) -> float:
-    """Estimate the simulation duration for a realisation simulated in a given domain.
+    """Estimate the simulation duration required for a realisation in a given domain.
 
-    The simulation duration is calculated as the time for the s-waves of
-    a rupture to propogate from the centre of the domain to the edge of
-    the domain.
+    The simulation distance is the length of time it
+    takes the S-waves to reach and pass the edge of the domain from
+    the centre of the fault(s).
 
     Parameters
     ----------
     bounding_box : BoundingBox
-        The simulation domain.
-    type5_realisation : realisation.Realisation
-        The realisation.
+        The bounding box representing the simulation domain.
+    magnitude : float
+        The magnitude of the earthquake rupture.
+    faults : list of sources.IsSource
+        A list of fault objects defining the fault geometries.
+    rakes : np.ndarray
+        An array of rake angles for the faults.
     ds_multiplier : float
-        A multiplier for the wavelength of the s-wave.
+        Multiplier for the wavelength of the s-wave to adjust simulation duration.
+    vs30 : float
+        Average shear-wave velocity in the top 30 meters of soil (in m/s).
+    s_wave_velocity : float
+        Shear-wave velocity (in m/s) used to compute the travel time.
 
     Returns
     -------
     float
-        An estimated simulation duration time.
+        The estimated simulation duration time (in seconds).
     """
     fault_corners = coordinates.wgs_depth_to_nztm(
         np.vstack([fault.corners for fault in faults])
@@ -283,9 +318,23 @@ def get_max_depth(magnitude: float, hypocentre_depth: float) -> int:
 
 
 def total_magnitude(magnitudes: np.ndarray) -> float:
+    """
+    Compute the total magnitude from an array of individual magnitudes.
+
+    Parameters
+    ----------
+    magnitudes : np.ndarray
+        An array of magnitudes.
+
+    Returns
+    -------
+    float
+        The total magnitude, computed from the summed moment of the input magnitudes.
+    """
     return mag_scaling.mom2mag(np.sum(mag_scaling.mag2mom(magnitudes)))
 
 
+@app.command(help="Generate velocity model parameters for a given realisation file")
 def generate_velocity_model_parameters(
     realisation_ffp: Annotated[
         Path,
@@ -294,7 +343,27 @@ def generate_velocity_model_parameters(
         ),
     ],
 ):
-    """Generate velocity model parameters for a realisation."""
+    """Generate velocity model parameters for a given realisation file.
+
+    This function reads the source and rupture propagation information and computes:
+
+    1. The size of the simulation domain,
+    2. The simulation duration.
+
+    Both of these values are written to the realisation using `VelocityModelParameters`.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        The path to the realisation file from which to read configurations and to which
+        the generated velocity model parameters will be written.
+
+    Returns
+    -------
+    None
+        The function does not return any value. It writes the computed parameters to
+        the specified realisation file.
+    """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     source_config = SourceConfig.read_from_realisation(realisation_ffp)
     velocity_model_parameters = (
@@ -371,11 +440,3 @@ def generate_velocity_model_parameters(
         dt=velocity_model_parameters.dt,
     )
     domain_parameters.write_to_realisation(realisation_ffp)
-
-
-def main():
-    typer.run(generate_velocity_model_parameters)
-
-
-if __name__ == "__main__":
-    main()

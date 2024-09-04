@@ -41,6 +41,8 @@ from workflow.realisations import (
     VelocityModelParameters,
 )
 
+app = typer.Typer()
+
 
 def emod3d_domain_parameters(
     domain_parameters: DomainParameters,
@@ -221,6 +223,7 @@ def format_as_emod3d_value(value: int | float | str | Path) -> str:
         return str(value)
 
 
+@app.command(help="Create EMOD3D parameter file from provided inputs.")
 def create_e3d_par(
     realisation_ffp: Annotated[
         Path,
@@ -281,7 +284,31 @@ def create_e3d_par(
         str, typer.Option(help="The version of the EMOD3D binary to use.")
     ] = "3.0.8",
 ):
-    """Create EMOD3D parameters sourced from a realisation file."""
+    """Create EMOD3D parameter file from provided inputs.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        Path to the JSON file containing realisation data.
+    srf_file_ffp : Path
+        Path to the SRF file used in the simulation.
+    velocity_model_ffp : Path
+        Path to the velocity model file.
+    stations_ffp : Path
+        Path to the station files used in the simulation.
+    grid_ffp : Path
+        Path to the directory containing grid coordinates.
+    output_ffp : Path
+        Path to the directory where the output parameter file (`e3d.par`) will be saved.
+    scratch_ffp : Path, optional
+        Path to the directory for intermediate output files when running EMOD3D.
+    defaults_version : str, optional
+        The version of EMOD3D defaults to use.
+    emod3d_path : Path, optional
+        Path to the EMOD3D binary.
+    emod3d_version : str, optional
+        Version of the EMOD3D binary to use.
+    """
     output_ffp.mkdir(exist_ok=True)
     scratch_ffp.mkdir(exist_ok=True)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
@@ -314,11 +341,3 @@ def create_e3d_par(
             for key, value in e3d_par_values.items()
         )
     )
-
-
-def main():
-    typer.run(create_e3d_par)
-
-
-if __name__ == "__main__":
-    main()

@@ -33,7 +33,10 @@ import typer
 
 from workflow.realisations import HFConfig, RealisationMetadata
 
+app = typer.Typer()s
 
+
+@app.command(help="Generate a stoch file from an SRF file.")
 def generate_stoch(
     realisation_ffp: Annotated[
         Path, typer.Argument(help="Path to realisation", exists=True, dir_okay=False)
@@ -48,7 +51,21 @@ def generate_stoch(
         Path, typer.Option(exists=True, help="Path to srf2stoch binary")
     ] = Path("/EMOD3D/tools/srf2stoch"),
 ):
-    """Generate stoch file from SRF."""
+    """Generate a stoch file from an SRF file.
+
+    This function uses the `srf2stoch` binary to generate a stoch file from the provided SRF file.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        Path to the realisation.
+    srf_ffp : Path
+        Path to the SRF file which is used as input for the stoch file generation.
+    stoch_ffp : Path
+        Path to the output file where the generated stoch file will be saved.
+    srf2stoch_path : Path, optional
+        Path to the `srf2stoch` binary used for the conversion.
+    """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     hf_config = HFConfig.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
@@ -63,11 +80,3 @@ def generate_stoch(
             f"outfile={stoch_ffp}",
         ]
     )
-
-
-def main():
-    typer.run(generate_stoch)
-
-
-if __name__ == "__main__":
-    main()

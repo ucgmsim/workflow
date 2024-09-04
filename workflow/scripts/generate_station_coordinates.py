@@ -35,10 +35,12 @@ import pandas as pd
 import typer
 
 from qcore import geo
-from workflow import realisations
 from workflow.realisations import DomainParameters
 
+app = typer.Typer()
 
+
+@app.command(help="Generate station gridpoint coordinates from a list of stations.")
 def generate_fd_files(
     realisations_ffp: Annotated[
         Path, typer.Argument(help="Path to realisation json file.", readable=True)
@@ -60,7 +62,35 @@ def generate_fd_files(
         ),
     ] = Path("/input/stations.ll"),
 ) -> None:
-    """Generate station gridpoint coordinates for a station list."""
+    """Generate station gridpoint coordinates from a list of stations.
+
+    This function converts station coordinates from a file with
+    latitude and longitude into gridpoint coordinates within a
+    specified domain. It generates two output files: one containing
+    gridpoint coordinates and another containing latitude-longitude
+    coordinates.
+
+    Parameters
+    ----------
+    realisations_ffp : Path
+        Path to the realisation file.
+    output_path : Path
+        Path to the directory where the output station files will be saved. The directory will be created if it does not exist.
+    keep_dup_station : bool, optional
+        Flag indicating whether to keep stations whose latitude,
+        longitude map to identical gridpoint coordinates in the
+        simulation domain. If True, duplicate stations are included in
+        the output with a warning. If False, duplicate stations are
+        ignored.
+    stat_file : Path, optional
+        Path to the input file containing station data with latitude, longitude, and station names.
+
+    Returns
+    -------
+    None
+        This function does not return a value. It writes two files to the specified output path: "stations.statcords"
+        and "stations.ll".
+    """
     output_path.mkdir(exist_ok=True)
     domain_parameters = DomainParameters.read_from_realisation(realisations_ffp)
     model_origin = domain_parameters.domain.origin
@@ -74,7 +104,7 @@ def generate_fd_files(
 
     # retrieve in station names, latitudes and longitudes
     stations = pd.read_csv(
-        stat_file, delimiter=" ", comment="#", names=["lon", "lat", "name"]
+        stat_file, delimiter="\s+", comment="#", names=["lon", "lat", "name"]
     )
 
     # convert ll to grid points
@@ -133,11 +163,3 @@ def generate_fd_files(
     with open(ll_out, "w", encoding="utf-8") as llf:
         for pos, station_name in zip(ll, suname):
             llf.write(f"{pos[0]:11.5f} {pos[1]:11.5f} {station_name}\n")
-
-
-def main():
-    typer.run(generate_fd_files)
-
-
-if __name__ == "__main__":
-    main()

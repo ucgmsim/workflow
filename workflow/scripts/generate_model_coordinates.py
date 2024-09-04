@@ -34,7 +34,10 @@ import typer
 from qcore import coordinates
 from workflow.realisations import DomainParameters
 
+app = typer.Typer()
 
+
+@app.command(help="Generate model coordinate files for EMOD3D from a realisation file")
 def generate_model_coordinates(
     realisation_ffp: Annotated[
         Path,
@@ -50,7 +53,28 @@ def generate_model_coordinates(
         ),
     ],
 ) -> None:
-    """Generate model coordinates for EMOD3D."""
+    """
+    Generate model coordinate files for EMOD3D from a realisation JSON file.
+
+    This function reads domain parameters from a realisation and generates
+    two output files: one containing grid file specifications and the other containing
+    model parameters. These files are used for EMOD3D simulations.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        Path to the realisation file.
+    output_ffp : Path
+        Path to the directory where the output model coordinate files will be saved.
+        The directory will be created if it does not exist.
+
+    Returns
+    -------
+    None
+        This function does not return a value. It writes two files to the specified output directoy:
+        - `grid_file` containing the grid dimensions and resolution.
+        - `model_params` containing the model origin coordinates, shifts, corners, and dimensions.
+    """
     output_ffp.mkdir(exist_ok=True)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     x_len = domain_parameters.domain.extent_x
@@ -100,11 +124,3 @@ def generate_model_coordinates(
             ]
         )
     )
-
-
-def main():
-    typer.run(generate_model_coordinates)
-
-
-if __name__ == "__main__":
-    main()

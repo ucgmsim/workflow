@@ -52,6 +52,29 @@ def plot_ts(
         Path, typer.Option(help="Intermediate output directory")
     ] = Path("/out"),
 ):
+    """
+    Generate and save an animation from timeslice files.
+
+    This function performs the following steps:
+    1. Merges the timeslice files from the specified directory into a single file.
+    2. Calls an external script (`plot_ts.py`) to create and save an animation of the timeslices.
+
+    Parameters
+    ----------
+    srf_ffp : Path
+        Path to the SRF file. This parameter is not used in the function, but is included for completeness.
+    xyts_input_directory : Path
+        Directory containing xyts files to be plotted.
+    output_ffp : Path
+        Path where the generated animation will be saved.
+    work_directory : Path, optional
+        Directory for intermediate output files.
+
+    Returns
+    -------
+    None
+        The function does not return any value. It generates an animation and saves it to the `output_ffp` path.
+    """
     merged_xyts_ffp = work_directory / "timeslices-xyts.e3d"
     merge_ts.merge_ts(xyts_input_directory, merged_xyts_ffp)
     subprocess.check_call(
@@ -64,11 +87,3 @@ def plot_ts(
             str(work_directory),
         ]
     )
-
-
-def main():
-    typer.run(plot_ts)
-
-
-if __name__ == "__main__":
-    main()

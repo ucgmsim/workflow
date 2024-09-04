@@ -48,9 +48,9 @@ import numpy as np
 import pandas as pd
 import scipy as sp
 import typer
-from qcore import coordinates, grid, gsf
 from scipy.sparse import csr_array
 
+from qcore import coordinates, grid, gsf
 from source_modelling import rupture_propagation, srf
 from source_modelling.sources import IsSource
 from workflow.realisations import (
@@ -59,6 +59,8 @@ from workflow.realisations import (
     SourceConfig,
     SRFConfig,
 )
+
+app = typer.Typer()
 
 
 def normalise_name(name: str) -> str:
@@ -402,6 +404,7 @@ def generate_fault_srfs_parallel(
         )
 
 
+@app.command(help="Generate an SRF file from a given realisation specification")
 def generate_srf(
     realisation_ffp: Annotated[
         Path,
@@ -437,7 +440,26 @@ def generate_srf(
         typer.Option(help="Path to genslip binary.", readable=True, dir_okay=False),
     ] = Path("/EMOD3D/tools/genslip_v5.4.2"),
 ):
-    """Generate a type-5 SRF file from a given realisation specification."""
+    """Generate an SRF file from a given realisation specification.
+
+    This function reads the realisation metadata and configurations from the specified YAML file. It then generates
+    fault SRF files using the genslip tool and stitches these files into a final SRF file. The SRF configuration is
+    updated and written back to the realisation file. Finally, the resulting SRF file is copied to the specified
+    output path.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        The filepath of the YAML file containing the realisation data.
+    output_srf_filepath : Path
+        The filepath where the final SRF file will be saved.
+    work_directory : Path, optional
+        Path to output intermediate geometry and SRF files.
+    velocity_model : Path, optional
+        Path to the genslip velocity model.
+    genslip_path : Path, optional
+        Path to the genslip binary.
+    """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     srf_config = SRFConfig.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
@@ -466,11 +488,3 @@ def generate_srf(
     srf_config.write_to_realisation(realisation_ffp)
 
     shutil.copyfile(work_directory / (srf_name + ".srf"), output_srf_filepath)
-
-
-def main():
-    typer.run(generate_srf)
-
-
-if __name__ == "__main__":
-    main()
