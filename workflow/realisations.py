@@ -6,26 +6,6 @@ done directly with the schema. More complicated input checking (for
 example, that the rupture propagation defines a tree with one root
 node) should be done outside this module. This is to avoid having this
 module become an "everything" module.
-
-Classes:
---------
-SourceConfig:
-    Configuration for defining sources.
-SRFConfig:
-    Configuration for SRF generation.
-RupturePropagationConfig:
-    Configuration for rupture propagation.
-DomainParameters:
-    Parameters defining the spatial domain for simulation.
-RealisationMetadata:
-    Metadata for describing a realisation.
-
-Functions
----------
-read_config_from_realisation
-    Read a configuration object from a realisation file.
-write_config_to_realisation
-    Write a configuration object to a realisation file.
 """
 
 import dataclasses
@@ -37,7 +17,6 @@ from typing import Any, ClassVar, Literal, Optional, Self, Union
 import numpy as np
 from schema import Schema
 
-from qcore import coordinates
 from source_modelling import sources
 from source_modelling.rupture_propagation import JumpPair
 from source_modelling.sources import IsSource
@@ -95,7 +74,9 @@ class RealisationConfiguration(ABC):
     """Abstract base class for RealisationConfiguration."""
 
     _config_key: ClassVar[str]
+    """The configuration key to save and load from in the realisation."""
     _schema: ClassVar[Schema]
+    """The reference schema to validate against when reading from a realisation."""
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -229,19 +210,13 @@ class RealisationConfiguration(ABC):
 
 @dataclasses.dataclass
 class SourceConfig(RealisationConfiguration):
-    """
-    Configuration for defining sources.
-
-    Attributes
-    ----------
-    sources : dict[str, "Source"]
-        Dictionary mapping source names to their definitions.
-    """
+    """Configuration for defining sources."""
 
     _config_key: ClassVar[str] = "sources"
     _schema: ClassVar[Schema] = schemas.SOURCE_SCHEMA
 
     source_geometries: dict[str, IsSource]
+    """Dictionary mapping source names to their definitions."""
 
     def to_dict(self):
         """
@@ -278,61 +253,40 @@ class SourceConfig(RealisationConfiguration):
 
 @dataclasses.dataclass
 class SRFConfig(RealisationConfiguration):
-    """
-    Configuration for SRF generation.
-
-    Attributes
-    ----------
-    genslip_dt : float
-        The timestep for genslip (used to specify the resolution for the `TINIT` values).
-    genslip_seed : int
-        The random seed passed to genslip.
-    genslip_version : str
-        The version of genslip to use (currently supports "5.4.2").
-    srfgen_seed : int
-        A second random seed for genslip, used for specific purposes in the generation process.
-    """
+    """Configuration for SRF generation."""
 
     _config_key: ClassVar[str] = "srf"
     _schema: ClassVar[Schema] = schemas.SRF_SCHEMA
 
     genslip_dt: float
+    """The timestep for genslip (used to specify the resolution for the `TINIT` values)."""
     genslip_seed: int
+    """The random seed passed to genslip."""
     genslip_version: str
+    """The version of genslip to use (currently supports "5.4.2")."""
     resolution: float
+    """The resolution of the SRF geometry"""
     srfgen_seed: int
+    """A second random seed for genslip, used for specific purposes in the generation process."""
 
 
 @dataclasses.dataclass
 class RupturePropagationConfig(RealisationConfiguration):
-    """
-    Configuration for rupture propagation.
-
-    Attributes
-    ----------
-    rupture_causality_tree: dict[str, str]
-        A dict where the keys are faults and the values the parent
-        fault (i.e. if fault a triggers fault b then
-        rupture_causality_tree[fault b] = fault a).
-    jump_points: dict[str, JumpPoint]
-        A map from faults to pairs of fault-local coordinates
-        representing jump points. If the rupture jumps from fault a at
-        point a to point b on fault b then jump_points[fault a] =
-        JumpPoint(point b, point a).
-    rakes: dict[str, float]
-        A map from faults to rakes.
-    magnitudes: dict[str, float]
-        A map from faults to the magnitude of the rupture for each fault.
-    """
+    """Configuration for rupture propagation."""
 
     _config_key: ClassVar[str] = "rupture_propagation"
     _schema: ClassVar[Schema] = schemas.RUPTURE_PROPAGATION_SCHEMA
 
     rupture_causality_tree: dict[str, str]
+    """A dict where the keys are faults and the values the parent fault (i.e. if fault a triggers fault b then rupture_causality_tree[fault b] = fault a)."""
     jump_points: dict[str, JumpPair]
+    """A map from faults to pairs of fault-local coordinates representing jump points. If the rupture jumps from fault a at point a to point b on fault b then jump_points[fault a] = JumpPoint(point b, point a)."""
     rakes: dict[str, float]
+    """A map from faults to rakes."""
     magnitudes: dict[str, float]
+    """A map from faults to the magnitude of the rupture for each fault."""
     hypocentre: np.ndarray
+    """The hypocentre of the fault."""
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -378,31 +332,21 @@ class RupturePropagationConfig(RealisationConfiguration):
 
 @dataclasses.dataclass
 class DomainParameters(RealisationConfiguration):
-    """
-    Parameters defining the spatial and temporal domain for simulation.
-
-    Attributes
-    ----------
-    resolution : float
-        The simulation resolution in kilometres.
-    domain : BoundingBox
-        The bounding box for the domain.
-    depth : float
-        The depth of the domain (in metres).
-    duration : float
-        The simulation duration (in seconds).
-    dt : float
-        The resolution of the domain in time (in seconds).
-    """
+    """Parameters defining the spatial and temporal domain for simulation."""
 
     _config_key: ClassVar[str] = "domain"
     _schema: ClassVar[Schema] = schemas.DOMAIN_SCHEMA
 
     resolution: float
+    """The simulation resoultion in kilometres."""
     domain: BoundingBox
+    """The bounding box for the domain."""
     depth: float
+    """The depth of the domain (in metres)."""
     duration: float
+    """The simulation duration (in seconds)."""
     dt: float
+    """The resolution of the domain in time (in seconds)."""
 
     @property
     def nx(self) -> int:
@@ -437,186 +381,138 @@ class DomainParameters(RealisationConfiguration):
 
 @dataclasses.dataclass
 class VelocityModelParameters(RealisationConfiguration):
-    """Parameters defining the velocity model.
-
-    min_vs : float
-        The minimum velocity in the velocity model.
-    version : str
-        The velocity model version.
-    topo_type : str
-        The topology type of the velocity model.
-    """
+    """Parameters defining the velocity model."""
 
     _config_key: ClassVar[str] = "velocity_model"
     _schema: ClassVar[Schema] = schemas.VELOCITY_MODEL_SCHEMA
 
     min_vs: float
+    """The minimum velocity in the velocity model."""
     version: str
+    """The velocity model version."""
     topo_type: str
+    """The topology type of the velocity model."""
     dt: float
+    """The velocity model time resolution."""
     ds_multiplier: float
+    """The ds multiplier used to adjust simulation duration."""
     resolution: float
+    """The resolution of the velocity model (in kilometres)."""
     vs30: float
+    """The reference vs30 value for duration estimation."""
     s_wave_velocity: float
+    """The s-wave velocity"""
 
 
 @dataclasses.dataclass
 class RealisationMetadata(RealisationConfiguration):
-    """
-    Metadata for describing a realisation.
-
-    Attributes
-    ----------
-    name : str
-        The name of the realisation.
-    version : str
-        The version of the realisation format (currently supports version "5").
-    tag : Optional[str]
-        Metadata tag for the realisation used to specify the origin or
-        category of the realisation (e.g. NSHM, GCMT or custom).
-    """
+    """Metadata for describing a realisation."""
 
     _config_key: ClassVar[str] = "metadata"
     _schema: ClassVar[Schema] = schemas.REALISATION_METADATA_SCHEMA
 
     name: str
+    """The name of the realisation."""
     version: str
+    """The version of the realisation format (currently supports version "1")."""
     defaults_version: DefaultsVersion
+    """The version of the scientific defaults to use."""
     tag: Optional[str] = None
+    """Metadata tag for the realisation used to specify the origin or
+    category of the realisation (e.g. NSHM, GCMT or custom)."""
 
 
 @dataclasses.dataclass
 class HFConfig(RealisationConfiguration):
-    """High frequency simulation configuration.
-
-    Attributes
-    ----------
-    nbu: float
-        Unknown!
-    ift: float
-        Unknown!
-    flo: float
-        Unknown!
-    fhi: float
-        Unknown!
-    nl_skip: int
-        Skip empty lines in input?
-    vp_sig: float
-        Unknown!
-    vsh_sig: float
-        Unknown!
-    rho_sig: float
-        Unknown!
-    qs_sig: float
-        Unknown!
-    ic_flag: bool
-        Unknown!
-    velocity_name: str
-        Unknown
-    dt: float
-        High frequency time resolution.
-    t_sec: float
-        High frequency output start time.
-    sdrop: float
-        Stress drop average (bars)
-    rayset: list[Literal[1, 2]]
-        ray types 1: direct, 2: moho
-    no_siteamp: bool
-        Disable BJ97 site amplification factors
-    fmax: float
-        Max simulation frequency
-    kappa: float
-        Unknown!
-    qfexp: float
-        Q frequency exponent
-    rvfac: float
-        Rupture velocity factor (rupture : Vs)
-    rvfac_shal: float
-        rvfac shallow fault multiplier
-    rvfac_deep: float
-        rvfac deep fault multiplier
-    czero: float
-        C0 coefficient
-    calpha: float
-        Ca coefficient
-    mom: Optional[float]
-        Seismic moment for HF simulation (or None, to infer value)
-    rupv: Optional[float]
-        Rupture velocity (or binary default)
-    site_specific: bool
-        Enable site-specific calculation
-    vs_moho: float
-        vs of moho layer
-    fa_sig1: float
-        Fourier amplitude uncertainty (1)
-    fa_sig2: float
-        Fourier amplitude uncertainty (2)
-    rv_sig1: float
-        Rupture velocity uncertainty
-    seed: float
-        HF seed.
-    path_dur: Literal[0, 1, 2, 11, 12]
-        path duration model.
-        - 0: GP2010
-        - 1: WUS modification trail/error
-        - 2: ENA modification trial/error
-        - 11: WUS formulation of BT2014
-        - 12: ENA formulation of BT2015. Models 11 and 12 over predict for multiple rays.
-    dpath_pert: float
-        Log of path duration multiplier
-    stress_parameter_adjustment_tect_type: Literal[0, 1, 2]
-        Adjustment option 0 = off, 1 = active tectonic, 2 = stable continent
-    stress_parameter_adjustment_target_magnitude: Optional[float]
-        Target magnitude (or inferred if None)
-    stress_parameter_adjustment_fault_area: Optional[float]
-        Target magnitude (or inferred if None)
-    stress_parameter_fault_area: Optional[float]
-        Fault area (or inferred if None)
-    """
+    """High frequency simulation configuration."""
 
     _config_key: ClassVar[str] = "hf"
     _schema: ClassVar[Schema] = schemas.HF_CONFIG_SCHEMA
 
     dt: float
+    """High frequency time resolution."""
     nbu: int
+    """Unknown!"""
     ift: int
+    """Unknown!"""
     flo: float
+    """Unknown!"""
     fhi: float
+    """Unknown!"""
     nl_skip: int
+    """Skip empty lines in input?"""
     vp_sig: float
+    """Unknown!"""
     vsh_sig: float
+    """Unknown!"""
     qs_sig: float
+    """Unknown!"""
     rho_sig: float
+    """Unknown!"""
     ic_flag: bool
+    """Unknown!"""
     velocity_name: str
+    """Unknown"""
     t_sec: float
+    """High frequency output start time."""
     sdrop: float
+    """Stress drop average (bars)"""
     rayset: list[Literal[1, 2]]
+    """ray types 1: direct, 2: moho"""
     no_siteamp: bool
+    """Disable BJ97 site amplification factors"""
     fmax: float
+    """Max simulation frequency"""
     kappa: float
+    """Unknown!"""
     qfexp: float
+    """Q frequency exponent"""
     rvfac: float
+    """Rupture velocity factor (rupture : Vs)"""
     rvfac_shal: float
+    """rvfac shallow fault multiplier"""
     rvfac_deep: float
+    """rvfac deep fault multiplier"""
     seed: int
+    """HF seed."""
     czero: float
+    """C0 coefficient"""
     calpha: float
+    """Ca coefficient"""
     mom: Optional[float]
+    """Seismic moment for HF simulation (or None, to infer value)"""
     rupv: Optional[float]
+    """Rupture velocity (or binary default)"""
     site_specific: bool
+    """Enable site-specific calculation"""
     vs_moho: float
+    """vs of moho layer"""
     fa_sig1: float
+    """Fourier amplitude uncertainty (1)"""
     fa_sig2: float
+    """Fourier amplitude uncertainty (2)"""
     rv_sig1: float
+    """Rupture velocity uncertainty"""
     path_dur: Literal[0, 1, 2, 11, 12]
+    """path duration model.
+        - 0: GP2010
+        - 1: WUS modification trail/error
+        - 2: ENA modification trial/error
+        - 11: WUS formulation of BT2014
+        - 12: ENA formulation of BT2015. Models 11 and 12 over predict for multiple rays."""
     dpath_pert: float
+    """Log of path duration multiplier"""
     stress_parameter_adjustment_tect_type: Literal[0, 1, 2]
+    """Adjustment option 0 = off, 1 = active tectonic, 2 = stable continent"""
     stress_parameter_adjustment_target_magnitude: Optional[float]
+    """Target magnitude (or inferred if None)"""
     stress_parameter_adjustment_fault_area: Optional[float]
+    """Target magnitude (or inferred if None)"""
     # these are used in stoch generation, rather than HF invocation
     stoch_dx: float
+    """stoch file resolution in x."""
     stoch_dy: float
+    """stoch file resolution in x."""
 
 
 @dataclasses.dataclass
@@ -694,25 +590,17 @@ class EMOD3DParameters(RealisationConfiguration):
 
 @dataclasses.dataclass
 class BroadbandParameters(RealisationConfiguration):
-    """Parameters for broadband waveform merger.
-
-    Attributes
-    ----------
-    flo : float
-        low/high frequency cutoff.
-    dt : float
-        simulation time resolution.
-    fmin : float
-        fmin for site amplification.
-    fmidbot : float
-        fmidbot for site amplification
-    """
+    """Parameters for broadband waveform merger."""
 
     _config_key: ClassVar[str] = "bb"
     _schema: ClassVar[Schema] = schemas.BROADBAND_PARAMETERS_SCHEMA
 
     flo: float
+    """low/high frequency cutoff."""
     dt: float
+    """simulation time resolution."""
     fmidbot: float
+    """fmidbot for site amplification"""
     fmin: float
+    """fmin for site amplification."""
     site_amp_version: str
