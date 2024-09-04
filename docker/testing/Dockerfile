@@ -44,6 +44,6 @@ RUN cd /EMOD3D && \
     mkdir build && \
     cd build && \
     cmake .. && \
-    make genslip_v5.4.2 srf2stoch ll2xy xy2ll gen_model_cords
+    make genslip_v5.4.2 srf2stoch ll2xy xy2ll gen_model_cords hb_high_binmod_v6.0.3
 RUN wget "https://www.dropbox.com/scl/fi/50kww45wpsnmtf3pn2okz/nshmdb.db?rlkey=4mjuomuevl1963fjwfximgldm&st=o5p83zab&dl=0" -O /nshmdb.db
 ENV PATH="$PATH:/EMOD3D/tools"
