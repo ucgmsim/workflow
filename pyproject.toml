@@ -13,17 +13,18 @@ requires-python = ">=3.9"
 dynamic = ["version", "dependencies"]
 
 [project.scripts]
-nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:main"
-realisation-to-srf = "workflow.scripts.realisation_to_srf:main"
-generate-velocity-model-parameters = "workflow.scripts.generate_velocity_model_parameters:main"
-generate-velocity-model = "workflow.scripts.generate_velocity_model:main"
-generate-station-coordinates = "workflow.scripts.generate_station_coordinates:main"
-generate-model-coordinates = "workflow.scripts.generate_model_coordinates:main"
-create-e3d-par = "workflow.scripts.create_e3d_par:main"
-generate-stoch = "workflow.scripts.generate_stoch:main"
+nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:app"
+realisation-to-srf = "workflow.scripts.realisation_to_srf:app"
+generate-velocity-model-parameters = "workflow.scripts.generate_velocity_model_parameters:app"
+generate-velocity-model = "workflow.scripts.generate_velocity_model:app"
+generate-station-coordinates = "workflow.scripts.generate_station_coordinates:app"
+generate-model-coordinates = "workflow.scripts.generate_model_coordinates:app"
+create-e3d-par = "workflow.scripts.create_e3d_par:app"
+generate-stoch = "workflow.scripts.generate_stoch:app"
 merge-ts = "merge_ts.merge_ts:main"
-hf-sim = "workflow.scripts.hf_sim:main"
-plot-ts = "workflow.scripts.plot_ts:main"
+hf-sim = "workflow.scripts.hf_sim:app"
+bb-sim = "workflow.scripts.bb_sim:app"
+plot-ts = "workflow.scripts.plot_ts:app"
 
 [tool.setuptools.package-dir]
 workflow = "workflow"
