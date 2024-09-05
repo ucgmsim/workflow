@@ -1,8 +1,9 @@
 """Module containing schema definitions for the realisation specification.
 
-See the repository wiki page (specifically the Realisations page, and
-the Realisations Proposal page) for a description of realisations and
-the schemas.
+See the `realisations` module, or repository wiki pages (specifically
+the [Realisations page](https://github.com/ucgmsim/workflow/wiki/Realisations), and the
+[Realisations Proposal page](https://github.com/ucgmsim/workflow/wiki/Realisation-Proposal))
+for a description of realisations and the schemas.
 """
 
 import numpy as np
