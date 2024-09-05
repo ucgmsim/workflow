@@ -523,30 +523,55 @@ class EMOD3DParameters(RealisationConfiguration):
     _schema: ClassVar[Schema] = schemas.EMOD3D_PARAMETERS_SCHEMA
 
     all_in_one: int
+    """Unknown!"""
     bfilt: int
+    """Unknown!"""
     bforce: int
+    """Unknown!"""
     dampwidth: int
+    """Width of damping region"""
     dblcpl: int
+    """Unknown!"""
     dmodfile: str
+    """Path to density file"""
     dtts: int
+    """dt per timeslice"""
     dump_itinc: int
+    """Dump iteration increment"""
     dxout: int
+    """Unknown!"""
     dxts: int
+    """dx per timeslice"""
     dyout: int
+    """Unknown!"""
     dyts: int
+    """dy per timeslice"""
     dzout: int
+    """Unknown!"""
     dzts: int
+    """dz per timeslice"""
     elas_only: int
+    """If non-zero, perform elastic calculations"""
     enable_output_dump: int
+    """Unknown!"""
     enable_restart: int
+    """Enable checkpoints"""
     ffault: int
+    """If non-zero, source is a finite fault"""
     fhi: float
+    """High-frequency cutoff?"""
     fmax: float
+    """Maximum simulation frequency"""
     fmin: float
+    """Minimum simulation frequency"""
     freesurf: int
+    """Damping boundary relatod, 0 for absorbing"""
     geoproj: int
+    """Geographic projection to use"""
     intmem: int
+    """Unknown!"""
     ix_ts: int
+    """Timeslice offset for ix?"""
     ix_ys: int
     ix_zs: int
     iy_ts: int
@@ -556,36 +581,67 @@ class EMOD3DParameters(RealisationConfiguration):
     iz_xs: int
     iz_ys: int
     lonlat_out: int
+    """Unknown!"""
     maxmem: int
+    """Maximum memory usage in Mb"""
     model_style: int
+    """Model type for simulation, 0 = 1d, 1 = 3d VM, 2 = 1d VM with 3d pertubations, 3 = 3d VM with 3d perturbations"""
     nseis: int
+    """Individual points? (from the EMOD3D wiki page)"""
     order: int
+    """Spatial differencing order"""
     pmodfile: str
+    """Point to Vp file."""
     pointmt: int
+    """Unknown!"""
     qbndmax: float
+    """Unknown!"""
     qpfrac: float
+    """Multiplier from Vp to Qp"""
     qpqs_factor: float
+    """Ratio between qpfrac and qsfrac"""
     qsfrac: float
+    """Multiplier from Vs to Qs"""
     read_restart: int
+    """Read from checkpoint files?"""
     report: int
+    """Unknown!"""
     restart_itinc: int
+    """Checkpoint iteration increment?"""
     scale: int
+    """Unknown!"""
     smodfile: str
+    """Path to vs file"""
     span: int
+    """Unknown!"""
     stype: str
+    """Unknown!"""
     swap_bytes: int
+    """Endianness?"""
     ts_inc: int
+    """Unknown!"""
     ts_start: int
+    """Unknown!"""
     ts_total: int
+    """Unknown!"""
     ts_xy: int
+    """Unknown!"""
     ts_xz: int
+    """Unknown!"""
     ts_yz: int
+    """Unknown!"""
     tzero: float
+    """Start time offset"""
     vmodel_swapb: int
+    """Velocity model endianness"""
     xseis: int
+    """Unknown!"""
     yseis: int
+    """Unknown!"""
     zseis: int
+    """Unknown!"""
     pertbfile: str
+    """Path to pertubation file"""
 
 
 @dataclasses.dataclass
