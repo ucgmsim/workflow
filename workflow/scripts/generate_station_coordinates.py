@@ -104,7 +104,7 @@ def generate_fd_files(
 
     # retrieve in station names, latitudes and longitudes
     stations = pd.read_csv(
-        stat_file, delimiter="\s+", comment="#", names=["lon", "lat", "name"]
+        stat_file, delimiter=r"\s+", comment="#", names=["lon", "lat", "name"]
     )
 
     # convert ll to grid points

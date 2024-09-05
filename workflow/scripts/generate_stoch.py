@@ -33,7 +33,7 @@ import typer
 
 from workflow.realisations import HFConfig, RealisationMetadata
 
-app = typer.Typer()s
+app = typer.Typer()
 
 
 @app.command(help="Generate a stoch file from an SRF file.")
