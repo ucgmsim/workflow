@@ -16,8 +16,8 @@ We'll assume that you are running the workflow on NeSI. If you want to run this 
 
 All that is required for NeSI users to setup the workflow is
 
-1. Enable cylc and,
-2. Clone the workflow repository to obtain the cylc file.
+1. Enable Cylc and,
+2. Clone the workflow repository to obtain the Cylc file.
 
 ### Enabling Cylc
 
@@ -31,7 +31,7 @@ source ~/.bashrc
 
 ### Cloning Workflow
 
-The cylc workflow file we'll use lives in the workflow repository. You must clone this repository to obtain the file.
+The Cylc workflow file we'll use lives in the workflow repository. You must clone this repository to obtain the file.
 
 ``` shell
 git clone git@github.com:ucgmsim/workflow.git
