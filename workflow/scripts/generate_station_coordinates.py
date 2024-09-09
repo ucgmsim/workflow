@@ -31,10 +31,10 @@ See the output of `generate-station-coordinates --help`.
 from pathlib import Path
 from typing import Annotated
 
+import numpy as np
 import pandas as pd
 import typer
 
-from qcore import geo
 from workflow.realisations import DomainParameters
 
 app = typer.Typer()
@@ -62,41 +62,22 @@ def generate_fd_files(
         ),
     ] = Path("/input/stations.ll"),
 ) -> None:
-    """Generate station gridpoint coordinates from a list of stations.
-
-    This function converts station coordinates from a file with
-    latitude and longitude into gridpoint coordinates within a
-    specified domain. It generates two output files: one containing
-    gridpoint coordinates and another containing latitude-longitude
-    coordinates.
+    """Generate station coordinate files.
 
     Parameters
     ----------
     realisations_ffp : Path
-        Path to the realisation file.
+        Path to realisation file.
     output_path : Path
-        Path to the directory where the output station files will be saved. The directory will be created if it does not exist.
-    keep_dup_station : bool, optional
-        Flag indicating whether to keep stations whose latitude,
-        longitude map to identical gridpoint coordinates in the
-        simulation domain. If True, duplicate stations are included in
-        the output with a warning. If False, duplicate stations are
-        ignored.
-    stat_file : Path, optional
-        Path to the input file containing station data with latitude, longitude, and station names.
-
-    Returns
-    -------
-    None
-        This function does not return a value. It writes two files to the specified output path: "stations.statcords"
-        and "stations.ll".
+        Output directory for station coordinate and latitude longitude files.
+    keep_dup_station : bool
+        If True, keep stations whose gridpoint coordinates are identical.
+    stat_file : Path
+        If True, keep stations whose gridpoint coordinates are identical.
     """
+
     output_path.mkdir(exist_ok=True)
     domain_parameters = DomainParameters.read_from_realisation(realisations_ffp)
-    model_origin = domain_parameters.domain.origin
-    hh = domain_parameters.resolution
-    nx = domain_parameters.nx
-    ny = domain_parameters.ny
 
     # where to save gridpoint and longlat station files
     gp_out = output_path / "stations.statcords"
@@ -107,59 +88,56 @@ def generate_fd_files(
         stat_file, delimiter=r"\s+", comment="#", names=["lon", "lat", "name"]
     )
 
+    in_domain_mask = domain_parameters.domain.contains(
+        stations[["lat", "lon"]].to_numpy()
+
+    )
+    stations = stations.loc[in_domain_mask]
     # convert ll to grid points
-    xy = geo.ll2gp_multi(
-        stations[["lon", "lat"]].to_numpy(),
-        model_origin[1],
-        model_origin[0],
-        domain_parameters.domain.bearing,
-        nx,
-        ny,
-        hh,
-        keep_outside=True,
+    xy = domain_parameters.domain.wgs_depth_coordinates_to_local_coordinates(
+        stations[["lat", "lon"]].to_numpy()
     )
 
+    stations["x"] = np.round(
+        domain_parameters.domain.extent_x * xy[:, 0] / domain_parameters.resolution
+    ).astype(int)
+    # the bounding box local coordinates start from the left bottom, so we flip that so that it starts from the top left
+    stations["y"] = np.round(
+        domain_parameters.domain.extent_y * (1 - xy[:, 1]) / domain_parameters.resolution
+    ).astype(int)
     # store gridpoints and names if unique position
-    sxy = set()
-    suname = []
-    for i in range(len(xy)):
-        station_name = stations.iloc[i]["name"]
-        if xy[i] is None or xy[i][0] == nx - 1 or xy[i][1] == ny - 1:
-            print(f"Station outside domain: {station_name}")
-        elif tuple(xy[i]) not in sxy:
-            sxy.add(tuple(xy[i]))
-            suname.append(station_name)
-        elif keep_dup_station:
-            # still adds in the station but raise a warning
-            sxy.add(tuple(xy[i]))
-            suname.append(station_name)
-            print(
-                f"Duplicate Station added: {station_name} at {xy[i]}",
-            )
-        else:
-            print(f"Duplicate Station Ignored: {station_name}")
 
     # create grid point file
     with open(gp_out, "w", encoding="utf-8") as gpf:
         # file starts with number of entries
-        gpf.write(f"{len(sxy)}\n")
+        gpf.write(f"{len(stations)}\n")
         # x, y, z, name
-        for xy, station_name in zip(sxy, suname):
-            gpf.write(f"{xy[0]:5d} {xy[1]:5d} {1:5d} {station_name}\n")
+        stations.apply(
+            lambda station: gpf.write(
+                f"{station['x']:5d} {station['y']:5d} {1:5d} {station['name']}\n"
+            ),
+            axis=1,
+        )
 
     # convert unique grid points back to ll
     # warning: modifies sxy
-    ll = geo.gp2ll_multi(
-        [list(xy) for xy in sxy],
-        model_origin[0],
-        model_origin[1],
-        domain_parameters.domain.bearing,
-        nx,
-        ny,
-        hh,
+    stations['y'] = (domain_parameters.ny - 1) - stations['y']
+
+    ll = domain_parameters.domain.local_coordinates_to_wgs_depth(
+        stations[["x", "y"]].to_numpy()
+        * domain_parameters.resolution
+        / np.array(
+            [domain_parameters.domain.extent_x, domain_parameters.domain.extent_y]
+        )
     )
+    stations["grid_lat"] = ll[:, 0]
+    stations["grid_lon"] = ll[:, 1]
 
     # create ll file
     with open(ll_out, "w", encoding="utf-8") as llf:
-        for pos, station_name in zip(ll, suname):
-            llf.write(f"{pos[0]:11.5f} {pos[1]:11.5f} {station_name}\n")
+        stations.apply(
+            lambda station: llf.write(
+                f"{station['grid_lon']:11.5f} {station['grid_lat']:11.5f} {station['name']}\n"
+            ),
+            axis=1,
+        )
