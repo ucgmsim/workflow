@@ -690,6 +690,8 @@ class IntensityMeasureCalcuationParameters(RealisationConfiguration):
         dict
             Dictionary representation of the object.
         """
-        _dict =  dataclasses.asdict(self)
-        _dict['components'] = [component.value for component in self.components]
+        _dict = dataclasses.asdict(self)
+        _dict["components"] = [component.value for component in self.components]
+        _dict["valid_periods"] = self.valid_periods.tolist()
+        _dict["fas_frequencies"] = self.fas_frequencies.tolist()
         return _dict

@@ -1,16 +1,17 @@
 """Functions to load default parameters for EMOD-3D simulations."""
 
 import importlib
-from enum import Enum
+from enum import StrEnum
 from importlib import resources
 
 import yaml
 
 
-class DefaultsVersion(str, Enum):
+class DefaultsVersion(StrEnum):
     """Enum of versions that can be loaded by load_defaults."""
 
     v24_2_2_1 = "24.2.2.1"
+    v24_2_2_2 = "24.2.2.2"
     develop = "develop"
 
 

@@ -551,6 +551,7 @@ BROADBAND_PARAMETERS_SCHEMA = Schema(
         Literal("fmin", description="fmin for site amplification"): And(
             float, is_non_negative
         ),
+        "site_amp_version": str,
     }
 )
 
@@ -570,20 +571,21 @@ class IntensityMeasure(StrEnum):
     FAS = "FAS"
     SDI = "SDI"
 
+
 class Component(StrEnum):
     """Component values for IM calculation."""
 
-    C090 = '090'
-    C000 = '000'
-    VER = 'ver'
-    H1 = 'H1'
-    H2 = 'H2'
-    GEOM = 'geom'
-    ROTD50 = 'rotd50'
-    ROTD100 = 'rotd100'
-    ROTD100_50 = 'rotd100_50'
-    NORM = 'norm'
-    EAS = 'EAS'
+    C090 = "090"
+    C000 = "000"
+    VER = "ver"
+    H1 = "H1"
+    H2 = "H2"
+    GEOM = "geom"
+    ROTD50 = "rotd50"
+    ROTD100 = "rotd100"
+    ROTD100_50 = "rotd100_50"
+    NORM = "norm"
+    EAS = "EAS"
 
 
 class Units(StrEnum):
@@ -601,12 +603,12 @@ INTENSITY_MEASURE_CALCUATION_PARAMETERS = Schema(
         Literal(
             "components", description="Components to calculate intensity measures in"
         ): [And(str, Use(Component))],
-        Literal("valid_periods", description="Valid periods to calculate for"): And([
-            And(float, is_positive)
-        ], Use(np.array)),
-        Literal("fas_frequencies", description="Fourier spectrum frequencies"): And([
-            And(float, is_positive)
-        ], Use(np.array)),
+        Literal("valid_periods", description="Valid periods to calculate for"): And(
+            [And(float, is_positive)], Use(np.array)
+        ),
+        Literal("fas_frequencies", description="Fourier spectrum frequencies"): And(
+            [And(float, is_positive)], Use(np.array)
+        ),
         Literal("units", description="Units to calculate intensity measures in"): And(
             str, Use(Units)
         ),

@@ -61,8 +61,7 @@ def bb_simulate_station(
     n2: float,
     work_directory: Path,
     station_name: str,
-    station_vs: float,
-    station_vs30: float,
+    station: pd.Series,
 ):
     """Simulate broadband seismic for a single station.
 
@@ -94,6 +93,8 @@ def bb_simulate_station(
     station_vs30 : float
         VS30 value for the station site.
     """
+    station_vs = station["vs"]
+    station_vs30 = station["vs30"]
     lf_acc = np.copy(lf.acc(station_name, dt=broadband_config.dt))
     hf_acc = np.copy(hf.acc(station_name, dt=broadband_config.dt))
     pga = np.max(np.abs(hf_acc), axis=0) / 981.0
@@ -132,7 +133,7 @@ def bb_simulate_station(
         bb_acc.append((hf_c + lf_c) / 981.0)
 
     bb_acc_numpy = np.array(bb_acc).T
-    with open(work_directory / f"{station_name}.bb") as station_bb_file:
+    with open(work_directory / f"{station_name}.bb", 'wb') as station_bb_file:
         bb_acc_numpy.tofile(station_bb_file)
 
 
@@ -165,7 +166,6 @@ def combine_hf_and_lf(
         Path,
         typer.Argument(
             help="Path to high frequency station waveform file",
-            file_okay=False,
             exists=True,
         ),
     ],
@@ -225,10 +225,10 @@ def combine_hf_and_lf(
     # As LF has a start time offset it is necessary to pad the start of HF by the same number of timesteps
     # Similar code to account for an end time difference is also present
     # allowing for HF and LF to have separate start times and durations
+
     bb_start_sec = min(lf.start_sec, hf.start_sec)
     lf_start_sec_offset = max(lf.start_sec - hf.start_sec, 0)
     hf_start_sec_offset = max(hf.start_sec - lf.start_sec, 0)
-
     lf_start_padding = int(round(lf_start_sec_offset / broadband_config.dt))
     hf_start_padding = int(round(hf_start_sec_offset / broadband_config.dt))
 
@@ -278,18 +278,17 @@ def combine_hf_and_lf(
         delimiter=r"\s+",
         header=None,
         names=["longitude", "latitude", "name"],
-    )
+    ).set_index("name")
 
-    stations["vs"] = hf.stations[:, "vs"]
+    stations["vs"] = hf.stations.vs
 
     station_vs30 = pd.read_csv(
-        station_ffp,
+        station_vs30_ffp,
         delimiter=r"\s+",
         header=None,
         names=["name", "vs30"],
-    )
-
-    stations = stations.join(station_vs30, on="name")["name", "vs", "vs30"]
+    ).set_index("name")
+    stations = stations.join(station_vs30, how="inner")[["vs", "vs30"]]
 
     with multiprocessing.Pool() as pool:
         pool.starmap(
@@ -297,13 +296,13 @@ def combine_hf_and_lf(
                 bb_simulate_station,
                 lf,
                 hf,
-                lf_padding,
                 hf_padding,
+                lf_padding,
                 broadband_config,
                 n2,
                 work_directory,
             ),
-            stations.values.tolist(),
+            stations.iterrows(),
         )
 
     with open(output_ffp, "wb") as output_bb_file:
@@ -314,12 +313,12 @@ def combine_hf_and_lf(
             broadband_config.dt,
             bb_start_sec,
             low_frequency_waveform_directory.name.encode("utf-8"),
-            "",
+            b"",
             high_frequency_waveform_file.name.encode("utf-8"),
         ]
         format_specifiers = {bytes: "256s", int: "i", float: "f"}
         header_format = "".join(format_specifiers[type(value)] for value in header_data)
-        output_bb_file.write(struct.pack(header_format, header_data))
+        output_bb_file.write(struct.pack(header_format, *header_data))
 
         stations["e_dist"] = hf.stations.e_dist
         stations["hf_vs_ref"] = hf.stations.vs
@@ -339,7 +338,7 @@ def combine_hf_and_lf(
             index=False,
         ).tofile(output_bb_file)
 
-        for _, station in stations.iterrows():
-            station_file_path = work_directory / f"{station['name']}.bb"
+        for name, station in stations.iterrows():
+            station_file_path = work_directory / f"{name}.bb"
             with open(station_file_path, mode="rb") as station_file_data:
                 shutil.copyfileobj(station_file_data, output_bb_file)
