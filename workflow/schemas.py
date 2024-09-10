@@ -6,9 +6,12 @@ the [Realisations page](https://github.com/ucgmsim/workflow/wiki/Realisations), 
 for a description of realisations and the schemas.
 """
 
+from enum import StrEnum
+
 import numpy as np
 from schema import And, Literal, Optional, Or, Schema, Use
 
+from qcore import constants
 from source_modelling import rupture_propagation, sources
 from velocity_modelling.bounding_box import BoundingBox
 from workflow.defaults import DefaultsVersion
@@ -547,6 +550,65 @@ BROADBAND_PARAMETERS_SCHEMA = Schema(
         ),
         Literal("fmin", description="fmin for site amplification"): And(
             float, is_non_negative
+        ),
+    }
+)
+
+
+class IntensityMeasure(StrEnum):
+    """Intensity Measures for IM Calculation."""
+
+    PGA = "PGA"
+    PGV = "PGV"
+    CAV = "CAV"
+    AI = "AI"
+    DS575 = "Ds575"
+    DS595 = "Ds595"
+    MMI = "MMI"
+    PSA = "pSA"
+    SED = "SED"
+    FAS = "FAS"
+    SDI = "SDI"
+
+class Component(StrEnum):
+    """Component values for IM calculation."""
+
+    C090 = '090'
+    C000 = '000'
+    VER = 'ver'
+    H1 = 'H1'
+    H2 = 'H2'
+    GEOM = 'geom'
+    ROTD50 = 'rotd50'
+    ROTD100 = 'rotd100'
+    ROTD100_50 = 'rotd100_50'
+    NORM = 'norm'
+    EAS = 'EAS'
+
+
+class Units(StrEnum):
+    """Units for IM Calculation."""
+
+    g = "g"
+    cms2 = "cm/s^2"
+
+
+INTENSITY_MEASURE_CALCUATION_PARAMETERS = Schema(
+    {
+        Literal("ims", description="Intensity measures to calculate"): [
+            And(str, Use(IntensityMeasure))
+        ],
+        Literal(
+            "components", description="Components to calculate intensity measures in"
+        ): [And(str, Use(Component))],
+        Literal("valid_periods", description="Valid periods to calculate for"): And([
+            And(float, is_positive)
+        ], Use(np.array)),
+        Literal("fas_frequencies", description="Fourier spectrum frequencies"): And([
+            And(float, is_positive)
+        ], Use(np.array)),
+        Literal("units", description="Units to calculate intensity measures in"): And(
+            str, Use(Units)
         ),
     }
 )

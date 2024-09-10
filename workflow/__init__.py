@@ -3,7 +3,7 @@
 ## Overview
 The QuakeCoRE scientific workflow is composed of a number of independent components
 
-- `workflow` :: This module, which implements the Cybershake workflow. It defines a cylc worflow and scripts that researchers can use to build their own automated research pipeline using scientifically validated, regularly tested, well-documented components built from the software team.
+- `workflow` :: This module, which implements the Cybershake workflow. It defines a cylc workflow and scripts that researchers can use to build their own automated research pipeline using scientifically validated, regularly tested, well-documented components built from the software team.
 - `source_modelling` :: A collection of modules for modelling sources.
 - `velocity_modelling` :: The next-generation velocity model.
 - `qcore` :: Utilities and common functions.
@@ -48,6 +48,7 @@ flowchart LR
     D --> J[High Frequency Simulation]
     I --> M[Broadband Simulation]
     J --> M
+    M --> N[Intensity Measure Calculation]
     I -->|Optionally| K[Merge Timeslices]
     K --> L[Create Simulation Video]
 ```
@@ -57,20 +58,22 @@ Many of the stages will run in a _container_. A container is a self-contained ex
 
 To find the documentation for a given stage, find the module that runs this stage in the above flow diagram and then click the corresponding link
 
-| Stage                     | Module                                                |
-|:--------------------------|:------------------------------------------------------|
-| NSHM to Realisation       | `workflow.scripts.nshm2022_to_realisation`            |
-| SRF Generation            | `workflow.scripts.realisation_to_srf`                 |
-| Domain Generation         | `workflow.scripts.generate_velocity_model_parameters` |
-| Stoch Generation          | `workflow.scripts.generate_stoch`                     |
-| Velocity Model Generation | `workflow.scripts.generate_velocity_model`            |
-| Station Selection         | `workflow.scripts.generate_station_coordinates`       |
-| Write Model Coordinates   | `workflow.scripts.generate_model_coordinates`         |
-| EMOD3D                    | See below.                                            |
-| High Frequency Simulation | `workflow.scripts.hf_sim`                             |
-| Broadband Simulation      | `workflow.scripts.bb_sim`                             |
-| Merge Timeslices          | `merge_ts.merge_ts`                                   |
-| Create Simulation Video   | `workflow.scripts.plot_ts`                            |
+| Stage                         | Module                                                |
+|:------------------------------|:------------------------------------------------------|
+| NSHM to Realisation           | `workflow.scripts.nshm2022_to_realisation`            |
+| SRF Generation                | `workflow.scripts.realisation_to_srf`                 |
+| Domain Generation             | `workflow.scripts.generate_velocity_model_parameters` |
+| Stoch Generation              | `workflow.scripts.generate_stoch`                     |
+| Velocity Model Generation     | `workflow.scripts.generate_velocity_model`            |
+| Station Selection             | `workflow.scripts.generate_station_coordinates`       |
+| Write Model Coordinates       | `workflow.scripts.generate_model_coordinates`         |
+| EMOD3D                        | See below.                                            |
+| High Frequency Simulation     | `workflow.scripts.hf_sim`                             |
+| Broadband Simulation          | `workflow.scripts.bb_sim`                             |
+| Merge Timeslices              | `merge_ts.merge_ts`                                   |
+| Create Simulation Video       | `workflow.scripts.plot_ts`                            |
+| Intensity Measure Calculation | `workflow.scripts.im_calc`                            |
+
 
 ## EMOD3D
 

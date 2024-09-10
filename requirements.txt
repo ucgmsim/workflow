@@ -15,4 +15,5 @@ source_modelling @ git+https://github.com/ucgmsim/source_modelling@pegasus
 velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling@cylc
 typer
 tqdm
-visualization @ git+https://github.com/ucgmsim/visualization
+# visualization @ git+https://github.com/ucgmsim/visualization
+IM_calc @ git+https://github.com/ucgmsim/IM_calculation@cylc

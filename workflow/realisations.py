@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Literal, Optional, Self, Union
 
 import numpy as np
+import numpy.typing as npt
 from schema import Schema
 
 from source_modelling import sources
@@ -660,3 +661,35 @@ class BroadbandParameters(RealisationConfiguration):
     fmin: float
     """fmin for site amplification."""
     site_amp_version: str
+
+
+@dataclasses.dataclass
+class IntensityMeasureCalcuationParameters(RealisationConfiguration):
+    """Intensity measure calculation parameters."""
+
+    _config_key: ClassVar[str] = "im"
+    _schema: ClassVar[Schema] = schemas.INTENSITY_MEASURE_CALCUATION_PARAMETERS
+
+    ims: list[schemas.IntensityMeasure]
+    """Intensity measures to calculate."""
+    components: list[schemas.Component]
+    """Components to calculate intensity measures in."""
+    valid_periods: npt.NDArray[np.float64]
+    """Valid periods to calculate for, applicable for pSA and SDI."""
+    fas_frequencies: npt.NDArray[np.float64]
+    """Fourier spectrum frequencies."""
+    units: schemas.Units
+    """Units to calculate intensity measures in."""
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the object to a dictionary representation.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the object.
+        """
+        _dict =  dataclasses.asdict(self)
+        _dict['components'] = [component.value for component in self.components]
+        return _dict
