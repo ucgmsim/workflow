@@ -10,10 +10,9 @@ from enum import StrEnum
 
 import numpy as np
 from schema import And, Literal, Optional, Or, Schema, Use
-
-from qcore import constants
-from source_modelling import rupture_propagation, sources
 from velocity_modelling.bounding_box import BoundingBox
+
+from source_modelling import rupture_propagation, sources
 from workflow.defaults import DefaultsVersion
 
 # NOTE: These functions seem silly and short, however there is a good
@@ -39,35 +38,35 @@ from workflow.defaults import DefaultsVersion
 # Accordingly, the most trivial of these functions lack docstrings.
 
 
-def is_positive(x: float) -> bool:
+def is_positive(x: float) -> bool:  # noqa: D103
     return x > 0
 
 
-def is_non_negative(x: float) -> bool:
+def is_non_negative(x: float) -> bool:  # noqa: D103
     return x >= 0
 
 
-def is_valid_latitude(latitude: float) -> bool:
+def is_valid_latitude(latitude: float) -> bool:  # noqa: D103
     return -90 <= latitude <= 90
 
 
-def is_valid_longitude(longitude: float) -> bool:
+def is_valid_longitude(longitude: float) -> bool:  # noqa: D103
     return -180 <= longitude <= 180
 
 
-def is_plausible_magnitude(magnitude: float) -> bool:
+def is_plausible_magnitude(magnitude: float) -> bool:  # noqa: D103
     return magnitude < 11
 
 
-def is_valid_degrees(degrees: float) -> bool:
+def is_valid_degrees(degrees: float) -> bool:  # noqa: D103
     return -360 <= degrees <= 360
 
 
-def is_valid_local_coordinate(coordinate: float) -> bool:
+def is_valid_local_coordinate(coordinate: float) -> bool:  # noqa: D103
     return 0 <= coordinate <= 1
 
 
-def is_valid_bearing(bearing: float) -> bool:
+def is_valid_bearing(bearing: float) -> bool:  # noqa: D103
     return 0 <= bearing <= 360
 
 

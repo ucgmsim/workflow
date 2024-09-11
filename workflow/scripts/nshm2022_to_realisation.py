@@ -103,7 +103,9 @@ def default_magnitude_estimation(
     }
 
 
-@app.command(help='Generate realisation stub files from ruptures in the NSHM 2022 database.')
+@app.command(
+    help="Generate realisation stub files from ruptures in the NSHM 2022 database."
+)
 def generate_realisation(
     nshm_db_file: Annotated[
         Path,
@@ -127,7 +129,6 @@ def generate_realisation(
         DefaultsVersion,
         typer.Argument(help="Scientific default parameters version to use"),
     ],
-
 ):
     """Generate realisation stub files from ruptures in the NSHM 2022 database.
 
@@ -146,7 +147,6 @@ def generate_realisation(
     defaults_version : DefaultsVersion
         Scientific default parameters version to use.
     """
-
     db = nshmdb.NSHMDB(nshm_db_file)
     faults = db.get_rupture_faults(rupture_id)
     faults_info = db.get_rupture_fault_info(rupture_id)
@@ -164,7 +164,9 @@ def generate_realisation(
     rakes = {
         fault_name: fault_info.rake for fault_name, fault_info in faults_info.items()
     }
-    expected_hypocentre =  np.array([1 / 2, distributions.truncated_weibull_expected_value(1)])
+    expected_hypocentre = np.array(
+        [1 / 2, distributions.truncated_weibull_expected_value(1)]
+    )
     rupture_propagation_config = realisations.RupturePropagationConfig(
         magnitudes=default_magnitude_estimation(faults, rakes),
         rupture_causality_tree=rupture_causality_tree,
@@ -172,7 +174,7 @@ def generate_realisation(
             faults, rupture_causality_tree
         ),
         rakes=rakes,
-        hypocentre=expected_hypocentre
+        hypocentre=expected_hypocentre,
     )
     metadata = realisations.RealisationMetadata(
         name=f"Rupture {rupture_id}",

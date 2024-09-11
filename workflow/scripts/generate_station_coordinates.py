@@ -75,7 +75,6 @@ def generate_fd_files(
     stat_file : Path
         If True, keep stations whose gridpoint coordinates are identical.
     """
-
     output_path.mkdir(exist_ok=True)
     domain_parameters = DomainParameters.read_from_realisation(realisations_ffp)
 
@@ -90,7 +89,6 @@ def generate_fd_files(
 
     in_domain_mask = domain_parameters.domain.contains(
         stations[["lat", "lon"]].to_numpy()
-
     )
     stations = stations.loc[in_domain_mask]
     # convert ll to grid points
@@ -103,7 +101,9 @@ def generate_fd_files(
     ).astype(int)
     # the bounding box local coordinates start from the left bottom, so we flip that so that it starts from the top left
     stations["y"] = np.round(
-        domain_parameters.domain.extent_y * (1 - xy[:, 1]) / domain_parameters.resolution
+        domain_parameters.domain.extent_y
+        * (1 - xy[:, 1])
+        / domain_parameters.resolution
     ).astype(int)
     # store gridpoints and names if unique position
 
@@ -121,7 +121,7 @@ def generate_fd_files(
 
     # convert unique grid points back to ll
     # warning: modifies sxy
-    stations['y'] = (domain_parameters.ny - 1) - stations['y']
+    stations["y"] = (domain_parameters.ny - 1) - stations["y"]
 
     ll = domain_parameters.domain.local_coordinates_to_wgs_depth(
         stations[["x", "y"]].to_numpy()

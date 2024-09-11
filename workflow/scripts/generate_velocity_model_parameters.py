@@ -26,6 +26,7 @@ For More Help
 See the output of `generate-velocity-model-parameters --help` or `workflow.scripts.generate_velocity_model_parameters`.
 """
 
+from importlib import resources
 from pathlib import Path
 from typing import Annotated
 
@@ -35,8 +36,9 @@ import pandas as pd
 import scipy as sp
 import shapely
 import typer
-from importlib import resources
 from shapely import Polygon
+from velocity_modelling import bounding_box
+from velocity_modelling.bounding_box import BoundingBox
 
 from empirical.util import openquake_wrapper_vectorized as openquake
 from empirical.util import z_model_calculations
@@ -44,8 +46,6 @@ from empirical.util.classdef import GMM, TectType
 from qcore import coordinates, data
 from qcore.uncertainties import mag_scaling
 from source_modelling import sources
-from velocity_modelling import bounding_box
-from velocity_modelling.bounding_box import BoundingBox
 from workflow.realisations import (
     DomainParameters,
     RealisationMetadata,
@@ -65,7 +65,7 @@ def get_nz_outline_polygon() -> Polygon:
     Polygon
         The outline polygon of New Zealand.
     """
-    coastline_path = resources.files(data) / 'Paths' / 'coastline' / 'NZ.gmt'
+    coastline_path = resources.files(data) / "Paths" / "coastline" / "NZ.gmt"
 
     gpd_df = gpd.read_file(coastline_path)
     island_polygons = [

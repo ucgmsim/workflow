@@ -41,8 +41,9 @@ import multiprocessing
 import re
 import shutil
 import subprocess
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Annotated, Iterable, Optional
+from typing import Annotated, Optional
 
 import numpy as np
 import pandas as pd
