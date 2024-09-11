@@ -151,7 +151,7 @@ def generate_velocity_model(
     num_threads: Annotated[
         Optional[int],
         typer.Option(
-            help="Number of threads to use for velocity model generation (-1 for inferred thread count).",
+            help="Number of threads to use for velocity model generation (omit for inferred thread count).",
             min=1,
         ),
     ] = None,
