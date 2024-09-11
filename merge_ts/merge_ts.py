@@ -28,12 +28,12 @@ See the output of `merge-ts --help`.
 
 import os
 from pathlib import Path
+from typing import Annotated
 
 import typer
-from typing_extensions import Annotated
+from qcore import xyts
 
 from merge_ts import merge_ts_loop
-from qcore import xyts
 
 
 def merge_ts(
