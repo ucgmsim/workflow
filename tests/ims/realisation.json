@@ -1,0 +1,1 @@
+{"metadata": {"name": "IM Calc Test", "version": "1", "tag": "test", "defaults_version": "develop"}, "im": {"ims": ["PGA", "PGV", "CAV", "MMI"], "components": ["000", "090", "ver", "geom", "rotd50", "rotd100_50"], "valid_periods": [0.01, 0.02, 0.03], "fas_frequencies": [], "units": "g"}}

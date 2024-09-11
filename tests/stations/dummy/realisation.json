@@ -1,0 +1,32 @@
+{
+  "metadata": {
+    "name": "Dummy Rupture",
+    "version": "1",
+    "defaults_version": "24.2.2.1",
+    "tag": "custom"
+  },
+  "domain": {
+    "resolution": 0.1,
+    "domain": [
+      {
+        "latitude": -43.66521593268451,
+        "longitude": 172.45014206699796
+      },
+      {
+        "latitude": -43.39510075292276,
+        "longitude": 172.45259053826783
+      },
+      {
+        "latitude": -43.39627394488181,
+        "longitude": 172.82302949903897
+      },
+      {
+        "latitude": -43.66640017882784,
+        "longitude": 172.82223789606255
+      }
+    ],
+    "depth": 46.0,
+    "duration": 100.0,
+    "dt": 0.005
+  }
+}
