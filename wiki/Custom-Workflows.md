@@ -15,7 +15,7 @@ For the sake of simplicity, we are going to build a workflow file by hand for a 
 
 The `cylc/flow.cylc` in the workflow repository is a good starting place. For brevity we only include the low-frequency workflow. An exercise for the reader would be to complete the workflow for high-frequency and intensity measure calculation.
 
-``` toml
+```
 [scheduler]
     allow implicit tasks = True
 [scheduling]
@@ -101,7 +101,7 @@ source_config.write_to_realisation(output_realisation)
 
 Now we create a new stage for the workflow:
 
-``` toml
+```
 [[shift_fault]]
     platform = localhost
     script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/bin:/bin" /nesi/nobackup/nesi00213/containers/runner_latest.sif python /bin/shift_fault.py /share/realisation.json /share/realisation_shift.json
@@ -130,7 +130,7 @@ We actually also need to copy some of the other stages and create `shift_` varia
 
 After all this, you should have a `flow.cylc` that looks like the following:
 
-```toml
+```
 [scheduler]
     allow implicit tasks = True
 [scheduling]
@@ -206,7 +206,7 @@ You are now ready to update the workflow graph.
 
 The workflow graph controls the order in which jobs are executed. The old flow had the following diagram.
 
-```toml
+```
 [scheduling]
     [[graph]]
         R1 = """
@@ -258,7 +258,7 @@ flowchart LR
 
 Which looks like the following in the Cylc flow graph.
 
-``` toml
+```
 [scheduling]
     [[graph]]
         R1 = """
@@ -276,7 +276,7 @@ Which looks like the following in the Cylc flow graph.
 
 So your flow.cylc should now look like:
 
-``` toml
+```
 
 [scheduler]
     allow implicit tasks = True
