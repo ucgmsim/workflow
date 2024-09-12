@@ -228,7 +228,7 @@ flowchart LR
     D --> G
     E --> G
     F --> G
-    G --> H
+    G --> H[emod3d]
 ```
 
 We should now introduce the shifted realisation generation after the `nshm_to_realisation` stage and create a workflow parallel to the first.
@@ -253,7 +253,7 @@ flowchart LR
     D --> G
     E --> G
     F --> G
-    G --> H
+    G --> H[emod3d]
 ```
 
 Which looks like the following in the Cylc flow graph.
