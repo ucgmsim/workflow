@@ -366,7 +366,7 @@ The high performance computing (HPC) resources provided by NeSI consist of a clu
 | Mahuika Milan | Next-generation Linux cluster with container support. Our jobs are run on Milan wherever possible.                                                                                |
 | Lander02      | The computer which we use to access the other platforms.                                                                                                                         |
 
-When you connect to a NeSI host like maui you reach what is called the _login node_. This session is where you execute `cylc install` and where trivial tasks. This information is summarised below.
+When you connect to a NeSI host like maui you reach what is called the _login node_. This session is where you execute `cylc install` and where trivial tasks are executed. This information is summarised below.
 
 ``` mermaid
 flowchart LR
