@@ -34,6 +34,7 @@ See the output of `hf-sim --help`.
 
 import functools
 import multiprocessing
+import os
 import shutil
 import struct
 import subprocess
@@ -100,6 +101,13 @@ def hf_simulate_station(
         If the output does not contain exactly one epicenter distance value.
     """
     raw_hf_output_ffp = output_directory / f"{name}.hf"
+    # expected size is n_components (3) * float size (4) * number of timesteps
+    expected_size = 12 * round(domain_parameters.duration / hf_config.dt)
+    if (
+        raw_hf_output_ffp.exists()
+        and os.stat(raw_hf_output_ffp).st_size == expected_size
+    ):
+        return
     with tempfile.NamedTemporaryFile(mode="w") as station_input_file:
         station_input_file.write(f"{longitude} {latitude} {name}\n")
         station_input_file.flush()
@@ -140,7 +148,7 @@ def hf_simulate_station(
                 stderr=subprocess.PIPE,
             )
         except subprocess.CalledProcessError as e:
-            e.add_note(f'Process stderr:\n{output.stderr}')
+            e.add_note(f"Process stderr:\n{output.stderr}")
             raise
 
         epicentre_distance = np.fromstring(output.stderr, dtype="f4", sep="\n")

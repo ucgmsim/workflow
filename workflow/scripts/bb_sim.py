@@ -32,6 +32,7 @@ Usage
 
 import functools
 import multiprocessing
+import os
 import shutil
 import struct
 from pathlib import Path
@@ -93,6 +94,13 @@ def bb_simulate_station(
     station_vs30 : float
         VS30 value for the station site.
     """
+    output_bb_file = work_directory / f"{station_name}.bb"
+    # we expected waveform files to have size n_components (3) * float size (4) * number of padded timesteps.
+    expected_bb_size = 12 * (
+        lf_padding[0] + round(lf.duration / broadband_config.dt) + lf_padding[1]
+    )
+    if output_bb_file.exists() and os.stat(output_bb_file).st_size == expected_bb_size:
+        return
     station_vs = station["vs"]
     station_vs30 = station["vs30"]
     lf_acc = np.copy(lf.acc(station_name, dt=broadband_config.dt))
@@ -133,7 +141,7 @@ def bb_simulate_station(
         bb_acc.append((hf_c + lf_c) / 981.0)
 
     bb_acc_numpy = np.array(bb_acc).T
-    with open(work_directory / f"{station_name}.bb", 'wb') as station_bb_file:
+    with open(output_bb_file, "wb") as station_bb_file:
         bb_acc_numpy.tofile(station_bb_file)
 
 
