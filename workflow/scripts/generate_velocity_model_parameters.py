@@ -178,7 +178,7 @@ def find_rrup(magnitude: float, avg_dip: float, avg_rake: float) -> float:
             {
                 "vs30": [vs30],
                 "vs30measured": [False],
-                "z1pt0": [z_model_calculations.chiou_young_08_calc_z1p0(vs30)],
+                "z1pt0": [z_model_calculations.chiou_young_08_calc_z1p0(vs30) * 1000],
                 "dip": [avg_dip],
                 "rake": [avg_rake],
                 "mag": [magnitude],
