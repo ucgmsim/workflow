@@ -93,12 +93,15 @@ def hf_simulate_station(
     Returns
     -------
     float
-        The epicenter distance obtained from the simulation output.
+        The epicentre distance obtained from the simulation output.
 
     Raises
     ------
     ValueError
-        If the output does not contain exactly one epicenter distance value.
+        If the output does not contain exactly one epicentre distance value.
+    CalledProcessError
+        If the HF binary throws an error. A note to the exception is
+        added with the stderr.
     """
     raw_hf_output_ffp = output_directory / f"{name}.hf"
     # expected size is n_components (3) * float size (4) * number of timesteps
