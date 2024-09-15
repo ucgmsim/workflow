@@ -348,5 +348,3 @@ def run_hf(
             station_file_path = work_directory / f"{station['name']}.hf"
             with open(station_file_path, mode="rb") as station_file_data:
                 shutil.copyfileobj(station_file_data, output_file_handle)
-
-    print(f"Merging time took: {time.process_time() - start}")
