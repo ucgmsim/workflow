@@ -130,19 +130,18 @@ def hf_simulate_station(
             0,  # seek bytes to 0 (no binary offset for this output)
             "",
         ]
-        hf_sim_path = "\n".join(str(line) for line in hf_sim_input)
 
         try:
             output = subprocess.run(
                 str(hf_sim_path),
-                input=hf_sim_input,
+                input="\n".join(str(line) for line in hf_sim_input),
                 check=True,
                 text=True,
                 stderr=subprocess.PIPE,
             )
         except subprocess.CalledProcessError as e:
-            print(e.stderr)
-            raise e
+            e.add_note(f'Process stderr:\n{output.stderr}')
+            raise
 
         epicentre_distance = np.fromstring(output.stderr, dtype="f4", sep="\n")
         if epicentre_distance.size != 1:
