@@ -27,7 +27,7 @@ from workflow.defaults import DefaultsVersion
 
 
 def to_name_coordinate_dictionary(
-    coordinate_array: np.ndarray,
+    coordinate_array: npt.NDArray[np.float64],
     coordinate_names: list[str] = ["latitude", "longitude", "depth"],
 ) -> Union[dict[str, float], list[dict[str, float]]]:
     """Convert an array of coordinates values into a (list of) dictionaries tagged with coordinate names.
@@ -286,7 +286,7 @@ class RupturePropagationConfig(RealisationConfiguration):
     """A map from faults to rakes."""
     magnitudes: dict[str, float]
     """A map from faults to the magnitude of the rupture for each fault."""
-    hypocentre: np.ndarray
+    hypocentre: npt.NDArray[np.float64]
     """The hypocentre of the fault."""
 
     def to_dict(self) -> dict[str, Any]:

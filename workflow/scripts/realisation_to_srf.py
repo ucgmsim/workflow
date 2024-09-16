@@ -46,6 +46,7 @@ from pathlib import Path
 from typing import Annotated, Optional
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import scipy as sp
 import typer
@@ -130,7 +131,7 @@ def generate_fault_srf(
     fault: IsSource,
     rake: float,
     magnitude: float,
-    hypocentre_local_coordinates: np.ndarray,
+    hypocentre_local_coordinates: npt.NDArray[np.float64],
     output_directory: Path,
     srf_config: SRFConfig,
     velocity_model_path: Path,

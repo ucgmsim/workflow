@@ -32,6 +32,7 @@ from typing import Annotated
 
 import geopandas as gpd
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import scipy as sp
 import shapely
@@ -84,7 +85,9 @@ def get_nz_outline_polygon() -> Polygon:
     return shapely.union(south_island, north_island)
 
 
-def pgv_estimate_from_magnitude(magnitude: np.ndarray) -> np.ndarray:
+def pgv_estimate_from_magnitude(
+    magnitude: npt.NDArray[np.float64],
+) -> npt.NDArray[np.float64]:
     """Return PGV for a given magnitude based on default scaling relationship.
 
     Parameters
@@ -217,7 +220,7 @@ def estimate_simulation_duration(
     bounding_box: BoundingBox,
     magnitude: float,
     faults: list[sources.IsSource],
-    rakes: np.ndarray,
+    rakes: npt.NDArray[np.float64],
     ds_multiplier: float,
     vs30: float,
     s_wave_velocity: float,
@@ -319,7 +322,7 @@ def get_max_depth(magnitude: float, hypocentre_depth: float) -> int:
     )
 
 
-def total_magnitude(magnitudes: np.ndarray) -> float:
+def total_magnitude(magnitudes: npt.NDArray[np.float64]) -> float:
     """
     Compute the total magnitude from an array of individual magnitudes.
 
