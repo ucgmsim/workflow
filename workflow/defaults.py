@@ -12,6 +12,7 @@ class DefaultsVersion(StrEnum):
 
     v24_2_2_1 = "24.2.2.1"
     v24_2_2_2 = "24.2.2.2"
+    v24_2_2_4 = "24.2.2.4"
     develop = "develop"
 
 
