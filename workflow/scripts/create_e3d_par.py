@@ -34,6 +34,7 @@ from typing import Annotated
 import numpy as np
 import typer
 
+from qcore import coordinates
 from workflow.realisations import (
     DomainParameters,
     EMOD3DParameters,
@@ -66,7 +67,9 @@ def emod3d_domain_parameters(
         "h": domain_parameters.resolution,
         "modellat": domain_parameters.domain.origin[0],
         "modellon": domain_parameters.domain.origin[1],
-        "modelrot": domain_parameters.domain.bearing,
+        "modelrot": coordinates.nztm_bearing_to_great_circle_bearing(
+            domain_parameters.domain.bearing
+        ),
     }
 
 

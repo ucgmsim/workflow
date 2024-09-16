@@ -103,7 +103,8 @@ def generate_model_coordinates(
         "\n".join(
             [
                 "Model origin coordinates:",
-                f" lon= {model_origin[1]:10.5f} lat= {model_origin[0]:10.5f} rotate= {domain_parameters.domain.bearing:7.2f}",
+                f" lon= {model_origin[1]:10.5f} lat= {model_origin[0]:10.5f}"
+                f" rotate= {coordinates.nztm_bearing_to_great_circle_bearing(domain_parameters.domain.bearing):7.2f}",
                 "",
                 "Model origin shift (cartesian vs. geographic):",
                 f" xshift(km)= {x_shift:12.5f} yshift(km)= {y_shift:12.5f}",
