@@ -1,0 +1,54 @@
+Bootstrap: docker
+From: ubuntu:latest
+
+%setup
+    git clone git@github.com:ucgmsim/EMOD3D.git /tmp/EMOD3D
+
+%files
+    /tmp/EMOD3D /EMOD3D
+
+%post
+    apt-get update && apt-get install -y \
+                      build-essential \
+                      cmake \
+                      ffmpeg \
+                      gdal-bin \
+                      gfortran \
+                      ghostscript \
+                      git \
+                      gmt \
+                      gmt \
+                      gmt-dcw \
+                      gmt-gshhg \
+                      graphicsmagick \
+                      libfftw3-dev \
+                      libopenmpi-dev \
+                      libpapi-dev \
+                      python-is-python3 \
+                      python3-pip \
+                      sqlite3 \
+                      wget
+
+    wget "https://www.dropbox.com/scl/fi/50kww45wpsnmtf3pn2okz/nshmdb.db?rlkey=4mjuomuevl1963fjwfximgldm&st=keryhkwb&dl=0" -O /nshmdb.db
+    wget "https://www.dropbox.com/scl/fi/b4m9g32x1j70ti69zyybq/genslip_velocity_model.vmod?rlkey=yxurhrdn8uvqh33hsb0inhsq0&st=o77aaccp&dl=0" -O /genslip_velocity_model.vmod
+
+    cd /EMOD3D && \
+    git checkout gcc14 && \
+    mkdir build && \
+    cd build && \
+    cmake .. && \
+    make genslip_v5.4.2 srf2stoch
+
+    wget "https://www.dropbox.com/scl/fi/xomwzo5xagrxzbdmm7z7w/Velocity-Model-1.0.0.tar.gz?rlkey=0vc6kevs851qos39kkmd4ffol&dl=0" -O /Velocity-Model.tar.gz && \
+    tar xvf /Velocity-Model.tar.gz && \
+    mv /Velocity-Model-1.0.0 /Velocity-Model && \
+    cd /Velocity-Model && \
+    make parallel && \
+    rm /Velocity-Model.tar.gz
+
+    mkdir -p /usr/local/lib/python3.12/dist-packages/qcore/ && \
+    wget 'https://www.dropbox.com/scl/fi/p5so9irbx43c9g96jr2qr/qcore_resources.tar.xz?rlkey=pgmn69e212c0zx0fauxuikgky&dl=0' -O /tmp/qcore-resources.tar.xz && \
+    tar xvf /tmp/qcore-resources.tar.xz -C /usr/local/lib/python3.12/dist-packages/qcore/ && \
+    rm /tmp/qcore-resources.tar.xz
+
+    pip install "git+https://github.com/ucgmsim/workflow@pegasus" --break-system-packages
