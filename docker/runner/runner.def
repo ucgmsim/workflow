@@ -2,7 +2,7 @@ Bootstrap: docker
 From: ubuntu:latest
 
 %setup
-    git clone git@github.com:ucgmsim/EMOD3D.git /tmp/EMOD3D
+    rm -rf /tmp/EMOD3D && git clone git@github.com:ucgmsim/EMOD3D.git /tmp/EMOD3D
 
 %files
     /tmp/EMOD3D /EMOD3D
@@ -33,7 +33,7 @@ From: ubuntu:latest
     wget "https://www.dropbox.com/scl/fi/b4m9g32x1j70ti69zyybq/genslip_velocity_model.vmod?rlkey=yxurhrdn8uvqh33hsb0inhsq0&st=o77aaccp&dl=0" -O /genslip_velocity_model.vmod
 
     cd /EMOD3D && \
-    git checkout gcc14 && \
+    git checkout cylc && \
     mkdir build && \
     cd build && \
     cmake .. && \
