@@ -4,6 +4,7 @@ import inspect
 import json
 import logging
 import os
+import subprocess
 import threading
 import uuid
 from collections.abc import Iterable
@@ -33,7 +34,7 @@ def log(
     format: Optional[LoggingFormat] = None,
     level: int = logging.INFO,
     /,
-    **kwargs: dict[str, Any],
+    **kwargs: Any,
 ) -> None:
     log_kwargs = {key: repr(value) for key, value in kwargs.items()}
     now = str(datetime.now(timezone.utc))
@@ -94,3 +95,42 @@ def log_call(
         return result
 
     return wrapper
+
+
+def log_check_call(args: list[str], **kwargs: Any) -> str:
+    """Execute a command, and log its output.
+
+    Parameters
+    ----------
+    args : list[str]
+        The command line arguments to execute.
+    kwargs : Any
+        Additional keyword arguments for `subprocess.check_output`.
+
+    Returns
+    -------
+    str
+        The stdout of the command, in UTF-8.
+
+    Raises
+    ------
+    CalledProcessError
+        If the process fails. The contents of this error is as in `subprocess.check_output`.
+    """
+    cmd_uuid = str(uuid.uuid4())
+    log("executing", command=args[0], args=args[1:], id=cmd_uuid)
+    try:
+        kwargs["stderr"] = subprocess.PIPE
+        output = subprocess.check_output(args, **kwargs).decode("utf-8")
+        log("completed", command=args[0], stdout=output, id=cmd_uuid)
+    except subprocess.CalledProcessError as e:
+        log(
+            "failed",
+            command=args[0],
+            id=cmd_uuid,
+            code=e.returncode,
+            stdout=e.output.decode("utf-8"),
+            stderr=e.stderr.decode("utf-8"),
+        )
+        raise
+    return output

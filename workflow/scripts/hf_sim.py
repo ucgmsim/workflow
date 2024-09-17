@@ -48,6 +48,7 @@ import pandas as pd
 import tqdm
 import typer
 
+from workflow import log_utils
 from workflow.realisations import DomainParameters, HFConfig, RealisationMetadata
 
 app = typer.Typer()
@@ -143,33 +144,33 @@ def hf_simulate_station(
         ]
 
         try:
+            hf_sim_input_str = "\n".join(str(line) for line in hf_sim_input)
+
+            print("---\n" + hf_sim_input_str + "\n---")
+            log_utils.log("running hf", station=name, input=hf_sim_input_str)
             output = subprocess.run(
                 str(hf_sim_path),
-                input="\n".join(str(line) for line in hf_sim_input),
+                input=hf_sim_input_str,
                 check=True,
                 text=True,
                 stderr=subprocess.PIPE,
             )
         except subprocess.CalledProcessError as e:
-            e.add_note(f"Process stderr:\n{output.stderr}")
+            log_utils.log("hf failed", station=name, stdout=e.stdout, stderr=e.stderr)
             raise
-
+        log_utils.log("hf succeeded", station=name)
         epicentre_distance = np.fromstring(output.stderr, dtype="f4", sep="\n")
         if epicentre_distance.size != 1:
             raise ValueError(
-                f"Expected exactly one epicentre_distance value, get {epicentre_distance.size}"
+                f"Expected exactly one epicentre_distance value, got {epicentre_distance.size}"
             )
         return epicentre_distance[0]
-
-
-def hf_simulate_station_worker(*args):
-    """Multi-processing wrapper for `hf_simulate_station`."""
-    return hf_simulate_station(*args[:-1], *args[-1])
 
 
 @app.command(
     help="Run the HF (High-Frequency) simulation and generate the HF output file."
 )
+@log_utils.log_call
 def run_hf(
     realisation_ffp: Annotated[Path, typer.Argument(help="Path to realisation file.")],
     stoch_ffp: Annotated[
@@ -248,25 +249,19 @@ def run_hf(
     stations = stations[mask]
 
     with multiprocessing.Pool() as pool:
-        epicentre_distances = list(
-            tqdm.tqdm(
-                pool.imap(
-                    functools.partial(
-                        hf_simulate_station_worker,
-                        hf_config,
-                        domain_parameters,
-                        velocity_model,
-                        stoch_ffp,
-                        work_directory,
-                        hf_sim_path,
-                    ),
-                    stations.values.tolist(),
-                ),
-                total=len(stations),
-            )
+        stations["epicentre_distance"] = pool.starmap(
+            functools.partial(
+                hf_simulate_station,
+                hf_config,
+                domain_parameters,
+                velocity_model,
+                stoch_ffp,
+                work_directory,
+                hf_sim_path,
+            ),
+            stations.values.tolist(),
         )
-        stations["epicentre_distance"] = epicentre_distances
-    start = time.process_time()
+
     with open(velocity_model, "r") as f:
         f.readline()
         vs = np.float32(float(f.readline().split()[2]) * 1000.0)

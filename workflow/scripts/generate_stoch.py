@@ -31,12 +31,14 @@ from typing import Annotated
 
 import typer
 
+from workflow import log_utils
 from workflow.realisations import HFConfig, RealisationMetadata
 
 app = typer.Typer()
 
 
 @app.command(help="Generate a stoch file from an SRF file.")
+@log_utils.log_call
 def generate_stoch(
     realisation_ffp: Annotated[
         Path, typer.Argument(help="Path to realisation", exists=True, dir_okay=False)
@@ -71,7 +73,7 @@ def generate_stoch(
         realisation_ffp, metadata.defaults_version
     )
 
-    subprocess.check_call(
+    log_utils.log_check_call(
         [
             str(srf2stoch_path),
             f"dx={hf_config.stoch_dx}",

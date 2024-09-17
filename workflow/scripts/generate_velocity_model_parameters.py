@@ -47,6 +47,7 @@ from empirical.util.classdef import GMM, TectType
 from qcore import coordinates, data
 from qcore.uncertainties import mag_scaling
 from source_modelling import sources
+from workflow import log_utils
 from workflow.realisations import (
     DomainParameters,
     RealisationMetadata,
@@ -340,6 +341,7 @@ def total_magnitude(magnitudes: npt.NDArray[np.float64]) -> float:
 
 
 @app.command(help="Generate velocity model parameters for a given realisation file")
+@log_utils.log_call
 def generate_velocity_model_parameters(
     realisation_ffp: Annotated[
         Path,
@@ -394,6 +396,7 @@ def generate_velocity_model_parameters(
         )
         for fault_name, fault in source_config.source_geometries.items()
     }
+    log_utils.log("computed rrups", rrups=rrups)
 
     initial_fault = source_config.source_geometries[rupture_propagation.initial_fault]
     max_depth = get_max_depth(

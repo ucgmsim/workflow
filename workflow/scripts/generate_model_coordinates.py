@@ -32,12 +32,14 @@ from typing import Annotated
 import typer
 
 from qcore import coordinates
+from workflow import log_utils
 from workflow.realisations import DomainParameters
 
 app = typer.Typer()
 
 
 @app.command(help="Generate model coordinate files for EMOD3D from a realisation file")
+@log_utils.log_call
 def generate_model_coordinates(
     realisation_ffp: Annotated[
         Path,

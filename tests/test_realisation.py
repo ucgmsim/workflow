@@ -7,9 +7,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 import schema
+from velocity_modelling import bounding_box
 
 from source_modelling import rupture_propagation
-from velocity_modelling import bounding_box
 from workflow import defaults, realisations
 
 
@@ -34,9 +34,9 @@ def test_bounding_box_example(tmp_path: Path):
                 "resolution": 0.1,
                 "domain": [
                     {"latitude": -43.524793866326725, "longitude": 171.76204128885567},
-                    {"latitude": -42.894200350955856, "longitude": 172.64076673694242},
-                    {"latitude": -43.53034935969409, "longitude": 173.51210368762364},
                     {"latitude": -44.16756820707226, "longitude": 172.63312824122775},
+                    {"latitude": -43.53034935969409, "longitude": 173.51210368762364},
+                    {"latitude": -42.894200350955856, "longitude": 172.64076673694242},
                 ],
                 "depth": 40.0,
                 "duration": 60.0,
@@ -103,9 +103,9 @@ def test_srf_config_example(tmp_path):
                 "resolution": 0.1,
                 "domain": [
                     {"latitude": -43.524793866326725, "longitude": 171.76204128885567},
-                    {"latitude": -42.894200350955856, "longitude": 172.64076673694242},
-                    {"latitude": -43.53034935969409, "longitude": 173.51210368762364},
                     {"latitude": -44.16756820707226, "longitude": 172.63312824122775},
+                    {"latitude": -43.53034935969409, "longitude": 173.51210368762364},
+                    {"latitude": -42.894200350955856, "longitude": 172.64076673694242},
                 ],
                 "depth": 40.0,
                 "duration": 60.0,
@@ -362,12 +362,18 @@ def test_emod3d(tmp_path: Path):
 def test_broadband_parameters(tmp_path: Path):
     test_realisation = tmp_path / "realisation.json"
     broadband_parameters = realisations.BroadbandParameters(
-        flo=0.5, dt=0.005, fmidbot=0.5, fmin=0.25
+        flo=0.5, dt=0.005, fmidbot=0.5, fmin=0.25, site_amp_version="2014"
     )
     broadband_parameters.write_to_realisation(test_realisation)
     with open(test_realisation, "r") as realisation_handle:
         assert json.load(realisation_handle) == {
-            "bb": {"flo": 0.5, "dt": 0.005, "fmidbot": 0.5, "fmin": 0.25}
+            "bb": {
+                "flo": 0.5,
+                "dt": 0.005,
+                "fmidbot": 0.5,
+                "fmin": 0.25,
+                "site_amp_version": "2014",
+            }
         }
     assert (
         realisations.BroadbandParameters.read_from_realisation(test_realisation)

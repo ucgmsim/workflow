@@ -35,12 +35,14 @@ import numpy as np
 import pandas as pd
 import typer
 
+from workflow import log_utils
 from workflow.realisations import DomainParameters
 
 app = typer.Typer()
 
 
 @app.command(help="Generate station gridpoint coordinates from a list of stations.")
+@log_utils.log_call
 def generate_fd_files(
     realisations_ffp: Annotated[
         Path, typer.Argument(help="Path to realisation json file.", readable=True)
@@ -77,6 +79,7 @@ def generate_fd_files(
     """
     output_path.mkdir(exist_ok=True)
     domain_parameters = DomainParameters.read_from_realisation(realisations_ffp)
+    print(domain_parameters.domain)
 
     # where to save gridpoint and longlat station files
     gp_out = output_path / "stations.statcords"

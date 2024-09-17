@@ -41,7 +41,7 @@ from typing import Annotated, Optional
 
 import typer
 
-from qcore import coordinates
+from workflow import log_utils
 from workflow.realisations import DomainParameters, VelocityModelParameters
 
 app = typer.Typer()
@@ -107,13 +107,10 @@ def run_nzvm(
     """
     environment = os.environ.copy()
     environment["OMP_NUM_THREADS"] = str(num_threads or -1)
-    subprocess.run(
+    log_utils.log_check_call(
         [str(nzvm_binary_ffp), str(nzvm_config_ffp)],
         cwd=nzvm_binary_ffp.parent,
         env=environment,
-        stdout=sys.stdout,
-        stderr=sys.stderr,
-        check=True,
     )
 
 
