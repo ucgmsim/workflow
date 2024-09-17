@@ -55,6 +55,8 @@ from scipy.sparse import csr_array
 from qcore import coordinates, grid, gsf
 from source_modelling import rupture_propagation, srf
 from source_modelling.sources import IsSource
+from workflow import log_utils
+from workflow.log_utils import log_call
 from workflow.realisations import (
     RealisationMetadata,
     RupturePropagationConfig,
@@ -203,10 +205,20 @@ def generate_fault_srf(
 
     srf_file_path = output_directory / "srf" / (name + ".srf")
     with open(srf_file_path, "w", encoding="utf-8") as srf_file_handle:
-        print(" ".join(genslip_cmd))
-        subprocess.run(
-            genslip_cmd, stdout=srf_file_handle, stderr=subprocess.PIPE, check=True
-        )
+        log_utils.log("executing command", cmd=" ".join(genslip_cmd))
+        try:
+            proc = subprocess.run(
+                genslip_cmd, stdout=srf_file_handle, stderr=subprocess.PIPE, check=True
+            )
+        except subprocess.CalledProcessError as e:
+            log_utils.log(
+                "failed",
+                exception=e.output.decode("utf-8"),
+                code=e.returncode,
+                stderr=e.stderr.decode("utf-8"),
+            )
+            raise
+        log_utils.log("command compeleted", stderr=proc.stderr.decode("utf-8"))
 
 
 def concatenate_csr_arrays(csr_arrays: list[csr_array]) -> csr_array:
@@ -315,9 +327,14 @@ def stitch_srf_files(
                 )
             )
             t_delay = parent_srf.points["tinit"].iloc[jump_index]
-            print(f"Delaying {fault_name} by {t_delay:.2f}s")
-            print(
-                f"Point {parent_coords}, grid point {parent_srf.points.iloc[jump_index]}"
+            log_utils.log(
+                "computed delay",
+                fault_name=fault_name,
+                delay=t_delay,
+                jump_from=parent_coords.tolist(),
+                jump_to=parent_srf.points[["lat", "lon", "dep"]]
+                .iloc[jump_index]
+                .tolist(),
             )
             srf_file.points["tinit"] += t_delay
         srf_files[fault_name] = srf_file
@@ -407,6 +424,7 @@ def generate_fault_srfs_parallel(
 
 
 @app.command(help="Generate an SRF file from a given realisation specification")
+@log_call
 def generate_srf(
     realisation_ffp: Annotated[
         Path,

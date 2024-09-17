@@ -46,6 +46,7 @@ from source_modelling import rupture_propagation
 from source_modelling.sources import Fault
 from workflow import realisations
 from workflow.defaults import DefaultsVersion
+from workflow.log_utils import log_call
 
 app = typer.Typer()
 
@@ -106,6 +107,7 @@ def default_magnitude_estimation(
 @app.command(
     help="Generate realisation stub files from ruptures in the NSHM 2022 database."
 )
+@log_call
 def generate_realisation(
     nshm_db_file: Annotated[
         Path,
