@@ -75,7 +75,7 @@ def write_nzvm_config(
                     f"OUTPUT_DIR={output_path}",
                     f"ORIGIN_LAT={domain_parameters.domain.origin[0]}",
                     f"ORIGIN_LON={domain_parameters.domain.origin[1]}",
-                    f"ORIGIN_ROT={coordinates.nztm_bearing_to_great_circle_bearing(domain_parameters.domain.bearing)}",
+                    f"ORIGIN_ROT={domain_parameters.domain.great_circle_bearing}",
                     f"EXTENT_X={domain_parameters.domain.extent_x}",
                     f"EXTENT_Y={domain_parameters.domain.extent_y}",
                     "EXTENT_ZMIN=0",  # TODO: CHANGE THIS

@@ -67,9 +67,7 @@ def emod3d_domain_parameters(
         "h": domain_parameters.resolution,
         "modellat": domain_parameters.domain.origin[0],
         "modellon": domain_parameters.domain.origin[1],
-        "modelrot": coordinates.nztm_bearing_to_great_circle_bearing(
-            domain_parameters.domain.bearing
-        ),
+        "modelrot": domain_parameters.domain.great_circle_bearing,
     }
 
 
