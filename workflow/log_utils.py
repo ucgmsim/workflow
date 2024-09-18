@@ -1,3 +1,26 @@
+"""Structured Logging Utilities for `logging`.
+
+This module support for different structured-logging formats (JSON and
+text) and decorators for logging function calls and command
+executions. The logging functions can capture and structure log
+messages along with additional contextual information such as function
+arguments, execution status, and timestamps.
+
+Examples
+--------
+
+>>> @log_call
+>>> def foo(a, b):
+>>>     return a + b
+>>> foo(1, 2)
+{"function": "foo", "id": "...", "args": {"a": 1, "b": 2}, "message": "called", "level": "INFO", "time": "...", "thread": "MainThread"}
+{"function": "foo", "id": "...", "result": 3, "message": "completed", "level": "INFO", "time": "...", "thread": "MainThread"}
+3
+>>> log('hello world', LoggingFormat.TEXT, counter=1)
+2024-09-18 22:00:51.498268+00:00 :: INFO :: hello world counter=1
+
+"""
+
 import enum
 import functools
 import inspect
@@ -14,15 +37,36 @@ from typing import Any, Callable, Optional
 
 
 class LoggingFormat(Enum):
+    """Enumeration of possible logging format outputs."""
+
     JSON = enum.auto()
+    """Output log in JSON structured-logging format."""
     TEXT = enum.auto()
+    """Output log in Heroku-style key=value structured-logging format."""
 
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
 class LogEncoder(json.JSONEncoder):
-    def default(self, obj):
+    """Custom JSON encoder for logging arbitrary values."""
+
+    def default(self, obj: Any) -> Any:
+        """Encode the JSON representation of obj.
+
+        The encoder will default to repr(obj) if the base encoder
+        fails.
+
+        Parameters
+        ----------
+        obj : Any
+            Object to encode.
+
+        Returns
+        -------
+        Any
+            The encoded JSON object.
+        """
         try:
             return super().default(obj)
         except TypeError:
@@ -36,6 +80,21 @@ def log(
     /,
     **kwargs: Any,
 ) -> None:
+    """Log a message in a structured logging format.
+
+    Parameters
+    ----------
+    message : str
+        The message to log.
+    format : Optional[LoggingFormat]
+        The logging format to use, defaulting to the value of the
+        environment variable LOG_FORMAT or `LoggingFormat.JSON` if the
+        environment variable is not present.
+    level : int
+        The level of the log. For example, the default is `logging.INFO`.
+    kwargs : Any
+        Keyword arguments to log in a structured logging format.
+    """
     log_kwargs = {key: repr(value) for key, value in kwargs.items()}
     now = str(datetime.now(timezone.utc))
     level_name = logging.getLevelName(level)
@@ -71,6 +130,28 @@ def log_call(
     exclude_args: Optional[Iterable[str]] = None,
     include_result: bool = True,
 ) -> Callable:
+    """Wrap a function with logging calls of the arguments and success status.
+
+    Parameters
+    ----------
+    f : Callable
+        The function to wrap.
+    action_name : Optional[str]
+        An alternative identifier for the function in the log output.
+        If None, will use `f.__name__` as the identifier.
+    exclude_args : Optional[Iterable[str]]
+        Arguments to exclude from log reports.
+    include_result : bool
+        If True, log the result of function call.
+
+    Returns
+    -------
+    Callable
+        A wrapped function that logs it's arguments every time the
+        function is called, and logs once it has completed (with it's
+        return value if `include_result` is True).
+    """
+
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
         nonlocal exclude_args
