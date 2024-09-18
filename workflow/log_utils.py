@@ -29,6 +29,7 @@ import logging
 import os
 import subprocess
 import threading
+import traceback
 import uuid
 from collections.abc import Iterable
 from datetime import datetime, timezone
@@ -161,16 +162,22 @@ def log_call(
                 for parameter, arg in zip(signature.parameters, args)
                 if parameter not in exclude_args
             } | {key: value for key, value in kwargs.items() if key not in exclude_args}
-            log("called", function=f.__name__, id=function_id, args=unified_arguments)
+            name = action_name or f.__name__
+            log("called", function=name, id=function_id, args=unified_arguments)
             try:
                 result = f(*args, **kwargs)
-            except Exception as e:
-                log("failed", function=f.__name__, id=function_id, error=e)
+            except:
+                log(
+                    "failed",
+                    function=name,
+                    id=function_id,
+                    error=traceback.format_exc(),
+                )
                 raise
             if result and include_result:
-                log("completed", function=f.__name__, id=function_id, result=result)
+                log("completed", function=name, id=function_id, result=result)
             else:
-                log("completed", function=f.__name__, id=function_id)
+                log("completed", function=name, id=function_id)
             return result
 
         return wrapper
