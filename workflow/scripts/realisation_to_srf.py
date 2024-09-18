@@ -424,7 +424,7 @@ def generate_fault_srfs_parallel(
 
 
 @app.command(help="Generate an SRF file from a given realisation specification")
-@log_call
+@log_call()
 def generate_srf(
     realisation_ffp: Annotated[
         Path,

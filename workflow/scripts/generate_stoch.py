@@ -38,7 +38,7 @@ app = typer.Typer()
 
 
 @app.command(help="Generate a stoch file from an SRF file.")
-@log_utils.log_call
+@log_utils.log_call()
 def generate_stoch(
     realisation_ffp: Annotated[
         Path, typer.Argument(help="Path to realisation", exists=True, dir_okay=False)

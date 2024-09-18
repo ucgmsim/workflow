@@ -39,7 +39,7 @@ app = typer.Typer()
 
 
 @app.command(help="Generate model coordinate files for EMOD3D from a realisation file")
-@log_utils.log_call
+@log_utils.log_call()
 def generate_model_coordinates(
     realisation_ffp: Annotated[
         Path,

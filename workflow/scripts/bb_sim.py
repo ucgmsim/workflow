@@ -54,6 +54,17 @@ from workflow.realisations import (
 app = typer.Typer()
 
 
+@log_utils.log_call(
+    exclude_args={
+        "lf",
+        "hf",
+        "hf_padding",
+        "lf_padding",
+        "broadband_config",
+        "n2",
+        "work_directory",
+    }
+)
 def bb_simulate_station(
     lf: timeseries.LFSeis,
     hf: timeseries.HFSeis,
@@ -149,7 +160,7 @@ def bb_simulate_station(
 @app.command(
     help="Combine low frequency and high frequency waveforms into broadband waveforms"
 )
-@log_utils.log_call
+@log_utils.log_call()
 def combine_hf_and_lf(
     realisation_ffp: Annotated[
         Path,

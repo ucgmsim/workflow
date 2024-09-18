@@ -107,7 +107,7 @@ def default_magnitude_estimation(
 @app.command(
     help="Generate realisation stub files from ruptures in the NSHM 2022 database."
 )
-@log_call
+@log_call()
 def generate_realisation(
     nshm_db_file: Annotated[
         Path,

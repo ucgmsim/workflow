@@ -341,7 +341,7 @@ def total_magnitude(magnitudes: npt.NDArray[np.float64]) -> float:
 
 
 @app.command(help="Generate velocity model parameters for a given realisation file")
-@log_utils.log_call
+@log_utils.log_call()
 def generate_velocity_model_parameters(
     realisation_ffp: Annotated[
         Path,

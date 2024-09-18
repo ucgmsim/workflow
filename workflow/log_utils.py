@@ -9,7 +9,7 @@ arguments, execution status, and timestamps.
 Examples
 --------
 
->>> @log_call
+>>> @log_call()
 >>> def foo(a, b):
 >>>     return a + b
 >>> foo(1, 2)
@@ -125,7 +125,6 @@ def log(
 
 
 def log_call(
-    f: Callable,
     action_name: Optional[str] = None,
     exclude_args: Optional[Iterable[str]] = None,
     include_result: bool = True,
@@ -134,8 +133,6 @@ def log_call(
 
     Parameters
     ----------
-    f : Callable
-        The function to wrap.
     action_name : Optional[str]
         An alternative identifier for the function in the log output.
         If None, will use `f.__name__` as the identifier.
@@ -147,35 +144,38 @@ def log_call(
     Returns
     -------
     Callable
-        A wrapped function that logs it's arguments every time the
-        function is called, and logs once it has completed (with it's
-        return value if `include_result` is True).
+        A decorator that logs it's wrapped function's arguments every
+        time the function is called, and logs once it has completed
+        (with it's return value if `include_result` is True).
     """
 
-    @functools.wraps(f)
-    def wrapper(*args, **kwargs):
-        nonlocal exclude_args
-        signature = inspect.signature(f)
-        function_id = str(uuid.uuid4())
-        exclude_args = exclude_args or set()
-        unified_arguments = {
-            parameter: arg
-            for parameter, arg in zip(signature.parameters, args)
-            if parameter not in exclude_args
-        } | {key: value for key, value in kwargs.items() if key not in exclude_args}
-        log("called", function=f.__name__, id=function_id, args=unified_arguments)
-        try:
-            result = f(*args, **kwargs)
-        except Exception as e:
-            log("failed", function=f.__name__, id=function_id, error=e)
-            raise
-        if result and include_result:
-            log("completed", function=f.__name__, id=function_id, result=result)
-        else:
-            log("completed", function=f.__name__, id=function_id)
-        return result
+    def decorator(f: Callable) -> Callable:
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            nonlocal exclude_args
+            signature = inspect.signature(f)
+            function_id = str(uuid.uuid4())
+            exclude_args = exclude_args or set()
+            unified_arguments = {
+                parameter: arg
+                for parameter, arg in zip(signature.parameters, args)
+                if parameter not in exclude_args
+            } | {key: value for key, value in kwargs.items() if key not in exclude_args}
+            log("called", function=f.__name__, id=function_id, args=unified_arguments)
+            try:
+                result = f(*args, **kwargs)
+            except Exception as e:
+                log("failed", function=f.__name__, id=function_id, error=e)
+                raise
+            if result and include_result:
+                log("completed", function=f.__name__, id=function_id, result=result)
+            else:
+                log("completed", function=f.__name__, id=function_id)
+            return result
 
-    return wrapper
+        return wrapper
+
+    return decorator
 
 
 def log_check_call(args: list[str], **kwargs: Any) -> str:

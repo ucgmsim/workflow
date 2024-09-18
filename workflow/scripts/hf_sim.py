@@ -170,7 +170,7 @@ def hf_simulate_station(
 @app.command(
     help="Run the HF (High-Frequency) simulation and generate the HF output file."
 )
-@log_utils.log_call
+@log_utils.log_call()
 def run_hf(
     realisation_ffp: Annotated[Path, typer.Argument(help="Path to realisation file.")],
     stoch_ffp: Annotated[

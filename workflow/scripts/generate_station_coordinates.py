@@ -42,7 +42,7 @@ app = typer.Typer()
 
 
 @app.command(help="Generate station gridpoint coordinates from a list of stations.")
-@log_utils.log_call
+@log_utils.log_call()
 def generate_fd_files(
     realisations_ffp: Annotated[
         Path, typer.Argument(help="Path to realisation json file.", readable=True)
