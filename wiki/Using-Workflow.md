@@ -178,4 +178,67 @@ The above command instructs Cylc to run your workflow. You can now monitor it in
 
 Cylc has other ways to monitor your workflow, including a GUI. See NeSI's [documentation](https://docs.nesi.org.nz/Scientific_Computing/Supported_Applications/Cylc/#different-ways-to-interact-with-cylc) on the different ways they support interacting with cylc including the terminal user interface, GUI and Jupyter notebooks.
 
+## Inspecting the Output
+
+Once the tutorial workflow has completed, let's look at the output. Inside `~/cylc-run/tutorial/runN/` you should see a directory structure like the following:
+
+```
+~/cylc-run/tutorial/runN/
+├── flow.cylc
+├── input
+│   └── stations.ll
+├── log
+│   ...
+├── share
+│   ├── model
+│   │   ├── grid_file
+│   │   └── model_params
+│   ├── realisation.json
+│   ├── realisation.srf
+│   ├── stations
+│   │   ├── stations.ll
+│   │   └── stations.statcords
+│   ├── stations.ll
+│   └── Velocity_Model
+│       ├── in_basin_mask.b
+│       ├── rho3dfile.d
+│       ├── vp3dfile.p
+│       └── vs3dfile.s
+└── work
+    └── 1
+        ├── create_e3d_par
+        ├── generate_velocity_model
+        │   ├── nzvm.cfg
+        │   └── Velocity_Model
+        │       ├── Log
+        │       │   └── VeloModCorners.txt
+        │       └── Velocity_Model
+        │           ├── in_basin_mask.b
+        │           ├── rho3dfile.d
+        │           ├── vp3dfile.p
+        │           └── vs3dfile.s
+        └── realisation_to_srf
+            ├── gsf
+            │   └── acton.gsf
+            ├── rupture_0.srf
+            └── srf
+                └── acton.srf
+```
+
+As described earlier, the `share` directory contains data shared between jobs, and is where your final outputs usually reside. Some of the jobs produced output in the `work/1/<job>` directory. These files can be useful for debugging.
+
+We have built a number of tools to inspect the output of these runs.
+
+### Inspecting the Source Model
+When we talk about _source modelling_, we refer to the modelling of the rupture on the fault. Source modelling is performed by the `realisation_to_srf` stage, and the output of this stage is a Source Rupture Format file (SRF) stored in `/share/realisation.srf`.
+
+You can view the SRF using the tools in the [source_modelling](https://github.com/ucgmsim/source_modelling) repository. The `plot-srf` tool will produce an output something like the following.
+
+![](images/rupture_1.png)
+
+### Inspecting the Velocity Model
+The velocity model refers to the modelling of the density, P-wave and S-wave velocities measured and estimated for various parts of the country. You can view the velocity model output using the tools in the [velocity_modelling](https://github.com/ucgmsim/velocity_modelling/) repository. The velocity model also defines the simulation domain.
+
+![](images/rupture_1_vm.png)
+
 ## Extra Steps
