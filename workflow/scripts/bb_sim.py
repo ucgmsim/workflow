@@ -44,6 +44,7 @@ import pandas as pd
 import typer
 
 from qcore import siteamp_models, timeseries
+from workflow import log_utils
 from workflow.realisations import (
     BroadbandParameters,
     DomainParameters,
@@ -148,6 +149,7 @@ def bb_simulate_station(
 @app.command(
     help="Combine low frequency and high frequency waveforms into broadband waveforms"
 )
+@log_utils.log_call
 def combine_hf_and_lf(
     realisation_ffp: Annotated[
         Path,
