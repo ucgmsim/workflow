@@ -37,6 +37,7 @@ You can visualise the output of this stage using the SRF plotting tools in the [
 """
 
 import functools
+import logging
 import multiprocessing
 import re
 import shutil
@@ -57,12 +58,9 @@ from source_modelling import rupture_propagation, srf
 from source_modelling.sources import IsSource
 from workflow import log_utils
 from workflow.log_utils import log_call
-from workflow.realisations import (
-    RealisationMetadata,
-    RupturePropagationConfig,
-    SourceConfig,
-    SRFConfig,
-)
+from workflow.realisations import (RealisationMetadata,
+                                   RupturePropagationConfig, SourceConfig,
+                                   SRFConfig)
 
 app = typer.Typer()
 
@@ -205,20 +203,21 @@ def generate_fault_srf(
 
     srf_file_path = output_directory / "srf" / (name + ".srf")
     with open(srf_file_path, "w", encoding="utf-8") as srf_file_handle:
-        log_utils.log("executing command", cmd=" ".join(genslip_cmd))
+        logger = log_utils.get_logger(__name__)
+        logger.info(log_utils.structured_log("executing command", cmd=" ".join(genslip_cmd)))
         try:
             proc = subprocess.run(
                 genslip_cmd, stdout=srf_file_handle, stderr=subprocess.PIPE, check=True
             )
         except subprocess.CalledProcessError as e:
-            log_utils.log(
+            logger.error(log_utils.structured_log(
                 "failed",
                 exception=e.output.decode("utf-8"),
                 code=e.returncode,
                 stderr=e.stderr.decode("utf-8"),
-            )
+            ))
             raise
-        log_utils.log("command compeleted", stderr=proc.stderr.decode("utf-8"))
+        logger.info(log_utils.structured_log("command compeleted", stderr=proc.stderr.decode("utf-8")))
 
 
 def concatenate_csr_arrays(csr_arrays: list[csr_array]) -> csr_array:
@@ -327,7 +326,8 @@ def stitch_srf_files(
                 )
             )
             t_delay = parent_srf.points["tinit"].iloc[jump_index]
-            log_utils.log(
+            logger = log_utils.get_logger(__name__)
+            logger.info(log_utils.structured_log(
                 "computed delay",
                 fault_name=fault_name,
                 delay=t_delay,
@@ -335,7 +335,7 @@ def stitch_srf_files(
                 jump_to=parent_srf.points[["lat", "lon", "dep"]]
                 .iloc[jump_index]
                 .tolist(),
-            )
+            ))
             srf_file.points["tinit"] += t_delay
         srf_files[fault_name] = srf_file
     output_srf_file = srf.SrfFile(

@@ -142,12 +142,12 @@ def hf_simulate_station(
             0,  # seek bytes to 0 (no binary offset for this output)
             "",
         ]
-
+        logger = log_utils.get_logger(__name__)
         try:
             hf_sim_input_str = "\n".join(str(line) for line in hf_sim_input)
 
             print("---\n" + hf_sim_input_str + "\n---")
-            log_utils.log("running hf", station=name, input=hf_sim_input_str)
+            logger.info(log_utils.structured_log("running hf", station=name, input=hf_sim_input_str))
             output = subprocess.run(
                 str(hf_sim_path),
                 input=hf_sim_input_str,
@@ -156,9 +156,9 @@ def hf_simulate_station(
                 stderr=subprocess.PIPE,
             )
         except subprocess.CalledProcessError as e:
-            log_utils.log("hf failed", station=name, stdout=e.stdout, stderr=e.stderr)
+            logger.error(log_utils.structured_log("hf failed", station=name, stdout=e.stdout, stderr=e.stderr))
             raise
-        log_utils.log("hf succeeded", station=name)
+        logger.info(log_utils.structured_log("hf succeeded", station=name))
         epicentre_distance = np.fromstring(output.stderr, dtype="f4", sep="\n")
         if epicentre_distance.size != 1:
             raise ValueError(

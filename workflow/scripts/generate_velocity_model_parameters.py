@@ -396,7 +396,8 @@ def generate_velocity_model_parameters(
         )
         for fault_name, fault in source_config.source_geometries.items()
     }
-    log_utils.log("computed rrups", rrups=rrups)
+    logger = log_utils.get_logger(__name__)
+    logger.info(log_utils.structured_log("computed rrups", rrups=rrups))
 
     initial_fault = source_config.source_geometries[rupture_propagation.initial_fault]
     max_depth = get_max_depth(
