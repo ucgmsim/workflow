@@ -128,6 +128,7 @@ def test_failing_function(caplog: pytest.LogCaptureFixture):
         call_log,
     )
     return_log = json.loads(caplog.messages[1])
+    assert return_log['level'] == 'ERROR'
     assert return_log["function"] == "failing_function"
     assert return_log["message"] == "failed"
     assert return_log["error"].startswith("Traceback")
@@ -157,6 +158,7 @@ def test_failing_check_call_log(caplog: pytest.LogCaptureFixture):
     assert execution_message["args"] == ["/bad-path"]
     assert execution_message["command"] == "ls"
     completion_message = json.loads(caplog.messages[1])
+    assert completion_message['level'] == 'ERROR'
     assert (
         completion_message["stderr"]
         == "ls: cannot access '/bad-path': No such file or directory\n"

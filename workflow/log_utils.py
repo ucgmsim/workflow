@@ -169,6 +169,8 @@ def log_call(
             except:
                 log(
                     "failed",
+                    None,
+                    logging.ERROR,
                     function=name,
                     id=function_id,
                     error=traceback.format_exc(),
@@ -214,6 +216,8 @@ def log_check_call(args: list[str], **kwargs: Any) -> str:
     except subprocess.CalledProcessError as e:
         log(
             "failed",
+            None,
+            logging.ERROR,
             command=args[0],
             id=cmd_uuid,
             code=e.returncode,
