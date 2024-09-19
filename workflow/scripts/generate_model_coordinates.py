@@ -31,7 +31,6 @@ from typing import Annotated
 
 import typer
 
-from qcore import coordinates
 from workflow import log_utils
 from workflow.realisations import DomainParameters
 
@@ -98,9 +97,9 @@ def generate_model_coordinates(
         )
     )
     model_origin = domain_parameters.domain.origin
-    model_corners = coordinates.nztm_to_wgs_depth(domain_parameters.domain.corners)
     x_shift = -(domain_parameters.domain.extent_x - domain_parameters.resolution) / 2
     y_shift = -(domain_parameters.domain.extent_y - domain_parameters.resolution) / 2
+
     model_params.write_text(
         "\n".join(
             [
