@@ -114,7 +114,8 @@ def generate_model_coordinates(
             ]
             + [
                 f" c{i + 1}= {corner[1]:10.5f} {corner[0]:10.5f}"
-                for i, corner in enumerate(model_corners)
+                # Corner order is clockwise from top-left
+                for i, corner in enumerate(domain_parameters.domain.corners[::-1])
             ]
             + [
                 "",
