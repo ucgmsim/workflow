@@ -99,7 +99,7 @@ def log(
     log_kwargs = {key: repr(value) for key, value in kwargs.items()}
     now = str(datetime.now(timezone.utc))
     level_name = logging.getLevelName(level)
-    format = format or LoggingFormat[os.environ.get("LOG_FORMAT", "JSON").upper()]
+    format = format or LoggingFormat[os.environ.get("LOG_FORMAT", "TEXT").upper()]
 
     match format:
         case LoggingFormat.JSON:
@@ -117,11 +117,11 @@ def log(
                 ),
             )
         case LoggingFormat.TEXT:
-            structured_log_data = " ".join(
+            structured_log_data = "\t".join(
                 f"{key}={value}" for key, value in log_kwargs.items()
             )
             logging.log(
-                level, f"{now} :: {level_name} :: {message} {structured_log_data}"
+                level, f"{now}\t{level_name}\t{message}\t{structured_log_data}"
             )
 
 
