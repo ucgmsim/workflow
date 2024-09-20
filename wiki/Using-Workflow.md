@@ -46,7 +46,7 @@ For many small workflows (e.g. running a single simulation), Hypocentre is a bet
 
 # What is Cylc?
 
-Cylc is a workflow orchestration tool. We define the workflow, and Cylc's job is to monitor the steps, queue the jobs with NeSI's scheduler, and respond to your requests to stop jobs, restart jobs or inspect their run logs.
+[Cylc](https://cylc.github.io/cylc-doc/stable/html/index.html) is a workflow orchestration tool. We define the workflow, and Cylc's job is to monitor the steps, queue the jobs with NeSI's scheduler, and respond to your requests to stop jobs, restart jobs or inspect their run logs.
 
 Cylc can also manage workflows run on Hypocentre, but we will not cover the details of that process here.
 
