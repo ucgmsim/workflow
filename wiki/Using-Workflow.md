@@ -29,6 +29,13 @@ Neither Mahuika nor Maui works like a typical computer. Normally, you can execut
 
 This tutorial will guide you through running workflows on NeSI's platforms and manage these workflows using _Cylc_.
 
+## Gaining Access to NeSI
+
+Gaining access to NeSI is not automatic. See Sung in the software team to set you up with an account.
+
+> [!NOTE]
+> You cannot follow this tutorial without having an account on NeSI first and have setup `ssh` to connect to NeSI's computers. The software team can set this up for you!
+
 # Hypocentre
 
 In addition to NeSI, QuakeCoRE has access to an in-house computer called Hypocentre. This computer cannot scale to the size of the NeSI supercomputers, but it is still very powerful. The computer has 48 cores and 250GB of RAM available. For context, a high-end desktop computer might have around 32GB of RAM and 16 cores, while the computer you're reading this tutorial on likely has at most half of that.
@@ -45,28 +52,28 @@ Cylc can also manage workflows run on Hypocentre, but we will not cover the deta
 
 # Using Workflow
 
-This document is a tutorial for the new workflow. For those familiar with the old workflow, and in particular the [Rangitata Gorge](https://wiki.canterbury.ac.nz/pages/viewpage.action?pageId=181307633) tutorial, this also highlights a contrast between how the old and new workflow works.
+This document is a tutorial for the new workflow. This tutorial highlights a contrast between how the old and new workflows works, for those familiar with the old workflow.
 
-This tutorial will simulate a simple rupture from the National Seismic Hazard Model 2022, and produce a video of the low-frequency waveforms (like the Alpine Fault [simulation video](https://www.youtube.com/watch?v=eJx9pxP_GU8)).
+The tutorial simulates a simple rupture from the National Seismic Hazard Model 2022.
 
 ## Useful Resources
 
-Your primary resource for help with workflow is, of course, the in-house software team at QuakeCoRE. However, there may be queries that are easier answered by the additional resources we list here.
+Your primary resource for help with workflow is, of course, the in-house software team at QuakeCoRE. However, some queries are easily answered by the additional resources we list here.
 
-Cylc is well-supported on NeSI. See the [Cylc on NeSI](https://docs.nesi.org.nz/Scientific_Computing/Supported_Applications/Cylc/) documentation for a more detailed description of using Cylc. The [official Cylc documentation](https://cylc.github.io/cylc-doc/stable/html/index.html) is another helpful resource. You might find support on the [Cylc forums](https://cylc.discourse.group/). Finally, because Cylc is maintained in-house at NeSI, you may also find help at [NeSI's office hours](https://docs.nesi.org.nz/Getting_Started/Getting_Help/Weekly_Online_Office_Hours/) for issues relating to NeSI specifically.
+Cylc is well-supported on NeSI. See the [Cylc on NeSI](https://docs.nesi.org.nz/Scientific_Computing/Supported_Applications/Cylc/) documentation for a more detailed description of using Cylc. The [official Cylc documentation](https://cylc.github.io/cylc-doc/stable/html/index.html) is another helpful resource. You might find support on the [Cylc forums](https://cylc.discourse.group/). Finally, since Cylc is maintained in-house at NeSI, you may also find help at [NeSI's office hours](https://docs.nesi.org.nz/Getting_Started/Getting_Help/Weekly_Online_Office_Hours/).
 
 ## Setup
 
-We'll assume that you are running the workflow on NeSI. If you want to run this example on a different environment (such as Hypocentre), refer to the [extra steps](#extra-steps) at the end of this tutorial.
+We'll assume that you are running the workflow on NeSI. If you want to run this example in a different environment (such as Hypocentre), refer to the [extra steps](#extra-steps) at the end of this tutorial.
 
-All that is required for NeSI users to setup the workflow is execute the setup script. Run the following from either Maui or Mahuika:
+All that is required for NeSI users to set up the workflow is to execute the setup script. Run the following from either Maui or Mahuika:
 
 ``` shell
 /nesi/nobackup/nesi00213/workflow-setup
 source ~/.bashrc
 ```
 
-Then copy the tutorial workflow,
+Then, copy the tutorial workflow:
 
 ``` shell
 cp -r /nesi/nobackup/nesi00213/tutorial ~/cylc-src
@@ -74,19 +81,19 @@ cp -r /nesi/nobackup/nesi00213/tutorial ~/cylc-src
 
 ## An Aside: Cylc Source and Run Directories
 
-The two most important directories you need to know are two created by the setup script: `cylc-src` and `cylc-run`.
+The two most important directories you need to know are created by the setup script: `cylc-src` and `cylc-run`.
 
 ### The Cylc Source Directory
 
-The `~/cylc-src/` directory defines your workflows. Every folder in this directory is a new workflow definition. For example, when we copied the tutorial into the `~/cylc-src/` directory, we were really defining a new workflow called `tutorial`.
+The `~/cylc-src/` directory defines your workflows. Every folder in this directory is a separate workflow definition. For example, when we copied the tutorial into the `~/cylc-src/` directory, we were really defining a new workflow called `tutorial`.
 
 ### The Cylc Run Directory
 
-When we are ready to run a workflow, Cylc will copy the workflow definition from the source directory to the `~/cylc-run/` directory. Cylc will, for example, later create a directory `~/cylc-run/tutorial` that will hold all the runs of the tutorial workflow defined in the source directory.
+When you instruct Cylc to run a workflow, Cylc copies the workflow definition from the source directory to the `~/cylc-run/` directory. For example, Cylc will later create a directory `~/cylc-run/tutorial`, which will contain all the runs of the tutorial workflow.
 
-## Customising Your Workflow File
+## Viewing Your Workflow Definition
 
-At this point have a folder `~/cylc-src/tutorial` containing the following directory structure
+At this point you will have a folder `~/cylc-src/tutorial` containing the following directory structure
 
 ```
 cylc-src/tutorial
@@ -185,7 +192,7 @@ The `input` directory contains input files that are copied into the workflow. Th
 
 ## Installing the Workflow
 
-To install the workflow to run invoke
+To install the workflow invoke:
 
 ``` shell
 cylc install tutorial
@@ -282,8 +289,10 @@ You can view the SRF using the tools in the [source_modelling](https://github.co
 ![](images/rupture_1.png)
 
 ### Inspecting the Velocity Model
+
 The velocity model refers to the modelling of the density, P-wave and S-wave velocities measured and estimated for various parts of the country. You can view the velocity model output using the tools in the [velocity_modelling](https://github.com/ucgmsim/velocity_modelling/) repository. The velocity model also defines the simulation domain.
 
 ![](images/rupture_1_vm.png)
+### Viewing the Seismic Waveforms
 
 ## Extra Steps
