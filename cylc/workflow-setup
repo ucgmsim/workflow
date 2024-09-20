@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+CYLC_LATEST_VERSION=$(cylc list-versions | grep "^[0-9]" | sort -r | head -n 1)
+
+grep -q 'export PROJECT=nesi00213' ~/.bashrc || echo 'export PROJECT=nesi00213' >>~/.bashrc
+grep -q "export CYLC_VERSION=$CYLC_LATEST_VERSION" ~/.bashrc || echo "export CYLC_VERSION=$CYLC_LATEST_VERSION" >> ~/.bashrc
+test -d ~/cylc-src -a -d ~/cylc-run || mkdir ~/cylc-src ~/cylc-run
+
+compgen -G "$HOME/.ssh/id_*.pub" > /dev/null || ssh-keygen
+
+cat ~/.ssh/id_*.pub >> ~/.ssh/authorized_keys
+
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/id_*
+chmod 644 ~/.ssh/id_*.pub
+chmod 750 ~
+
+cat <<EOF
+You are correctly setup for Cylc $CYLC_LATEST_VERSION
+Check that your ssh configuration is working correctly by executing:
+
+	ssh mahuika02 echo Hello from Mahuika02
+
+If this command does not prompt for a password, you are good to go.
+EOF
