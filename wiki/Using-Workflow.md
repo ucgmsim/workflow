@@ -64,7 +64,14 @@ Cylc is well-supported on NeSI. See the [Cylc on NeSI](https://docs.nesi.org.nz/
 
 ## Setup
 
-We'll assume that you are running the workflow on NeSI. If you want to run this example in a different environment (such as Hypocentre), refer to the [extra steps](#extra-steps) at the end of this tutorial.
+We'll assume that you are running the workflow on NeSI. If you want to run this example in a different environment (such as Hypocentre), refer to the [extra steps](#extra-steps) at the end of this tutorial. First, login into Mahuika using your favourite SSH client (like [MobaXterm](https://mobaxterm.mobatek.net/)):
+
+``` shell
+ssh mahuika
+```
+
+> [!NOTE]
+> This requires you have setup SSH according to the Software Team's instructions. You *cannot run this tutorial from Maui*.
 
 All that is required for NeSI users to set up the workflow is to execute the setup script. Run the following from either Maui or Mahuika:
 
@@ -207,7 +214,7 @@ This will copy the source files in `~/cylc-src/tutorial` to `~/cylc-run/tutorial
 Let's look at the tutorial workflow directory.
 
 ``` shell
-~/cylc-run/tutorial/runN@maui $ ls
+~/cylc-run/tutorial/runN@mahuika $ ls
 log  share  work  flow.cylc
 ```
 
