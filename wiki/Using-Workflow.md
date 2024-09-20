@@ -19,7 +19,7 @@ The outputs of the workflow are what we think of when we think of a "ground moti
 
 # NeSI and Workflow Infrastructure
 
-[NeSI](https://www.nesi.org.nz/) is the New Zealand eScience Infrastructure organisation. NeSI provides a national platform of shared high-performance computing tools and eResearch services. NeSI provides two platforms we make extensive use of:
+[NeSI](https://www.nesi.org.nz/) is the New Zealand eScience Infrastructure organisation. NeSI provides a national platform of shared high-performance computing tools and eResearch services. NeSI owns two platforms we make extensive use of:
 
 - **The Maui Supercomputer:** This is a specialised Cray supercomputer. Initially targeted for [NIWA's](https://niwa.co.nz/) weather modelling needs, it is also available for researchers to run large-scale simulations.
 
