@@ -73,7 +73,7 @@ ssh mahuika
 > [!NOTE]
 > This requires you have setup SSH according to the Software Team's instructions. You *cannot run this tutorial from Maui*.
 
-All that is required for NeSI users to set up the workflow is to execute the setup script. Run the following from either Maui or Mahuika:
+All that is required for NeSI users to set up the workflow is to execute the setup script. Run the following:
 
 ``` shell
 /nesi/nobackup/nesi00213/workflow-setup
