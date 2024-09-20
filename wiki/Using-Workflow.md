@@ -1,3 +1,48 @@
+# What Is a Workflow?
+When we talk about "running a ground motion simulation", we really mean this as shorthand for a whole process of tasks that must be completed. Just a simple ground motion simulation of only low-frequency waveforms requires:
+
+1. Defining the fault geometry for the event,
+2. Determining the simulation domain (how much of New Zealand to simulate, and how long the simulation should last)
+3. Generating the initial conditions (what is the slip on the fault, how fast can waves propagate through the ground at various locations and depths)
+4. Running the simulation with these inputs using a finite-difference PDE solver
+
+This is, of course, very high-level. In practice, each step also has sub-steps. Moreover, the jobs have dependencies and inputs; you can't run the finite-difference solver until you've defined the domain to simulate and the slip on the fault.
+
+We define a _workflow_ to be all the following:
+
+1. The definition of the steps in the process,
+1. the dependencies between these steps,
+1. the code used to execute the steps, and
+1. the inputs to these steps.
+
+The outputs of the workflow are what we think of when we think of a "ground motion simulation". That is, the broadband seismic waveforms, the intensity measures, or the fault slip definitions, or anything else produced as a product of the steps defined in the workflow.
+
+# NeSI and Workflow Infrastructure
+
+[NeSI](https://www.nesi.org.nz/) is the New Zealand eScience Infrastructure organisation. NeSI provides a national platform of shared high-performance computing tools and eResearch services. NeSI provides two platforms we make extensive use of:
+
+- **The Maui Supercomputer:** This is a specialised Cray supercomputer. Initially targeted for [NIWA's](https://niwa.co.nz/) weather modelling needs, it is also available for researchers to run large-scale simulations.
+
+- **The Mahuika Computing Cluster:** This a bunch of Linux computers running together. They appear to you as one computer, but in the background distribute tasks across hundreds of smaller computers. Mahuika is the main platform we run simulations on.
+
+Neither Mahuika nor Maui works like a typical computer. Normally, you can execute any task you want at any time. However, because the supercomputers are shared resources, you can only _request_ to run a job on the supercomputer. It is up to the _scheduler_ to decide when to run your job. Managing jobs in our workflows is a difficult problem (some workflows have thousands of individual steps).
+
+This tutorial will guide you through running workflows on NeSI's platforms and manage these workflows using _Cylc_.
+
+# Hypocentre
+
+In addition to NeSI, QuakeCoRE has access to an in-house computer called Hypocentre. This computer cannot scale to the size of the NeSI supercomputers, but it is still very powerful. The computer has 48 cores and 250GB of RAM available. For context, a high-end desktop computer might have around 32GB of RAM and 16 cores, while the computer you're reading this tutorial on likely has at most half of that.
+
+The advantage of Hypocentre is that we are not subject to resource limits on our simulations, and accessing Hypocentre is much easier than accessing NeSI. The software team administers Hypocentre and they can install additional software for simulations as required.
+
+For many small workflows (e.g. running a single simulation), Hypocentre is a better platform for your needs than NeSI.Talk with the software team before running simulations to get a better understanding of whether you can use Hypocentre for your experiments.
+
+# What is Cylc?
+
+Cylc is a workflow orchestration tool. We define the workflow, and Cylc's job is to monitor the steps, queue the jobs with NeSI's scheduler, and respond to your requests to stop jobs, restart jobs or inspect their run logs.
+
+Cylc can also manage workflows run on Hypocentre, but we will not cover the details of that process here.
+
 # Using Workflow
 
 This document is a tutorial for the new workflow. For those familiar with the old workflow, and in particular the [Rangitata Gorge](https://wiki.canterbury.ac.nz/pages/viewpage.action?pageId=181307633) tutorial, this also highlights a contrast between how the old and new workflow works.
@@ -10,54 +55,67 @@ Your primary resource for help with workflow is, of course, the in-house softwar
 
 Cylc is well-supported on NeSI. See the [Cylc on NeSI](https://docs.nesi.org.nz/Scientific_Computing/Supported_Applications/Cylc/) documentation for a more detailed description of using Cylc. The [official Cylc documentation](https://cylc.github.io/cylc-doc/stable/html/index.html) is another helpful resource. You might find support on the [Cylc forums](https://cylc.discourse.group/). Finally, because Cylc is maintained in-house at NeSI, you may also find help at [NeSI's office hours](https://docs.nesi.org.nz/Getting_Started/Getting_Help/Weekly_Online_Office_Hours/) for issues relating to NeSI specifically.
 
-## Prerequisites
+## Setup
 
 We'll assume that you are running the workflow on NeSI. If you want to run this example on a different environment (such as Hypocentre), refer to the [extra steps](#extra-steps) at the end of this tutorial.
 
-All that is required for NeSI users to setup the workflow is
-
-1. Enable Cylc and,
-2. Clone the workflow repository to obtain the Cylc file.
-
-### Enabling Cylc
-
-To enable Cylc you need set the `CYLC_VERSION` environment variable. You also need the `cylc-src` and `cylc-run` directories in your home folder on NeSI.
+All that is required for NeSI users to setup the workflow is execute the setup script. Run the following from either Maui or Mahuika:
 
 ``` shell
-echo 'export CYLC_VERSION=8.0.1' >> ~/.bashrc
-mkdir ~/cylc-src ~/cylc-run
+/nesi/nobackup/nesi00213/workflow-setup
 source ~/.bashrc
 ```
 
-### Cloning Workflow
-
-The Cylc workflow file we'll use lives in the workflow repository. You must clone this repository to obtain the file.
+Then copy the tutorial workflow,
 
 ``` shell
-git clone git@github.com:ucgmsim/workflow.git
-cd workflow
-cp -r cylc ~/cylc-src/tutorial
-mkdir ~/cylc-src/tutorial/input
+cp -r /nesi/nobackup/nesi00213/tutorial ~/cylc-src
 ```
 
-The `tutorial` directory is the name of our workflow. The `input` subdirectory houses files that are used as input in the workflow, like your station list or a custom 1D velocity model.
+## An Aside: Cylc Source and Run Directories
+
+The two most important directories you need to know are two created by the setup script: `cylc-src` and `cylc-run`.
+
+### The Cylc Source Directory
+
+The `~/cylc-src/` directory defines your workflows. Every folder in this directory is a new workflow definition. For example, when we copied the tutorial into the `~/cylc-src/` directory, we were really defining a new workflow called `tutorial`.
+
+### The Cylc Run Directory
+
+When we are ready to run a workflow, Cylc will copy the workflow definition from the source directory to the `~/cylc-run/` directory. Cylc will, for example, later create a directory `~/cylc-run/tutorial` that will hold all the runs of the tutorial workflow defined in the source directory.
 
 ## Customising Your Workflow File
 
-The Cylc workflow we copied in [the prior section](#cloning-workflow) contains a skeleton file for the full Cybershake workflow. However, we don't need the high frequency and broadband waveforms.We can easily modify the Cylc file to only include the stages we need. Copy the following into `~/cylc-src/tutorial/flow.cylc`:
+At this point have a folder `~/cylc-src/tutorial` containing the following directory structure
 
+```
+cylc-src/tutorial
+├── flow.cylc
+└── input
+    └── stations.ll
+```
+
+Let's go over each of the files and explain their purpose.
+
+### The Workflow Definition File
+
+The `flow.cylc` file defines our workflow.
+
+<details open>
+<summary>flow.cylc</summary>
 ```
 [scheduler]
     allow implicit tasks = True
 [scheduling]
     [[graph]]
         R1 = """
+            copy_input => nshm_to_realisation
             nshm_to_realisation => realisation_to_srf & generate_velocity_model_parameters
             generate_velocity_model_parameters => generate_velocity_model & generate_station_coordinates & generate_model_coordinates
             realisation_to_srf & generate_velocity_model & generate_station_coordinates & generate_model_coordinates =>  create_e3d_par
             create_e3d_par => run_emod3d
-            run_emod3d => plot_ts
             """
+
 [runtime]
     [[root]]
         platform = mahuika-slurm
@@ -66,26 +124,28 @@ The Cylc workflow we copied in [the prior section](#cloning-workflow) contains a
         """
         [[[directives]]]
             --account = nesi00213
+
+    [[copy_input]]
+        platform = localhost
+        script = cp -r $CYLC_WORKFLOW_RUN_DIR/input/* $CYLC_WORKFLOW_SHARE_DIR
     [[nshm_to_realisation]]
         platform = localhost
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif nshm2022-to-realisation /nshmdb.db <CHANGE ME> /share/realisation.json <CHANGE ME>
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif nshm2022-to-realisation /nshmdb.db 0 /share/realisation.json 24.2.2.4
     [[realisation_to_srf]]
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif realisation-to-srf /share/realisation.json /share/realisation.srf
-    [[generate_stoch]]
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-stoch /share/realisation.srf /share/realisation.stoch
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif realisation-to-srf /share/realisation.json /share/realisation.srf
     [[generate_velocity_model_parameters]]
-        platform = localhost
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-velocity-model-parameters /share/realisation.json
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-velocity-model-parameters /share/realisation.json
     [[generate_velocity_model]]
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc)'
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc)'
         [[[directives]]]
-                --cpus-per-task = 32
-                --time = 01:00:00
+            --cpus-per-task = 32
+            --time = 01:00:00
     [[generate_station_coordinates]]
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-station-coordinates /share/realisation.json /share/stations
+        platform = localhost
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-station-coordinates /share/realisation.json /share/stations --stat-file /share/stations.ll
     [[generate_model_coordinates]]
         platform = localhost
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-model-coordinates /share/realisation.json /share/model
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-model-coordinates /share/realisation.json /share/model
     [[create_e3d_par]]
         platform = localhost
         script = apptainer exec /nesi/nobackup/nesi00213/containers/runner_latest.sif create-e3d-par $CYLC_WORKFLOW_SHARE_DIR/realisation.json $CYLC_WORKFLOW_SHARE_DIR/realisation.srf $CYLC_WORKFLOW_SHARE_DIR/Velocity_Model $CYLC_WORKFLOW_SHARE_DIR/stations $CYLC_WORKFLOW_SHARE_DIR/model $CYLC_WORKFLOW_SHARE_DIR/LF --emod3d-path /nesi/project/nesi00213/opt/maui/hybrid_sim_tools/emod3d-mpi_v3.0.8 --scratch-ffp $CYLC_WORKFLOW_SHARE_DIR/LF
@@ -96,47 +156,32 @@ The Cylc workflow we copied in [the prior section](#cloning-workflow) contains a
         [[[directives]]]
             --ntasks = 80
             --hint = nomultithread
-            --time = 00:30:00
-    [[run_hf]]
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif run-hf /share/realisation.json /share/realisation.stoch /share/stations.ll /share/realisation.hf
-        [[directives]]
-                --cpus-per-task = 128
-                --time = 01:00:00
-    [[plot_ts]]
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif plot-ts /share/LF/OutBin /share/simulation.m4v
+            --time = 01:00:00
+```
+</details>
+
+The workflow file defines the jobs to run (which are the sections like `[[create_e3d_par]]` and `[[copy_input]]`), as well as the order to run the jobs in (which are the contents of the `[[graph]]` section). Workflows are constructed as flow diagrams, and you can ask Cylc to visualise the flow diagram defining a workflow. Here is the visualisation of the above `flow.cylc`
+
+``` mermaid
+flowchart LR
+    A[nshm_to_realisation] --> B[realisation_to_srf]
+    I[copy_input] --> A
+    A --> C[generate_velocity_model_parameters]
+    C --> D[generate_velocity_model]
+    C --> E[generate_station_coordinates]
+    C --> F[generate_model_coordinates]
+    B[realisation_to_srf] --> G[create_e3d_par]
+    D --> G
+    E --> G
+    F --> G
+    G --> H[run_emod3d]
 ```
 
-At this point have a folder `~/cylc-src/tutorial` containing the following directory structure
+This workflow is enough to simulate the low-frequency ground motion.
 
-```bash
-$ tree ~/cylc-src/tutorial
-.
-├── flow.cylc
-└── input
+### The input directory
 
-2 directories, 1 file
-```
-
-**You are not done yet!**. See the next section where we will pick a rupture to simulate.
-
-## Picking a Rupture and Defaults
-Observant readers may have noticed the `<CHANGE ME>` blocks hiding inside the `nshm_to_realisation` stage. This stage selects a rupture from the National Seismic Hazard Model database and generates a _realisation_. A realisation is JSON file specifying a single rupture scenario. It contains, initially, a specification of the source geometry, magnitude, and metadata for a rupture. It is updated overtime as stages complete.
-
-The `nshm_to_realisation` stage expects two variables we want to change: the rupture id specifying the rupture to simulate, and a the _defaults_ versions. For the rupture id, we will pick rupture 0. This is a simple single-segment rupture of the Acton fault. The _defaults_ version points to a set of default values to use for simulation. The defaults specify things like:
-
-- The spatial and temporal resolution of the simulation,
-- The simulation length,
-- Where the cutoff between low and high frequency simulation is,
-- The topography type for the velocity model,
-- etc...
-
-For most of your simulation defaults, you should pick `24.2.2.X` where `X` is the simulation resolution (in 100's of metres). We will do a low resolution 400m simulation and thus pick `24.2.2.4`.
-
-Change line 22 of `~/cylc-src/tutorial/flow.cylc` to read
-
-```
-script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share,$CYLC_WORKFLOW_RUN_DIR/input:/input:ro" /nesi/nobackup/nesi00213/containers/runner_latest.sif nshm2022-to-realisation /nshmdb.db 0 /share/realisation.json 24.2.2.4
-```
+The `input` directory contains input files that are copied into the workflow. The copying is done by the `copy_input` job in the workflow file. In many of your custom workflows you'll add your own files to copy here. Our input directory contains a file `stations.ll`, which defines a list of seismic stations across the whole country.
 
 ## Installing the Workflow
 
