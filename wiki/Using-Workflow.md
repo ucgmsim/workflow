@@ -31,10 +31,10 @@ This tutorial will guide you through running workflows on NeSI's platforms and m
 
 ## Gaining Access to NeSI
 
-Gaining access to NeSI is not automatic. See Sung in the software team to set you up with an account.
+Gaining access to NeSI is not automatic. Sung in the software team can set you up with an account.
 
 > [!NOTE]
-> You cannot follow this tutorial without having an account on NeSI first and have setup `ssh` to connect to NeSI's computers. The software team can set this up for you!
+> You cannot follow this tutorial without having an account on NeSI first and setup `ssh` to connect to NeSI's computers. The software team can set this up for you!
 
 # Hypocentre
 
