@@ -118,7 +118,7 @@ The `flow.cylc` file defines our workflow.
 <details open>
 <summary>flow.cylc</summary>
 
-```
+```cylc
 [scheduler]
     allow implicit tasks = True
 [scheduling]
