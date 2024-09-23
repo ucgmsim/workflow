@@ -34,7 +34,10 @@ import typer
 
 from merge_ts import merge_ts
 
+app = typer.Typer()
 
+
+@app.command(help="Create an animation from low-frequency timeslice files.")
 def plot_ts(
     srf_ffp: Annotated[
         Path, typer.Argument(help="Path to SRF file", exists=True, dir_okay=False)
