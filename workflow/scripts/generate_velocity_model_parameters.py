@@ -112,43 +112,6 @@ def pgv_estimate_from_magnitude(
     )
 
 
-def rrup_buffer_polygon(
-    faults: dict[str, sources.IsSource], rrups: dict[str, float]
-) -> shapely.Polygon:
-    """
-    Create a buffer polygon around fault corners based on rupture radius.
-
-    The function creates buffer zones around the corners of each fault using the provided rupture radius.
-    These buffer zones are then combined into a single polygon that encompasses all buffered areas.
-
-    Parameters
-    ----------
-    faults : dict
-        A dictionary where keys are fault names and values are fault objects.
-    rrups : dict
-        A dictionary where keys are fault names and values are rupture radii (in kilometres).
-
-    Returns
-    -------
-    shapely.Polygon
-        A polygon representing the union of buffered areas around fault corners.
-
-    Example
-    -------
-    >>> faults = {'fault1': source1, 'fault2': source2}
-    >>> rrups = {'fault1': 10.0, 'fault2': 15.0}
-    >>> buffer_polygon = rrup_buffer_polygon(faults, rrups)
-    >>> print(buffer_polygon)
-    """
-    rrup_polygons = [
-        shapely.buffer(shapely.Point(corner), rrups[fault_name] * 1000)
-        for fault_name, fault in faults.items()
-        for corner in fault.bounds[:, :2]
-    ]
-
-    return shapely.union_all(rrup_polygons)
-
-
 def find_rrup(magnitude: float, avg_dip: float, avg_rake: float) -> float:
     """Find rrup at which pgv estimated from magnitude is close to target.
 
@@ -254,29 +217,28 @@ def estimate_simulation_duration(
     float
         The estimated simulation duration time (in seconds).
     """
-    fault_corners = coordinates.wgs_depth_to_nztm(
-        np.vstack([fault.corners for fault in faults])
-    )
-    fault_centroid = np.mean(fault_corners, axis=0)
-    box_corners = np.append(
-        bounding_box.corners,
-        np.zeros((4, 1)),
-        axis=1,
-    )
-    maximum_distance = np.max(np.linalg.norm(box_corners - fault_centroid, axis=1))
-    s_wave_arrival_time = maximum_distance / s_wave_velocity
 
-    # compute the pairwise distance between the domain corners and the fault corners
-    pairwise_distance = np.linalg.norm(
-        box_corners[np.newaxis, :, :] - fault_corners[:, np.newaxis, :], axis=2
+    # compute the largest distance between the fault geometry and the domain boundary, that is
+    #
+    # max_{x \in F_g} (min_{y \in D} d(x, y))
+    #
+    # where F_g is the fault geometry, and D is the domain boundary.
+    largest_distance = (
+        shapely.hausdorff_distance(
+            shapely.union_all([fault.geometry for fault in faults]),
+            bounding_box.polygon,
+        )
+        / 1000
     )
-    largest_corner_distance = np.max(np.min(pairwise_distance, axis=1)) / 1000
+
+    s_wave_arrival_time = (largest_distance * 1000) / s_wave_velocity
+
     avg_rake = np.mean(rakes)
     oq_dataframe = pd.DataFrame.from_dict(
         {
             "vs30": [vs30],
             "z1pt0": [z_model_calculations.chiou_young_08_calc_z1p0(vs30)],
-            "rrup": [largest_corner_distance],
+            "rrup": [largest_distance],
             "mag": [magnitude],
             "rake": [avg_rake],
         }
@@ -397,7 +359,7 @@ def generate_velocity_model_parameters(
         for fault_name, fault in source_config.source_geometries.items()
     }
     logger = log_utils.get_logger(__name__)
-    logger.info(log_utils.structured_log("computed rrups", rrups=rrups))
+    logger.debug(log_utils.structured_log("computed rrups", rrups=rrups))
 
     initial_fault = source_config.source_geometries[rupture_propagation.initial_fault]
     max_depth = get_max_depth(
@@ -410,24 +372,26 @@ def generate_velocity_model_parameters(
 
     # Get bounding box
 
-    # This polygon includes all the faults corners (which must be in the simulation domain).
-    fault_bounding_box = bounding_box.minimum_area_bounding_box(
-        np.vstack(
-            [fault.bounds[:, :2] for fault in source_config.source_geometries.values()]
-        )
-    )
+    # This polygon includes all the faults corners + a 1km buffer (which must be in the simulation domain).
+    fault_buffer_polygons = [
+        shapely.buffer(fault.geometry, 1000)
+        for fault in source_config.source_geometries.values()
+    ]
 
     # This polygon includes all areas within rrup distance of any
     # corner in the source geometries.
     # These may be in the domain where they are over land.
-    rrup_bounding_polygon = rrup_buffer_polygon(source_config.source_geometries, rrups)
+    rrup_bounding_polygons = [
+        shapely.buffer(fault.geometry, rrups[fault_name] * 1000)
+        for fault_name, fault in source_config.source_geometries.items()
+    ]
 
     # The domain is the minimum area bounding box containing all of
     # the fault corners, and all points on land within rrup distance
     # of a fault corner.
     model_domain = bounding_box.minimum_area_bounding_box_for_polygons_masked(
-        must_include=[fault_bounding_box.polygon],
-        may_include=[rrup_bounding_polygon],
+        must_include=fault_buffer_polygons,
+        may_include=rrup_bounding_polygons,
         mask=get_nz_outline_polygon(),
     )
 

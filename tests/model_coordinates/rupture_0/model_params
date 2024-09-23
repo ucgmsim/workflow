@@ -1,16 +1,16 @@
 Model origin coordinates:
- lon=  169.14828 lat=  -45.26033 rotate=   41.32
+ lon=  169.15227 lat=  -45.25713 rotate=   41.31
 
 Model origin shift (cartesian vs. geographic):
- xshift(km)=   -138.95194 yshift(km)=   -208.31735
+ xshift(km)=   -138.95194 yshift(km)=   -208.79147
 
 Model corners:
- c1=  169.55881  -43.02704
- c2=  172.20022  -44.64120
+ c1=  169.56644  -43.02061
+ c2=  172.20779  -44.63459
  c3=  168.69823  -47.49020
  c4=  166.03903  -45.79402
 
 Model Dimensions:
  xlen=   278.0039 km
- ylen=   416.7347 km
+ ylen=   417.6829 km
  zlen=    46.0000 km
