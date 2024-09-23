@@ -116,7 +116,7 @@ Let's go over each of the files and explain their purpose.
 The `flow.cylc` file defines our workflow.
 
 <details open>
-<summary>flow.cylc</summary>
+<summary>**flow.cylc**</summary>
 
 ```cylc
 [scheduler]
@@ -242,50 +242,63 @@ Cylc has other ways to monitor your workflow, including a GUI. See NeSI's [docum
 
 Once the tutorial workflow has completed, let's look at the output. Inside `~/cylc-run/tutorial/runN/` you should see a directory structure like the following:
 
-```
-~/cylc-run/tutorial/runN/
-├── flow.cylc
-├── input
-│   └── stations.ll
-├── log
-│   ...
-├── share
-│   ├── model
-│   │   ├── grid_file
-│   │   └── model_params
-│   ├── realisation.json
-│   ├── realisation.srf
-│   ├── stations
-│   │   ├── stations.ll
-│   │   └── stations.statcords
-│   ├── stations.ll
-│   └── Velocity_Model
-│       ├── in_basin_mask.b
-│       ├── rho3dfile.d
-│       ├── vp3dfile.p
-│       └── vs3dfile.s
-└── work
-    └── 1
-        ├── create_e3d_par
-        ├── generate_velocity_model
-        │   ├── nzvm.cfg
-        │   └── Velocity_Model
-        │       ├── Log
-        │       │   └── VeloModCorners.txt
-        │       └── Velocity_Model
-        │           ├── in_basin_mask.b
-        │           ├── rho3dfile.d
-        │           ├── vp3dfile.p
-        │           └── vs3dfile.s
-        └── realisation_to_srf
-            ├── gsf
-            │   └── acton.gsf
-            ├── rupture_0.srf
-            └── srf
-                └── acton.srf
-```
+<details open>
+<summary>**~/cylc-run/tutorial/runN/**</summary>
 
-As described earlier, the `share` directory contains data shared between jobs, and is where your final outputs usually reside. Some of the jobs produced output in the `work/1/<job>` directory. These files can be useful for debugging.
+```
+.
+│── flow.cylc
+│── input
+│   ╰── stations.ll
+│── log
+│   ...
+│── share
+│   │── LF
+│   │   │── Log
+│   │   │   │── Rupture\ 0─00000.rlog
+│   │   │   ...
+│   │   │── OutBin
+│   │   │   │── Rupture\ 0_seis─00000.e3d
+│   │   │   ...
+│   │   │── Restart
+│   │   │── SeismoBin
+│   │   │   │── Rupture\ 0_seis─00000.e3d
+│   │   │   ...
+│   │   │── SlipOut
+│   │   │── SlipOut─00000
+│   │   │   ...
+│   │   │── TSFiles
+│   │   ╰── e3d.par
+│   │── Velocity_Model
+│   │   │── in_basin_mask.b
+│   │   │── rho3dfile.d
+│   │   │── vp3dfile.p
+│   │   ╰── vs3dfile.s
+│   │── model
+│   │   │── grid_file
+│   │   ╰── model_params
+│   │── realisation.json
+│   │── realisation.json~
+│   │── realisation.srf
+│   │── stations
+│   │   │── stations.ll
+│   │   ╰── stations.statcords
+│   ╰── stations.ll
+╰── work
+    ╰── 1
+        │── generate_velocity_model
+        │   │ ...
+        │   ╰── nzvm.cfg
+        ╰── realisation_to_srf
+            │── gsf
+            │   ╰── acton.gsf
+            │── rupture_0.srf
+            ╰── srf
+                ╰── acton.srf
+```
+</details>
+
+As described earlier, the `share` directory contains data shared between jobs, and is where your final outputs usually reside. Some of the jobs produced intermediate output in the `work/1/<job>` directory. These files are not required  These files can be useful for debugging.
 
 We have built a number of tools to inspect the output of these runs.
 
@@ -303,4 +316,65 @@ The velocity model refers to the modelling of the density, P-wave and S-wave vel
 ![](images/rupture_1_vm.png)
 ### Viewing the Seismic Waveforms
 
+The low-frequency simulation waveforms live in the `share/LF` subdirectory. We can produce an animation of these waveforms with the `plot-ts` utility. First, [create and activate a new virtual environment](https://docs.python.org/3/library/venv.html#creating-virtual-environments) and then execute the following
+
+``` shell
+cd ~/cylc-run/tutorial/runN
+pip install git+https://github.com/ucgmsim/workflow.git
+plot-ts share/realisation.srf share/LF/OutBin output.mp4 --work-directory /tmp
+```
+
 ## Extra Steps
+
+If you are running the workflow on Hypocentre, your environment looks a little different:
+
+1. The environment container is located at `/nesi/hypo_data/runner.sif`
+2. EMOD3D is run with `mpirun` instead of `srun`
+3. You must [build EMOD3D yourself](EMOD3D.md)
+4. The slurm directives are not available on Hypocentre
+
+You can change the tutorial Cylc workflow to the following to accommodate these changes.
+
+<details open>
+<summary>**flow.cylc**</summary>
+
+``` cylc
+[scheduler]
+    allow implicit tasks = True
+[scheduling]
+    [[graph]]
+        R1 = """
+            copy_input => nshm_to_realisation
+            nshm_to_realisation => realisation_to_srf & generate_velocity_model_parameters
+            generate_velocity_model_parameters => generate_velocity_model & generate_station_coordinates & generate_model_coordinates
+            realisation_to_srf & generate_velocity_model & generate_station_coordinates & generate_model_coordinates =>  create_e3d_par
+            create_e3d_par => run_emod3d
+            """
+
+[runtime]
+    [[copy_input]]
+        platform = localhost
+        script = cp -r $CYLC_WORKFLOW_RUN_DIR/input/* $CYLC_WORKFLOW_SHARE_DIR
+    [[nshm_to_realisation]]
+        platform = localhost
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /mnt/hypo_data/runner.sif nshm2022-to-realisation /nshmdb.db 0 /share/realisation.json 24.2.2.4
+    [[realisation_to_srf]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /mnt/hypo_data/runner.sif realisation-to-srf /share/realisation.json /share/realisation.srf
+    [[generate_velocity_model_parameters]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /mnt/hypo_data/runner.sif generate-velocity-model-parameters /share/realisation.json
+    [[generate_velocity_model]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /mnt/hypo_data/runner.sif sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc)'
+    [[generate_station_coordinates]]
+        platform = localhost
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /mnt/hypo_data/runner.sif generate-station-coordinates /share/realisation.json /share/stations --stat-file /share/stations.ll
+    [[generate_model_coordinates]]
+        platform = localhost
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /mnt/hypo_data/runner.sif generate-model-coordinates /share/realisation.json /share/model
+    [[create_e3d_par]]
+        platform = localhost
+        script = apptainer exec /mnt/hypo_data/runner.sif create-e3d-par $CYLC_WORKFLOW_SHARE_DIR/realisation.json $CYLC_WORKFLOW_SHARE_DIR/realisation.srf $CYLC_WORKFLOW_SHARE_DIR/Velocity_Model $CYLC_WORKFLOW_SHARE_DIR/stations $CYLC_WORKFLOW_SHARE_DIR/model $CYLC_WORKFLOW_SHARE_DIR/LF --emod3d-path ~/EMOD3D/tools/emod3d-mpi_v3.0.8 --scratch-ffp $CYLC_WORKFLOW_SHARE_DIR/LF
+    [[run_emod3d]]
+        platform = localhost
+        script = mpirun ~/EMOD3D/tools/emod3d-mpi_v3.0.8 -args "par=$CYLC_WORKFLOW_SHARE_DIR/LF/e3d.par"
+```
+</details>
