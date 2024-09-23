@@ -116,7 +116,7 @@ Let's go over each of the files and explain their purpose.
 The `flow.cylc` file defines our workflow.
 
 <details open>
-<summary>**flow.cylc**</summary>
+<summary><b>flow.cylc</b></summary>
 
 ```cylc
 [scheduler]
@@ -243,7 +243,7 @@ Cylc has other ways to monitor your workflow, including a GUI. See NeSI's [docum
 Once the tutorial workflow has completed, let's look at the output. Inside `~/cylc-run/tutorial/runN/` you should see a directory structure like the following:
 
 <details open>
-<summary>**~/cylc-run/tutorial/runN/**</summary>
+<summary><b>~/cylc-run/tutorial/runN/</b></summary>
 
 ```
 .
@@ -339,7 +339,7 @@ If you are running the workflow on Hypocentre, your environment looks a little d
 You can change the tutorial Cylc workflow to the following to accommodate these changes.
 
 <details open>
-<summary>**flow.cylc**</summary>
+<summary><b>flow.cylc</b></summary>
 
 ``` cylc
 [scheduler]
