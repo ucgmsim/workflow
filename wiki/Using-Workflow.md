@@ -316,13 +316,16 @@ The velocity model refers to the modelling of the density, P-wave and S-wave vel
 ![](images/rupture_1_vm.png)
 ### Viewing the Seismic Waveforms
 
-The low-frequency simulation waveforms live in the `share/LF` subdirectory. We can produce an animation of these waveforms with the `plot-ts` utility. First, [create and activate a new virtual environment](https://docs.python.org/3/library/venv.html#creating-virtual-environments) and then execute the following
+The low-frequency simulation waveforms live in the `share/LF` subdirectory. We can produce an animation of these waveforms with the `plot-ts` utility. First, [create and activate a new virtual environment](https://docs.python.org/3/library/venv.html#creating-virtual-environments) and then execute the following:
 
 ``` shell
 cd ~/cylc-run/tutorial/runN
 pip install git+https://github.com/ucgmsim/workflow.git
 plot-ts share/realisation.srf share/LF/OutBin output.mp4 --work-directory /tmp
 ```
+
+This will produce a video like the following
+<video src="images/simulation.m4v" width=180></video>
 
 ## Extra Steps
 
