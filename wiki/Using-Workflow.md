@@ -324,7 +324,7 @@ pip install git+https://github.com/ucgmsim/workflow.git
 plot-ts share/realisation.srf share/LF/OutBin output.mp4 --work-directory /tmp
 ```
 
-This will produce a video (see [here](images/simulation.m4v) for the video this simulation produced).
+This will produce a video (see [here](images/simulation.mp4) for the video this simulation produced).
 
 
 ## Extra Steps
