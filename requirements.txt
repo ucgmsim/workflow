@@ -1,19 +1,21 @@
+# visualization @ git+https://github.com/ucgmsim/visualization
+IM_calc @ git+https://github.com/ucgmsim/IM_calculation@cylc
 empirical @ git+https://github.com/ucgmsim/Empirical_Engine
 fiona
 geopandas
+jinja2
 nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB@source_modelling
 numpy<2
 openquake-engine @ git+https://github.com/gem/oq-engine
 pandas
-pyyaml
 pytest
+pyvista
+pyyaml
 qcore @ git+https://github.com/ucgmsim/qcore@pegasus
 schema
 scipy
 shapely
 source_modelling @ git+https://github.com/ucgmsim/source_modelling@pegasus
-velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling@cylc
-typer
 tqdm
-# visualization @ git+https://github.com/ucgmsim/visualization
-IM_calc @ git+https://github.com/ucgmsim/IM_calculation@cylc
+typer
+velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling@cylc
