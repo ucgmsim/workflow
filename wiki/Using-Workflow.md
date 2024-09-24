@@ -118,7 +118,7 @@ The `flow.cylc` file defines our workflow.
 <details open>
 <summary><b>flow.cylc</b></summary>
 
-```cylc
+``` cylc
 [scheduler]
     allow implicit tasks = True
 [scheduling]
@@ -237,6 +237,25 @@ cylc play tutorial
 The above command instructs Cylc to run your workflow. You can now monitor it in two places. The first place is the Cylc logs accessed via `cylc log tutorial`. The second logging location is the NeSI slurm queue. The slurm queue is the queue all jobs running on HPC must wait in. You can access the slurm queue for your jobs with `squeue -u $USER`.
 
 Cylc has other ways to monitor your workflow, including a GUI. See NeSI's [documentation](https://docs.nesi.org.nz/Scientific_Computing/Supported_Applications/Cylc/#different-ways-to-interact-with-cylc) on the different ways they support interacting with cylc including the terminal user interface, GUI and Jupyter notebooks.
+
+## Inspecting and Interrupting Workflow Runs
+
+Once your workflow is running you can monitor it using logs, the TUI or the GUI, as discussed in the prior section. A complete description of the tools is out-of-scope for this tutorial but here is a the quick cheatsheet.
+
+### To Get an Updating Console Log of Job Debug Logs
+
+Execute the following on the command line:
+
+``` bash
+~@mahuika $ watch cylc cat-log tutorial -f e
+```
+
+This will output all of the logs produced by the workflow run every two seconds. This is the logging the jobs themselves produce, as opposed to Cylc's logs (which you access via `cylc log tutorial`)
+### To Get a TUI Interface for the Workflow
+
+A _terminal user interface_ (hereafter, TUI) is a portable graphical interface you can access inside the terminal. Execute `cylc tui tutorial` to get a window showing all of the jobs currently planned for the workflow. Using your keyboard, you can stop, restart, and view the status of all jobs in the workflow. See the [interventions](https://cylc.github.io/cylc-doc/stable/html/user-guide/interventions/index.html) documentation to see how to interrupt a workflow and change its behaviour. For a description of the status icons visible next to each job, see [task and job states](https://cylc.github.io/cylc-doc/stable/html/user-guide/running-workflows/tasks-jobs-ui.html#id1).
+
+###
 
 ## Inspecting the Output
 
