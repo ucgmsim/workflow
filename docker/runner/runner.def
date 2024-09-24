@@ -31,6 +31,8 @@ From: ubuntu:latest
 
     wget "https://www.dropbox.com/scl/fi/50kww45wpsnmtf3pn2okz/nshmdb.db?rlkey=4mjuomuevl1963fjwfximgldm&st=keryhkwb&dl=0" -O /nshmdb.db
     wget "https://www.dropbox.com/scl/fi/b4m9g32x1j70ti69zyybq/genslip_velocity_model.vmod?rlkey=yxurhrdn8uvqh33hsb0inhsq0&st=o77aaccp&dl=0" -O /genslip_velocity_model.vmod
+    wget "https://www.dropbox.com/scl/fi/qakchhg6qu23aclcb02ye/Cant1D_v2-midQ_leer.1d?rlkey=wn1a6nnol2eaf5n6qsy5t1nym&st=8yahw7id&dl=0" -O /Cant1D_v2-midQ_leer.1d
+    wget "https://www.dropbox.com/scl/fi/pl7mw6022faskwtfsh67w/non_uniform_whole_nz_with_real_stations-hh400_v20p3_land.vs30?rlkey=0lfk9af25nrg6r5wl5j0z9t6a&st=vgwt4sv3&dl=0" -O /stations.vs30
 
     cd /EMOD3D && \
     git checkout cylc && \
