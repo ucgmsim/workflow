@@ -35,15 +35,17 @@ mkdir -p ~/.cylc/uiserver
 # members. Configure cylc to host the gui on that port. The port needs
 # to be unique because users will port-forward this port when they
 # connect to the jupyter lab notebook upon executing cylc gui.
-NEXT_WORKFLOW_PORT=$(awk -F= 'BEGIN{port=21299} { if ($2>port) port=$2 fi } END {print port + 1}' /nesi/nobackup/nesi00213/cylc_port_maps)
+if ! grep -q "$USER=" /nesi/nobackup/nesi00213/cylc_port_maps; then
+    NEXT_WORKFLOW_PORT=$(awk -F= 'BEGIN{port=21299} { if ($2>port) port=$2 fi } END {print port + 1}' /nesi/nobackup/nesi00213/cylc_port_maps)
 
-cat <<EOF >~/.cylc/uiserver/jupyter_config.py
+    cat <<EOF >~/.cylc/uiserver/jupyter_config.py
 c.ServerApp.open_browser=False
 c.ServerApp.port=$NEXT_WORKFLOW_PORT
 EOF
-# Record the cylc port map so that the next user can find a unique
-# port for themselves.
-echo "$USER=$NEXT_WORKFLOW_PORT" >>/nesi/nobackup/nesi00213/cylc_port_maps
+    # Record the cylc port map so that the next user can find a unique
+    # port for themselves.
+    echo "$USER=$NEXT_WORKFLOW_PORT" >>/nesi/nobackup/nesi00213/cylc_port_maps
+fi
 
 cat <<EOF
 You are correctly setup for Cylc $CYLC_LATEST_VERSION.
