@@ -4,24 +4,23 @@ CYLC_LATEST_VERSION=$(cylc list-versions | grep "^[0-9]" | sort -r | head -n 1)
 
 # export the correct environment variables to the users bashrc file
 grep -q 'export PROJECT=nesi00213' ~/.bashrc || echo 'export PROJECT=nesi00213' >>~/.bashrc
-grep -q "export CYLC_VERSION=$CYLC_LATEST_VERSION" ~/.bashrc || echo "export CYLC_VERSION=$CYLC_LATEST_VERSION" >> ~/.bashrc
+grep -q "export CYLC_VERSION=$CYLC_LATEST_VERSION" ~/.bashrc || echo "export CYLC_VERSION=$CYLC_LATEST_VERSION" >>~/.bashrc
 test -d ~/cylc-src -a -d ~/cylc-run || mkdir ~/cylc-src ~/cylc-run
 
 # If the user does not already have an ssh key generated on NeSI login
 # nodes, then we must do so.
-compgen -G "$HOME/.ssh/id_*.pub" > /dev/null
-if [ $? -ne 0 ]; then
+if ! compgen -G "$HOME/.ssh/id_*.pub" >/dev/null; then
     echo "You are about to be prompted for an ssh key password."
     echo "You must hit enter (twice) to ensure the key does not have one."
     sleep 1
     ssh-keygen
-fi;
+fi
 
 # In order for cylc to manage jobs via SSH it needs password-less
 # login via SSH, we do that by authorizing the local SSH keys to
 # login.
 
-cat ~/.ssh/id_*.pub >> ~/.ssh/authorized_keys
+cat ~/.ssh/id_*.pub >>~/.ssh/authorized_keys
 
 # These permissions must be set for the ssh keys to work.
 chmod 700 ~/.ssh
@@ -36,14 +35,15 @@ mkdir -p ~/.cylc/uiserver
 # members. Configure cylc to host the gui on that port. The port needs
 # to be unique because users will port-forward this port when they
 # connect to the jupyter lab notebook upon executing cylc gui.
-NEXT_WORKFLOW_PORT = $(awk -F= 'BEGIN{port=21299} { if ($2>port) port=$2 fi } END {print port + 1}' /nesi/nobackup/nesi00213/cylc_port_maps)
-cat << EOF > ~/.cylc/uiserver/jupyter_config.py
+NEXT_WORKFLOW_PORT=$(awk -F= 'BEGIN{port=21299} { if ($2>port) port=$2 fi } END {print port + 1}' /nesi/nobackup/nesi00213/cylc_port_maps)
+
+cat <<EOF >~/.cylc/uiserver/jupyter_config.py
 c.ServerApp.open_browser=False
 c.ServerApp.port=$NEXT_WORKFLOW_PORT
 EOF
 # Record the cylc port map so that the next user can find a unique
 # port for themselves.
-echo '$USER=$NEXT_WORKFLOW_PORT' >> /nesi/nobackup/nesi00213/cylc_port_maps
+echo "$USER=$NEXT_WORKFLOW_PORT" >>/nesi/nobackup/nesi00213/cylc_port_maps
 
 cat <<EOF
 You are correctly setup for Cylc $CYLC_LATEST_VERSION.
