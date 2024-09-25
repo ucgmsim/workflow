@@ -45,6 +45,8 @@ EOF
     # Record the cylc port map so that the next user can find a unique
     # port for themselves.
     echo "$USER=$NEXT_WORKFLOW_PORT" >>/nesi/nobackup/nesi00213/cylc_port_maps
+else
+    NEXT_WORKFLOW_PORT=$(grep "$USER=" /nesi/nobackup/nesi00213/cylc_port_maps | cut -d= -f2)
 fi
 
 cat <<EOF
