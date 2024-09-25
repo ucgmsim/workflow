@@ -172,7 +172,9 @@ def animate_low_frequency(
     # equally spaced points across the simulation domain and Z(t) is
     # the ground motion at (X, Y, 0) for time t multiplied by 10,000
     # (so that it is visible in the visualisation).
-    M = np.meshgrid(np.linspace(0, 1, xyts_file.nx), np.linspace(0, 1, xyts_file.ny))
+    meshgrid = np.meshgrid(
+        np.linspace(0, 1, xyts_file.nx), np.linspace(0, 1, xyts_file.ny)
+    )
 
     # The above x and y are evenly spaced points from [0..1] x [0..1],
     # but we need to translate these points so that the actually span
@@ -184,7 +186,7 @@ def animate_low_frequency(
     # C[i, j, k] = ∑_l A[l, i] B[l, j, k],
     # C is output, A is transformation matrix, M is meshgrid.
     xr, yr = (
-        np.einsum("li,ljk->ijk", np.array([x_trans, y_trans]), M)
+        np.einsum("li,ljk->ijk", np.array([x_trans, y_trans]), meshgrid)
         + nztm_corners[0][:, np.newaxis, np.newaxis]
     )
 
