@@ -26,6 +26,7 @@ hf-sim = "workflow.scripts.hf_sim:app"
 bb-sim = "workflow.scripts.bb_sim:app"
 plot-ts = "workflow.scripts.plot_ts:app"
 im-calc = "workflow.scripts.im_calc:app"
+plan-workflow = "workflow.scripts.plan_workflow:app"
 
 [tool.setuptools.package-dir]
 workflow = "workflow"

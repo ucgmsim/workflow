@@ -1,0 +1,2 @@
+[[merge_ts_{{realisation}}]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share/{{realisation}}" merge-ts /share/LF/OutBin /share/LF/OutBin/output.e3d

@@ -1,0 +1,8 @@
+[[emod3d_{{realisation}}]]
+        platform = maui-xc-slurm
+        pre-script = ""
+        script = srun /nesi/project/nesi00213/opt/maui/hybrid_sim_tools/emod3d-mpi_v3.0.8 -args "par=$CYLC_WORKFLOW_SHARE_DIR/{{realisation}}/LF/e3d.par"
+        [[[directives]]]
+                --ntasks = 80
+                --hint = nomultithread
+                --time = 01:00:00

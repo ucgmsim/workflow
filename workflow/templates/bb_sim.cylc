@@ -1,0 +1,6 @@
+[[bb_sim_{{realisation}}]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif bb-sim /share/{{realisation}}/realisation.json /share/{{realisation}}/stations/stations.ll /stations.vs30 /share/{{realisation}}/LF/OutBin /share/{{realisation}}/realisation.hf /share/{{realisation}}/Velocity_Model /share/{{realisation}}/realisation.bb --work-directory /out
+        [[[directives]]]
+                --cpus-per-task = 128
+                --time = 01:00:00
+                --partition = milan

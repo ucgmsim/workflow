@@ -1,0 +1,25 @@
+[scheduling]
+    [[graph]]
+        R1 = """
+        {% for realisation in realisations -%}
+            {% for stage, next_stages in workflow_plan.items() -%}
+            {% for next_stage in next_stages %}
+            {{stage}}_{{realisation}} => {{next_stage}}_{{realisation}}
+            {% endfor -%}
+            {% endfor -%}
+        {% endfor -%}
+            """
+[runtime]
+    [[root]]
+        platform = mahuika-slurm
+        pre-script = """
+        module load Apptainer
+        """
+        [[[directives]]]
+            --account = nesi00213
+    {% for realisation in realisations %}
+    {% for stage, next_stages in workflow_plan.items() -%}
+    {% include stage + '.cylc' %}
+    {% endfor -%}
+    {% endfor -%}
+                                                                                                                                                                                                                                                                                                
