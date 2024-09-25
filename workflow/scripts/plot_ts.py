@@ -116,18 +116,20 @@ def animate_low_frequency(
     """
     xyts_file = XYTSFile(xyts_ffp)
 
+    # Convert geographical coordinates into model coordinates for
+    # rendering. The input coordinates are (lat, lon, depth) but these
+    # coordinates are not Cartesian. OpenGL (the renderer behind
+    # pyvista) expects cartesian coordinates, so we convert (lat, lon)
+    # to NZTM. Hence, the model's coordinate space is NZTM coordinates.
+
     corners = np.array(xyts_file.corners())[:, ::-1]
     nztm_corners = coordinates.wgs_depth_to_nztm(corners)
-    x, y = np.meshgrid(np.linspace(0, 1, xyts_file.nx), np.linspace(0, 1, xyts_file.ny))
 
-    x_trans = nztm_corners[1] - nztm_corners[0]
-    y_trans = nztm_corners[-1] - nztm_corners[0]
-
-    xr = x_trans[0] * x + y_trans[0] * y
-    yr = x_trans[1] * x + y_trans[1] * y
-
-    xr += nztm_corners[0, 0]
-    yr += nztm_corners[0, 1]
+    # Next create the background map texture to display underneath the
+    # low-frequency waves. This is done by taking the axis-aligned
+    # bounding box (the region in pygmt), and using pygmt to create a
+    # map of the region with towns plotted on top. We then save to a
+    # temporary file and load it as an pyvista texture.
 
     region = (
         corners[:, 1].min() - 0.1,
@@ -161,43 +163,87 @@ def animate_low_frequency(
         fig.savefig(plot_background_ffp.name, dpi=1200)
         background_texture = pv.read_texture(plot_background_ffp.name)
 
-    plane = pv.Plane(
+    # The seismic waves are rendered as a surface mesh. What is a
+    # surface mesh? A surface mesh is a geometric representation of a
+    # surface in 3D space (see
+    # https://docs.pyvista.org/user-guide/what-is-a-mesh.html). Our
+    # surface is the seismic waves. The surface at time t will have
+    # coordinates (X, Y, Z(t)) where X, and Y are drawn from a set of
+    # equally spaced points across the simulation domain and Z(t) is
+    # the ground motion at (X, Y, 0) for time t multiplied by 10,000
+    # (so that it is visible in the visualisation).
+    M = np.meshgrid(np.linspace(0, 1, xyts_file.nx), np.linspace(0, 1, xyts_file.ny))
+
+    # The above x and y are evenly spaced points from [0..1] x [0..1],
+    # but we need to translate these points so that the actually span
+    # the simulation domain in NZTM coordinates. The following linear
+    # algebra performs the linear transformation required to do this.
+    x_trans = nztm_corners[1] - nztm_corners[0]
+    y_trans = nztm_corners[-1] - nztm_corners[0]
+
+    # C[i, j, k] = ∑_l A[l, i] B[l, j, k],
+    # C is output, A is transformation matrix, M is meshgrid.
+    xr, yr = (
+        np.einsum("li,ljk->ijk", np.array([x_trans, y_trans]), M)
+        + nztm_corners[0][:, np.newaxis, np.newaxis]
+    )
+
+    grid = pv.StructuredGrid(xr, yr, np.zeros_like(yr))
+    grid["Ground Motion (cm/s)"] = np.zeros_like(yr).ravel()
+
+    # The background plane holds the picture of the map, and is just a
+    # flat plane at the centre of the bounding region.
+    background_plane = pv.Plane(
         center=np.append(np.mean(aa_bounding_box.bounds, axis=0), 0),
         i_size=aa_bounding_box.extent_x * 1000,
         j_size=aa_bounding_box.extent_y * 1000,
     )
+
+    # We now setup the pyvista plotter which actually renders the 3D scene.
     plotter = pv.Plotter(off_screen=True, notebook=False)
     plotter.enable_anti_aliasing()
     plotter.ren_win.SetSize((1920, 1088))
 
-    grid = pv.StructuredGrid(xr, yr, np.zeros_like(yr))
-    grid["Ground Motion (cm/s)"] = np.zeros_like(yr).ravel()
+    # We now add the seismic wave mesh...
     plotter.add_mesh(
         grid,
+        # Where the colour and transparency of the mesh is determined by ground motion and,
         scalars="Ground Motion (cm/s)",
         lighting=False,
+        # the opacity of the mesh is 0 for ground motion up to ~1cm/s and then 1 thereafter and,
         opacity=pv.opacity_transfer_function(
             np.array([0] * 10 + [1] * 90), n_colors=100
         ),
         show_edges=True,
+        # the colour map is hot and,
         cmap="hot",
+        # we display a colour bar of the ground motion values vertically and,
         scalar_bar_args={"vertical": True},
+        # the bar runs from 0 - 10 cm/s.
         clim=[0, 10],
     )
 
-    plotter.add_mesh(plane, show_edges=True, texture=background_texture)
+    # The background plane is simply added to the plot with the pygmt
+    # background texture texture-mapped onto it.
+    plotter.add_mesh(background_plane, show_edges=True, texture=background_texture)
 
-    plotter.reset_camera(bounds=plane.bounds)
-
+    # We now reset the camera so it points down at the background
+    # plane and zooms to fill.
+    plotter.reset_camera(bounds=background_plane.bounds)
     plotter.view_xy()
+    # TODO: Dynamically calculate an appropriate camera zoom.
     plotter.camera.zoom(1.4)
 
     plotter.open_movie(output_mp4, framerate=10, quality=10)
+
+    # For each timestep, update the ground motion to be the ground
+    # motion for the current timestep, and update the time counter in
+    # the top right roughly every second.
     its_per_second = round(1 / xyts_file.dt)
     for i in tqdm.trange(xyts_file.nt):
         ground_motion = np.linalg.norm(xyts_file.data[i, :, :, ::-1], axis=0).T
-
         grid.points[:, -1] = ground_motion.ravel() * 1e4
+        grid["Ground Motion (cm/s)"] = ground_motion.ravel()
 
         if i % its_per_second == 0:
             plotter.add_text(
@@ -205,7 +251,6 @@ def animate_low_frequency(
                 position="upper_right",
                 name="Second Counter",
             )
-        grid["Ground Motion (cm/s)"] = ground_motion.ravel()
 
         plotter.write_frame()
     plotter.close()
