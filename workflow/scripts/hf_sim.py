@@ -147,7 +147,11 @@ def hf_simulate_station(
             hf_sim_input_str = "\n".join(str(line) for line in hf_sim_input)
 
             print("---\n" + hf_sim_input_str + "\n---")
-            logger.info(log_utils.structured_log("running hf", station=name, input=hf_sim_input_str))
+            logger.info(
+                log_utils.structured_log(
+                    "running hf", station=name, input=hf_sim_input_str
+                )
+            )
             output = subprocess.run(
                 str(hf_sim_path),
                 input=hf_sim_input_str,
@@ -156,7 +160,11 @@ def hf_simulate_station(
                 stderr=subprocess.PIPE,
             )
         except subprocess.CalledProcessError as e:
-            logger.error(log_utils.structured_log("hf failed", station=name, stdout=e.stdout, stderr=e.stderr))
+            logger.error(
+                log_utils.structured_log(
+                    "hf failed", station=name, stdout=e.stdout, stderr=e.stderr
+                )
+            )
             raise
         logger.info(log_utils.structured_log("hf succeeded", station=name))
         epicentre_distance = np.fromstring(output.stderr, dtype="f4", sep="\n")
@@ -320,7 +328,7 @@ def run_hf(
             [format_specifiers[type(value)] for value in header_data]
         )
         output_file_handle.write(struct.pack(header_format, *header_data))
-        output_file_handle.write(b"\0" * 512)
+        output_file_handle.seek(512)
         # Write station headers to HF output
         stations.apply(
             lambda station: output_file_handle.write(
