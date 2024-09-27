@@ -6,18 +6,16 @@ The scenario we will test involves a simple experiment: Running two realisations
 
 # Copying a Template Workflow
 
-The first stage to building any workflow is building the `flow.cylc` file. To build this workflow file, we recommend either:
+The first stage to building any workflow is writing the `flow.cylc` file. To build this workflow file, we recommend either:
 
 1. Building the workflow file by hand or,
-2. Using [Jinja](https://jinja.palletsprojects.com/en/3.0.x/) templates for more complicated workflows. Cylc [supports Jinja template files natively](https://cylc.github.io/cylc-doc/stable/html/user-guide/writing-workflows/jinja2.html) if you add `#!jinja2` at the top of your file.
+2. Using the workflow planning script to build a template workflow.
 
-For the sake of simplicity, we are going to build a workflow file by hand for a single realisation (the venerable NSHM rupture 0).
+For the sake of learning, we are going to build a workflow file by hand for a single realisation (the venerable NSHM rupture 0). The workflow planning script will make your life easier, see below for the tutorial on how to use this tool.
 
 The `cylc/flow.cylc` in the workflow repository is a good starting place. For brevity we only include the low-frequency workflow. An exercise for the reader would be to complete the workflow for high-frequency and intensity measure calculation.
 
 ```
-[scheduler]
-    allow implicit tasks = True
 [scheduling]
     [[graph]]
         R1 = """
@@ -385,3 +383,92 @@ In simple terms, a container is a virtual computer that runs on top of another c
 3. To ensure the workflow is run with the latest software versions for things like Python and GMT. NeSI maintains its own versions but can be slow to keep them up to date.
 
 See [this video](https://www.youtube.com/watch?v=Gjnup-PuquQ) for a two-minute visual explainer on containers. Note that we use [Apptainer](https://apptainer.org/) containers as opposed to Docker containers, but the concepts are still the same.
+
+# Using the Workflow Planning Tool
+
+We often need to run the same jobs for a number of realisations. Building the Cylc workflow by hand for this can be tedious. Hence, we have built a workflow planning tool that can flexibly generate workflow scripts for the common case of:
+
+1. You want to simulate a number of realisations in the same way and,
+2. you want to do this with a subset of the full Cybershake workflow.
+
+The tool is available if you install the workflow using pip:
+
+``` bash
+pip install workflow @ https://github.com/ucgmsim/workflow
+```
+
+The script to plan workflow is called `plan-workflow`. If you want to plan workflows for two events identically to Cybershake you can execute
+
+``` bash
+plan-workflow Fault_1 Fault_2 ~/cylc-src/template/flow.cylc --goal im_calc
+```
+
+This will create a workflow file `flow.cylc` to simulate two faults: Fault 1 and Fault 2, targeting intensity measure calculation. Running `cylc install template` and then `cylc graph template`, you should see an output like the following
+
+<details open>
+<summary><b>Cylc Graph Test</b></summary>
+
+![](wiki/images/planned_workflow.png)
+</details>
+
+If you also want the `plot_ts` stage you can add it as a goal to the workflow plan.
+
+``` bash
+plan-workflow Fault_1 Fault_2 ~/cylc-src/template/flow.cylc --goal im_calc --goal plot_ts
+```
+
+<details open>
+<summary><b>Cylc Graph with <pre>plot_ts</pre></b></summary>
+
+![](wiki/images/planned_workflow_plot.png)
+</details>
+
+The workflow planning tool is pretty flexible. You can exclude any task you want if you, for example, already have the output for a stage completed (like a custom SRF). To exclude a stage, use the `--excluding` option. Currently our generated workflows have assumed that `Fault_1` and `Fault_2` are sourced from the NSHM 2022 database. But if you have a custom realisation file to simulate, you can use the `--excluding` option to excluding the `nshm_to_realisation` stage.
+
+``` bash
+plan-workflow Fault_1 Fault_2 ~/cylc-src/template/flow.cylc --goal im_calc --goal plot_ts --excluding nshm_to_realisation
+```
+
+<details open>
+<summary><b>Cylc Graph with <pre>plot_ts</pre> and No Realisation Generation</b></summary>
+
+![](wiki/images/planned_workflow_no_realisation.png)
+</details>
+
+You can use `--excluding-group` to exclude a predefined group of workflow stages. If you have completed all the pre-processing stages, for example, you can exclude the `preprocessing` group to plan simulation only.
+
+``` bash
+plan-workflow Fault_1 Fault_2 ~/cylc-run/test/runN/flow.cylc --goal im_calc  --excluding-group preprocessing
+```
+
+<details open>
+<summary><b>Cylc Graph with <pre>plot_ts</pre> and No Realisation Generation</b></summary>
+
+![](wiki/images/planned_workflow_no_prepro.png)
+</details>
+
+Often times, we want to run a number of realisations of the same event: varying the magnitude, rupture propagation, and hypocentre of an event without changing the domain or velocity model. The workflow planner tool has support to generate workflows that reuse the velocity model for a number of realisations.
+
+``` bash
+plan-workflow Event Event:1  ~/cylc-run/test/runN/flow.cylc --goal create_e3d_par
+```
+
+<details open>
+<summary><b>Cylc Graph with Shared Velocity Model</b></summary>
+
+![](wiki/images/planned_workflow_shared.png)
+</details>
+
+Notice that there is only `generate_velocity_model` job in this workflow, and the `create_e3d_par` jobs for Event and Event:1 (a different sample of Event) both use the velocity model from the main sample of the event.
+
+The `cylc graph` tool is hard to use for large workflows. The `--visualise` flag for the workflow planner opens the planned workflow in your browser. You can drag stages around and zoom in to understand the generated workflow execution graph.
+
+``` bash
+plan-workflow Event Event:1 ~/cylc-src/template/.cylc --goal im_calc --goal plot_ts --visualise
+```
+
+<details open>
+<summary><b>Cylc Graph with Shared Velocity Model</b></summary>
+
+![](wiki/images/planned_workflow_html_vis.png)
+</details>
