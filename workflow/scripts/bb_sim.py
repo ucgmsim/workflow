@@ -152,7 +152,7 @@ def bb_simulate_station(
         lf_c = np.pad(lf_filtered, lf_padding)
         bb_acc.append((hf_c + lf_c) / 981.0)
 
-    bb_acc_numpy = np.array(bb_acc).T
+    bb_acc_numpy = np.array(bb_acc).T.astype(np.float32)
     with open(output_bb_file, "wb") as station_bb_file:
         bb_acc_numpy.tofile(station_bb_file)
 
