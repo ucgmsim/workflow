@@ -406,7 +406,7 @@ plan-workflow Fault_1 Fault_2 ~/cylc-src/template/flow.cylc --goal im_calc
 This will create a workflow file `flow.cylc` to simulate two faults: Fault 1 and Fault 2, targeting intensity measure calculation. Running `cylc install template` and then `cylc graph template`, you should see an output like the following
 
 <details open>
-<summary><b>Cylc Graph Test</b></summary>
+<summary><b>Cylc Graph</b></summary>
 
 ![](images/planned_workflow.png)
 </details>
@@ -418,7 +418,7 @@ plan-workflow Fault_1 Fault_2 ~/cylc-src/template/flow.cylc --goal im_calc --goa
 ```
 
 <details open>
-<summary><b>Cylc Graph with <pre>plot_ts</pre></b></summary>
+<summary><b>Cylc Graph with plot_ts</b></summary>
 
 ![](images/planned_workflow_plot.png)
 </details>
@@ -430,7 +430,7 @@ plan-workflow Fault_1 Fault_2 ~/cylc-src/template/flow.cylc --goal im_calc --goa
 ```
 
 <details open>
-<summary><b>Cylc Graph with <pre>plot_ts</pre> and No Realisation Generation</b></summary>
+<summary><b>Cylc Graph with plot_ts Stage and No Realisation Generation</b></summary>
 
 ![](images/planned_workflow_no_realisation.png)
 </details>
@@ -438,11 +438,11 @@ plan-workflow Fault_1 Fault_2 ~/cylc-src/template/flow.cylc --goal im_calc --goa
 You can use `--excluding-group` to exclude a predefined group of workflow stages. If you have completed all the pre-processing stages, for example, you can exclude the `preprocessing` group to plan simulation only.
 
 ``` bash
-plan-workflow Fault_1 Fault_2 ~/cylc-run/test/runN/flow.cylc --goal im_calc  --excluding-group preprocessing
+plan-workflow Fault_1 Fault_2 ~/cylc-run/template/flow.cylc --goal im_calc  --excluding-group preprocessing
 ```
 
 <details open>
-<summary><b>Cylc Graph with <pre>plot_ts</pre> and No Realisation Generation</b></summary>
+<summary><b>Cylc Graph with No Preprocessing</b></summary>
 
 ![](images/planned_workflow_no_prepro.png)
 </details>
@@ -450,7 +450,7 @@ plan-workflow Fault_1 Fault_2 ~/cylc-run/test/runN/flow.cylc --goal im_calc  --e
 Often times, we want to run a number of realisations of the same event: varying the magnitude, rupture propagation, and hypocentre of an event without changing the domain or velocity model. The workflow planner tool has support to generate workflows that reuse the velocity model for a number of realisations.
 
 ``` bash
-plan-workflow Event Event:1  ~/cylc-run/test/runN/flow.cylc --goal create_e3d_par
+plan-workflow Event Event:1  ~/cylc-run/template/flow.cylc --goal create_e3d_par
 ```
 
 <details open>
@@ -461,14 +461,14 @@ plan-workflow Event Event:1  ~/cylc-run/test/runN/flow.cylc --goal create_e3d_pa
 
 Notice that there is only `generate_velocity_model` job in this workflow, and the `create_e3d_par` jobs for Event and Event:1 (a different sample of Event) both use the velocity model from the main sample of the event.
 
-The `cylc graph` tool is hard to use for large workflows. The `--visualise` flag for the workflow planner opens the planned workflow in your browser. You can drag stages around and zoom in to understand the generated workflow execution graph.
+The `cylc graph` tool is hard to use for large workflows. The `--visualise` flag for the workflow planner opens the planned workflow in your browser. You can drag stages around and zoom in to understand the generated workflow execution graph. Adjust the physics settings in the visualisation to make the output easier to read, or disable it entirely to allow you to freely move the nodes.
 
 ``` bash
-plan-workflow Event Event:1 ~/cylc-src/template/.cylc --goal im_calc --goal plot_ts --visualise
+plan-workflow Event Event:1 ~/cylc-src/template/flow.cylc --goal im_calc --goal plot_ts --visualise
 ```
 
 <details open>
-<summary><b>Cylc Graph with Shared Velocity Model</b></summary>
+<summary><b>HTML Visualisation of Complex Cylc Workflow</b></summary>
 
 ![](images/planned_workflow_html_vis.png)
 </details>
