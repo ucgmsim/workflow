@@ -309,7 +309,7 @@ def combine_hf_and_lf(
         header=None,
         names=["name", "vs30"],
     ).set_index("name")
-    stations = stations.join(station_vs30, how="inner")[["vs", "vs30"]]
+    stations = stations.join(station_vs30, how="inner")
 
     with multiprocessing.Pool() as pool:
         pool.starmap(
@@ -323,7 +323,7 @@ def combine_hf_and_lf(
                 n2,
                 work_directory,
             ),
-            stations.iterrows(),
+            stations[["vs", "vs30"]].iterrows(),
         )
 
     with open(output_ffp, "wb") as output_bb_file:
@@ -340,14 +340,32 @@ def combine_hf_and_lf(
         format_specifiers = {bytes: "256s", int: "i", float: "f"}
         header_format = "".join(format_specifiers[type(value)] for value in header_data)
         output_bb_file.write(struct.pack(header_format, *header_data))
-
+        output_bb_file.seek(1280)
+        stations["name"] = stations.index
+        stations["x"] = lf.stations.x
+        stations["y"] = lf.stations.y
+        stations["z"] = lf.stations.z
         stations["e_dist"] = hf.stations.e_dist
         stations["hf_vs_ref"] = hf.stations.vs
         stations["lf_vs_ref"] = lfvs30refs
-        stations.to_records(
+        print(stations)
+        stations[
+            [
+                "longitude",
+                "latitude",
+                "name",
+                "x",
+                "y",
+                "z",
+                "e_dist",
+                "hf_vs_ref",
+                "lf_vs_ref",
+                "vs30",
+            ]
+        ].to_records(
             column_dtypes={
-                "lon": "f4",
-                "lat": "f4",
+                "longitude": "f4",
+                "latitude": "f4",
                 "name": "|S8",
                 "x": "i4",
                 "y": "i4",
@@ -355,6 +373,7 @@ def combine_hf_and_lf(
                 "e_dist": "f4",
                 "hf_vs_ref": "f4",
                 "lf_vs_ref": "f4",
+                "vs30": "f4",
             },
             index=False,
         ).tofile(output_bb_file)
