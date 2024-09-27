@@ -4,9 +4,7 @@ This is the starting point for most workflow usages, and can be used
 to generate a base Cylc workflow to modify and extend.
 """
 
-import re
 import tempfile
-import webbrowser
 from collections.abc import Iterable
 from enum import StrEnum
 from pathlib import Path
@@ -15,7 +13,6 @@ from typing import Annotated, NamedTuple, Optional
 import jinja2
 import networkx as nx
 import typer
-from matplotlib import pyplot as plt
 from pyvis.network import Network
 
 app = typer.Typer()
@@ -42,9 +39,14 @@ class StageIdentifier(StrEnum):
 
 
 class GroupIdentifier(StrEnum):
+    """Group identifiers to use to bulk target or exclude in workflow planning."""
+
     Preprocessing = "preprocessing"
+    """Alias for all preprocessing stages."""
     HighFrequency = "high_frequency"
+    """Alias for the high frequency workflow."""
     LowFrequency = "low_frequency"
+    """Alias for the low frequency workflow."""
 
 
 GROUP_STAGES = {
@@ -75,21 +77,33 @@ GROUP_GOALS = {
 
 
 class Stage(NamedTuple):
+    """Representation of a workflow stage in the output Cylc file."""
+
     identifier: StageIdentifier
+    """The stage identifier."""
     event: str
+    """The event the stage is running for."""
     sample: Optional[int]
-
-
-REUSABLE_STAGE_IDENTIFIERS = {
-    StageIdentifier.VelocityModelGeneration,
-    StageIdentifier.StationSelection,
-    StageIdentifier.ModelCoordinates,
-}
+    """The sample number of the realisation."""
 
 
 def add_realisation(
     workflow_plan: nx.DiGraph, event: str, sample: Optional[int]
-) -> nx.DiGraph:
+) -> None:
+    """Add a realisation to a workflow plan.
+
+    Adds all stages for the realisation to run, and links to event
+    stages for shared resources (i.e. the velocity model).
+
+    Parameters
+    ----------
+    workflow_plan : nx.DiGraph
+        The current workflow paln.
+    event : str
+        The event to add.
+    sample : Optional[int]
+        The sample number (or None, if the original event).
+    """
     workflow_plan.add_edges_from(
         [
             (
@@ -221,6 +235,20 @@ def create_abstract_workflow_plan(
 
 
 def stage_to_node_string(stage: Stage) -> str:
+    r"""Convert a `Stage` into a human readable node identifier string.
+
+    Parameters
+    ----------
+    stage : Stage
+        The stage to render.
+
+    Returns
+    -------
+    str
+        A string of the format
+        {stage.identifier}\n{stage.event}_{stage.sample}, if event and
+        sample are non-trivial.
+    """
     node_string = str(stage.identifier)
     if stage.event:
         node_string += f"\n{stage.event}"
@@ -230,6 +258,19 @@ def stage_to_node_string(stage: Stage) -> str:
 
 
 def pyvis_graph(workflow_plan: nx.DiGraph) -> Network:
+    """Convert a workflow plan into a pyvis diagram for visualisation.
+
+    Parameters
+    ----------
+    workflow_plan : nx.DiGraph
+        The workflow plan to visualise.
+
+
+    Returns
+    -------
+    Network
+        A pyvis rendering for this workflow plan.
+    """
     network = Network(
         width="100%", height="1500px", directed=True, layout="hierarchical"
     )
@@ -256,6 +297,18 @@ REALISATION_ITERATION_RE = r"_rel\d+$"
 
 
 def parse_realisation(realisation_id: str) -> tuple[str, Optional[int]]:
+    """Parse a realisation identifier string from the command line into a realisation identifier.
+
+    Parameters
+    ----------
+    realisation_id : str
+        The realisation identifier string to parse.
+
+    Returns
+    -------
+    tuple[str, Optional[int]]
+        The parsed realisation event and sample number.
+    """
     try:
         index = realisation_id.rindex(":")
         event, sample = realisation_id[:index], realisation_id[index + 1 :]
@@ -317,9 +370,18 @@ def plan_workflow(
     flow_file : Path
         The output flow file path to write the Cylc workflow to.
     goal : list[StageIdentifier]
-        A list of workflow stages to mark as goals. These stages are define the endpoints for the workflow.
+        A list of workflow stages to mark as goals. These stages are
+        define the endpoints for the workflow.
+    group_goal : list[GroupIdentifier]
+        A list of workflow groups to target. A workflow group is just
+        an alias for a set of workflow stages. Equivalent to adding
+        each group member to `goal`.
     excluding : list[StageIdentifier]
         A list of workflow stages to exclude from the flows.
+    group_goal : list[GroupIdentifier]
+        A list of workflow groups to exclude. A workflow group is just
+        an alias for a set of workflow stages. Equivalent to adding
+        each group member to `excluding`.
     """
     realisations = [
         parse_realisation(realisation_id) for realisation_id in realisation_ids
