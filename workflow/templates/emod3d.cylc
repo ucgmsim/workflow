@@ -1,7 +1,7 @@
-[[emod3d_{{realisation}}]]
+[[{{stage_node_identifier(stage)}}]]
         platform = maui-xc-slurm
         pre-script = ""
-        script = srun /nesi/project/nesi00213/opt/maui/hybrid_sim_tools/emod3d-mpi_v3.0.8 -args "par=$CYLC_WORKFLOW_SHARE_DIR/{{realisation}}/LF/e3d.par"
+        script = srun /nesi/project/nesi00213/opt/maui/hybrid_sim_tools/emod3d-mpi_v3.0.8 -args "par=$CYLC_WORKFLOW_SHARE_DIR/{{realisation_identifier(stage)}}/LF/e3d.par"
         [[[directives]]]
                 --ntasks = 80
                 --hint = nomultithread

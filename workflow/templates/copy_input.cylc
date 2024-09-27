@@ -1,3 +1,3 @@
-[[copy_input_{{realisation}}]]
+[[copy_input]]
         platform = localhost
-        script = cp -r $CYLC_WORKFLOW_RUN_DIR/input/{{realisation}} $WORKFLOW_SHARE_DIR/{{realisation}}
+        script = cp -r $CYLC_WORKFLOW_RUN_DIR/input $WORKFLOW_SHARE_DIR/

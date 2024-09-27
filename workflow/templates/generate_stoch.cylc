@@ -1,2 +1,2 @@
-[[generate_stoch_{{realisation}}]]
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/{{realisation}}:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-stoch /share/realisation.json /share/realisation.srf /share/realisation.stoch
+[[{{stage_node_identifier(stage)}}]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/{{realisation_identifier(stage)}}:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-stoch /share/realisation.json /share/realisation.srf /share/realisation.stoch

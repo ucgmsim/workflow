@@ -1,2 +1,2 @@
-[[plot_ts_{{realisation}}]]
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share/{{realisation}}" plot-ts /share/LF/OutBin/output.e3d /share/animation.mp4
+[[{{stage_node_identifier(stage)}}]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share/{{realisation_identifier(stage)}}" plot-ts /share/LF/OutBin/output.e3d /share/animation.mp4
