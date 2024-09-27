@@ -251,10 +251,6 @@ def run_hf(
         header=None,
         names=["longitude", "latitude", "name"],
     )
-    mask = domain_parameters.domain.contains(
-        stations[["latitude", "longitude"]].to_numpy()
-    )
-    stations = stations[mask]
 
     with multiprocessing.Pool() as pool:
         stations["epicentre_distance"] = pool.starmap(
