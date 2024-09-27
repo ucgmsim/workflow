@@ -408,7 +408,7 @@ This will create a workflow file `flow.cylc` to simulate two faults: Fault 1 and
 <details open>
 <summary><b>Cylc Graph Test</b></summary>
 
-![](wiki/images/planned_workflow.png)
+![](images/planned_workflow.png)
 </details>
 
 If you also want the `plot_ts` stage you can add it as a goal to the workflow plan.
@@ -420,7 +420,7 @@ plan-workflow Fault_1 Fault_2 ~/cylc-src/template/flow.cylc --goal im_calc --goa
 <details open>
 <summary><b>Cylc Graph with <pre>plot_ts</pre></b></summary>
 
-![](wiki/images/planned_workflow_plot.png)
+![](images/planned_workflow_plot.png)
 </details>
 
 The workflow planning tool is pretty flexible. You can exclude any task you want if you, for example, already have the output for a stage completed (like a custom SRF). To exclude a stage, use the `--excluding` option. Currently our generated workflows have assumed that `Fault_1` and `Fault_2` are sourced from the NSHM 2022 database. But if you have a custom realisation file to simulate, you can use the `--excluding` option to excluding the `nshm_to_realisation` stage.
@@ -432,7 +432,7 @@ plan-workflow Fault_1 Fault_2 ~/cylc-src/template/flow.cylc --goal im_calc --goa
 <details open>
 <summary><b>Cylc Graph with <pre>plot_ts</pre> and No Realisation Generation</b></summary>
 
-![](wiki/images/planned_workflow_no_realisation.png)
+![](images/planned_workflow_no_realisation.png)
 </details>
 
 You can use `--excluding-group` to exclude a predefined group of workflow stages. If you have completed all the pre-processing stages, for example, you can exclude the `preprocessing` group to plan simulation only.
@@ -444,7 +444,7 @@ plan-workflow Fault_1 Fault_2 ~/cylc-run/test/runN/flow.cylc --goal im_calc  --e
 <details open>
 <summary><b>Cylc Graph with <pre>plot_ts</pre> and No Realisation Generation</b></summary>
 
-![](wiki/images/planned_workflow_no_prepro.png)
+![](images/planned_workflow_no_prepro.png)
 </details>
 
 Often times, we want to run a number of realisations of the same event: varying the magnitude, rupture propagation, and hypocentre of an event without changing the domain or velocity model. The workflow planner tool has support to generate workflows that reuse the velocity model for a number of realisations.
@@ -456,7 +456,7 @@ plan-workflow Event Event:1  ~/cylc-run/test/runN/flow.cylc --goal create_e3d_pa
 <details open>
 <summary><b>Cylc Graph with Shared Velocity Model</b></summary>
 
-![](wiki/images/planned_workflow_shared.png)
+![](images/planned_workflow_shared.png)
 </details>
 
 Notice that there is only `generate_velocity_model` job in this workflow, and the `create_e3d_par` jobs for Event and Event:1 (a different sample of Event) both use the velocity model from the main sample of the event.
@@ -470,5 +470,5 @@ plan-workflow Event Event:1 ~/cylc-src/template/.cylc --goal im_calc --goal plot
 <details open>
 <summary><b>Cylc Graph with Shared Velocity Model</b></summary>
 
-![](wiki/images/planned_workflow_html_vis.png)
+![](images/planned_workflow_html_vis.png)
 </details>
