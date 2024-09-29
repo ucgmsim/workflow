@@ -9,6 +9,7 @@ numpy<2
 openquake-engine @ git+https://github.com/gem/oq-engine
 pandas
 pytest
+pyvis
 pyvista
 pyyaml
 qcore @ git+https://github.com/ucgmsim/qcore@pegasus
