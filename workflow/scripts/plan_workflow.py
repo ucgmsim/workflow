@@ -27,6 +27,7 @@ class StageIdentifier(StrEnum):
     StationSelection = "generate_station_coordinates"
     ModelCoordinates = "write_model_coordinates"
     SRFGeneration = "realisation_to_srf"
+    CopyDomainParameters = "copy_domain_parameters"
     EMOD3DParameters = "create_e3d_par"
     StochGeneration = "generate_stoch"
     HighFrequency = "hf_sim"
@@ -59,6 +60,7 @@ GROUP_STAGES = {
         StageIdentifier.EMOD3DParameters,
         StageIdentifier.NSHMToRealisation,
         StageIdentifier.StochGeneration,
+        StageIdentifier.CopyDomainParameters,
     },
     GroupIdentifier.HighFrequency: {
         StageIdentifier.HighFrequency,
@@ -109,14 +111,6 @@ def add_realisation(
             (
                 Stage(StageIdentifier.CopyInput, "", None),
                 Stage(StageIdentifier.NSHMToRealisation, event, sample),
-            ),
-            (
-                Stage(StageIdentifier.NSHMToRealisation, event, sample),
-                Stage(StageIdentifier.DomainGeneration, event, sample),
-            ),
-            (
-                Stage(StageIdentifier.DomainGeneration, event, sample),
-                Stage(StageIdentifier.EMOD3DParameters, event, sample),
             ),
             (
                 Stage(StageIdentifier.NSHMToRealisation, event, sample),
@@ -176,6 +170,14 @@ def add_realisation(
         workflow_plan.add_edges_from(
             [
                 (
+                    Stage(StageIdentifier.NSHMToRealisation, event, sample),
+                    Stage(StageIdentifier.DomainGeneration, event, sample),
+                ),
+                (
+                    Stage(StageIdentifier.DomainGeneration, event, sample),
+                    Stage(StageIdentifier.EMOD3DParameters, event, sample),
+                ),
+                (
                     Stage(StageIdentifier.DomainGeneration, event, sample),
                     Stage(StageIdentifier.VelocityModelGeneration, event, sample),
                 ),
@@ -189,10 +191,22 @@ def add_realisation(
                 ),
             ]
         )
-
+    else:
+        workflow_plan.add_edges_from(
+            [
+                (
+                    Stage(StageIdentifier.DomainGeneration, event, None),
+                    Stage(StageIdentifier.CopyDomainParameters, event, sample),
+                ),
+                (
+                    Stage(StageIdentifier.CopyDomainParameters, event, sample),
+                    Stage(StageIdentifier.EMOD3DParameters, event, sample),
+                ),
+            ]
+        )
 
 def create_abstract_workflow_plan(
-    realisations: list[tuple[str, Optional[int]]],
+    realisations: Iterable[tuple[str, Optional[int]]],
     goals: Iterable[StageIdentifier],
     excluding: Iterable[StageIdentifier],
 ) -> nx.DiGraph:
@@ -296,7 +310,7 @@ def pyvis_graph(workflow_plan: nx.DiGraph) -> Network:
 REALISATION_ITERATION_RE = r"_rel\d+$"
 
 
-def parse_realisation(realisation_id: str) -> tuple[str, Optional[int]]:
+def parse_realisation(realisation_id: str) -> set[tuple[str, Optional[int]]]:
     """Parse a realisation identifier string from the command line into a realisation identifier.
 
     Parameters
@@ -311,11 +325,11 @@ def parse_realisation(realisation_id: str) -> tuple[str, Optional[int]]:
     """
     try:
         index = realisation_id.rindex(":")
-        event, sample = realisation_id[:index], realisation_id[index + 1 :]
+        event, num_samples = realisation_id[:index], realisation_id[index + 1 :]
 
-        return event, int(sample) or None
+        return {(event, sample or None) for sample in range(int(num_samples))}
     except ValueError:
-        return realisation_id, None
+        return {(realisation_id, None)}
 
 
 @app.command(
@@ -383,9 +397,10 @@ def plan_workflow(
         an alias for a set of workflow stages. Equivalent to adding
         each group member to `excluding`.
     """
-    realisations = [
+    realisations = set.union(*[
         parse_realisation(realisation_id) for realisation_id in realisation_ids
-    ]
+    ])
+
     if group_goal:
         goal = set(goal) | set.union(*[GROUP_GOALS[group] for group in group_goal])
     if excluding_group:
