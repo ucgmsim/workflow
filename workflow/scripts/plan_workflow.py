@@ -5,13 +5,14 @@ to generate a base Cylc workflow to modify and extend.
 """
 
 import tempfile
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, NamedTuple, Optional
 
 import jinja2
 import networkx as nx
+import tqdm
 import typer
 from pyvis.network import Network
 
@@ -21,7 +22,6 @@ app = typer.Typer()
 class StageIdentifier(StrEnum):
     """Valid stage identifier in the workflow plan."""
 
-    CopyInput = "copy_input"
     DomainGeneration = "generate_velocity_model_parameters"
     VelocityModelGeneration = "generate_velocity_model"
     StationSelection = "generate_station_coordinates"
@@ -108,10 +108,6 @@ def add_realisation(
     """
     workflow_plan.add_edges_from(
         [
-            (
-                Stage(StageIdentifier.CopyInput, "", None),
-                Stage(StageIdentifier.NSHMToRealisation, event, sample),
-            ),
             (
                 Stage(StageIdentifier.NSHMToRealisation, event, sample),
                 Stage(StageIdentifier.SRFGeneration, event, sample),
@@ -205,8 +201,9 @@ def add_realisation(
             ]
         )
 
+
 def create_abstract_workflow_plan(
-    realisations: Iterable[tuple[str, Optional[int]]],
+    realisations: Sequence[tuple[str, Optional[int]]],
     goals: Iterable[StageIdentifier],
     excluding: Iterable[StageIdentifier],
 ) -> nx.DiGraph:
@@ -229,23 +226,37 @@ def create_abstract_workflow_plan(
         directly in the abstract plan by edges.
     """
 
-    workflow_plan = nx.DiGraph()
-    for realisation in realisations:
-        add_realisation(workflow_plan, *realisation)
-    workflow_plan = nx.transitive_closure_dag(workflow_plan)
-    goal_stages = {
-        Stage(goal, *realisation) for goal in goals for realisation in realisations
-    }
     excluding_stages = {
         Stage(excluded, *realisation)
         for excluded in excluding
         for realisation in realisations
     }
-    included_nodes = set.union(
-        *[set(workflow_plan.predecessors(goal)) | {goal} for goal in goal_stages]
-    ) - set(excluding_stages)
-    workflow_plan = workflow_plan.subgraph(included_nodes)
-    return nx.transitive_reduction(workflow_plan)
+
+    output_graph = nx.DiGraph()
+    realisation_iteration = (
+        realisations if len(realisations) < 100 else tqdm.tqdm(realisations)
+    )
+
+    for realisation in realisation_iteration:
+        workflow_plan = nx.DiGraph()
+        add_realisation(workflow_plan, *realisation)
+        workflow_plan = nx.transitive_closure_dag(workflow_plan)
+
+        for goal in goals:
+            reduced_graph = nx.transitive_reduction(
+                workflow_plan.subgraph(
+                    (
+                        set(workflow_plan.predecessors(Stage(goal, *realisation)))
+                        | {Stage(goal, *realisation)}
+                    )
+                    - excluding_stages
+                )
+            )
+            output_graph.update(
+                edges=reduced_graph.edges(), nodes=reduced_graph.nodes()
+            )
+
+    return output_graph
 
 
 def stage_to_node_string(stage: Stage) -> str:
@@ -289,7 +300,7 @@ def pyvis_graph(workflow_plan: nx.DiGraph) -> Network:
         width="100%", height="1500px", directed=True, layout="hierarchical"
     )
     network.show_buttons(filter_=["physics"])
-    root = next(node for node, degree in workflow_plan.in_degree() if degree == 0)
+    roots = [node for node, degree in workflow_plan.in_degree() if degree == 0]
     reversed_workflow = workflow_plan.reverse()
     stage: Stage
     for stage in workflow_plan.nodes():
@@ -298,8 +309,12 @@ def pyvis_graph(workflow_plan: nx.DiGraph) -> Network:
             group=f"{stage.event}_{stage.sample or ''}",
             size=20,
             level=max(
-                len(path) - 1
-                for path in nx.all_simple_paths(reversed_workflow, stage, root)
+                (
+                    len(path) - 1
+                    for root in roots
+                    for path in nx.all_simple_paths(reversed_workflow, stage, root)
+                ),
+                default=0,
             ),
         )
     for stage, next_stage in workflow_plan.edges():
@@ -397,9 +412,9 @@ def plan_workflow(
         an alias for a set of workflow stages. Equivalent to adding
         each group member to `excluding`.
     """
-    realisations = set.union(*[
-        parse_realisation(realisation_id) for realisation_id in realisation_ids
-    ])
+    realisations = set.union(
+        *[parse_realisation(realisation_id) for realisation_id in realisation_ids]
+    )
 
     if group_goal:
         goal = set(goal) | set.union(*[GROUP_GOALS[group] for group in group_goal])
