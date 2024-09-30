@@ -450,7 +450,7 @@ plan-workflow Fault_1 Fault_2 ~/cylc-run/template/flow.cylc --goal im_calc  --ex
 Often times, we want to run a number of realisations of the same event: varying the magnitude, rupture propagation, and hypocentre of an event without changing the domain or velocity model. The workflow planner tool has support to generate workflows that reuse the velocity model for a number of realisations.
 
 ``` bash
-plan-workflow Event Event:1  ~/cylc-run/template/flow.cylc --goal create_e3d_par
+plan-workflow Event:2  ~/cylc-run/template/flow.cylc --goal create_e3d_par
 ```
 
 <details open>
@@ -464,7 +464,7 @@ Notice that there is only `generate_velocity_model` job in this workflow, and th
 The `cylc graph` tool is hard to use for large workflows. The `--visualise` flag for the workflow planner opens the planned workflow in your browser. You can drag stages around and zoom in to understand the generated workflow execution graph. Adjust the physics settings in the visualisation to make the output easier to read, or disable it entirely to allow you to freely move the nodes.
 
 ``` bash
-plan-workflow Event Event:1 ~/cylc-src/template/flow.cylc --goal im_calc --goal plot_ts --visualise
+plan-workflow Event:2 ~/cylc-src/template/flow.cylc --goal im_calc --goal plot_ts --visualise
 ```
 
 <details open>
