@@ -76,6 +76,7 @@ def calculate_instensity_measures(
     output_path : Path
         Output directory for IM calc summary statistics.
     """
+    output_path.mkdir(exist_ok=True)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     intensity_measure_parameters = (
         IntensityMeasureCalcuationParameters.read_from_realisation_or_defaults(

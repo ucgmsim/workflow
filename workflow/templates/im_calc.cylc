@@ -1,5 +1,5 @@
 [[{{stage_node_identifier(stage)}}]]
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/{{realisation_identifier(stage)}}:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif im-calc /share/realisation.json /share/realisation.bb /share/im_calc.csv
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/{{realisation_identifier(stage)}}:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif im-calc /share/realisation.json /share/realisation.bb /share/ims
         [[[directives]]]
                 --cpus-per-task = 128
                 --time = 01:00:00
