@@ -33,7 +33,7 @@ See the output of `nshm2022-to-realisation --help`.
 """
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 import numpy as np
 import typer
@@ -138,6 +138,12 @@ def generate_rupture_propagation(
             parser=rake_parser,
         ),
     ],
+    shypo: Annotated[
+        Optional[float], typer.Option(help="Hypocentre s-coordinates", min=0, max=1)
+    ] = None,
+    dhypo: Annotated[
+        Optional[float], typer.Option(help="Hypocentre d-coordinates", min=0, max=1)
+    ] = None,
 ):
     """Generate a likely rupture propagation for a given set of sources.
 
@@ -153,9 +159,12 @@ def generate_rupture_propagation(
     source_config = realisations.SourceConfig.read_from_realisation(realisation_ffp)
     faults = source_config.source_geometries
 
-    expected_hypocentre = np.array(
-        [1 / 2, distributions.truncated_weibull_expected_value(1)]
-    )
+    if shypo and dhypo:
+        expected_hypocentre = np.array([shypo, dhypo])
+    else:
+        expected_hypocentre = np.array(
+            [1 / 2, distributions.truncated_weibull_expected_value(1)]
+        )
 
     rupture_causality_tree = (
         rupture_propagation.estimate_most_likely_rupture_propagation(
