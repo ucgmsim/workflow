@@ -64,6 +64,9 @@ def calculate_instensity_measures(
             writable=True,
         ),
     ],
+    simulated_stations: Annotated[
+        bool, typer.Option(help='If passed, calculate for simulated stations.')
+    ] = True
 ):
     """Calculate intensity measures for simulation data.
 
@@ -110,6 +113,6 @@ def calculate_instensity_measures(
         simple_output=True,
         units=intensity_measure_parameters.units,
         advanced_im_config=None,
-        real_only=False,
+        real_only=(not simulated_stations),
         logger=logger,
     )
