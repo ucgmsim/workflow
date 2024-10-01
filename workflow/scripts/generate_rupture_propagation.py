@@ -159,7 +159,7 @@ def generate_rupture_propagation(
     source_config = realisations.SourceConfig.read_from_realisation(realisation_ffp)
     faults = source_config.source_geometries
 
-    if shypo and dhypo:
+    if shypo is not None and dhypo is not None:
         expected_hypocentre = np.array([shypo, dhypo])
     else:
         expected_hypocentre = np.array(
