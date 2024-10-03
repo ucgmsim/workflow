@@ -28,6 +28,7 @@ For More Help
 See the output of `im-calc --help`.
 """
 
+import multiprocessing
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Callable
@@ -72,7 +73,9 @@ def response_spectra(
         n = fourier.shape[1]
         m = max(n, int(max_freq_ratio * oscillator_freq / freq[1]))
         scale = m / n
-        response = fft.irfft(fourier * h, 2 * (m - 1), axis=0, threads=8)
+        response = fft.irfft(
+            fourier * h, 2 * (m - 1), axis=0, threads=multiprocessing.cpu_count()
+        )
         print("computing psa")
         psa[i] = ne.evaluate("max(abs(scale * response), 0)")
         i += 1
@@ -92,6 +95,7 @@ def compute_in_rotations(
 ) -> pd.DataFrame:
     (stations, nt, _) = waveforms.shape
     values = np.zeros(shape=(stations, 180), dtype=waveforms.dtype)
+
     comp_0 = waveforms[:, :, 0]
     comp_90 = waveforms[:, :, 1]
     for i in range(180):
@@ -176,29 +180,29 @@ def calculate_instensity_measures(
         waveforms = np.array(broadband_file["waveforms"])
 
     stations = pd.read_hdf(broadband_simulation_ffp, key="stations")
-    pga = compute_in_rotations(waveforms, lambda v: v.max(axis=1))  # ~30s
-    print("Computed PGA")
-    pgv = compute_in_rotations(
-        np.cumsum(waveforms, axis=1) * 981 * broadband_parameters.dt,
-        lambda v: v.max(axis=1),
-    )  # ~ 30s
-    print("Computed PGV")
-    cav = compute_in_rotations(
-        waveforms, lambda v: np.trapz(v, dx=broadband_parameters.dt, axis=1)
-    )  # ~ 30s
-    print("Computed CAV")
-    ai = compute_in_rotations(
-        waveforms,
-        lambda v: np.trapz(v, dx=broadband_parameters.dt, axis=1),
-        component_wise_operation=ComponentWiseOperation.SQUARE,
-    )  # ~ 30s
-    print("Computed AI")
-    ds575 = compute_in_rotations(
-        waveforms,
-        lambda v: compute_significant_duration(v, broadband_parameters.dt, 5, 75),
-        component_wise_operation=ComponentWiseOperation.SQUARE,
-    )  # ~ 45s
-    print("Computed DS575")
+    # pga = compute_in_rotations(waveforms, lambda v: v.max(axis=1))  # ~30s
+    # print("Computed PGA")
+    # pgv = compute_in_rotations(
+    #     np.cumsum(waveforms, axis=1) * 981 * broadband_parameters.dt,
+    #     lambda v: v.max(axis=1),
+    # )  # ~ 30s
+    # print("Computed PGV")
+    # cav = compute_in_rotations(
+    #     waveforms, lambda v: np.trapz(v, dx=broadband_parameters.dt, axis=1)
+    # )  # ~ 30s
+    # print("Computed CAV")
+    # ai = compute_in_rotations(
+    #     waveforms,
+    #     lambda v: np.trapz(v, dx=broadband_parameters.dt, axis=1),
+    #     component_wise_operation=ComponentWiseOperation.SQUARE,
+    # )  # ~ 30s
+    # print("Computed AI")
+    # ds575 = compute_in_rotations(
+    #     waveforms,
+    #     lambda v: compute_significant_duration(v, broadband_parameters.dt, 5, 75),
+    #     component_wise_operation=ComponentWiseOperation.SQUARE,
+    # )  # ~ 45s
+    # print("Computed DS575")
     psa = response_spectra(
         waveforms[:, :, 0],
         broadband_parameters.dt,
