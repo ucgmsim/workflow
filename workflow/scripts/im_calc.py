@@ -58,7 +58,7 @@ def response_spectra(
     xi: float = 0.05,
     max_freq_ratio: int = 5,
 ):
-    fourier = fft.rfft(waveforms, axis=0, threads=8)
+    fourier = fft.rfft(waveforms, axis=0, threads=multiprocessing.cpu_count())
     freq = np.linspace(0, 1 / (2 * dt), num=fourier.shape[1])
     psa = np.zeros(shape=(len(periods), waveforms.shape[1]))
     i = 0
