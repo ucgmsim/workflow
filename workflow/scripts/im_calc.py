@@ -100,8 +100,8 @@ def compute_psa(
     for i in tqdm.trange(180):
         theta = np.deg2rad(i)
         comp = comp_0 * np.cos(theta) + comp_90 * np.sin(theta)
-        comp = comp[:, ::10]
-        values[i] = response_spectra(comp, dt * 10, periods)
+        comp = comp[:, ::sample_rate_reduction]
+        values[i] = response_spectra(comp, dt * sample_rate_reduction, periods)
     print("DONE!")
 
 
@@ -258,6 +258,7 @@ def calculate_instensity_measures(
             ]
         ),
         broadband_parameters.dt,
+        sample_rate_reduction=5,
     )
     print("Computed PSA")
     # print(psa)
