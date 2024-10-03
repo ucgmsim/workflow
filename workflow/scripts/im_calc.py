@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Annotated, Callable
 
 import h5py
+import numba
 import numexpr as ne
 import numpy as np
 import numpy.typing as npt
@@ -70,14 +71,12 @@ def response_spectra(
         - 2j * xi * oscillator_freq[:, np.newaxis] * ang_freq[np.newaxis, :]
     )  # h needs to be a matrix of size (np, nt)
     # fourier = (stat, nt), h = (np, nt) want: (np, stat, nt)
-    response = fft.irfft(
+    return fft.irfft(
         fourier[np.newaxis, ...] * h[:, np.newaxis, :],
         axis=2,
         threads=multiprocessing.cpu_count(),
     )
     # now have array of shape (np, nstat, nt)
-    psa = ne.evaluate("max(abs(response), 2)")
-    return psa.T
 
 
 class ComponentWiseOperation(StrEnum):
@@ -90,19 +89,19 @@ def compute_psa(
     waveforms: npt.NDArray[np.float32],
     periods: npt.NDArray[np.float32],
     dt: float,
-    sample_rate_reduction: int = 10,
 ) -> pd.DataFrame:
     (stations, nt, _) = waveforms.shape
     values = np.zeros(shape=(180, stations, len(periods)), dtype=waveforms.dtype)
+    print("Computing comp_0")
+    comp_0 = response_spectra(waveforms[:, :, 0], dt, periods)
+    print("computing comp_90")
+    comp_90 = response_spectra(waveforms[:, :, 1], dt, periods)
 
-    comp_0 = waveforms[:, :, 0]
-    comp_90 = waveforms[:, :, 1]
     for i in tqdm.trange(180):
         theta = np.deg2rad(i)
-        comp = comp_0 * np.cos(theta) + comp_90 * np.sin(theta)
-        comp = comp[:, ::sample_rate_reduction]
-        values[i] = response_spectra(comp, dt * sample_rate_reduction, periods)
-    print("DONE!")
+        comp = ne.evaluate(ComponentWiseOperation.NONE)
+        values[i] = comp.max(axis=-1)
+    return values
 
 
 def compute_in_rotations(
@@ -131,6 +130,18 @@ def compute_in_rotations(
             "median": rotated_median,
         }
     )
+
+
+@numba.njit(parallel=True)
+def trapz(waveforms: npt.NDArray[np.float32], dt: float) -> npt.NDArray[np.float32]:
+    sums = np.zeros((waveforms.shape[0],), np.float32)
+    for i in numba.prange(waveforms.shape[0]):
+        for j in range(waveforms.shape[1]):
+            if j == 0 or j == waveforms.shape[1] - 1:
+                sums[i] += waveforms[i, j] / 2
+            else:
+                sums[i] += waveforms[i, j]
+    return sums * dt
 
 
 def compute_significant_duration(
@@ -200,12 +211,12 @@ def calculate_instensity_measures(
     # pga = compute_in_rotations(waveforms, lambda v: v.max(axis=1))  # ~30s
     # print("Computed PGA")
     # pgv = compute_in_rotations(
-    #     np.cumsum(waveforms, axis=1) * 981 * broadband_parameters.dt,
+    #     cumsum(waveforms) * 981 * broadband_parameters.dt,
     #     lambda v: v.max(axis=1),
     # )  # ~ 30s
     # print("Computed PGV")
     # cav = compute_in_rotations(
-    #     waveforms, lambda v: np.trapz(v, dx=broadband_parameters.dt, axis=1)
+    #     waveforms, lambda v: trapz(v, broadband_parameters.dt)
     # )  # ~ 30s
     # print("Computed CAV")
     # ai = compute_in_rotations(
@@ -220,6 +231,7 @@ def calculate_instensity_measures(
     #     component_wise_operation=ComponentWiseOperation.SQUARE,
     # )  # ~ 45s
     # print("Computed DS575")
+
     psa = compute_psa(
         waveforms,
         np.array(
@@ -258,7 +270,6 @@ def calculate_instensity_measures(
             ]
         ),
         broadband_parameters.dt,
-        sample_rate_reduction=5,
     )
     print("Computed PSA")
     # print(psa)
