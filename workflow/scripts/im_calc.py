@@ -100,7 +100,7 @@ def compute_psa(
     for i in tqdm.trange(180):
         theta = np.deg2rad(i)
         comp = ne.evaluate(ComponentWiseOperation.NONE)
-        values[i] = comp.max(axis=-1)
+        values[i] = comp.max(axis=-1).T
     return values
 
 
@@ -124,10 +124,10 @@ def compute_in_rotations(
     rotated_median = np.median(values, axis=1)
     return pd.DataFrame(
         {
-            "comp_0": comp_0,
-            "comp_90": comp_90,
-            "max": rotated_max,
-            "median": rotated_median,
+            "000": comp_0,
+            "090": comp_90,
+            "rotd100": rotated_max,
+            "rotd50": rotated_median,
         }
     )
 
@@ -155,7 +155,6 @@ def compute_significant_duration(
     sum_mask = ne.evaluate(
         "(arias_intensity >= percent_low) & (arias_intensity <= percent_high)"
     )
-
     threshold_values = np.count_nonzero(sum_mask, axis=1) * dt
     return threshold_values.ravel()
 
@@ -208,75 +207,140 @@ def calculate_instensity_measures(
         waveforms = np.array(broadband_file["waveforms"])
 
     stations = pd.read_hdf(broadband_simulation_ffp, key="stations")
-    # pga = compute_in_rotations(waveforms, lambda v: v.max(axis=1))  # ~30s
-    # print("Computed PGA")
-    # pgv = compute_in_rotations(
-    #     cumsum(waveforms) * 981 * broadband_parameters.dt,
-    #     lambda v: v.max(axis=1),
-    # )  # ~ 30s
-    # print("Computed PGV")
-    # cav = compute_in_rotations(
-    #     waveforms, lambda v: trapz(v, broadband_parameters.dt)
-    # )  # ~ 30s
-    # print("Computed CAV")
-    # ai = compute_in_rotations(
-    #     waveforms,
-    #     lambda v: np.trapz(v, dx=broadband_parameters.dt, axis=1),
-    #     component_wise_operation=ComponentWiseOperation.SQUARE,
-    # )  # ~ 30s
-    # print("Computed AI")
-    # ds575 = compute_in_rotations(
-    #     waveforms,
-    #     lambda v: compute_significant_duration(v, broadband_parameters.dt, 5, 75),
-    #     component_wise_operation=ComponentWiseOperation.SQUARE,
-    # )  # ~ 45s
+    intensity_measures = ["pga", "pgv", "cav", "ai", "ds575"]
+    intensity_measure_statistics = pd.DataFrame()
+    pbar = tqdm.tqdm(intensity_measures)
+    for intensity_measure in pbar:
+        pbar.set_description(intensity_measure)
+        match intensity_measure:
+            case "pga":
+                individual_intensity_measure_statistics = compute_in_rotations(
+                    waveforms, lambda v: v.max(axis=1)
+                )  # ~30s
+                individual_intensity_measure_statistics["station"] = stations.index
+                individual_intensity_measure_statistics["intensity_measure"] = "pga"
+                individual_intensity_measure_statistics = (
+                    individual_intensity_measure_statistics.set_index(
+                        ["station", "intensity_measure"]
+                    )
+                )
+            case "pgv":
+                individual_intensity_measure_statistics = compute_in_rotations(
+                    np.cumsum(waveforms, axis=1) * 981 * broadband_parameters.dt,
+                    lambda v: v.max(axis=1),
+                )
+                individual_intensity_measure_statistics["station"] = stations.index
+                individual_intensity_measure_statistics["intensity_measure"] = "pgv"
+                individual_intensity_measure_statistics = (
+                    individual_intensity_measure_statistics.set_index(
+                        ["station", "intensity_measure"]
+                    )
+                )
+            case "cav":
+                individual_intensity_measure_statistics = compute_in_rotations(
+                    waveforms, lambda v: trapz(v, broadband_parameters.dt)
+                )  # ~ 30s
+                individual_intensity_measure_statistics["station"] = stations.index
+                individual_intensity_measure_statistics["intensity_measure"] = "cav"
+                individual_intensity_measure_statistics = (
+                    individual_intensity_measure_statistics.set_index(
+                        ["station", "intensity_measure"]
+                    )
+                )
+            case "ai":
+                individual_intensity_measure_statistics = compute_in_rotations(
+                    waveforms,
+                    lambda v: np.trapz(v, dx=broadband_parameters.dt, axis=1),
+                    component_wise_operation=ComponentWiseOperation.SQUARE,
+                )  # ~ 30s
+                individual_intensity_measure_statistics["station"] = stations.index
+                individual_intensity_measure_statistics["intensity_measure"] = "ai"
+                individual_intensity_measure_statistics = (
+                    individual_intensity_measure_statistics.set_index(
+                        ["station", "intensity_measure"]
+                    )
+                )
+            case "ds575":
+                individual_intensity_measure_statistics = compute_in_rotations(
+                    waveforms,
+                    lambda v: compute_significant_duration(
+                        v, broadband_parameters.dt, 5, 75
+                    ),
+                    component_wise_operation=ComponentWiseOperation.SQUARE,
+                )  # ~ 45s
+                individual_intensity_measure_statistics["station"] = stations.index
+                individual_intensity_measure_statistics["intensity_measure"] = "ds575"
+                individual_intensity_measure_statistics = (
+                    individual_intensity_measure_statistics.set_index(
+                        ["station", "intensity_measure"]
+                    )
+                )
+            case "ds595":
+                individual_intensity_measure_statistics = compute_in_rotations(
+                    waveforms,
+                    lambda v: compute_significant_duration(
+                        v, broadband_parameters.dt, 5, 95
+                    ),
+                    component_wise_operation=ComponentWiseOperation.SQUARE,
+                )  # ~ 45s
+                individual_intensity_measure_statistics["station"] = stations.index
+                individual_intensity_measure_statistics["intensity_measure"] = "ds595"
+                individual_intensity_measure_statistics = (
+                    individual_intensity_measure_statistics.set_index(
+                        ["station", "intensity_measure"]
+                    )
+                )
+        intensity_measure_statistics = pd.concat(
+            [intensity_measure_statistics, individual_intensity_measure_statistics]
+        )
+    print(intensity_measure_statistics)
     # print("Computed DS575")
 
-    psa = compute_psa(
-        waveforms,
-        np.array(
-            [
-                0.01,
-                0.02,
-                0.03,
-                0.04,
-                0.05,
-                0.075,
-                0.1,
-                0.12,
-                0.15,
-                0.17,
-                0.2,
-                0.25,
-                0.3,
-                0.4,
-                0.5,
-                0.6,
-                0.7,
-                0.75,
-                0.8,
-                0.9,
-                1.0,
-                1.25,
-                1.5,
-                2.0,
-                2.5,
-                3.0,
-                4.0,
-                5.0,
-                6.0,
-                7.5,
-                10.0,
-            ]
-        ),
-        broadband_parameters.dt,
-    )
-    print("Computed PSA")
+    # psa = compute_psa(
+    #     waveforms,
+    #     np.array(
+    #         [
+    #             0.01,
+    #             0.02,
+    #             0.03,
+    #             0.04,
+    #             0.05,
+    #             0.075,
+    #             0.1,
+    #             0.12,
+    #             0.15,
+    #             0.17,
+    #             0.2,
+    #             0.25,
+    #             0.3,
+    #             0.4,
+    #             0.5,
+    #             0.6,
+    #             0.7,
+    #             0.75,
+    #             0.8,
+    #             0.9,
+    #             1.0,
+    #             1.25,
+    #             1.5,
+    #             2.0,
+    #             2.5,
+    #             3.0,
+    #             4.0,
+    #             5.0,
+    #             6.0,
+    #             7.5,
+    #             10.0,
+    #         ]
+    #     ),
+    #     broadband_parameters.dt,
+    # )
+    # print("Computed PSA")
     # print(psa)
     # print(sys.getsizeof(pgv))
     # print(stations)
     # print(ds575)
-    # print(pga)
+    # print(cav)
     # print(pgv)
     # print(cav)
     # print(ai)
