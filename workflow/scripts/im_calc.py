@@ -177,12 +177,10 @@ def calculate_instensity_measures(
 
     stations = pd.read_hdf(broadband_simulation_ffp, key="stations")
     pga = compute_in_rotations(waveforms, lambda v: v.max(axis=1))  # ~30s
-    print("Computed PGA")
     pgv = compute_in_rotations(
         np.cumsum(waveforms, axis=1) * 981 * broadband_parameters.dt,
         lambda v: v.max(axis=1),
     )  # ~ 30s
-    print("Computed PGV")
     cav = compute_in_rotations(
         waveforms, lambda v: np.trapz(v, dx=broadband_parameters.dt, axis=1)
     )  # ~ 30s
@@ -191,57 +189,56 @@ def calculate_instensity_measures(
         lambda v: np.trapz(v, dx=broadband_parameters.dt, axis=1),
         component_wise_operation=ComponentWiseOperation.SQUARE,
     )  # ~ 30s
-    print("Computed AI")
     ds575 = compute_in_rotations(
         waveforms,
         lambda v: compute_significant_duration(v, broadband_parameters.dt, 5, 75),
         component_wise_operation=ComponentWiseOperation.SQUARE,
     )  # ~ 45s
-    print("Computed DS575")
-    # psa = response_spectra(
-    #     waveforms[:, :, 0],
-    #     broadband_parameters.dt,
-    #     np.array(
-    #         [
-    #             0.01,
-    #             0.02,
-    #             0.03,
-    #             0.04,
-    #             0.05,
-    #             0.075,
-    #             0.1,
-    #             0.12,
-    #             0.15,
-    #             0.17,
-    #             0.2,
-    #             0.25,
-    #             0.3,
-    #             0.4,
-    #             0.5,
-    #             0.6,
-    #             0.7,
-    #             0.75,
-    #             0.8,
-    #             0.9,
-    #             1.0,
-    #             1.25,
-    #             1.5,
-    #             2.0,
-    #             2.5,
-    #             3.0,
-    #             4.0,
-    #             5.0,
-    #             6.0,
-    #             7.5,
-    #             10.0,
-    #         ]
-    #     ),
-    # )
+    psa = response_spectra(
+        waveforms[:, :, 0],
+        broadband_parameters.dt,
+        np.array(
+            [
+                0.01,
+                0.02,
+                0.03,
+                0.04,
+                0.05,
+                0.075,
+                0.1,
+                0.12,
+                0.15,
+                0.17,
+                0.2,
+                0.25,
+                0.3,
+                0.4,
+                0.5,
+                0.6,
+                0.7,
+                0.75,
+                0.8,
+                0.9,
+                1.0,
+                1.25,
+                1.5,
+                2.0,
+                2.5,
+                3.0,
+                4.0,
+                5.0,
+                6.0,
+                7.5,
+                10.0,
+            ]
+        ),
+    )
+    print("Computed PSA")
     # print(psa)
     # print(sys.getsizeof(pgv))
-    print(stations)
+    # print(stations)
     # print(ds575)
-    print(pga)
+    # print(pga)
     # print(pgv)
     # print(cav)
     # print(ai)
