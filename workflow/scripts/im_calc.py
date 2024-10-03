@@ -58,34 +58,51 @@ def response_spectra(
     xi: float = 0.05,
     max_freq_ratio: int = 5,
 ):
-    fourier = fft.rfft(waveforms, axis=0, threads=multiprocessing.cpu_count())
+    fourier = fft.rfft(waveforms, axis=1, threads=multiprocessing.cpu_count())
     freq = np.linspace(0, 1 / (2 * dt), num=fourier.shape[1])
-    psa = np.zeros(shape=(len(periods), waveforms.shape[1]))
-    i = 0
-    for period in tqdm.tqdm(periods):
-        ang_freq = 2 * np.pi * freq
-        oscillator_freq = 2 * np.pi * period
-        h = -(oscillator_freq**2) / (
-            np.square(ang_freq)
-            - np.square(oscillator_freq)
-            - 2j * xi * oscillator_freq * ang_freq
-        )
-        n = fourier.shape[1]
-        m = max(n, int(max_freq_ratio * oscillator_freq / freq[1]))
-        scale = m / n
-        response = fft.irfft(
-            fourier * h, 2 * (m - 1), axis=0, threads=multiprocessing.cpu_count()
-        )
-        print("computing psa")
-        psa[i] = ne.evaluate("max(abs(scale * response), 0)")
-        i += 1
-    return psa
+    ang_freq = 2 * np.pi * freq  # (nt,)
+    oscillator_freq = 2 * np.pi * periods  # (np,)
+    h = -np.square(oscillator_freq)[
+        :, np.newaxis
+    ] / (  # (np x nt) / (nt - np - np * nt) ERROR
+        np.square(ang_freq)[np.newaxis, :]
+        - np.square(oscillator_freq)[:, np.newaxis]
+        - 2j * xi * oscillator_freq[:, np.newaxis] * ang_freq[np.newaxis, :]
+    )  # h needs to be a matrix of size (np, nt)
+    # fourier = (stat, nt), h = (np, nt) want: (np, stat, nt)
+    response = fft.irfft(
+        fourier[np.newaxis, ...] * h[:, np.newaxis, :],
+        axis=2,
+        threads=multiprocessing.cpu_count(),
+    )
+    # now have array of shape (np, nstat, nt)
+    psa = ne.evaluate("max(abs(response), 2)")
+    return psa.T
 
 
 class ComponentWiseOperation(StrEnum):
     NONE = "cos(theta) * comp_0 + sin(theta) * comp_90"
     ABS = "abs(cos(theta) * comp_0 + sin(theta) * comp_90)"
     SQUARE = "(cos(theta) * comp_0 + sin(theta) * comp_90)**2"
+
+
+def compute_psa(
+    waveforms: npt.NDArray[np.float32],
+    periods: npt.NDArray[np.float32],
+    dt: float,
+    sample_rate_reduction: int = 10,
+) -> pd.DataFrame:
+    (stations, nt, _) = waveforms.shape
+    values = np.zeros(shape=(180, stations, len(periods)), dtype=waveforms.dtype)
+
+    comp_0 = waveforms[:, :, 0]
+    comp_90 = waveforms[:, :, 1]
+    for i in tqdm.trange(180):
+        theta = np.deg2rad(i)
+        comp = comp_0 * np.cos(theta) + comp_90 * np.sin(theta)
+        comp = comp[:, ::10]
+        values[i] = response_spectra(comp, dt * 10, periods)
+    print("DONE!")
 
 
 def compute_in_rotations(
@@ -203,9 +220,8 @@ def calculate_instensity_measures(
     #     component_wise_operation=ComponentWiseOperation.SQUARE,
     # )  # ~ 45s
     # print("Computed DS575")
-    psa = response_spectra(
-        waveforms[:, :, 0],
-        broadband_parameters.dt,
+    psa = compute_psa(
+        waveforms,
         np.array(
             [
                 0.01,
@@ -241,6 +257,7 @@ def calculate_instensity_measures(
                 10.0,
             ]
         ),
+        broadband_parameters.dt,
     )
     print("Computed PSA")
     # print(psa)
