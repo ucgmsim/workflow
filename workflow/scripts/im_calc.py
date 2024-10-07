@@ -71,7 +71,10 @@ def response_spectra(
         - 2j * xi * oscillator_freq[:, np.newaxis] * ang_freq[np.newaxis, :]
     )  # h needs to be a matrix of size (np, nt)
     # fourier = (stat, nt), h = (np, nt) want: (np, stat, nt)
-    return fft.irfft(
+    n = len(fourier)
+    m = max(n, int(max_freq_ratio * oscillator_freq.max() / freq[1]))
+    scale = m / n
+    return scale * fft.irfft(
         fourier[np.newaxis, ...] * h[:, np.newaxis, :],
         axis=2,
         threads=multiprocessing.cpu_count(),
@@ -82,26 +85,156 @@ def response_spectra(
 class ComponentWiseOperation(StrEnum):
     NONE = "cos(theta) * comp_0 + sin(theta) * comp_90"
     ABS = "abs(cos(theta) * comp_0 + sin(theta) * comp_90)"
-    SQUARE = "(cos(theta) * comp_0 + sin(theta) * comp_90)**2"
+    SQUARE = "(cos(theta) * comp_0 + sin(theta) * comp_90)*(cos(theta) * comp_0 + sin(theta) * comp_90)"
+
+
+@numba.njit
+def newmark_estimate_psa(
+    waveforms: npt.NDArray[np.float32],
+    t: npt.NDArray[np.float32],
+    dt: float,
+    w: npt.NDArray[np.float32],
+    xi: float = 0.05,
+    gamma: float = 1 / 2,
+    beta: float = 1 / 4,
+    m: float = 1,
+) -> npt.NDArray[np.float32]:
+    w = w * np.pi * 2
+    c = 2 * xi * w
+    a = 1 / (beta * dt) * m + (gamma / beta) * c
+    b = 1 / (2 * beta) * m + dt * (gamma / (2 * beta) - 1) * c
+    k = np.square(w)
+    kbar = k + (gamma / (beta * dt)) * c + 1 / (beta * dt**2) * m
+    u = np.zeros(
+        shape=(waveforms.shape[0], waveforms.shape[1], w.size), dtype=np.float32
+    )
+    # calculations for each time step
+    dudt = np.zeros_like(w)
+    #         ns         np x ns    np x ns
+    d2udt2 = np.zeros_like(w)
+    for i in range(waveforms.shape[0]):
+        for j in range(1, waveforms.shape[1]):
+            if j == 1:
+                d2udt2 = (-m * waveforms[i, 0] - c * dudt - k * u[i, 0]) / m
+            d_pti = -m * (waveforms[i, j] - waveforms[i, j - 1])
+            d_pbari = d_pti + a * dudt + b * d2udt2
+            d_ui = d_pbari / kbar
+            d_dudti = (
+                (gamma / (beta * dt)) * d_ui
+                - (gamma / beta) * dudt
+                + dt * (1 - gamma / (2 * beta)) * d2udt2
+            )
+            d_d2udt2i = (
+                1 / (beta * dt**2) * d_ui
+                - 1 / (beta * dt) * dudt
+                - 1 / (2 * beta) * d2udt2
+            )
+
+            # Convert from incremental formulation and store values in vector
+            u[i, j] = u[i, j - 1] + d_ui
+            dudt += d_dudti
+            d2udt2 += d_d2udt2i
+
+        dudt[:] = 0
+        d2udt2[:] = 0
+    return u
+
+
+def rotd_psa_values(
+    comp_000: npt.NDArray[np.float32],
+    comp_090: npt.NDArray[np.float32],
+    w: npt.NDArray[np.float32],
+    step: int = 20,
+) -> npt.NDArray[np.float32]:
+    theta = np.arange(180)
+    ne.set_num_threads(multiprocessing.cpu_count())
+    psa = np.zeros((comp_000.shape[0], comp_000.shape[-1], 2), np.float32)
+    out = np.zeros((step, *comp_000.shape[1:], 180), np.float32)
+    w = np.square(w * 2 * np.pi)
+    for i in tqdm.trange(0, comp_000.shape[0], step):
+        step_000 = comp_000[i : i + step]
+        step_090 = comp_000[i : i + step]
+        psa[i : i + step] = np.transpose(
+            w[np.newaxis, np.newaxis, :]
+            * np.percentile(
+                np.max(
+                    ne.evaluate(
+                        "abs(comp_000 * cos(theta) + comp_090 * sin(theta))",
+                        {
+                            "comp_000": step_000[..., np.newaxis],
+                            "theta": theta[np.newaxis, ...],
+                            "comp_090": step_090[..., np.newaxis],
+                        },
+                        out=out[: len(step_000)],
+                    )[: len(step_000)],
+                    axis=1,
+                ),
+                [50, 100],
+                axis=-1,
+            ),
+            [1, 2, 0],
+        )
+    return psa
 
 
 def compute_psa(
+    stations: pd.Series,
     waveforms: npt.NDArray[np.float32],
     periods: npt.NDArray[np.float32],
     dt: float,
 ) -> pd.DataFrame:
-    (stations, nt, _) = waveforms.shape
-    values = np.zeros(shape=(180, stations, len(periods)), dtype=waveforms.dtype)
-    print("Computing comp_0")
-    comp_0 = response_spectra(waveforms[:, :, 0], dt, periods)
-    print("computing comp_90")
-    comp_90 = response_spectra(waveforms[:, :, 1], dt, periods)
+    g = 981
+    t = np.arange(waveforms.shape[1]) * dt
+    comp_0 = newmark_estimate_psa(
+        waveforms[:, :, 1],
+        t,
+        dt,
+        periods,
+    )
 
-    for i in tqdm.trange(180):
-        theta = np.deg2rad(i)
-        comp = ne.evaluate(ComponentWiseOperation.NONE)
-        values[i] = comp.max(axis=-1).T
-    return values
+    comp_90 = newmark_estimate_psa(
+        waveforms[:, :, 0],
+        t,
+        dt,
+        periods,
+    )
+
+    rotd_psa = g * rotd_psa_values(
+        comp_0, comp_90, periods, step=multiprocessing.cpu_count()
+    )
+    comp_0_psa = g * np.abs(comp_0).max(axis=1)
+    comp_90_psa = g * np.abs(comp_90).max(axis=1)
+    ver_psa = g * np.abs(newmark_estimate_psa(waveforms[:, :, 0], t, dt, periods)).max(
+        axis=1
+    )
+    geom_psa = np.sqrt(comp_0_psa * comp_90_psa)
+    psa_df = pd.DataFrame(
+        columns=[
+            "station",
+            "intensity_measure",
+            "000",
+            "090",
+            "ver",
+            "geom",
+            "rotd100",
+            "rotd50",
+        ]
+    )
+    for i, p in enumerate(periods):
+        period_df = pd.DataFrame(
+            {
+                "station": stations,
+                "intensity_measure": f"pSA_{p:.2f}",
+                "000": comp_0_psa[:, i],
+                "090": comp_90_psa[:, i],
+                "ver": ver_psa[:, i],
+                "geom": geom_psa[:, i],
+                "rotd50": rotd_psa[:, i, 0],
+                "rotd100": rotd_psa[:, i, 1],
+            }
+        )
+        psa_df = pd.concat(psa_df, period_df)
+    return psa_df
 
 
 def compute_in_rotations(
@@ -112,20 +245,29 @@ def compute_in_rotations(
     (stations, nt, _) = waveforms.shape
     values = np.zeros(shape=(stations, 180), dtype=waveforms.dtype)
 
-    comp_0 = waveforms[:, :, 0]
-    comp_90 = waveforms[:, :, 1]
+    comp_0 = waveforms[:, :, 1]
+    comp_90 = waveforms[:, :, 0]
     for i in range(180):
         theta = np.deg2rad(i)
         values[:, i] = function(ne.evaluate(component_wise_operation))
 
     comp_0 = values[:, 0]
     comp_90 = values[:, 90]
+    comp_ver = waveforms[:, :, 2]
+    match component_wise_operation:
+        case ComponentWiseOperation.ABS:
+            comp_ver = ne.evaluate("abs(comp_ver)")
+        case ComponentWiseOperation.SQUARE:
+            comp_ver = ne.evaluate("(comp_ver)**2")
+    ver = function(comp_ver)
     rotated_max = np.max(values, axis=1)
     rotated_median = np.median(values, axis=1)
     return pd.DataFrame(
         {
             "000": comp_0,
             "090": comp_90,
+            "ver": ver,
+            "geom": np.sqrt(comp_0 * comp_90),
             "rotd100": rotated_max,
             "rotd50": rotated_median,
         }
@@ -153,7 +295,7 @@ def compute_significant_duration(
     arias_intensity = np.cumsum(waveforms, axis=1)
     arias_intensity /= arias_intensity[:, -1][:, np.newaxis]
     sum_mask = ne.evaluate(
-        "(arias_intensity >= percent_low) & (arias_intensity <= percent_high)"
+        "(arias_intensity >= percent_low / 100) & (arias_intensity <= percent_high / 100)"
     )
     threshold_values = np.count_nonzero(sum_mask, axis=1) * dt
     return threshold_values.ravel()
@@ -175,7 +317,7 @@ def calculate_instensity_measures(
         Path,
         typer.Argument(
             help="Output path for IM calculation summary statistics.",
-            file_okay=False,
+            dir_okay=False,
             writable=True,
         ),
     ],
@@ -194,7 +336,6 @@ def calculate_instensity_measures(
     output_path : Path
         Output directory for IM calc summary statistics.
     """
-    output_path.mkdir(exist_ok=True)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     broadband_parameters = BroadbandParameters.read_from_realisation(realisation_ffp)
     intensity_measure_parameters = (
@@ -207,9 +348,10 @@ def calculate_instensity_measures(
         waveforms = np.array(broadband_file["waveforms"])
 
     stations = pd.read_hdf(broadband_simulation_ffp, key="stations")
-    intensity_measures = ["pga", "pgv", "cav", "ai", "ds575"]
+    intensity_measures = ["pga", "pgv", "cav", "ai", "ds575", "ds595"]
     intensity_measure_statistics = pd.DataFrame()
     pbar = tqdm.tqdm(intensity_measures)
+    g = 981
     for intensity_measure in pbar:
         pbar.set_description(intensity_measure)
         match intensity_measure:
@@ -219,47 +361,27 @@ def calculate_instensity_measures(
                 )  # ~30s
                 individual_intensity_measure_statistics["station"] = stations.index
                 individual_intensity_measure_statistics["intensity_measure"] = "pga"
-                individual_intensity_measure_statistics = (
-                    individual_intensity_measure_statistics.set_index(
-                        ["station", "intensity_measure"]
-                    )
-                )
             case "pgv":
                 individual_intensity_measure_statistics = compute_in_rotations(
-                    np.cumsum(waveforms, axis=1) * 981 * broadband_parameters.dt,
+                    np.cumsum(waveforms, axis=1) * g * broadband_parameters.dt,
                     lambda v: v.max(axis=1),
                 )
                 individual_intensity_measure_statistics["station"] = stations.index
                 individual_intensity_measure_statistics["intensity_measure"] = "pgv"
-                individual_intensity_measure_statistics = (
-                    individual_intensity_measure_statistics.set_index(
-                        ["station", "intensity_measure"]
-                    )
-                )
             case "cav":
                 individual_intensity_measure_statistics = compute_in_rotations(
                     waveforms, lambda v: trapz(v, broadband_parameters.dt)
                 )  # ~ 30s
                 individual_intensity_measure_statistics["station"] = stations.index
                 individual_intensity_measure_statistics["intensity_measure"] = "cav"
-                individual_intensity_measure_statistics = (
-                    individual_intensity_measure_statistics.set_index(
-                        ["station", "intensity_measure"]
-                    )
-                )
             case "ai":
                 individual_intensity_measure_statistics = compute_in_rotations(
                     waveforms,
-                    lambda v: np.trapz(v, dx=broadband_parameters.dt, axis=1),
+                    lambda v: (np.pi * g) / 2 * trapz(v, broadband_parameters.dt),
                     component_wise_operation=ComponentWiseOperation.SQUARE,
                 )  # ~ 30s
                 individual_intensity_measure_statistics["station"] = stations.index
                 individual_intensity_measure_statistics["intensity_measure"] = "ai"
-                individual_intensity_measure_statistics = (
-                    individual_intensity_measure_statistics.set_index(
-                        ["station", "intensity_measure"]
-                    )
-                )
             case "ds575":
                 individual_intensity_measure_statistics = compute_in_rotations(
                     waveforms,
@@ -270,11 +392,6 @@ def calculate_instensity_measures(
                 )  # ~ 45s
                 individual_intensity_measure_statistics["station"] = stations.index
                 individual_intensity_measure_statistics["intensity_measure"] = "ds575"
-                individual_intensity_measure_statistics = (
-                    individual_intensity_measure_statistics.set_index(
-                        ["station", "intensity_measure"]
-                    )
-                )
             case "ds595":
                 individual_intensity_measure_statistics = compute_in_rotations(
                     waveforms,
@@ -285,62 +402,20 @@ def calculate_instensity_measures(
                 )  # ~ 45s
                 individual_intensity_measure_statistics["station"] = stations.index
                 individual_intensity_measure_statistics["intensity_measure"] = "ds595"
-                individual_intensity_measure_statistics = (
-                    individual_intensity_measure_statistics.set_index(
-                        ["station", "intensity_measure"]
-                    )
+            case "psa":
+                individual_intensity_measure_statistics = compute_psa(
+                    stations.index,
+                    waveforms,
+                    np.array(
+                        intensity_measure_parameters.valid_periods, dtype=np.float32
+                    ),
+                    broadband_parameters.dt,
                 )
+
         intensity_measure_statistics = pd.concat(
             [intensity_measure_statistics, individual_intensity_measure_statistics]
         )
-    print(intensity_measure_statistics)
-    # print("Computed DS575")
 
-    # psa = compute_psa(
-    #     waveforms,
-    #     np.array(
-    #         [
-    #             0.01,
-    #             0.02,
-    #             0.03,
-    #             0.04,
-    #             0.05,
-    #             0.075,
-    #             0.1,
-    #             0.12,
-    #             0.15,
-    #             0.17,
-    #             0.2,
-    #             0.25,
-    #             0.3,
-    #             0.4,
-    #             0.5,
-    #             0.6,
-    #             0.7,
-    #             0.75,
-    #             0.8,
-    #             0.9,
-    #             1.0,
-    #             1.25,
-    #             1.5,
-    #             2.0,
-    #             2.5,
-    #             3.0,
-    #             4.0,
-    #             5.0,
-    #             6.0,
-    #             7.5,
-    #             10.0,
-    #         ]
-    #     ),
-    #     broadband_parameters.dt,
-    # )
-    # print("Computed PSA")
-    # print(psa)
-    # print(sys.getsizeof(pgv))
-    # print(stations)
-    # print(ds575)
-    # print(cav)
-    # print(pgv)
-    # print(cav)
-    # print(ai)
+    intensity_measure_statistics.set_index(
+        ["stations", "intensity_measure"]
+    ).to_parquet(output_path)
