@@ -233,7 +233,7 @@ def compute_psa(
                 "rotd100": rotd_psa[:, i, 1],
             }
         )
-        psa_df = pd.concat(psa_df, period_df)
+        psa_df = pd.concat([psa_df, period_df])
     return psa_df
 
 
