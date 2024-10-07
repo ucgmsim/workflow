@@ -416,6 +416,6 @@ def calculate_instensity_measures(
             [intensity_measure_statistics, individual_intensity_measure_statistics]
         )
 
-    intensity_measure_statistics.set_index(
-        ["stations", "intensity_measure"]
-    ).to_parquet(output_path)
+    intensity_measure_statistics.set_index(["station", "intensity_measure"]).to_parquet(
+        output_path
+    )
