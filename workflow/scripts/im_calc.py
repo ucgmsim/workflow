@@ -146,7 +146,7 @@ def rotd_psa_values(
     w: npt.NDArray[np.float32],
     step: int = 20,
 ) -> npt.NDArray[np.float32]:
-    theta = np.arange(180)
+    theta = np.linspace(0, 180, num=180, dtype=np.float32)
     ne.set_num_threads(multiprocessing.cpu_count())
     psa = np.zeros((comp_000.shape[0], comp_000.shape[-1], 2), np.float32)
     out = np.zeros((step, *comp_000.shape[1:], 180), np.float32)
