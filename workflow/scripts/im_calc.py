@@ -348,7 +348,7 @@ def calculate_instensity_measures(
         waveforms = np.array(broadband_file["waveforms"])
 
     stations = pd.read_hdf(broadband_simulation_ffp, key="stations")
-    intensity_measures = ["pga", "pgv", "cav", "ai", "ds575", "ds595"]
+    intensity_measures = ["psa", "pga", "pgv", "cav", "ai", "ds575", "ds595"]
     intensity_measure_statistics = pd.DataFrame()
     pbar = tqdm.tqdm(intensity_measures)
     g = 981
