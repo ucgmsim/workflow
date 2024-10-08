@@ -7,7 +7,7 @@ to generate a base Cylc workflow to modify and extend.
 import tempfile
 from collections.abc import Iterable, Sequence
 from enum import StrEnum
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Annotated, Any, NamedTuple, Optional
 
 import jinja2
@@ -23,6 +23,7 @@ app = typer.Typer()
 class StageIdentifier(StrEnum):
     """Valid stage identifier in the workflow plan."""
 
+    CopyInput = "copy_input"
     DomainGeneration = "generate_velocity_model_parameters"
     VelocityModelGeneration = "generate_velocity_model"
     StationSelection = "generate_station_coordinates"
@@ -90,7 +91,13 @@ class Stage(NamedTuple):
     """The sample number of the realisation."""
 
 
-def stage_inputs(stage: Stage, root: Path) -> set[Path]:
+class AnnotatedPath(PurePath):
+    def __init__(self, path: str | Path, description: Optional[str] = None):
+        super().__init__(path)
+        self.description = description
+
+
+def stage_inputs(stage: Stage, root: Path) -> set[AnnotatedPath]:
     """Return a list of stage inputs for the stage.
 
     Parameters
@@ -113,7 +120,19 @@ def stage_inputs(stage: Stage, root: Path) -> set[Path]:
         realisation_identifier += f"_{stage.sample}"
     parent_directory = root / stage.event
     event_directory = root / realisation_identifier
-    realisation = {event_directory / "realisation.json"}
+    realisation = {
+        AnnotatedPath(
+            event_directory / "realisation.json", "Realisation file for event."
+        )
+    }
+    station_ll = AnnotatedPath(
+        parent_directory / "stations" / "stations.ll",
+        "lat,lon coordinates corresponding to x,y coordinates of stations in domain.",
+    )
+    s_wave = AnnotatedPath(
+        parent_directory / "Velocity_Model" / "vs3dfile.s",
+        "s-wave velocity file for velocity model (Section: Velocity Model Files).",
+    )
     match stage:
         case Stage(identifier=StageIdentifier.NSHMToRealisation):
             return set()
@@ -125,7 +144,11 @@ def stage_inputs(stage: Stage, root: Path) -> set[Path]:
         ):
             return realisation
         case Stage(identifier=StageIdentifier.CopyDomainParameters):
-            return {parent_directory / "realisation.json"}
+            return {
+                AnnotatedPath(
+                    parent_directory / "realisation.json", "Realisation file for event."
+                )
+            }
         case Stage(
             identifier=StageIdentifier.EMOD3DParameters
             | StageIdentifier.LowFrequency,
@@ -133,48 +156,101 @@ def stage_inputs(stage: Stage, root: Path) -> set[Path]:
             return (
                 realisation
                 | {
-                    parent_directory / "stations" / "stations.ll",
-                    parent_directory / "stations" / "stations.statcords",
-                    parent_directory / "model" / "model_params",
-                    parent_directory / "model" / "grid_file",
-                    parent_directory / "Velocity_Model" / "rho3dfile.d",
-                    parent_directory / "Velocity_Model" / "vp3dfile.p",
-                    parent_directory / "Velocity_Model" / "vs3dfile.s",
-                    parent_directory / "Velocity_Model" / "in_basin_mask.b",
-                    event_directory / "realisation.srf",
+                    station_ll,
+                    AnnotatedPath(
+                        parent_directory / "stations" / "stations.statcords",
+                        "x,y coordinates of stations in domain.",
+                    ),
+                    AnnotatedPath(
+                        parent_directory / "model" / "model_params",
+                        "Model centre and corners for EMOD3D.",
+                    ),
+                    AnnotatedPath(
+                        parent_directory / "model" / "grid_file",
+                        "Domain extents for EMOD3D.",
+                    ),
+                    AnnotatedPath(
+                        parent_directory / "Velocity_Model" / "rho3dfile.d",
+                        "Density component file for velocity model. (Section: Velocity Model Files)",
+                    ),
+                    AnnotatedPath(
+                        parent_directory / "Velocity_Model" / "vp3dfile.p",
+                        "p-wave velocity file for velocity model. (Section: Velocity Model Files)",
+                    ),
+                    s_wave,
+                    AnnotatedPath(
+                        parent_directory / "Velocity_Model" / "in_basin_mask.b",
+                        "Boolean basin mask (Section: Velocity Model Files).",
+                    ),
+                    AnnotatedPath(
+                        event_directory / "realisation.srf",
+                        "Slip model of source (Section: SRF Format).",
+                    ),
                 }
                 | (
                     set()
                     if stage.identifier == StageIdentifier.EMOD3DParameters
-                    else {event_directory / "LF" / "e3d.par"}
+                    else {
+                        AnnotatedPath(
+                            event_directory / "LF" / "e3d.par",
+                            "EMOD3D Parameters (Section: https://wiki.canterbury.ac.nz/pages/viewpage.action?pageId=100794983)",
+                        )
+                    }
                 )
             )
         case Stage(identifier=StageIdentifier.StochGeneration):
-            return realisation | {event_directory / "realisation.srf"}
+            return realisation | {
+                AnnotatedPath(
+                    event_directory / "realisation.srf",
+                    "Slip model of source (Section: SRF Format).",
+                )
+            }
         case Stage(identifier=StageIdentifier.HighFrequency):
             return realisation | {
-                event_directory / "realisation.stoch",
-                parent_directory / "stations" / "stations.ll",
-                parent_directory / "Velocity_Model" / "vs3dfile.s",
+                AnnotatedPath(
+                    event_directory / "realisation.stoch",
+                    "Downsampled SRF for stochastic source model input (Section: Stoch format).",
+                ),
+                station_ll,
+                s_wave,
             }
         case Stage(identifier=StageIdentifier.Broadband):
             return realisation | {
-                event_directory / "realisation.stoch",
-                parent_directory / "stations" / "stations.ll",
-                event_directory / "LF",
-                event_directory / "realisation.hf",
-                parent_directory / "Velocity_Model" / "vs3dfile.s",
+                station_ll,
+                AnnotatedPath(
+                    event_directory / "LF", "Low-frequency simulation directory."
+                ),
+                AnnotatedPath(
+                    event_directory / "realisation.hf",
+                    "High-frequency waveform file (Section: LF/HF/BB binary format).",
+                ),
+                s_wave,
             }
         case Stage(identifier=StageIdentifier.IntensityMeasureCalculation):
-            return realisation | {event_directory / "realisation.bb"}
+            return realisation | {
+                AnnotatedPath(
+                    event_directory / "realisation.bb",
+                    "Broadband waveform file (Section: LF/HF/BB binary format).",
+                )
+            }
         case Stage(identifier=StageIdentifier.PlotTimeslices):
-            return {event_directory / "LF" / "OutBin" / "output.e3d"}
+            return {
+                AnnotatedPath(
+                    event_directory / "LF" / "OutBin" / "output.e3d",
+                    "Merged xyts-slices of low-frequency simulation (Section: XYTS.e3d binary format).",
+                )
+            }
         case Stage(identifier=StageIdentifier.MergeTimeslices):
-            return {event_directory / "LF" / "OutBin"}
+            return {
+                AnnotatedPath(
+                    event_directory / "LF" / "OutBin",
+                    "Component xyts-slices of low-frequency simulation, one per compute node (Section: XYTS.e3d binary format).",
+                )
+            }
     return set()
 
 
-def stage_outputs(stage: Stage, root: Path) -> set[Path]:
+def stage_outputs(stage: Stage, root: Path) -> set[AnnotatedPath]:
     """Return a list of stage inputs for the stage.
 
     Parameters
@@ -196,45 +272,110 @@ def stage_outputs(stage: Stage, root: Path) -> set[Path]:
     if stage.sample:
         realisation_identifier += f"_{stage.sample}"
     event_directory = root / realisation_identifier
-    realisation = {event_directory / "realisation.json"}
+    realisation = {
+        AnnotatedPath(
+            event_directory / "realisation.json", "Realisation file for event."
+        )
+    }
     match stage:
         case Stage(identifier=StageIdentifier.NSHMToRealisation):
             return realisation
         case Stage(identifier=StageIdentifier.SRFGeneration):
-            return {event_directory / "realisation.srf"}
+            return {
+                AnnotatedPath(
+                    event_directory / "realisation.srf",
+                    "Slip model of source.",
+                )
+            }
         case Stage(identifier=StageIdentifier.ModelCoordinates):
             return {
-                event_directory / "model" / "model_params",
-                event_directory / "model" / "grid_file",
+                AnnotatedPath(
+                    event_directory / "model" / "model_params",
+                    "Model centre and corners for EMOD3D.",
+                ),
+                AnnotatedPath(
+                    event_directory / "model" / "grid_file",
+                    "Domain extents for EMOD3D.",
+                ),
             }
         case Stage(identifier=StageIdentifier.StationSelection):
             return {
-                event_directory / "stations" / "stations.ll",
-                event_directory / "stations" / "stations.statcords",
+                AnnotatedPath(
+                    event_directory / "stations" / "stations.ll",
+                    "lat,lon coordinates corresponding to x,y coordinates of stations in domain.",
+                ),
+                AnnotatedPath(
+                    event_directory / "stations" / "stations.statcords",
+                    "x,y coordinates of stations in domain.",
+                ),
             }
         case Stage(identifier=StageIdentifier.VelocityModelGeneration):
             return {
-                event_directory / "Velocity_Model" / "rho3dfile.d",
-                event_directory / "Velocity_Model" / "vp3dfile.p",
-                event_directory / "Velocity_Model" / "vs3dfile.s",
-                event_directory / "Velocity_Model" / "in_basin_mask.b",
+                AnnotatedPath(
+                    event_directory / "Velocity_Model" / "rho3dfile.d",
+                    "Density component file for velocity model.",
+                ),
+                AnnotatedPath(
+                    event_directory / "Velocity_Model" / "vp3dfile.p",
+                    "p-wave velocity file for velocity model.",
+                ),
+                AnnotatedPath(
+                    event_directory / "Velocity_Model" / "vs3dfile.s",
+                    "s-wave velocity file for velocity model.",
+                ),
+                AnnotatedPath(
+                    event_directory / "Velocity_Model" / "in_basin_mask.b",
+                    "Boolean basin mask.",
+                ),
             }
         case Stage(
             identifier=StageIdentifier.EMOD3DParameters | StageIdentifier.LowFrequency
         ):
-            return {event_directory / "LF", event_directory / "LF" / "e3d.par"}
+            return {
+                AnnotatedPath(
+                    event_directory / "LF", "Low-frequency simulation directory."
+                ),
+                AnnotatedPath(event_directory / "LF" / "e3d.par", "EMOD3D Parameters"),
+            }
         case Stage(identifier=StageIdentifier.StochGeneration):
-            return {event_directory / "realisation.stoch"}
+            return {
+                AnnotatedPath(
+                    event_directory / "realisation.stoch",
+                    "Downsampled SRF for stochastic source model input.",
+                )
+            }
         case Stage(identifier=StageIdentifier.HighFrequency):
-            return {event_directory / "realisation.hf"}
+            return {
+                AnnotatedPath(
+                    event_directory / "realisation.hf", "High-frequency waveform file."
+                )
+            }
         case Stage(identifier=StageIdentifier.Broadband):
-            return {event_directory / "realisation.bb"}
+            return {
+                AnnotatedPath(
+                    event_directory / "realisation.bb", "Broadband waveform file."
+                )
+            }
         case Stage(identifier=StageIdentifier.IntensityMeasureCalculation):
-            return {event_directory / "ims.parquet"}
+            return {
+                AnnotatedPath(
+                    event_directory / "ims.parquet", "Intensity measure statistics."
+                )
+            }
         case Stage(identifier=StageIdentifier.PlotTimeslices):
-            return {event_directory / "animation.mp4"}
+            return {
+                AnnotatedPath(
+                    event_directory / "animation.mp4",
+                    "Animation of low-frequency waveform.",
+                )
+            }
         case Stage(identifier=StageIdentifier.MergeTimeslices):
-            return {event_directory / "LF" / "OutBin" / "output.e3d"}
+            return {
+                AnnotatedPath(
+                    event_directory / "LF" / "OutBin" / "output.e3d",
+                    "Merged xyts-slices of low-frequency simulation.",
+                )
+            }
         case _:
             return set()
 
@@ -256,6 +397,9 @@ def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
     """
     workflow_plan = nx.from_dict_of_lists(
         {
+            Stage(StageIdentifier.CopyInput, "", None): [
+                Stage(StageIdentifier.NSHMToRealisation, event, sample)
+            ],
             Stage(StageIdentifier.NSHMToRealisation, event, sample): [
                 Stage(StageIdentifier.SRFGeneration, event, sample)
             ],
@@ -480,7 +624,7 @@ def parse_realisation(realisation_id: str) -> set[tuple[str, Optional[int]]]:
         return {(realisation_id, None)}
 
 
-def build_filetree(files: set[Path]) -> dict[str, Any]:
+def build_filetree(files: set[AnnotatedPath]) -> dict[str, Any]:
     filetree: dict[str, Any] = {}
     for file in files:
         cur = filetree
@@ -488,8 +632,8 @@ def build_filetree(files: set[Path]) -> dict[str, Any]:
             if part not in cur:
                 cur[part] = {}
             cur = cur[part]
-        if cur.get(file.parts[-1]) is None:
-            cur[file.parts[-1]] = file.parts[-1]
+        if not cur.get(file.parts[-1]):
+            cur[file.parts[-1]] = file.description
     return filetree
 
 
@@ -588,7 +732,7 @@ def plan_workflow(
         "\n".join(line for line in flow_template.split("\n") if line.strip())
     )
     if show_required_files:
-        root_path = Path("cylc-src") / "WORKFLOW_NAME" / "input" / "share"
+        root_path = Path("cylc-src") / "WORKFLOW_NAME" / "input"
         inputs = set()
         outputs = set()
         for stage in workflow_plan.nodes:
@@ -598,7 +742,12 @@ def plan_workflow(
 
         if missing_file_tree:
             print("You require the following files for your simulation:")
+            print()
             printree.ptree(missing_file_tree)
+            print()
+            print(
+                "Refer to the indicated sections in https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation"
+            )
     if visualise:
         network = pyvis_graph(workflow_plan)
         with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as graph_render:
