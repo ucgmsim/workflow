@@ -202,11 +202,12 @@ def compute_psa(
     rotd_psa = g * rotd_psa_values(
         comp_0, comp_90, periods, step=multiprocessing.cpu_count()
     )
-    comp_0_psa = g * np.abs(comp_0).max(axis=1)
-    comp_90_psa = g * np.abs(comp_90).max(axis=1)
-    ver_psa = g * np.abs(newmark_estimate_psa(waveforms[:, :, 0], t, dt, periods)).max(
-        axis=1
-    )
+    conversion_factor = g * np.square(2 * np.pi * periods)[np.newaxis, :]
+    comp_0_psa = conversion_factor * np.abs(comp_0).max(axis=1)
+    comp_90_psa = conversion_factor * np.abs(comp_90).max(axis=1)
+    ver_psa = conversion_factor * np.abs(
+        newmark_estimate_psa(waveforms[:, :, 0], t, dt, periods)
+    ).max(axis=1)
     geom_psa = np.sqrt(comp_0_psa * comp_90_psa)
     psa_df = pd.DataFrame(
         columns=[
