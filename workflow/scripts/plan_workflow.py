@@ -757,7 +757,12 @@ def plan_workflow(
     )
     if show_required_files:
         root_path = Path("cylc-src") / "WORKFLOW_NAME" / "input"
-        inputs = set()
+        inputs = {
+            AnnotatedPath(
+                Path("cylc-src") / "WORKFLOW_NAME" / "flow.cylc",
+                f"Your workflow file (the file {flow_file}).",
+            )
+        }
         outputs = set()
         for stage in workflow_plan.nodes:
             inputs |= stage_inputs(stage, root_path)
