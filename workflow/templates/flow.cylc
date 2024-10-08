@@ -16,14 +16,8 @@
         {% endfor -%}
         """
 [runtime]
-    [[root]]
-        platform = mahuika-slurm
-        pre-script = """
-        module load Apptainer
-        """
-        [[[directives]]]
-            --account = nesi00213
+    {% include target_host + '/root.cylc' %}
     {% for stage, next_stages in workflow_plan.items() -%}
-    {% include stage.identifier + '.cylc' %}
+    {% include target_host + '/' + stage.identifier + '.cylc' %}
     {% endfor %}
                                                                                                                                                                                                                                                                                                 

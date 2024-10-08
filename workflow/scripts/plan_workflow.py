@@ -20,6 +20,13 @@ from pyvis.network import Network
 app = typer.Typer()
 
 
+class WorkflowTarget(StrEnum):
+    """Enumeration of possible workflow targets."""
+
+    NeSI = "nesi"
+    Hypocentre = "hypocentre"
+
+
 class StageIdentifier(StrEnum):
     """Valid stage identifier in the workflow plan."""
 
@@ -709,6 +716,10 @@ def plan_workflow(
             help="Print the expected directory tree at the start of the simulation."
         ),
     ] = True,
+    target_host: Annotated[
+        WorkflowTarget,
+        typer.Option(help="Select the target host where the workflow will be run"),
+    ] = WorkflowTarget.NeSI,
 ):
     """Plan and generate a Cylc workflow file for a number of realisations.
 
@@ -749,6 +760,7 @@ def plan_workflow(
     template = env.get_template("flow.cylc")
     flow_template = template.render(
         realisations=realisations,
+        target_host=target_host,
         workflow_plan=nx.to_dict_of_lists(workflow_plan),
     )
     flow_file.write_text(
