@@ -89,9 +89,9 @@ class Stage(NamedTuple):
     """The sample number of the realisation."""
 
 
-def add_realisation(
-    workflow_plan: nx.DiGraph, event: str, sample: Optional[int]
-) -> None:
+def realisation_workflow(
+    event: str, sample: Optional[int]
+) -> nx.DiGraph:
     """Add a realisation to a workflow plan.
 
     Adds all stages for the realisation to run, and links to event
@@ -106,61 +106,20 @@ def add_realisation(
     sample : Optional[int]
         The sample number (or None, if the original event).
     """
-    workflow_plan.add_edges_from(
-        [
-            (
-                Stage(StageIdentifier.NSHMToRealisation, event, sample),
-                Stage(StageIdentifier.SRFGeneration, event, sample),
-            ),
-            (
-                Stage(StageIdentifier.SRFGeneration, event, sample),
-                Stage(StageIdentifier.StochGeneration, event, sample),
-            ),
-            (
-                Stage(StageIdentifier.SRFGeneration, event, sample),
-                Stage(StageIdentifier.EMOD3DParameters, event, sample),
-            ),
-            (
-                Stage(StageIdentifier.VelocityModelGeneration, event, None),
-                Stage(StageIdentifier.EMOD3DParameters, event, sample),
-            ),
-            (
-                Stage(StageIdentifier.StationSelection, event, None),
-                Stage(StageIdentifier.EMOD3DParameters, event, sample),
-            ),
-            (
-                Stage(StageIdentifier.ModelCoordinates, event, None),
-                Stage(StageIdentifier.EMOD3DParameters, event, sample),
-            ),
-            (
-                Stage(StageIdentifier.EMOD3DParameters, event, sample),
-                Stage(StageIdentifier.LowFrequency, event, sample),
-            ),
-            (
-                Stage(StageIdentifier.LowFrequency, event, sample),
-                Stage(StageIdentifier.MergeTimeslices, event, sample),
-            ),
-            (
-                Stage(StageIdentifier.LowFrequency, event, sample),
-                Stage(StageIdentifier.Broadband, event, sample),
-            ),
-            (
-                Stage(StageIdentifier.StochGeneration, event, sample),
-                Stage(StageIdentifier.HighFrequency, event, sample),
-            ),
-            (
-                Stage(StageIdentifier.HighFrequency, event, sample),
-                Stage(StageIdentifier.Broadband, event, sample),
-            ),
-            (
-                Stage(StageIdentifier.Broadband, event, sample),
-                Stage(StageIdentifier.IntensityMeasureCalculation, event, sample),
-            ),
-            (
-                Stage(StageIdentifier.MergeTimeslices, event, sample),
-                Stage(StageIdentifier.PlotTimeslices, event, sample),
-            ),
-        ]
+    workflow_plan = nx.from_dict_of_lists(
+        {
+            Stage(StageIdentifier.NSHMToRealisation, event, sample): [Stage(StageIdentifier.SRFGeneration, event, sample)],
+            Stage(StageIdentifier.SRFGeneration, event, sample): [Stage(StageIdentifier.StochGeneration, event, sample), Stage(StageIdentifier.EMOD3DParameters, event, sample)],
+            Stage(StageIdentifier.VelocityModelGeneration, event, None): [Stage(StageIdentifier.EMOD3DParameters, event, sample)],
+            Stage(StageIdentifier.StationSelection, event, None): [Stage(StageIdentifier.EMOD3DParameters, event, sample)],
+            Stage(StageIdentifier.ModelCoordinates, event, None): [Stage(StageIdentifier.EMOD3DParameters, event, sample)],
+            Stage(StageIdentifier.EMOD3DParameters, event, sample): [Stage(StageIdentifier.LowFrequency, event, sample)],
+            Stage(StageIdentifier.LowFrequency, event, sample): [Stage(StageIdentifier.Broadband, event, sample), Stage(StageIdentifier.MergeTimeslices, event, sample)],
+            Stage(StageIdentifier.StochGeneration, event, sample): [Stage(StageIdentifier.HighFrequency, event, sample)],
+            Stage(StageIdentifier.HighFrequency, event, sample): [Stage(StageIdentifier.Broadband, event, sample)],
+            Stage(StageIdentifier.Broadband, event, sample): [Stage(StageIdentifier.IntensityMeasureCalculation, event, sample)],
+            Stage(StageIdentifier.MergeTimeslices, event, sample): [Stage(StageIdentifier.PlotTimeslices, event, sample)]
+        }, create_using=nx.DiGraph
     )
     if not sample:
         workflow_plan.add_edges_from(
@@ -201,6 +160,7 @@ def add_realisation(
             ]
         )
 
+    return workflow_plan
 
 def create_abstract_workflow_plan(
     realisations: Sequence[tuple[str, Optional[int]]],
@@ -238,8 +198,7 @@ def create_abstract_workflow_plan(
     )
 
     for realisation in realisation_iteration:
-        workflow_plan = nx.DiGraph()
-        add_realisation(workflow_plan, *realisation)
+        workflow_plan = realisation_workflow(*realisation)
         workflow_plan = nx.transitive_closure_dag(workflow_plan)
 
         for goal in goals:
