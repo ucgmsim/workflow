@@ -116,7 +116,6 @@ def rotd_psa_values(
     psa = np.zeros((comp_000.shape[0], comp_000.shape[-1], 2), np.float32)
     out = np.zeros((step, *comp_000.shape[1:], 180), np.float32)
     w2 = np.square(w)
-    g = 981
     for i in tqdm.trange(0, comp_000.shape[0], step):
         step_000 = comp_000[i : i + step]
         step_090 = comp_000[i : i + step]
@@ -139,7 +138,7 @@ def rotd_psa_values(
             ),
             [1, 2, 0],
         )
-    return g * w2[np.newaxis, :, np.newaxis] * psa
+    return w2[np.newaxis, :, np.newaxis] * psa
 
 
 def compute_psa(
@@ -148,7 +147,6 @@ def compute_psa(
     periods: npt.NDArray[np.float32],
     dt: float,
 ) -> pd.DataFrame:
-    g = 981
     t = np.arange(waveforms.shape[1]) * dt
     w = 2 * np.pi / periods
     comp_0 = newmark_estimate_psa(
@@ -167,7 +165,7 @@ def compute_psa(
 
     rotd_psa = rotd_psa_values(comp_0, comp_90, w, step=multiprocessing.cpu_count())
 
-    conversion_factor = g * np.square(w)[np.newaxis, :]
+    conversion_factor = np.square(w)[np.newaxis, :]
     comp_0_psa = conversion_factor * np.abs(comp_0).max(axis=1)
     comp_90_psa = conversion_factor * np.abs(comp_90).max(axis=1)
     ver_psa = conversion_factor * np.abs(
