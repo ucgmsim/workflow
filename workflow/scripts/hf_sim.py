@@ -35,17 +35,14 @@ See the output of `hf-sim --help`.
 import functools
 import multiprocessing
 import os
-import shutil
-import struct
 import subprocess
 import tempfile
-import time
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
+import h5py
 import numpy as np
 import pandas as pd
-import tqdm
 import typer
 
 from workflow import log_utils
@@ -105,13 +102,6 @@ def hf_simulate_station(
         added with the stderr.
     """
     raw_hf_output_ffp = output_directory / f"{name}.hf"
-    # expected size is n_components (3) * float size (4) * number of timesteps
-    expected_size = 12 * round(domain_parameters.duration / hf_config.dt)
-    if (
-        raw_hf_output_ffp.exists()
-        and os.stat(raw_hf_output_ffp).st_size == expected_size
-    ):
-        return
     with tempfile.NamedTemporaryFile(mode="w") as station_input_file:
         station_input_file.write(f"{longitude} {latitude} {name}\n")
         station_input_file.flush()
@@ -166,12 +156,18 @@ def hf_simulate_station(
                 )
             )
             raise
-        logger.info(log_utils.structured_log("hf succeeded", station=name))
         epicentre_distance = np.fromstring(output.stderr, dtype="f4", sep="\n")
+        logger.info(
+            log_utils.structured_log(
+                "hf succeeded", station=name, epicentre_distance=epicentre_distance
+            )
+        )
+
         if epicentre_distance.size != 1:
             raise ValueError(
                 f"Expected exactly one epicentre_distance value, got {epicentre_distance.size}"
             )
+
         return epicentre_distance[0]
 
 
@@ -265,85 +261,39 @@ def run_hf(
             ),
             stations.values.tolist(),
         )
-
+        stations["epicentre_distance"] = stations["epicentre_distance"].astype(
+            np.float32
+        )
     with open(velocity_model, "r") as f:
         f.readline()
         vs = np.float32(float(f.readline().split()[2]) * 1000.0)
         stations["vs"] = vs
 
     nt = int(domain_parameters.duration / hf_config.dt)
-    with open(out_file, "wb") as output_file_handle:
-        header_data: list[Any] = (
-            [
-                len(stations),
-                nt,
-                hf_config.seed,
-                int(hf_config.site_specific),
-                hf_config.path_dur,
-                len(hf_config.rayset),
-            ]
-            + hf_config.rayset
-            + [0] * (4 - len(hf_config.rayset))
-            + [
-                hf_config.nbu,
-                hf_config.ift,
-                hf_config.nl_skip,
-                int(hf_config.ic_flag),
-                1,  # this part of the header says that the HF was generated with individual stations in parallel
-                int(hf_config.site_specific),
-                domain_parameters.duration,
-                hf_config.dt,
-                0.0,  # start time of the timeseries (assumed to be 0)
-                hf_config.sdrop,
-                hf_config.kappa,
-                hf_config.qfexp,
-                hf_config.fmax,
-                hf_config.flo,
-                hf_config.fhi,
-                hf_config.rvfac,
-                hf_config.rvfac_shal,
-                hf_config.rvfac_deep,
-                hf_config.czero or -1.0,
-                hf_config.calpha or -1.0,
-                hf_config.mom or -1.0,
-                hf_config.rupv or -1.0,
-                hf_config.vs_moho,
-                hf_config.vp_sig,
-                hf_config.vsh_sig,
-                hf_config.rho_sig,
-                hf_config.qs_sig,
-                hf_config.fa_sig1,
-                hf_config.fa_sig2,
-                hf_config.rv_sig1,
-                stoch_ffp.name.encode("utf-8"),
-                velocity_model.name.encode("utf-8"),
-            ]
+    with h5py.File(out_file, "w") as output_h5py:
+        attributes = hf_config.to_dict() | {
+            "hf_tstart": 0.0,
+            "duration": nt * hf_config.dt,
+            "stoch_ffp": stoch_ffp.name,
+            "velocity_model": velocity_model.name,
+        }
+        # H5Py cannot store regular Python bools, and requires converting them too booleans
+        attributes = {
+            key: np.bool_(value) if isinstance(value, bool) else value
+            for key, value in attributes.items()
+            if value is not None
+        }
+
+        output_h5py.attrs.update(attributes)
+
+        waveforms_dset = output_h5py.create_dataset(
+            "waveforms", shape=(len(stations), nt, 3), dtype=np.float32
         )
-        format_specifiers = {bytes: "64s", int: "i", float: "f"}
-        header_format = "".join(
-            [format_specifiers[type(value)] for value in header_data]
-        )
-        output_file_handle.write(struct.pack(header_format, *header_data))
-        output_file_handle.seek(512)
-        # Write station headers to HF output
-        stations.apply(
-            lambda station: output_file_handle.write(
-                struct.pack(
-                    "ff8sff",
-                    station["longitude"],
-                    station["latitude"],
-                    station["name"].encode("utf-8"),
-                    station["epicentre_distance"],
-                    station["vs"],
-                )
-            ),
-            axis=1,
-        )
-        # Copy station timeseries from each station into the master
-        # file. Usually an iterrows here would be a red flag, but this
-        # should be ok because the number of stations is in the
-        # thousands, not the millions.
-        for _, station in stations.iterrows():
+        for i, station in stations.iterrows():
             station_file_path = work_directory / f"{station['name']}.hf"
             with open(station_file_path, mode="rb") as station_file_data:
-                shutil.copyfileobj(station_file_data, output_file_handle)
+                waveforms_dset[i] = np.fromfile(
+                    station_file_data, dtype=np.float32
+                ).reshape((nt, 3))
+
+    stations.to_hdf(out_file, key="stations", mode="a")

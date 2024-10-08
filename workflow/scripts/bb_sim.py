@@ -33,14 +33,14 @@ Usage
 import functools
 import multiprocessing
 import os
-import shutil
-import struct
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
+import h5py
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import scipy as sp
 import typer
 
 from qcore import siteamp_models, timeseries
@@ -67,7 +67,7 @@ app = typer.Typer()
 )
 def bb_simulate_station(
     lf: timeseries.LFSeis,
-    hf: timeseries.HFSeis,
+    hf_path: Path,
     hf_padding: tuple[int, int],
     lf_padding: tuple[int, int],
     broadband_config: BroadbandParameters,
@@ -106,6 +106,7 @@ def bb_simulate_station(
     station_vs30 : float
         VS30 value for the station site.
     """
+    hf = h5py.File(hf_path)
     output_bb_file = work_directory / f"{station_name}.bb"
     # we expected waveform files to have size n_components (3) * float size (4) * number of padded timesteps.
     expected_bb_size = 12 * (
@@ -116,7 +117,10 @@ def bb_simulate_station(
     station_vs = station["vs"]
     station_vs30 = station["vs30"]
     lf_acc = np.copy(lf.acc(station_name, dt=broadband_config.dt))
-    hf_acc = np.copy(hf.acc(station_name, dt=broadband_config.dt))
+    hf_acc = sp.signal.resample(
+        np.array(hf["waveforms"][int(station["waveform_index"])]),
+        int(round(hf.attrs["duration"] / broadband_config.dt)),
+    )
     pga = np.max(np.abs(hf_acc), axis=0) / 981.0
     bb_acc: list[npt.NDArray[np.float32]] = []
     for c in range(3):
@@ -150,6 +154,9 @@ def bb_simulate_station(
         )
         hf_c = np.pad(hf_filtered, hf_padding)
         lf_c = np.pad(lf_filtered, lf_padding)
+        print(
+            station_name, ((hf_c + lf_c) / 981.0).max(), ((hf_c + lf_c) / 981.0).min()
+        )
         bb_acc.append((hf_c + lf_c) / 981.0)
 
     bb_acc_numpy = np.array(bb_acc).T.astype(np.float32)
@@ -165,9 +172,6 @@ def combine_hf_and_lf(
     realisation_ffp: Annotated[
         Path,
         typer.Argument(help="Path to realisation file", dir_okay=False, exists=True),
-    ],
-    station_ffp: Annotated[
-        Path, typer.Argument(help="Path to station list", dir_okay=False, exists=True)
     ],
     station_vs30_ffp: Annotated[
         Path,
@@ -236,7 +240,7 @@ def combine_hf_and_lf(
     """
     # load data stores
     lf = timeseries.LFSeis(low_frequency_waveform_directory)
-    hf = timeseries.HFSeis(high_frequency_waveform_file)
+    hf = h5py.File(high_frequency_waveform_file, mode="r")
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     broadband_config = BroadbandParameters.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
@@ -247,16 +251,18 @@ def combine_hf_and_lf(
     # Similar code to account for an end time difference is also present
     # allowing for HF and LF to have separate start times and durations
 
-    bb_start_sec = min(lf.start_sec, hf.start_sec)
-    lf_start_sec_offset = max(lf.start_sec - hf.start_sec, 0)
-    hf_start_sec_offset = max(hf.start_sec - lf.start_sec, 0)
+    bb_start_sec = min(lf.start_sec, hf.attrs["t_sec"])
+    lf_start_sec_offset = max(lf.start_sec - hf.attrs["t_sec"], 0)
+    hf_start_sec_offset = max(hf.attrs["t_sec"] - lf.start_sec, 0)
     lf_start_padding = int(round(lf_start_sec_offset / broadband_config.dt))
     hf_start_padding = int(round(hf_start_sec_offset / broadband_config.dt))
 
     lf_end_padding = int(
         round(
             max(
-                hf.duration + hf_start_sec_offset - (lf.duration + lf_start_sec_offset),
+                hf.attrs["duration"]
+                + hf_start_sec_offset
+                - (lf.duration + lf_start_sec_offset),
                 0,
             )
             / broadband_config.dt
@@ -265,17 +271,22 @@ def combine_hf_and_lf(
     hf_end_padding = int(
         round(
             max(
-                lf.duration + lf_start_sec_offset - (hf.duration + hf_start_sec_offset),
+                lf.duration
+                + lf_start_sec_offset
+                - (hf.attrs["duration"] + hf_start_sec_offset),
                 0,
             )
             / broadband_config.dt
         )
     )
 
-    assert (
+    if (
         lf_start_padding + round(lf.duration / broadband_config.dt) + lf_end_padding
-        == hf_start_padding + round(hf.duration / broadband_config.dt) + hf_end_padding
-    )
+        != hf_start_padding
+        + round(hf.attrs["duration"] / broadband_config.dt)
+        + hf_end_padding
+    ):
+        raise ValueError("HF and LF padded timesteps do not align.")
     lf_padding = (lf_start_padding, lf_end_padding)
     hf_padding = (hf_start_padding, hf_end_padding)
 
@@ -294,14 +305,10 @@ def combine_hf_and_lf(
         * 1000.0
     )
 
-    stations = pd.read_csv(
-        station_ffp,
-        delimiter=r"\s+",
-        header=None,
-        names=["longitude", "latitude", "name"],
-    ).set_index("name")
-
-    stations["vs"] = hf.stations.vs
+    stations = pd.read_hdf(high_frequency_waveform_file, key="stations").set_index(
+        "name"
+    )
+    stations["waveform_index"] = np.arange(len(stations))
 
     station_vs30 = pd.read_csv(
         station_vs30_ffp,
@@ -316,69 +323,37 @@ def combine_hf_and_lf(
             functools.partial(
                 bb_simulate_station,
                 lf,
-                hf,
+                high_frequency_waveform_file,
                 hf_padding,
                 lf_padding,
                 broadband_config,
                 n2,
                 work_directory,
             ),
-            stations[["vs", "vs30"]].iterrows(),
+            stations.iterrows(),
         )
 
-    with open(output_ffp, "wb") as output_bb_file:
-        header_data: list[Any] = [
-            len(stations),
-            bb_nt,
-            bb_nt * broadband_config.dt,
-            broadband_config.dt,
-            bb_start_sec,
-            low_frequency_waveform_directory.name.encode("utf-8"),
-            b"",
-            high_frequency_waveform_file.name.encode("utf-8"),
-        ]
-        format_specifiers = {bytes: "256s", int: "i", float: "f"}
-        header_format = "".join(format_specifiers[type(value)] for value in header_data)
-        output_bb_file.write(struct.pack(header_format, *header_data))
-        output_bb_file.seek(1280)
-        stations["name"] = stations.index
-        stations["x"] = lf.stations.x
-        stations["y"] = lf.stations.y
-        stations["z"] = lf.stations.z
-        stations["e_dist"] = hf.stations.e_dist
-        stations["hf_vs_ref"] = hf.stations.vs
-        stations["lf_vs_ref"] = lfvs30refs
-        print(stations)
-        stations[
-            [
-                "longitude",
-                "latitude",
-                "name",
-                "x",
-                "y",
-                "z",
-                "e_dist",
-                "hf_vs_ref",
-                "lf_vs_ref",
-                "vs30",
-            ]
-        ].to_records(
-            column_dtypes={
-                "longitude": "f4",
-                "latitude": "f4",
-                "name": "|S8",
-                "x": "i4",
-                "y": "i4",
-                "z": "i4",
-                "e_dist": "f4",
-                "hf_vs_ref": "f4",
-                "lf_vs_ref": "f4",
-                "vs30": "f4",
-            },
-            index=False,
-        ).tofile(output_bb_file)
+    with h5py.File(output_ffp, "w") as output_h5py:
+        header_data = {
+            "nt": bb_nt,
+            "duration": bb_nt * broadband_config.dt,
+            "start": bb_start_sec,
+        }
+        output_h5py.attrs.update(header_data)
+        waveforms_dset = output_h5py.create_dataset(
+            "waveforms", shape=(len(stations), bb_nt, 3), dtype=np.float32
+        )
 
-        for name, station in stations.iterrows():
+        for i, (name, station) in enumerate(stations.iterrows()):
             station_file_path = work_directory / f"{name}.bb"
             with open(station_file_path, mode="rb") as station_file_data:
-                shutil.copyfileobj(station_file_data, output_bb_file)
+                waveforms_dset[i] = np.fromfile(
+                    station_file_data, dtype=np.float32
+                ).reshape((bb_nt, 3))
+
+    stations["name"] = stations.index
+    stations["x"] = lf.stations.x
+    stations["y"] = lf.stations.y
+    stations["z"] = lf.stations.z
+    stations["lf_vs_ref"] = lfvs30refs
+    stations.to_hdf(output_ffp, key="stations", mode="a")
