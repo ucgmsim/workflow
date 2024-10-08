@@ -64,12 +64,12 @@ def newmark_estimate_psa(
     t: npt.NDArray[np.float32],
     dt: float,
     w: npt.NDArray[np.float32],
-    xi: float = 0.05,
-    gamma: float = 1 / 2,
-    beta: float = 1 / 4,
-    m: float = 1,
+    xi: np.float32 = np.float32(0.05),
+    gamma: np.float32 = np.float32(1 / 2),
+    beta: np.float32 = np.float32(1 / 4),
+    m: np.float32 = np.float32(1),
 ) -> npt.NDArray[np.float32]:
-    c = 2 * xi * w
+    c = np.float32(2 * xi) * w
     a = 1 / (beta * dt) * m + (gamma / beta) * c
     b = 1 / (2 * beta) * m + dt * (gamma / (2 * beta) - 1) * c
     k = np.square(w)
@@ -78,13 +78,11 @@ def newmark_estimate_psa(
         shape=(waveforms.shape[0], waveforms.shape[1], w.size), dtype=np.float32
     )
     # calculations for each time step
-    dudt = np.zeros_like(w)
+    dudt = np.zeros_like(w, dtype=np.float32)
     #         ns         np x ns    np x ns
-    d2udt2 = np.zeros_like(w)
     for i in range(waveforms.shape[0]):
+        d2udt2 = (-m * waveforms[i, 0] - c * dudt - k * u[i, 0]) / m
         for j in range(1, waveforms.shape[1]):
-            if j == 1:
-                d2udt2 = (-m * waveforms[i, 0] - c * dudt - k * u[i, 0]) / m
             d_pti = -m * (waveforms[i, j] - waveforms[i, j - 1])
             d_pbari = d_pti + a * dudt + b * d2udt2
             d_ui = d_pbari / kbar
@@ -98,14 +96,12 @@ def newmark_estimate_psa(
                 - 1 / (beta * dt) * dudt
                 - 1 / (2 * beta) * d2udt2
             )
-
             # Convert from incremental formulation and store values in vector
             u[i, j] = u[i, j - 1] + d_ui
             dudt += d_dudti
             d2udt2 += d_d2udt2i
 
-        dudt[:] = 0
-        d2udt2[:] = 0
+        dudt[:] = np.float32(0.0)
     return u
 
 
