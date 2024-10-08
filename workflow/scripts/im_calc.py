@@ -41,7 +41,6 @@ import numpy.typing as npt
 import pandas as pd
 import tqdm
 import typer
-from pyfftw.interfaces import numpy_fft as fft
 
 from workflow.realisations import (
     BroadbandParameters,
@@ -53,6 +52,8 @@ app = typer.Typer()
 
 
 class ComponentWiseOperation(StrEnum):
+    """Component-wise numexpr accelerated operations."""
+
     NONE = "cos(theta) * comp_0 + sin(theta) * comp_90"
     ABS = "abs(cos(theta) * comp_0 + sin(theta) * comp_90)"
     SQUARE = "(cos(theta) * comp_0 + sin(theta) * comp_90)*(cos(theta) * comp_0 + sin(theta) * comp_90)"
@@ -69,6 +70,37 @@ def newmark_estimate_psa(
     beta: np.float32 = np.float32(1 / 4),
     m: np.float32 = np.float32(1),
 ) -> npt.NDArray[np.float32]:
+    """Compute pSA with the Newmark-beta method.
+
+    Parameters
+    ----------
+    waveforms : npt.NDArray[np.float32]
+        An array of shape (number_of_stations x number_of_timesteps).
+    t : npt.NDArray[np.float32]
+        The t-values of waveforms.
+    dt : float
+        The timestep.
+    w : npt.NDArray[np.float32]
+        The angular frequency of the SDOF oscillators.
+    xi : np.float32
+        The damping coefficient.
+    gamma : np.float32
+        The gamma-parameter of the Newmark method.
+    beta : np.float32
+        The beta-parameter of the Newmark method.
+    m : np.float32
+        The m parameter of the Newmark method.
+
+    Returns
+    -------
+    npt.NDArray[np.float32]
+        A response curve for the SDOF oscillators with natural frequencies `w`.
+
+    See Also
+    --------
+    [0]: https://en.wikipedia.org/wiki/Newmark-beta_method
+    [1]: The course notes on newmark-beta method: ENCI335 (Structural Analysis), Chapter 4
+    """
     c = np.float32(2 * xi) * w
     a = 1 / (beta * dt) * m + (gamma / beta) * c
     b = 1 / (2 * beta) * m + dt * (gamma / (2 * beta) - 1) * c
@@ -109,9 +141,29 @@ def rotd_psa_values(
     comp_000: npt.NDArray[np.float32],
     comp_090: npt.NDArray[np.float32],
     w: npt.NDArray[np.float32],
-    step: int = 20,
+    step: int = multiprocessing.cpu_count(),
 ) -> npt.NDArray[np.float32]:
-    theta = np.linspace(0, 180, num=180, dtype=np.float32)
+    """Compute the rotated pSA statistics.
+
+    Parameters
+    ----------
+    comp_000 : npt.NDArray[np.float32]
+        The pseudo-spectral acceleration in the 000 component (in cm/s^2).
+    comp_090 : npt.NDArray[np.float32]
+        The pseudo-spectral acceleration in the 090 component (in cm/s^2).
+    w : npt.NDArray[np.float32]
+        The natural angular frequency of the oscillators.
+    step : int
+        The number of stations to process in parallel at a single time.
+
+    Returns
+    -------
+    npt.NDArray[np.float32]
+        The median and maximum pSA values for all rotation between 0
+        and 180 degrees, for every station, and every oscillator
+        frequency. Has shape station count x period count x 2 (0 =
+        rotd50, 1 = rotd100).
+    """
     theta = np.linspace(0, np.pi, num=180, dtype=np.float32)
     ne.set_num_threads(multiprocessing.cpu_count())
     psa = np.zeros((comp_000.shape[0], comp_000.shape[-1], 2), np.float32)
@@ -148,6 +200,26 @@ def compute_psa(
     periods: npt.NDArray[np.float32],
     dt: float,
 ) -> pd.DataFrame:
+    """Compute pSA statistics for all waveforms.
+
+    Parameters
+    ----------
+    stations : pd.Series
+        The list of stations.
+    waveforms : npt.NDArray[np.float32]
+        The list of acceleration waveforms.
+    periods : npt.NDArray[np.float32]
+        The list of periods to compute pSA for. The periods correspond
+        to the natural angular frequency of the single degree of
+        freedom oscillators (SDOFs) used to compute pSA.
+    dt : float
+        The timestep resolution of the waveform array.
+
+    Returns
+    -------
+    pd.DataFrame
+        A dataframe containing pSA for each period and station.
+    """
     t = np.arange(waveforms.shape[1]) * dt
     w = 2 * np.pi / periods
     comp_0 = newmark_estimate_psa(
@@ -197,6 +269,24 @@ def compute_in_rotations(
     function: Callable,
     component_wise_operation: ComponentWiseOperation | str = ComponentWiseOperation.ABS,
 ) -> pd.DataFrame:
+    """Compute a the rotated intensity measure statistics for a list of waveforms.
+
+    Parameters
+    ----------
+    waveforms : npt.NDArray[np.float32]
+        The acceleration waveforms (in cm/s^2).
+    function : Callable
+        The intensity measure function to evaluate.
+    component_wise_operation : ComponentWiseOperation | str
+        The component wise operation to evaluate of each waveform. Will be computed in parallel.
+
+
+    Returns
+    -------
+    pd.DataFrame
+        A dataframe containing the intensity measure statistics.
+
+    """
     (stations, nt, _) = waveforms.shape
     values = np.zeros(shape=(stations, 180), dtype=waveforms.dtype)
 
@@ -231,6 +321,21 @@ def compute_in_rotations(
 
 @numba.njit(parallel=True)
 def trapz(waveforms: npt.NDArray[np.float32], dt: float) -> npt.NDArray[np.float32]:
+    """A parallel equivalent of np.trapz.
+
+    Parameters
+    ----------
+    waveforms : npt.NDArray[np.float32]
+        The waveform accelerations to integrate.
+    dt : float
+        The timestep resolution of the waveform array.
+
+
+    Returns
+    -------
+    npt.NDArray[np.float32]
+        The integrated waveform array using the trapezium rule.
+    """
     sums = np.zeros((waveforms.shape[0],), np.float32)
     for i in numba.prange(waveforms.shape[0]):
         for j in range(waveforms.shape[1]):
@@ -246,7 +351,25 @@ def compute_significant_duration(
     dt: float,
     percent_low: float,
     percent_high: float,
-):
+) -> npt.NDArray[np.float32]:
+    """Compute the significant duration of the rupture (the time to accumulate `percent_low` to `percent_high` of Arias Intensity).
+
+    Parameters
+    ----------
+    waveforms : npt.NDArray[np.float32]
+        The waveform accelerations to evaluate.
+    dt : float
+        The timestep resolution of the waveform array.
+    percent_low : float
+        The lower bound on the significant duration.
+    percent_high : float
+        The upper bound on the significant duration.
+
+    Returns
+    -------
+    npt.NDArray[np.float32]
+        The significant duration for each station (in seconds).
+    """
     arias_intensity = np.cumsum(waveforms, axis=1)
     arias_intensity /= arias_intensity[:, -1][:, np.newaxis]
     sum_mask = ne.evaluate(
@@ -303,17 +426,17 @@ def calculate_instensity_measures(
         waveforms = np.array(broadband_file["waveforms"])
 
     stations = pd.read_hdf(broadband_simulation_ffp, key="stations")
-    intensity_measures = ["psa", "pga", "pgv", "cav", "ai", "ds575", "ds595"]
+    intensity_measures = intensity_measure_parameters.ims
     intensity_measure_statistics = pd.DataFrame()
     pbar = tqdm.tqdm(intensity_measures)
     g = 981
     for intensity_measure in pbar:
         pbar.set_description(intensity_measure)
-        match intensity_measure:
+        match intensity_measure.lower():
             case "pga":
                 individual_intensity_measure_statistics = compute_in_rotations(
                     waveforms, lambda v: v.max(axis=1)
-                )  # ~30s
+                )
                 individual_intensity_measure_statistics["station"] = stations.index
                 individual_intensity_measure_statistics["intensity_measure"] = "pga"
             case "pgv":
@@ -326,7 +449,7 @@ def calculate_instensity_measures(
             case "cav":
                 individual_intensity_measure_statistics = compute_in_rotations(
                     waveforms, lambda v: trapz(v, broadband_parameters.dt)
-                )  # ~ 30s
+                )
                 individual_intensity_measure_statistics["station"] = stations.index
                 individual_intensity_measure_statistics["intensity_measure"] = "cav"
             case "ai":
@@ -334,7 +457,7 @@ def calculate_instensity_measures(
                     waveforms,
                     lambda v: (np.pi * g) / 2 * trapz(v, broadband_parameters.dt),
                     component_wise_operation=ComponentWiseOperation.SQUARE,
-                )  # ~ 30s
+                )
                 individual_intensity_measure_statistics["station"] = stations.index
                 individual_intensity_measure_statistics["intensity_measure"] = "ai"
             case "ds575":
@@ -344,7 +467,7 @@ def calculate_instensity_measures(
                         v, broadband_parameters.dt, 5, 75
                     ),
                     component_wise_operation=ComponentWiseOperation.SQUARE,
-                )  # ~ 45s
+                )
                 individual_intensity_measure_statistics["station"] = stations.index
                 individual_intensity_measure_statistics["intensity_measure"] = "ds575"
             case "ds595":
@@ -354,7 +477,7 @@ def calculate_instensity_measures(
                         v, broadband_parameters.dt, 5, 95
                     ),
                     component_wise_operation=ComponentWiseOperation.SQUARE,
-                )  # ~ 45s
+                )
                 individual_intensity_measure_statistics["station"] = stations.index
                 individual_intensity_measure_statistics["intensity_measure"] = "ds595"
             case "psa":
