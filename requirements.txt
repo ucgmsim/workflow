@@ -11,6 +11,7 @@ numpy<2
 numexpr
 openquake-engine @ git+https://github.com/gem/oq-engine
 pandas
+printree
 pytest
 pyvis
 pyvista
