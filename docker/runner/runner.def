@@ -33,6 +33,7 @@ From: ubuntu:latest
     wget "https://www.dropbox.com/scl/fi/b4m9g32x1j70ti69zyybq/genslip_velocity_model.vmod?rlkey=yxurhrdn8uvqh33hsb0inhsq0&st=o77aaccp&dl=0" -O /genslip_velocity_model.vmod
     wget "https://www.dropbox.com/scl/fi/qakchhg6qu23aclcb02ye/Cant1D_v2-midQ_leer.1d?rlkey=wn1a6nnol2eaf5n6qsy5t1nym&st=8yahw7id&dl=0" -O /Cant1D_v2-midQ_leer.1d
     wget "https://www.dropbox.com/scl/fi/pl7mw6022faskwtfsh67w/non_uniform_whole_nz_with_real_stations-hh400_v20p3_land.vs30?rlkey=0lfk9af25nrg6r5wl5j0z9t6a&st=vgwt4sv3&dl=0" -O /stations.vs30
+    wget "https://www.dropbox.com/scl/fi/qifr4l9gmlzeqci5to1s4/non_uniform_whole_nz_with_real_stations-hh400_v20p3_land.ll?rlkey=al2afz1uh0swfekvmc56u9r89&st=p6veto2x&dl=0" -O /stations.ll
 
     cd /EMOD3D && \
     git checkout cylc && \
