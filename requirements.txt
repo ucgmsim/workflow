@@ -2,16 +2,20 @@
 IM_calc @ git+https://github.com/ucgmsim/IM_calculation@cylc
 empirical @ git+https://github.com/ucgmsim/Empirical_Engine
 fiona
+h5py
 geopandas
 jinja2
+numba
 nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB@source_modelling
 numpy<2
+numexpr
 openquake-engine @ git+https://github.com/gem/oq-engine
 pandas
 pytest
 pyvis
 pyvista
 pyyaml
+tables
 qcore @ git+https://github.com/ucgmsim/qcore@pegasus
 schema
 scipy
@@ -20,3 +24,4 @@ source_modelling @ git+https://github.com/ucgmsim/source_modelling@pegasus
 tqdm
 typer
 velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling@cylc
+pyfftw
