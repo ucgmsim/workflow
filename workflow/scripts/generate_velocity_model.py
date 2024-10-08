@@ -40,7 +40,11 @@ from typing import Annotated, Optional
 import typer
 
 from workflow import log_utils
-from workflow.realisations import DomainParameters, VelocityModelParameters
+from workflow.realisations import (
+    DomainParameters,
+    RealisationMetadata,
+    VelocityModelParameters,
+)
 
 app = typer.Typer()
 
@@ -178,8 +182,11 @@ def generate_velocity_model(
         The function does not return any value. It writes the generated velocity model to the specified output directory.
     """
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
-    velocity_model_parameters = VelocityModelParameters.read_from_realisation(
-        realisation_ffp
+    metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
+    velocity_model_parameters = (
+        VelocityModelParameters.read_from_realisation_or_defaults(
+            realisation_ffp, metadata.defaults_version
+        )
     )
     nzvm_config_path = work_directory / "nzvm.cfg"
     velocity_model_intermediate_path = work_directory / "Velocity_Model"
