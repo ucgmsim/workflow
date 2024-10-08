@@ -92,7 +92,18 @@ class Stage(NamedTuple):
 
 
 class AnnotatedPath(PurePath):
+    """Pure path annotated with description of the file."""
+
     def __init__(self, path: str | Path, description: Optional[str] = None):
+        """Create an annotated path.
+
+        Parameters
+        ----------
+        path : str | Path
+            The path to annotate.
+        description : Optional[str]
+            The description of the path.
+        """
         super().__init__(path)
         self.description = description
 
@@ -625,6 +636,19 @@ def parse_realisation(realisation_id: str) -> set[tuple[str, Optional[int]]]:
 
 
 def build_filetree(files: set[AnnotatedPath]) -> dict[str, Any]:
+    """Build a file tree from a set of annotated file paths.
+
+    Parameters
+    ----------
+    files : set[AnnotatedPath]
+        The set of files to construct a tree for.
+
+
+    Returns
+    -------
+    dict[str, Any]
+        A file tree.
+    """
     filetree: dict[str, Any] = {}
     for file in files:
         cur = filetree
