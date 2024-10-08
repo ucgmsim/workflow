@@ -1,2 +1,2 @@
 [[copy_input]]
-        script = cp -r $CYLC_WORKFLOW_RUN_DIR/input $CYLC_WORKFLOW_SHARE_DIR/
+        script = cp -r $CYLC_WORKFLOW_RUN_DIR/input/* $CYLC_WORKFLOW_SHARE_DIR/
