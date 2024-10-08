@@ -8,10 +8,11 @@ import tempfile
 from collections.abc import Iterable, Sequence
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, NamedTuple, Optional
+from typing import Annotated, Any, NamedTuple, Optional
 
 import jinja2
 import networkx as nx
+import printree
 import tqdm
 import typer
 from pyvis.network import Network
@@ -89,9 +90,156 @@ class Stage(NamedTuple):
     """The sample number of the realisation."""
 
 
-def realisation_workflow(
-    event: str, sample: Optional[int]
-) -> nx.DiGraph:
+def stage_inputs(stage: Stage, root: Path) -> set[Path]:
+    """Return a list of stage inputs for the stage.
+
+    Parameters
+    ----------
+    stage : Stage
+        The stage to get inputs for.
+    root : Path
+        The root directory of the simulation.
+
+
+    Returns
+    -------
+    set[Path]
+    A set of input paths required by the stage.
+
+
+    """
+    realisation_identifier = stage.event
+    if stage.sample:
+        realisation_identifier += f"_{stage.sample}"
+    parent_directory = root / stage.event
+    event_directory = root / realisation_identifier
+    realisation = {event_directory / "realisation.json"}
+    match stage:
+        case Stage(identifier=StageIdentifier.NSHMToRealisation):
+            return set()
+        case Stage(
+            identifier=StageIdentifier.SRFGeneration
+            | StageIdentifier.VelocityModelGeneration
+            | StageIdentifier.StationSelection
+            | StageIdentifier.ModelCoordinates
+        ):
+            return realisation
+        case Stage(identifier=StageIdentifier.CopyDomainParameters):
+            return {parent_directory / "realisation.json"}
+        case Stage(
+            identifier=StageIdentifier.EMOD3DParameters
+            | StageIdentifier.LowFrequency,
+        ):
+            return (
+                realisation
+                | {
+                    parent_directory / "stations" / "stations.ll",
+                    parent_directory / "stations" / "stations.statcords",
+                    parent_directory / "model" / "model_params",
+                    parent_directory / "model" / "grid_file",
+                    parent_directory / "Velocity_Model" / "rho3dfile.d",
+                    parent_directory / "Velocity_Model" / "vp3dfile.p",
+                    parent_directory / "Velocity_Model" / "vs3dfile.s",
+                    parent_directory / "Velocity_Model" / "in_basin_mask.b",
+                    event_directory / "realisation.srf",
+                }
+                | (
+                    set()
+                    if stage.identifier == StageIdentifier.EMOD3DParameters
+                    else {event_directory / "LF" / "e3d.par"}
+                )
+            )
+        case Stage(identifier=StageIdentifier.StochGeneration):
+            return realisation | {event_directory / "realisation.srf"}
+        case Stage(identifier=StageIdentifier.HighFrequency):
+            return realisation | {
+                event_directory / "realisation.stoch",
+                parent_directory / "stations" / "stations.ll",
+                parent_directory / "Velocity_Model" / "vs3dfile.s",
+            }
+        case Stage(identifier=StageIdentifier.Broadband):
+            return realisation | {
+                event_directory / "realisation.stoch",
+                parent_directory / "stations" / "stations.ll",
+                event_directory / "LF",
+                event_directory / "realisation.hf",
+                parent_directory / "Velocity_Model" / "vs3dfile.s",
+            }
+        case Stage(identifier=StageIdentifier.IntensityMeasureCalculation):
+            return realisation | {event_directory / "realisation.bb"}
+        case Stage(identifier=StageIdentifier.PlotTimeslices):
+            return {event_directory / "LF" / "OutBin" / "output.e3d"}
+        case Stage(identifier=StageIdentifier.MergeTimeslices):
+            return {event_directory / "LF" / "OutBin"}
+    return set()
+
+
+def stage_outputs(stage: Stage, root: Path) -> set[Path]:
+    """Return a list of stage inputs for the stage.
+
+    Parameters
+    ----------
+    stage : Stage
+        The stage to get inputs for.
+    root : Path
+        The root directory of the simulation.
+
+
+    Returns
+    -------
+    set[Path]
+    A set of input paths required by the stage.
+
+
+    """
+    realisation_identifier = stage.event
+    if stage.sample:
+        realisation_identifier += f"_{stage.sample}"
+    event_directory = root / realisation_identifier
+    realisation = {event_directory / "realisation.json"}
+    match stage:
+        case Stage(identifier=StageIdentifier.NSHMToRealisation):
+            return realisation
+        case Stage(identifier=StageIdentifier.SRFGeneration):
+            return {event_directory / "realisation.srf"}
+        case Stage(identifier=StageIdentifier.ModelCoordinates):
+            return {
+                event_directory / "model" / "model_params",
+                event_directory / "model" / "grid_file",
+            }
+        case Stage(identifier=StageIdentifier.StationSelection):
+            return {
+                event_directory / "stations" / "stations.ll",
+                event_directory / "stations" / "stations.statcords",
+            }
+        case Stage(identifier=StageIdentifier.VelocityModelGeneration):
+            return {
+                event_directory / "Velocity_Model" / "rho3dfile.d",
+                event_directory / "Velocity_Model" / "vp3dfile.p",
+                event_directory / "Velocity_Model" / "vs3dfile.s",
+                event_directory / "Velocity_Model" / "in_basin_mask.b",
+            }
+        case Stage(
+            identifier=StageIdentifier.EMOD3DParameters | StageIdentifier.LowFrequency
+        ):
+            return {event_directory / "LF", event_directory / "LF" / "e3d.par"}
+        case Stage(identifier=StageIdentifier.StochGeneration):
+            return {event_directory / "realisation.stoch"}
+        case Stage(identifier=StageIdentifier.HighFrequency):
+            return {event_directory / "realisation.hf"}
+        case Stage(identifier=StageIdentifier.Broadband):
+            return {event_directory / "realisation.bb"}
+        case Stage(identifier=StageIdentifier.IntensityMeasureCalculation):
+            return {event_directory / "ims.parquet"}
+        case Stage(identifier=StageIdentifier.PlotTimeslices):
+            return {event_directory / "animation.mp4"}
+        case Stage(identifier=StageIdentifier.MergeTimeslices):
+            return {event_directory / "LF" / "OutBin" / "output.e3d"}
+        case _:
+            return set()
+
+
+def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
     """Add a realisation to a workflow plan.
 
     Adds all stages for the realisation to run, and links to event
@@ -108,18 +256,43 @@ def realisation_workflow(
     """
     workflow_plan = nx.from_dict_of_lists(
         {
-            Stage(StageIdentifier.NSHMToRealisation, event, sample): [Stage(StageIdentifier.SRFGeneration, event, sample)],
-            Stage(StageIdentifier.SRFGeneration, event, sample): [Stage(StageIdentifier.StochGeneration, event, sample), Stage(StageIdentifier.EMOD3DParameters, event, sample)],
-            Stage(StageIdentifier.VelocityModelGeneration, event, None): [Stage(StageIdentifier.EMOD3DParameters, event, sample)],
-            Stage(StageIdentifier.StationSelection, event, None): [Stage(StageIdentifier.EMOD3DParameters, event, sample)],
-            Stage(StageIdentifier.ModelCoordinates, event, None): [Stage(StageIdentifier.EMOD3DParameters, event, sample)],
-            Stage(StageIdentifier.EMOD3DParameters, event, sample): [Stage(StageIdentifier.LowFrequency, event, sample)],
-            Stage(StageIdentifier.LowFrequency, event, sample): [Stage(StageIdentifier.Broadband, event, sample), Stage(StageIdentifier.MergeTimeslices, event, sample)],
-            Stage(StageIdentifier.StochGeneration, event, sample): [Stage(StageIdentifier.HighFrequency, event, sample)],
-            Stage(StageIdentifier.HighFrequency, event, sample): [Stage(StageIdentifier.Broadband, event, sample)],
-            Stage(StageIdentifier.Broadband, event, sample): [Stage(StageIdentifier.IntensityMeasureCalculation, event, sample)],
-            Stage(StageIdentifier.MergeTimeslices, event, sample): [Stage(StageIdentifier.PlotTimeslices, event, sample)]
-        }, create_using=nx.DiGraph
+            Stage(StageIdentifier.NSHMToRealisation, event, sample): [
+                Stage(StageIdentifier.SRFGeneration, event, sample)
+            ],
+            Stage(StageIdentifier.SRFGeneration, event, sample): [
+                Stage(StageIdentifier.StochGeneration, event, sample),
+                Stage(StageIdentifier.EMOD3DParameters, event, sample),
+            ],
+            Stage(StageIdentifier.VelocityModelGeneration, event, None): [
+                Stage(StageIdentifier.EMOD3DParameters, event, sample)
+            ],
+            Stage(StageIdentifier.StationSelection, event, None): [
+                Stage(StageIdentifier.EMOD3DParameters, event, sample)
+            ],
+            Stage(StageIdentifier.ModelCoordinates, event, None): [
+                Stage(StageIdentifier.EMOD3DParameters, event, sample)
+            ],
+            Stage(StageIdentifier.EMOD3DParameters, event, sample): [
+                Stage(StageIdentifier.LowFrequency, event, sample)
+            ],
+            Stage(StageIdentifier.LowFrequency, event, sample): [
+                Stage(StageIdentifier.Broadband, event, sample),
+                Stage(StageIdentifier.MergeTimeslices, event, sample),
+            ],
+            Stage(StageIdentifier.StochGeneration, event, sample): [
+                Stage(StageIdentifier.HighFrequency, event, sample)
+            ],
+            Stage(StageIdentifier.HighFrequency, event, sample): [
+                Stage(StageIdentifier.Broadband, event, sample)
+            ],
+            Stage(StageIdentifier.Broadband, event, sample): [
+                Stage(StageIdentifier.IntensityMeasureCalculation, event, sample)
+            ],
+            Stage(StageIdentifier.MergeTimeslices, event, sample): [
+                Stage(StageIdentifier.PlotTimeslices, event, sample)
+            ],
+        },
+        create_using=nx.DiGraph,
     )
     if not sample:
         workflow_plan.add_edges_from(
@@ -161,6 +334,7 @@ def realisation_workflow(
         )
 
     return workflow_plan
+
 
 def create_abstract_workflow_plan(
     realisations: Sequence[tuple[str, Optional[int]]],
@@ -306,6 +480,19 @@ def parse_realisation(realisation_id: str) -> set[tuple[str, Optional[int]]]:
         return {(realisation_id, None)}
 
 
+def build_filetree(files: set[Path]) -> dict[str, Any]:
+    filetree: dict[str, Any] = {}
+    for file in files:
+        cur = filetree
+        for part in file.parts[:-1]:
+            if part not in cur:
+                cur[part] = {}
+            cur = cur[part]
+        if cur.get(file.parts[-1]) is None:
+            cur[file.parts[-1]] = file.parts[-1]
+    return filetree
+
+
 @app.command(
     help="Plan and generate a Cylc workflow file for a number of realisations."
 )
@@ -348,6 +535,12 @@ def plan_workflow(
     visualise: Annotated[
         bool, typer.Option(help="Visualise the planned workflow as a graph")
     ] = False,
+    show_required_files: Annotated[
+        bool,
+        typer.Option(
+            help="Print the expected directory tree at the start of the simulation."
+        ),
+    ] = True,
 ):
     """Plan and generate a Cylc workflow file for a number of realisations.
 
@@ -394,6 +587,18 @@ def plan_workflow(
         # strip empty lines from the output flow template
         "\n".join(line for line in flow_template.split("\n") if line.strip())
     )
+    if show_required_files:
+        root_path = Path("cylc-src") / "WORKFLOW_NAME" / "input" / "share"
+        inputs = set()
+        outputs = set()
+        for stage in workflow_plan.nodes:
+            inputs |= stage_inputs(stage, root_path)
+            outputs |= stage_outputs(stage, root_path)
+        missing_file_tree = build_filetree(inputs - outputs)
+
+        if missing_file_tree:
+            print("You require the following files for your simulation:")
+            printree.ptree(missing_file_tree)
     if visualise:
         network = pyvis_graph(workflow_plan)
         with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as graph_render:
