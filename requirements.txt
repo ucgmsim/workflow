@@ -5,8 +5,10 @@ fiona
 h5py
 geopandas
 jinja2
+numba
 nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB@source_modelling
 numpy<2
+numexpr
 openquake-engine @ git+https://github.com/gem/oq-engine
 pandas
 pytest
