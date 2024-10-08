@@ -52,36 +52,6 @@ from workflow.realisations import (
 app = typer.Typer()
 
 
-def response_spectra(
-    waveforms: npt.NDArray[np.float32],
-    dt: float,
-    periods: npt.NDArray[np.float32],
-    xi: float = 0.05,
-    max_freq_ratio: int = 5,
-):
-    fourier = fft.rfft(waveforms, axis=1, threads=multiprocessing.cpu_count())
-    freq = np.linspace(0, 1 / (2 * dt), num=fourier.shape[1])
-    ang_freq = 2 * np.pi * freq  # (nt,)
-    oscillator_freq = 2 * np.pi * periods  # (np,)
-    h = -np.square(oscillator_freq)[
-        :, np.newaxis
-    ] / (  # (np x nt) / (nt - np - np * nt) ERROR
-        np.square(ang_freq)[np.newaxis, :]
-        - np.square(oscillator_freq)[:, np.newaxis]
-        - 2j * xi * oscillator_freq[:, np.newaxis] * ang_freq[np.newaxis, :]
-    )  # h needs to be a matrix of size (np, nt)
-    # fourier = (stat, nt), h = (np, nt) want: (np, stat, nt)
-    n = len(fourier)
-    m = max(n, int(max_freq_ratio * oscillator_freq.max() / freq[1]))
-    scale = m / n
-    return scale * fft.irfft(
-        fourier[np.newaxis, ...] * h[:, np.newaxis, :],
-        axis=2,
-        threads=multiprocessing.cpu_count(),
-    )
-    # now have array of shape (np, nstat, nt)
-
-
 class ComponentWiseOperation(StrEnum):
     NONE = "cos(theta) * comp_0 + sin(theta) * comp_90"
     ABS = "abs(cos(theta) * comp_0 + sin(theta) * comp_90)"
@@ -99,7 +69,6 @@ def newmark_estimate_psa(
     beta: float = 1 / 4,
     m: float = 1,
 ) -> npt.NDArray[np.float32]:
-    w = w * np.pi * 2
     c = 2 * xi * w
     a = 1 / (beta * dt) * m + (gamma / beta) * c
     b = 1 / (2 * beta) * m + dt * (gamma / (2 * beta) - 1) * c
@@ -150,13 +119,13 @@ def rotd_psa_values(
     ne.set_num_threads(multiprocessing.cpu_count())
     psa = np.zeros((comp_000.shape[0], comp_000.shape[-1], 2), np.float32)
     out = np.zeros((step, *comp_000.shape[1:], 180), np.float32)
-    w = np.square(w * 2 * np.pi)
+    w2 = np.square(w)
+    g = 981
     for i in tqdm.trange(0, comp_000.shape[0], step):
         step_000 = comp_000[i : i + step]
         step_090 = comp_000[i : i + step]
         psa[i : i + step] = np.transpose(
-            w[np.newaxis, np.newaxis, :]
-            * np.percentile(
+            np.percentile(
                 np.max(
                     ne.evaluate(
                         "abs(comp_000 * cos(theta) + comp_090 * sin(theta))",
@@ -174,7 +143,7 @@ def rotd_psa_values(
             ),
             [1, 2, 0],
         )
-    return psa
+    return g * w2[np.newaxis, :, np.newaxis] * psa
 
 
 def compute_psa(
@@ -185,57 +154,47 @@ def compute_psa(
 ) -> pd.DataFrame:
     g = 981
     t = np.arange(waveforms.shape[1]) * dt
+    w = 2 * np.pi / periods
     comp_0 = newmark_estimate_psa(
         waveforms[:, :, 1],
         t,
         dt,
-        periods,
+        w,
     )
 
     comp_90 = newmark_estimate_psa(
         waveforms[:, :, 0],
         t,
         dt,
-        periods,
+        w,
     )
 
-    rotd_psa = g * rotd_psa_values(
-        comp_0, comp_90, periods, step=multiprocessing.cpu_count()
-    )
-    conversion_factor = g * np.square(2 * np.pi * periods)[np.newaxis, :]
+    rotd_psa = rotd_psa_values(comp_0, comp_90, w, step=multiprocessing.cpu_count())
+
+    conversion_factor = g * np.square(w)[np.newaxis, :]
     comp_0_psa = conversion_factor * np.abs(comp_0).max(axis=1)
     comp_90_psa = conversion_factor * np.abs(comp_90).max(axis=1)
     ver_psa = conversion_factor * np.abs(
-        newmark_estimate_psa(waveforms[:, :, 0], t, dt, periods)
+        newmark_estimate_psa(waveforms[:, :, 0], t, dt, w)
     ).max(axis=1)
     geom_psa = np.sqrt(comp_0_psa * comp_90_psa)
-    psa_df = pd.DataFrame(
-        columns=[
-            "station",
-            "intensity_measure",
-            "000",
-            "090",
-            "ver",
-            "geom",
-            "rotd100",
-            "rotd50",
+    return pd.concat(
+        [
+            pd.DataFrame(
+                {
+                    "station": stations,
+                    "intensity_measure": f"pSA_{p:.2f}",
+                    "000": comp_0_psa[:, i],
+                    "090": comp_90_psa[:, i],
+                    "ver": ver_psa[:, i],
+                    "geom": geom_psa[:, i],
+                    "rotd50": rotd_psa[:, i, 0],
+                    "rotd100": rotd_psa[:, i, 1],
+                }
+            )
+            for i, p in enumerate(periods)
         ]
     )
-    for i, p in enumerate(periods):
-        period_df = pd.DataFrame(
-            {
-                "station": stations,
-                "intensity_measure": f"pSA_{p:.2f}",
-                "000": comp_0_psa[:, i],
-                "090": comp_90_psa[:, i],
-                "ver": ver_psa[:, i],
-                "geom": geom_psa[:, i],
-                "rotd50": rotd_psa[:, i, 0],
-                "rotd100": rotd_psa[:, i, 1],
-            }
-        )
-        psa_df = pd.concat([psa_df, period_df])
-    return psa_df
 
 
 def compute_in_rotations(
