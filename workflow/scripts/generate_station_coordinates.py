@@ -108,7 +108,12 @@ def generate_fd_files(
         * (1 - xy[:, 1])
         / domain_parameters.resolution
     ).astype(int)
-    # store gridpoints and names if unique position
+
+    # Stations can occasionally be rounded to grid positions outside
+    # the domain. So we filter these out.
+    max_x = domain_parameters.domain.extent_x // domain_parameters.resolution
+    max_y = domain_parameters.domain.extent_y // domain_parameters.resolution
+    stations = stations[(stations["x"] < max_x) & (stations["y"] < max_y)]
 
     # create grid point file
     with open(gp_out, "w", encoding="utf-8") as gpf:
