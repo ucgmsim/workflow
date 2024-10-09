@@ -426,10 +426,12 @@ def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
                 Stage(StageIdentifier.EMOD3DParameters, event, sample),
             ],
             Stage(StageIdentifier.VelocityModelGeneration, event, None): [
-                Stage(StageIdentifier.EMOD3DParameters, event, sample)
+                Stage(StageIdentifier.EMOD3DParameters, event, sample),
+                Stage(StageIdentifier.HighFrequency, event, sample),
             ],
             Stage(StageIdentifier.StationSelection, event, None): [
-                Stage(StageIdentifier.EMOD3DParameters, event, sample)
+                Stage(StageIdentifier.EMOD3DParameters, event, sample),
+                Stage(StageIdentifier.HighFrequency, event, sample),
             ],
             Stage(StageIdentifier.ModelCoordinates, event, None): [
                 Stage(StageIdentifier.EMOD3DParameters, event, sample)
