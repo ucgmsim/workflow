@@ -57,6 +57,7 @@ class GroupIdentifier(StrEnum):
     """Alias for the high frequency workflow."""
     LowFrequency = "low_frequency"
     """Alias for the low frequency workflow."""
+    Domain = "domain"
 
 
 GROUP_STAGES = {
@@ -75,6 +76,13 @@ GROUP_STAGES = {
         StageIdentifier.HighFrequency,
     },
     GroupIdentifier.LowFrequency: {StageIdentifier.LowFrequency},
+    GroupIdentifier.Domain: {
+        StageIdentifier.VelocityModelGeneration,
+        StageIdentifier.StationSelection,
+        StageIdentifier.DomainGeneration,
+        StageIdentifier.CopyDomainParameters,
+        StageIdentifier.ModelCoordinates,
+    },
 }
 
 GROUP_GOALS = {
@@ -84,6 +92,12 @@ GROUP_GOALS = {
     },
     GroupIdentifier.LowFrequency: {StageIdentifier.LowFrequency},
     GroupIdentifier.HighFrequency: {StageIdentifier.HighFrequency},
+    GroupIdentifier.Domain: {
+        StageIdentifier.VelocityModelGeneration,
+        StageIdentifier.StationSelection,
+        StageIdentifier.ModelCoordinates,
+        StageIdentifier.CopyDomainParameters,
+    },
 }
 
 
