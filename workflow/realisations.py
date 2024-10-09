@@ -278,7 +278,7 @@ class RupturePropagationConfig(RealisationConfiguration):
     _config_key: ClassVar[str] = "rupture_propagation"
     _schema: ClassVar[Schema] = schemas.RUPTURE_PROPAGATION_SCHEMA
 
-    rupture_causality_tree: dict[str, str]
+    rupture_causality_tree: dict[str, Optional[str]]
     """A dict where the keys are faults and the values the parent fault (i.e. if fault a triggers fault b then rupture_causality_tree[fault b] = fault a)."""
     jump_points: dict[str, JumpPair]
     """A map from faults to pairs of fault-local coordinates representing jump points. If the rupture jumps from fault a at point a to point b on fault b then jump_points[fault a] = JumpPoint(point b, point a)."""
