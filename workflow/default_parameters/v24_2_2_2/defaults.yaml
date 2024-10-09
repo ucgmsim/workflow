@@ -104,14 +104,14 @@ hf:
   stoch_dy: 2.0
   seed: 0
 srf:
-  resolution: 0.1
+  resolution: 0.2
   genslip_seed: 1
   genslip_dt: 0.05
   srfgen_seed: 1
   genslip_version: 5.4.2
 velocity_model:
   min_vs: 0.5
-  resolution: 0.1
+  resolution: 0.2
   ds_multiplier: 1.2
   dt: 0.01
   version: "2.06"
