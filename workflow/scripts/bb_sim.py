@@ -309,6 +309,8 @@ def combine_hf_and_lf(
         "name"
     )
     stations["waveform_index"] = np.arange(len(stations))
+    # ensure that LF and HF agree on station list, sometimes LF can drop a station or two
+    stations = stations[lf.stations.index]
 
     station_vs30 = pd.read_csv(
         station_vs30_ffp,
