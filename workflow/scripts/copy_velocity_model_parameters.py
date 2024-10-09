@@ -38,4 +38,4 @@ def copy_domain(
     from_realisation_velocity_model_parameters = (
         VelocityModelParameters.read_from_realisation(from_realisation_ffp)
     )
-    from_realisation_veloity_model_parameters.write_to_realisation(to_realisation_ffp)
+    from_realisation_velocity_model_parameters.write_to_realisation(to_realisation_ffp)
