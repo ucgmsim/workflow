@@ -1,2 +1,2 @@
 [[{{stage_node_identifier(stage)}}]]
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/{{realisation_identifier(stage)}}:/share,$CYLC_WORKFLOW_SHARE_DIR/{{stage.event}}:/parent" copy-domain-parameters /parent/realisation.json /share/realisation.json
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/{{realisation_identifier(stage)}}:/share,$CYLC_WORKFLOW_SHARE_DIR/{{stage.event}}:/parent"  /mnt/hypo_scratch/containers/runner_latest.sif copy-domain-parameters /parent/realisation.json /share/realisation.json

@@ -1,3 +1,3 @@
 [[{{stage_node_identifier(stage)}}]]
         platform = localhost
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/{{realisation_identifier(stage)}}:/share,$CYLC_WORKFLOW_SHARE_DIR/{{stage.event}}:/parent" copy-domain-parameters /parent/realisation.json /share/realisation.json
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/{{realisation_identifier(stage)}}:/share,$CYLC_WORKFLOW_SHARE_DIR/{{stage.event}}:/parent" /nesi/nobackup/nesi00213/containers/runner_latest.sif copy-domain-parameters /parent/realisation.json /share/realisation.json
