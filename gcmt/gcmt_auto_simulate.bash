@@ -18,4 +18,4 @@ while IFS= read -r gcmt_id; do
     echo "bash -c cylc vip $gcmt_id" | batch
 done < <(awk -F',' "\$2 > $MOST_RECENT_OLD_GCMT &&\$12 >= 4.5 && \$1 !=\"PublicID\" { print $1 }" $NEW_GCMT)
 
-mv $OLD_GCMT $NEW_GCMT
+mv $NEW_GCMT $OLD_GCMT
