@@ -14,6 +14,7 @@ dynamic = ["version", "dependencies"]
 
 [project.scripts]
 nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:app"
+gcmt-to-realisation = "workflow.scripts.gcmt_to_realisation:app"
 realisation-to-srf = "workflow.scripts.realisation_to_srf:app"
 generate-velocity-model-parameters = "workflow.scripts.generate_velocity_model_parameters:app"
 generate-velocity-model = "workflow.scripts.generate_velocity_model:app"
