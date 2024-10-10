@@ -16,6 +16,6 @@ while IFS= read -r gcmt_id; do
     mkdir -p ~/cylc-src/"$gcmt_id"/input
     plan-workflow "$gmct_id" "$HOME/cylc-src/$gcmt_id/flow.cylc" --goal im_calc --goal plot_ts --source gcmt --defaults-version 24.2.2.4
     echo "bash -c cylc vip $gcmt_id" | batch
-done < <(awk -F',' "\$2 > $MOST_RECENT_OLD_GCMT &&\$12 >= 4.5 { print $1 }" $NEW_GCMT)
+done < <(awk -F',' "\$2 > $MOST_RECENT_OLD_GCMT &&\$12 >= 4.5 && \$1 !=\"PublicID\" { print $1 }" $NEW_GCMT)
 
 mv $OLD_GCMT $NEW_GCMT
