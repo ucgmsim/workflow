@@ -9,7 +9,7 @@ if [[ ! -f $OLD_GCMT ]]; then
     cp $NEW_GCMT $OLD_GCMT
 fi
 
-MOST_RECENT_OLD_GCMT=$(awk -F',' '$2 > $id {id=$2} END{print $2}' $OLD_GCMT)
+MOST_RECENT_OLD_GCMT=$(awk -F',' '$2 > $id && $1 !="PublicID" {id=$2} END{print $2}' $OLD_GCMT)
 pyenv activate workflow
 while IFS= read -r gcmt_id; do
     echo "Will simulate GCMT event id: $gcmt_id"
