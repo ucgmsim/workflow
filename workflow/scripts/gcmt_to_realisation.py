@@ -5,8 +5,6 @@ import numpy as np
 import pandas as pd
 import typer
 
-from qcore import coordinates
-from qcore.uncertainties import mag_scaling
 from source_modelling import ccldpy, sources
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import (
