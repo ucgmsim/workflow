@@ -677,6 +677,10 @@ def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
                     Stage(StageIdentifier.CopyDomainParameters, event, sample),
                     Stage(StageIdentifier.EMOD3DParameters, event, sample),
                 ),
+                (
+                    Stage(StageIdentifier.CopyDomainParameters, event, sample),
+                    Stage(StageIdentifier.HighFrequency, event, sample),
+                ),
             ]
         )
 
