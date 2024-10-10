@@ -7,7 +7,7 @@ import typer
 
 from qcore import coordinates
 from qcore.uncertainties import mag_scaling
-from source_modelling import sources
+from source_modelling import ccldpy, sources
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import (
     RealisationMetadata,
@@ -37,12 +37,6 @@ def gcmt_to_realisation(
             help="Path to output realisation.", writable=True, dir_okay=False
         ),
     ],
-    alternate_solution: Annotated[
-        bool,
-        typer.Option(
-            help="If indicated, choose the second possible strike, dip and rake combination instead of the first."
-        ),
-    ] = False,
 ):
     """Generate a realisation from a GCMT solution.
 
@@ -54,8 +48,6 @@ def gcmt_to_realisation(
         The defaults version to use.
     realisation_ffp : Path
         The realisation filepath to output to.
-    alternate_solution : bool
-        If True, use the alternate solution for the GCMT realisation.
     """
     gcmt_solutions = pd.read_csv(MOMENT_TENSOR_SOLUTION_URL)
 
@@ -64,38 +56,71 @@ def gcmt_to_realisation(
     ].set_index("PublicID")
 
     solution = gcmt_solutions.loc[gcmt_event_id]
-
-    magnitude = solution["Mw"]
-    centroid = np.array([solution["Latitude"], solution["Longitude"]])
-    rake = solution["rake2"] if alternate_solution else solution["rake1"]
-    length = mag_scaling.mw_to_l_leonard(magnitude, rake)
-    width = mag_scaling.mw_to_w_leonard(magnitude, rake)
-    strike = coordinates.great_circle_bearing_to_nztm_bearing(
-        centroid,
-        length / 2,
-        solution["strike2"] if alternate_solution else solution["strike1"],
+    # Get a likely rupture using CCLDpy
+    _, ccld_selected_rupture = ccldpy.simulate_rupture_surface(
+        1,
+        "crustal",
+        "other",
+        solution["Latitude"],
+        solution["Longitude"],
+        solution["CD"],  # Centroid depth
+        solution["Mw"],
+        "C",
+        [334, 333, 333, 111, 111, 111, 0],
+        strike=solution["strike1"],
+        dip=solution["dip1"],
+        rake=solution["rake1"],
+        strike2=solution["strike2"],
+        dip2=solution["dip2"],
+        rake2=solution["rake2"],
     )
-    dip = solution["dip2"] if alternate_solution else solution["dip1"]
-
-    dtop = 0
-    dbottom = width * np.sin(np.radians(dip))
-    projected_width = width * np.cos(np.radians(dip))
-    plane = sources.Plane.from_centroid_strike_dip(
-        centroid, strike, None, dtop, dbottom, length, projected_width
+    ccld_selected_rupture = ccld_selected_rupture.iloc[0]
+    corners = np.array(
+        [
+            [
+                ccld_selected_rupture["ULC Latitude"],
+                ccld_selected_rupture["ULC Longitude"],
+                ccld_selected_rupture["ULC Depth (km)"] * 1000,
+            ],
+            [
+                ccld_selected_rupture["URC Latitude"],
+                ccld_selected_rupture["URC Longitude"],
+                ccld_selected_rupture["URC Depth (km)"] * 1000,
+            ],
+            [
+                ccld_selected_rupture["LRC Latitude"],
+                ccld_selected_rupture["LRC Longitude"],
+                ccld_selected_rupture["LRC Depth (km)"] * 1000,
+            ],
+            [
+                ccld_selected_rupture["LLC Latitude"],
+                ccld_selected_rupture["LLC Longitude"],
+                ccld_selected_rupture["LLC Depth (km)"] * 1000,
+            ],
+        ]
     )
-    plane.bounds += np.array([0, 0, solution["CD"] * 1000])
+    plane = sources.Plane.from_corners(corners)
+    rake = ccld_selected_rupture["Rake"]
+    magnitude = ccld_selected_rupture["Magnitude"]
+    hypocentre = plane.wgs_depth_coordinates_to_fault_coordinates(
+        np.array(
+            [
+                ccld_selected_rupture["Hypocenter Latitude"],
+                ccld_selected_rupture["Hypocenter Longitude"],
+            ]
+        )
+    )
 
     source_config = SourceConfig(
         source_geometries={gcmt_event_id: sources.Fault([plane])}
     )
-    expected_hypocentre = np.array([1 / 2, 1 / 2])
 
     rupture_config = RupturePropagationConfig(
         rupture_causality_tree={gcmt_event_id: None},
         jump_points={},
         rakes={gcmt_event_id: float(rake)},
         magnitudes={gcmt_event_id: float(magnitude)},
-        hypocentre=expected_hypocentre,
+        hypocentre=hypocentre,
     )
     metadata = RealisationMetadata(
         name=gcmt_event_id, version="1", defaults_version=defaults_version, tag="gcmt"
