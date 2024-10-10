@@ -6,7 +6,7 @@ OLD_GCMT="/mnt/hypo_scratch/jfa92/automated_gcmt/gcmt_solutions.csv"
 wget -O $NEW_GCMT "https://raw.githubusercontent.com/GeoNet/data/main/moment-tensor/GeoNet_CMT_solutions.csv"
 
 if [[ ! -f $OLD_GCMT ]]; then
-    cp $OLD_GCMT $NEW_GCMT
+    cp $NEW_GCMT $OLD_GCMT
 fi
 
 MOST_RECENT_OLD_GCMT=$(awk -F',' '$2 > $id {id=$2} END{print $2}' $OLD_GCMT)
