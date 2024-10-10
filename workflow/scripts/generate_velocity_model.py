@@ -34,6 +34,7 @@ The velocity modelling repository contains some tools to plot velocity models. S
 
 import os
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -108,11 +109,16 @@ def run_nzvm(
         None for inferred thread count.
     """
     environment = os.environ.copy()
-    environment["OMP_NUM_THREADS"] = str(num_threads or -1)
-    log_utils.log_check_call(
+    if not num_threads:
+        environment.pop("OMP_NUM_THREADS")
+    else:
+        environment["OMP_NUM_THREADS"] = str(num_threads)
+
+    subprocess.check_call(
         [str(nzvm_binary_ffp), str(nzvm_config_ffp)],
         cwd=nzvm_binary_ffp.parent,
         env=environment,
+        stderr=subprocess.STDOUT,
     )
 
 
