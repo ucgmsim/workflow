@@ -13,3 +13,5 @@ while IFS= read -r gcmt_id; do
     plan-workflow "$gmct_id" --goal im_calc --goal plot_ts --source gcmt --defaults-version 24.2.2.4
     echo "bash -c cylc vip $gcmt_id" | batch
 done < <(awk -F',' "\$2 > $MOST_RECENT_OLD_GCMT &&\$12 >= 4.5 { print $1 }")
+
+mv $OLD_GCMT $NEW_GCMT
