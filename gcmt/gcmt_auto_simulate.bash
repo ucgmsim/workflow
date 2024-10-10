@@ -5,7 +5,7 @@ OLD_GCMT="/mnt/hypo_scratch/jfa92/automated_gcmt/gcmt_solutions.csv"
 
 wget -O $NEW_GCMT "https://raw.githubusercontent.com/GeoNet/data/main/moment-tensor/GeoNet_CMT_solutions.csv"
 
-if [[ -f $OLD_GCMT ]]; then
+if [[ ! -f $OLD_GCMT ]]; then
     cp $OLD_GCMT $NEW_GCMT
 fi
 
