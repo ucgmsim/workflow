@@ -17,7 +17,7 @@ A directory consisting of [velocity model files](https://wiki.canterbury.ac.nz/d
 
 Environment
 -----------
-Can be run in the cybershake container. Can also be run from your own computer using the `generate-velocity-model` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you are executing on your own computer you also need to specify the `NZVM` path (`--velocity-model-bin-path`) and the work directory (`--work-directory`).
+Can be run in the Cybershake container. Can also be run from your own computer using the `generate-velocity-model` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you are executing on your own computer you also need to specify the `NZVM` path (`--velocity-model-bin-path`) and the work directory (`--work-directory`).
 
 Usage
 -----
@@ -40,7 +40,6 @@ from typing import Annotated, Optional
 
 import typer
 
-from workflow import log_utils
 from workflow.realisations import (
     DomainParameters,
     RealisationMetadata,
@@ -115,7 +114,7 @@ def run_nzvm(
         environment["OMP_NUM_THREADS"] = str(num_threads)
 
     subprocess.check_call(
-        [str(nzvm_binary_ffp), str(nzvm_config_ffp)],
+        [str(nzvm_binary_ffp), str(nzvm_config_ffp.resolve())],
         cwd=nzvm_binary_ffp.parent,
         env=environment,
         stderr=subprocess.STDOUT,
