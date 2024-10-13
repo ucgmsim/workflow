@@ -402,7 +402,22 @@ class VelocityModelParameters(RealisationConfiguration):
     vs30: float
     """The reference vs30 value for duration estimation."""
     s_wave_velocity: float
-    """The s-wave velocity"""
+    """The s-wave velocity."""
+    pgv_interpolants: npt.NDArray[np.float32]
+    """PGV interpolation nodes between rupture magnitude and PGV target values."""
+
+    def to_dict(self) -> dict:
+        """
+        Convert the object to a dictionary representation.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the object.
+        """
+        _dict =  dataclasses.asdict(self)
+        _dict['pgv_interpolants'] = _dict['pgv_interpolants'].tolist()
+        return _dict
 
 
 @dataclasses.dataclass

@@ -86,33 +86,7 @@ def get_nz_outline_polygon() -> Polygon:
     return shapely.union(south_island, north_island)
 
 
-def pgv_estimate_from_magnitude(
-    magnitude: npt.NDArray[np.float64],
-) -> npt.NDArray[np.float64]:
-    """Return PGV for a given magnitude based on default scaling relationship.
-
-    Parameters
-    ----------
-    magnitude : np.ndarray
-        The magnitude(s) of the rupture(s).
-
-    Returns
-    -------
-    np.ndarray
-        An estimate of PGV for the rupture(s).
-
-    References
-    ----------
-    See the 'Custom Models Used in VM Params' wiki page for an explanation of this function.
-    """
-    return np.interp(
-        magnitude,
-        [3.5, 4.1, 4.7, 5.2, 5.5, 5.8, 6.2, 6.5, 6.8, 7.0, 7.4, 7.7, 8.0],
-        [0.015, 0.0375, 0.075, 0.15, 0.25, 0.4, 0.7, 1.0, 1.35, 1.65, 2.1, 2.5, 3.0],
-    )
-
-
-def find_rrup(magnitude: float, avg_dip: float, avg_rake: float) -> float:
+def find_rrup(pgv_target: float, magnitude: float, avg_dip: float, avg_rake: float) -> float:
     """Find rrup at which pgv estimated from magnitude is close to target.
 
     Estimates rrup by calculating the rrup value that produces an
@@ -137,7 +111,6 @@ def find_rrup(magnitude: float, avg_dip: float, avg_rake: float) -> float:
     ----------
     [0]: Chiou BS-J, Youngs RR. Update of the Chiou and Youngs NGA Model for the Average Horizontal Component of Peak Ground Motion and Response Spectra. Earthquake Spectra. 2014;30(3):1117-1153.
     """
-    pgv_target = pgv_estimate_from_magnitude(magnitude)
 
     def pgv_delta_from_rrup(rrup: float):
         vs30 = 500
@@ -349,9 +322,11 @@ def generate_velocity_model_parameters(
     rupture_magnitude = total_magnitude(np.array(list(magnitudes.values())))
 
     rakes = rupture_propagation.rakes
+    pgv_target = np.interp(rupture_magnitude, velocity_model_parameters.pgv_interpolants[:, 0], velocity_model_parameters.pgv_interpolants[:, 1])
 
     rrups = {
         fault_name: find_rrup(
+            pgv_target,
             magnitudes[fault_name],
             rupture_propagation.magnitudes[fault_name],
             rakes[fault_name],

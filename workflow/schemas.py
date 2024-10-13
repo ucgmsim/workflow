@@ -374,6 +374,7 @@ VELOCITY_MODEL_SCHEMA = Schema(
         ),
         Literal("vs30", "VS30 value"): And(float, is_positive),
         Literal("s_wave_velocity", "S-wave velocity"): And(float, is_positive),
+        Literal('pgv_interpolants', 'PGV interpolants to estimate domain size'): And([[And(float, is_positive)]], Use(np.array))
     }
 )
 
