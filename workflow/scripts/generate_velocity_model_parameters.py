@@ -47,7 +47,7 @@ from empirical.util.classdef import GMM, TectType
 from qcore import coordinates, data
 from qcore.uncertainties import mag_scaling
 from source_modelling import sources
-from workflow import log_utils
+from workflow import bradley, log_utils
 from workflow.realisations import (
     DomainParameters,
     RealisationMetadata,
@@ -55,7 +55,7 @@ from workflow.realisations import (
     SourceConfig,
     VelocityModelParameters,
 )
-from workflow import bradley
+
 app = typer.Typer()
 
 
@@ -86,7 +86,9 @@ def get_nz_outline_polygon() -> Polygon:
     return shapely.union(south_island, north_island)
 
 
-def find_rrup(pgv_target: float, magnitude: float, avg_dip: float, avg_rake: float) -> float:
+def find_rrup(
+    pgv_target: float, magnitude: float, avg_dip: float, avg_rake: float
+) -> float:
     """Find rrup at which pgv estimated from magnitude is close to target.
 
     Estimates rrup by calculating the rrup value that produces an
@@ -114,14 +116,9 @@ def find_rrup(pgv_target: float, magnitude: float, avg_dip: float, avg_rake: flo
 
     def pgv_delta_from_rrup(rrup: float):
         vs30 = 500
-        z1pt0 = z_model_calculations.chiou_young_08_calc_z1p0(vs30) * 1000
+        z1pt0 = z_model_calculations.chiou_young_08_calc_z1p0(vs30)
         pgv = bradley.simple_bradley(
-            vs30,
-            z1pt0,
-            avg_rake,
-            avg_dip,
-            magnitude,
-            np.array([rrup])
+            vs30, z1pt0, avg_rake, avg_dip, magnitude, np.array([rrup])
         )[0]
         # NOTE: I am assuming here that openquake returns PGV in
         # log-space. This is based on the fact that it does this for
@@ -131,7 +128,7 @@ def find_rrup(pgv_target: float, magnitude: float, avg_dip: float, avg_rake: flo
         return np.abs(pgv - pgv_target)
 
     rrup_optimise_result = sp.optimize.minimize_scalar(
-        pgv_delta_from_rrup, bounds=(0, 1e4)
+        pgv_delta_from_rrup, bounds=(10, 1e4)
     )
     rrup = rrup_optimise_result.x
     pgv_delta = rrup_optimise_result.fun
@@ -309,7 +306,11 @@ def generate_velocity_model_parameters(
     rupture_magnitude = total_magnitude(np.array(list(magnitudes.values())))
 
     rakes = rupture_propagation.rakes
-    pgv_target = np.interp(rupture_magnitude, velocity_model_parameters.pgv_interpolants[:, 0], velocity_model_parameters.pgv_interpolants[:, 1])
+    pgv_target = np.interp(
+        rupture_magnitude,
+        velocity_model_parameters.pgv_interpolants[:, 0],
+        velocity_model_parameters.pgv_interpolants[:, 1],
+    )
 
     rrups = {
         fault_name: find_rrup(
