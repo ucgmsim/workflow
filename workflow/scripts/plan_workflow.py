@@ -846,7 +846,7 @@ def build_filetree(files: set[AnnotatedPath]) -> dict[str, Any]:
         A file tree.
     """
     filetree: dict[str, Any] = {}
-    for file in files:
+    for file in sorted(files):
         cur = filetree
         for part in file.parts[:-1]:
             if part not in cur:
