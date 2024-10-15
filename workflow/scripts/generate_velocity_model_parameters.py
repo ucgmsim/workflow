@@ -55,7 +55,7 @@ from workflow.realisations import (
     SourceConfig,
     VelocityModelParameters,
 )
-
+from workflow import bradley
 app = typer.Typer()
 
 
@@ -114,33 +114,20 @@ def find_rrup(pgv_target: float, magnitude: float, avg_dip: float, avg_rake: flo
 
     def pgv_delta_from_rrup(rrup: float):
         vs30 = 500
-        oq_dataframe = pd.DataFrame.from_dict(
-            {
-                "vs30": [vs30],
-                "vs30measured": [False],
-                "z1pt0": [z_model_calculations.chiou_young_08_calc_z1p0(vs30) * 1000],
-                "dip": [avg_dip],
-                "rake": [avg_rake],
-                "mag": [magnitude],
-                "ztor": [0],
-                "rrup": [rrup],
-                "rx": [rrup],
-                "rjb": [rrup],
-            }
-        )
+        z1pt0 = z_model_calculations.chiou_young_08_calc_z1p0(vs30) * 1000
+        pgv = bradley.simple_bradley(
+            vs30,
+            z1pt0,
+            avg_rake,
+            avg_dip,
+            magnitude,
+            np.array([rrup])
+        )[0]
         # NOTE: I am assuming here that openquake returns PGV in
         # log-space. This is based on the fact that it does this for
         # PGA in this model (check the CY14_Italy_MEAN.csv test data
         # and compare the expected PGA with the PGA you calculate from
         # oq_run without exponentiation and you'll see this is true).
-        pgv = np.exp(
-            openquake.oq_run(
-                GMM.CY_14,
-                TectType.ACTIVE_SHALLOW,
-                oq_dataframe,
-                "PGV",
-            )["PGV_mean"].iloc[0]
-        )
         return np.abs(pgv - pgv_target)
 
     rrup_optimise_result = sp.optimize.minimize_scalar(
