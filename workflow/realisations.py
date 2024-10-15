@@ -415,8 +415,8 @@ class VelocityModelParameters(RealisationConfiguration):
         dict
             Dictionary representation of the object.
         """
-        _dict =  dataclasses.asdict(self)
-        _dict['pgv_interpolants'] = _dict['pgv_interpolants'].tolist()
+        _dict = dataclasses.asdict(self)
+        _dict["pgv_interpolants"] = _dict["pgv_interpolants"].tolist()
         return _dict
 
 

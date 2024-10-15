@@ -229,6 +229,7 @@ def test_velocity_model(tmp_path: Path):
         resolution=0.1,
         vs30=300.0,
         s_wave_velocity=3500.0,
+        pgv_interpolants=np.ones(shape=(2, 2), dtype=np.float32),
     )
     realisation_ffp = tmp_path / "realisation.json"
     velocity_model.write_to_realisation(realisation_ffp)
@@ -243,12 +244,15 @@ def test_velocity_model(tmp_path: Path):
                 "resolution": 0.1,
                 "vs30": 300.0,
                 "s_wave_velocity": 3500.0,
+                "pgv_interpolants": [[1, 1], [1, 1]],
             }
         }
 
     assert (
-        realisations.VelocityModelParameters.read_from_realisation(realisation_ffp)
-        == velocity_model
+        realisations.VelocityModelParameters.read_from_realisation(
+            realisation_ffp
+        ).to_dict()
+        == velocity_model.to_dict()
     )
 
 
@@ -349,7 +353,6 @@ def test_emod3d(tmp_path: Path):
     assert (
         realisations.EMOD3DParameters.read_from_realisation(test_realisation) == emod3d
     )
-    emod3d.dt = 0.1
     emod3d.write_to_realisation(test_realisation)
     assert (
         realisations.EMOD3DParameters.read_from_realisation_or_defaults(
