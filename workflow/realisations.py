@@ -448,99 +448,6 @@ class HFConfig(RealisationConfiguration):
     dt: float
     """High frequency time resolution."""
     nbu: int
-    """Unknown!"""
-    ift: int
-    """Unknown!"""
-    flo: float
-    """Unknown!"""
-    fhi: float
-    """Unknown!"""
-    nl_skip: int
-    """Skip empty lines in input?"""
-    vp_sig: float
-    """Unknown!"""
-    vsh_sig: float
-    """Unknown!"""
-    qs_sig: float
-    """Unknown!"""
-    rho_sig: float
-    """Unknown!"""
-    ic_flag: bool
-    """Unknown!"""
-    velocity_name: str
-    """Unknown"""
-    t_sec: float
-    """High frequency output start time."""
-    sdrop: float
-    """Stress drop average (bars)"""
-    rayset: list[Literal[1, 2]]
-    """ray types 1: direct, 2: moho"""
-    no_siteamp: bool
-    """Disable BJ97 site amplification factors"""
-    fmax: float
-    """Max simulation frequency"""
-    kappa: float
-    """Unknown!"""
-    qfexp: float
-    """Q frequency exponent"""
-    rvfac: float
-    """Rupture velocity factor (rupture : Vs)"""
-    rvfac_shal: float
-    """rvfac shallow fault multiplier"""
-    rvfac_deep: float
-    """rvfac deep fault multiplier"""
-    seed: int
-    """HF seed."""
-    czero: float
-    """C0 coefficient"""
-    calpha: float
-    """Ca coefficient"""
-    mom: Optional[float]
-    """Seismic moment for HF simulation (or None, to infer value)"""
-    rupv: Optional[float]
-    """Rupture velocity (or binary default)"""
-    site_specific: bool
-    """Enable site-specific calculation"""
-    vs_moho: float
-    """vs of moho layer"""
-    fa_sig1: float
-    """Fourier amplitude uncertainty (1)"""
-    fa_sig2: float
-    """Fourier amplitude uncertainty (2)"""
-    rv_sig1: float
-    """Rupture velocity uncertainty"""
-    path_dur: Literal[0, 1, 2, 11, 12]
-    """path duration model.
-        - 0: GP2010
-        - 1: WUS modification trail/error
-        - 2: ENA modification trial/error
-        - 11: WUS formulation of BT2014
-        - 12: ENA formulation of BT2015. Models 11 and 12 over predict for multiple rays."""
-    dpath_pert: float
-    """Log of path duration multiplier"""
-    stress_parameter_adjustment_tect_type: Literal[0, 1, 2]
-    """Adjustment option 0 = off, 1 = active tectonic, 2 = stable continent"""
-    stress_parameter_adjustment_target_magnitude: Optional[float]
-    """Target magnitude (or inferred if None)"""
-    stress_parameter_adjustment_fault_area: Optional[float]
-    """Target magnitude (or inferred if None)"""
-    # these are used in stoch generation, rather than HF invocation
-    stoch_dx: float
-    """stoch file resolution in x."""
-    stoch_dy: float
-    """stoch file resolution in x."""
-
-
-@dataclasses.dataclass
-class EMOD3DParameters(RealisationConfiguration):
-    """Parameters for EMOD3D LF simulation."""
-
-    _config_key: ClassVar[str] = "emod3d"
-    _schema: ClassVar[Schema] = schemas.EMOD3D_PARAMETERS_SCHEMA
-
-    dt: float
-    """High frequency time resolution."""
-    nbu: int
     """Order of butterworth filter used."""
     ift: int
     """Flag for the kind of butterworth filter to apply."""
@@ -623,6 +530,136 @@ class EMOD3DParameters(RealisationConfiguration):
     """Stochastic file resolution in x."""
     stoch_dy: float
     """Stochastic file resolution in y."""
+
+
+@dataclasses.dataclass
+class EMOD3DParameters(RealisationConfiguration):
+    """Parameters for EMOD3D LF simulation."""
+
+    _config_key: ClassVar[str] = "emod3d"
+    _schema: ClassVar[Schema] = schemas.EMOD3D_PARAMETERS_SCHEMA
+
+    all_in_one: int
+    """Unknown!"""
+    bfilt: int
+    """Unknown!"""
+    bforce: int
+    """Unknown!"""
+    dampwidth: int
+    """Width of damping region"""
+    dblcpl: int
+    """Unknown!"""
+    dmodfile: str
+    """Path to density file"""
+    dtts: int
+    """dt per timeslice"""
+    dump_itinc: int
+    """Dump iteration increment"""
+    dxout: int
+    """Unknown!"""
+    dxts: int
+    """dx per timeslice"""
+    dyout: int
+    """Unknown!"""
+    dyts: int
+    """dy per timeslice"""
+    dzout: int
+    """Unknown!"""
+    dzts: int
+    """dz per timeslice"""
+    elas_only: int
+    """If non-zero, perform elastic calculations"""
+    enable_output_dump: int
+    """Unknown!"""
+    enable_restart: int
+    """Enable checkpoints"""
+    ffault: int
+    """If non-zero, source is a finite fault"""
+    fhi: float
+    """High-frequency cutoff?"""
+    fmax: float
+    """Maximum simulation frequency"""
+    fmin: float
+    """Minimum simulation frequency"""
+    freesurf: int
+    """Damping boundary relatod, 0 for absorbing"""
+    geoproj: int
+    """Geographic projection to use"""
+    intmem: int
+    """Unknown!"""
+    ix_ts: int
+    """Timeslice offset for ix?"""
+    ix_ys: int
+    ix_zs: int
+    iy_ts: int
+    iy_xs: int
+    iy_zs: int
+    iz_ts: int
+    iz_xs: int
+    iz_ys: int
+    lonlat_out: int
+    """Unknown!"""
+    maxmem: int
+    """Maximum memory usage in Mb"""
+    model_style: int
+    """Model type for simulation, 0 = 1d, 1 = 3d VM, 2 = 1d VM with 3d pertubations, 3 = 3d VM with 3d perturbations"""
+    nseis: int
+    """Individual points? (from the EMOD3D wiki page)"""
+    order: int
+    """Spatial differencing order"""
+    pmodfile: str
+    """Point to Vp file."""
+    pointmt: int
+    """Unknown!"""
+    qbndmax: float
+    """Unknown!"""
+    qpfrac: float
+    """Multiplier from Vp to Qp"""
+    qpqs_factor: float
+    """Ratio between qpfrac and qsfrac"""
+    qsfrac: float
+    """Multiplier from Vs to Qs"""
+    read_restart: int
+    """Read from checkpoint files?"""
+    report: int
+    """Unknown!"""
+    restart_itinc: int
+    """Checkpoint iteration increment?"""
+    scale: int
+    """Unknown!"""
+    smodfile: str
+    """Path to vs file"""
+    span: int
+    """Unknown!"""
+    stype: str
+    """Unknown!"""
+    swap_bytes: int
+    """Endianness?"""
+    ts_inc: int
+    """Unknown!"""
+    ts_start: int
+    """Unknown!"""
+    ts_total: int
+    """Unknown!"""
+    ts_xy: int
+    """Unknown!"""
+    ts_xz: int
+    """Unknown!"""
+    ts_yz: int
+    """Unknown!"""
+    tzero: float
+    """Start time offset"""
+    vmodel_swapb: int
+    """Velocity model endianness"""
+    xseis: int
+    """Unknown!"""
+    yseis: int
+    """Unknown!"""
+    zseis: int
+    """Unknown!"""
+    pertbfile: str
+    """Path to pertubation file"""
+
 
 @dataclasses.dataclass
 class BroadbandParameters(RealisationConfiguration):
