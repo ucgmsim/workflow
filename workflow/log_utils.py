@@ -1,4 +1,4 @@
-"""Structured Logging Utilities for `logging`.
+r"""Structured Logging Utilities for `logging`.
 
 This module support for different structured-logging formats (JSON and
 text) and decorators for logging function calls and command
@@ -13,10 +13,12 @@ Examples
 >>> def foo(a, b):
 >>>     return a + b
 >>> foo(1, 2)
+2024-09-18 22:00:51.498268+00:00	INFO	example	MainThread	called	 function=foo	id=...	a=1	b=2
+2024-09-18 22:00:51.498268+00:00	INFO	example	MainThread	completed	 function=foo	id=...	result=3
 3
->>> log('hello world', counter=1)
-2024-09-18 22:00:51.498268+00:00 :: INFO :: hello world counter=1
-
+>>> logger = get_logger('example')
+>>> logger.info(structured_log('hello world', counter=1))
+2024-09-18 22:00:51.498268+00:00	INFO	example	MainThread	hello world	 counter=1
 """
 
 import functools
