@@ -538,127 +538,91 @@ class EMOD3DParameters(RealisationConfiguration):
     _config_key: ClassVar[str] = "emod3d"
     _schema: ClassVar[Schema] = schemas.EMOD3D_PARAMETERS_SCHEMA
 
-    all_in_one: int
-    """Unknown!"""
-    bfilt: int
-    """Unknown!"""
-    bforce: int
-    """Unknown!"""
-    dampwidth: int
-    """Width of damping region"""
-    dblcpl: int
-    """Unknown!"""
-    dmodfile: str
-    """Path to density file"""
-    dtts: int
-    """dt per timeslice"""
-    dump_itinc: int
-    """Dump iteration increment"""
-    dxout: int
-    """Unknown!"""
-    dxts: int
-    """dx per timeslice"""
-    dyout: int
-    """Unknown!"""
-    dyts: int
-    """dy per timeslice"""
-    dzout: int
-    """Unknown!"""
-    dzts: int
-    """dz per timeslice"""
-    elas_only: int
-    """If non-zero, perform elastic calculations"""
-    enable_output_dump: int
-    """Unknown!"""
-    enable_restart: int
-    """Enable checkpoints"""
-    ffault: int
-    """If non-zero, source is a finite fault"""
+    dt: float
+    """High frequency time resolution."""
+    nbu: int
+    """Order of butterworth filter used."""
+    ift: int
+    """Flag for the kind of butterworth filter to apply."""
+    flo: float
+    """Low frequency cutoff."""
     fhi: float
-    """High-frequency cutoff?"""
+    """High frequency cutoff."""
+    nl_skip: int
+    """Skip empty lines in input."""
+    vp_sig: float
+    """Standard deviation for perturbation of P-wave velocity."""
+    vsh_sig: float
+    """Standard deviation for perturbation of S-wave velocity."""
+    qs_sig: float
+    """Standard deviation for perturbation of quality factor for S-waves."""
+    rho_sig: float
+    """Standard deviation for perturbation of density."""
+    ic_flag: bool
+    """Correlation flag.
+    if ic_flag=1, all vel, den & q variations are exactly correlated,
+    if ic_flag=0, vel, den & q variations are completely un-correlated."""
+    velocity_name: str
+    """Name of the velocity model file."""
+    t_sec: float
+    """High frequency output start time."""
+    sdrop: float
+    """Stress drop average (bars)"""
+    rayset: list[Literal[1, 2]]
+    """Ray types 1: direct, 2: moho"""
+    no_siteamp: bool
+    """Disable BJ97 site amplification factors"""
     fmax: float
-    """Maximum simulation frequency"""
-    fmin: float
-    """Minimum simulation frequency"""
-    freesurf: int
-    """Damping boundary relatod, 0 for absorbing"""
-    geoproj: int
-    """Geographic projection to use"""
-    intmem: int
-    """Unknown!"""
-    ix_ts: int
-    """Timeslice offset for ix?"""
-    ix_ys: int
-    ix_zs: int
-    iy_ts: int
-    iy_xs: int
-    iy_zs: int
-    iz_ts: int
-    iz_xs: int
-    iz_ys: int
-    lonlat_out: int
-    """Unknown!"""
-    maxmem: int
-    """Maximum memory usage in Mb"""
-    model_style: int
-    """Model type for simulation, 0 = 1d, 1 = 3d VM, 2 = 1d VM with 3d pertubations, 3 = 3d VM with 3d perturbations"""
-    nseis: int
-    """Individual points? (from the EMOD3D wiki page)"""
-    order: int
-    """Spatial differencing order"""
-    pmodfile: str
-    """Point to Vp file."""
-    pointmt: int
-    """Unknown!"""
-    qbndmax: float
-    """Unknown!"""
-    qpfrac: float
-    """Multiplier from Vp to Qp"""
-    qpqs_factor: float
-    """Ratio between qpfrac and qsfrac"""
-    qsfrac: float
-    """Multiplier from Vs to Qs"""
-    read_restart: int
-    """Read from checkpoint files?"""
-    report: int
-    """Unknown!"""
-    restart_itinc: int
-    """Checkpoint iteration increment?"""
-    scale: int
-    """Unknown!"""
-    smodfile: str
-    """Path to vs file"""
-    span: int
-    """Unknown!"""
-    stype: str
-    """Unknown!"""
-    swap_bytes: int
-    """Endianness?"""
-    ts_inc: int
-    """Unknown!"""
-    ts_start: int
-    """Unknown!"""
-    ts_total: int
-    """Unknown!"""
-    ts_xy: int
-    """Unknown!"""
-    ts_xz: int
-    """Unknown!"""
-    ts_yz: int
-    """Unknown!"""
-    tzero: float
-    """Start time offset"""
-    vmodel_swapb: int
-    """Velocity model endianness"""
-    xseis: int
-    """Unknown!"""
-    yseis: int
-    """Unknown!"""
-    zseis: int
-    """Unknown!"""
-    pertbfile: str
-    """Path to pertubation file"""
-
+    """Max simulation frequency"""
+    kappa: float
+    """Kappa parameter for high-frequency attenuation."""
+    qfexp: float
+    """Q frequency exponent"""
+    rvfac: float
+    """Rupture velocity factor (rupture : Vs)"""
+    rvfac_shal: float
+    """Rupture velocity factor for shallow faults"""
+    rvfac_deep: float
+    """Rupture velocity factor for deep faults"""
+    seed: int
+    """HF seed."""
+    czero: float
+    """C0 coefficient"""
+    calpha: float
+    """Ca coefficient"""
+    mom: Optional[float]
+    """Seismic moment for HF simulation (or None, to infer value)"""
+    rupv: Optional[float]
+    """Rupture velocity (or binary default)"""
+    site_specific: bool
+    """Enable site-specific calculation"""
+    vs_moho: float
+    """Shear wave velocity of the Moho layer"""
+    fa_sig1: float
+    """Fourier amplitude uncertainty (1)"""
+    fa_sig2: float
+    """Fourier amplitude uncertainty (2)"""
+    rv_sig1: float
+    """Rupture velocity uncertainty"""
+    path_dur: Literal[0, 1, 2, 11, 12]
+    """Path duration model.
+        - 0: GP2010
+        - 1: WUS modification trial/error
+        - 2: ENA modification trial/error
+        - 11: WUS formulation of BT2014
+        - 12: ENA formulation of BT2015. Models 11 and 12 over predict for multiple rays."""
+    dpath_pert: float
+    """Log of path duration multiplier"""
+    stress_parameter_adjustment_tect_type: Literal[0, 1, 2]
+    """Adjustment option 0 = off, 1 = active tectonic, 2 = stable continent"""
+    stress_parameter_adjustment_target_magnitude: Optional[float]
+    """Target magnitude (or inferred if None)"""
+    stress_parameter_adjustment_fault_area: Optional[float]
+    """Fault area for stress parameter adjustment (or inferred if None)"""
+    stoch_dx: float
+    """Stochastic file resolution in x."""
+    stoch_dy: float
+    """Stochastic file resolution in y."""
 
 @dataclasses.dataclass
 class BroadbandParameters(RealisationConfiguration):
