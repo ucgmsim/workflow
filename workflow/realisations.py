@@ -540,19 +540,19 @@ class EMOD3DParameters(RealisationConfiguration):
     _schema: ClassVar[Schema] = schemas.EMOD3D_PARAMETERS_SCHEMA
 
     all_in_one: int
-    """Unknown!"""
+    """Handles the option to output all-in-one seismograms."""
     bfilt: int
-    """Unknown!"""
+    """Indicates whether bandpass filtering is applied."""
     bforce: int
-    """Unknown!"""
+    """If non-zero, applies body force source."""
     dampwidth: int
     """Width of damping region"""
     dblcpl: int
-    """Unknown!"""
+    """Specifies double couple source."""
     dmodfile: str
-    """Path to density file"""
+    """Path to the density file."""
     dtts: int
-    """dt per timeslice"""
+    """dt per timeslice."""
     dump_itinc: int
     """Dump iteration increment"""
     dxout: int
@@ -576,17 +576,17 @@ class EMOD3DParameters(RealisationConfiguration):
     ffault: int
     """If non-zero, source is a finite fault"""
     fhi: float
-    """High-frequency cutoff?"""
+    """High-frequency cutoff."""
     fmax: float
     """Maximum simulation frequency"""
     fmin: float
     """Minimum simulation frequency"""
     freesurf: int
-    """Damping boundary relatod, 0 for absorbing"""
+    """Boundary condition: 0 for absorbing, 1 for free surface."""
     geoproj: int
     """Geographic projection to use"""
     intmem: int
-    """Unknown!"""
+    """Internal memory flag for model storage."""
     ix_ts: int
     """Timeslice offset for ix?"""
     ix_ys: int
@@ -598,7 +598,7 @@ class EMOD3DParameters(RealisationConfiguration):
     iz_xs: int
     iz_ys: int
     lonlat_out: int
-    """Unknown!"""
+    """Output coordinates in longitude and latitude."""
     maxmem: int
     """Maximum memory usage in Mb"""
     model_style: int
@@ -610,9 +610,9 @@ class EMOD3DParameters(RealisationConfiguration):
     pmodfile: str
     """Point to Vp file."""
     pointmt: int
-    """Unknown!"""
+    """Point moment tensor source flag."""
     qbndmax: float
-    """Unknown!"""
+    """Maximum boundary quality factor."""
     qpfrac: float
     """Multiplier from Vp to Qp"""
     qpqs_factor: float
@@ -620,33 +620,33 @@ class EMOD3DParameters(RealisationConfiguration):
     qsfrac: float
     """Multiplier from Vs to Qs"""
     read_restart: int
-    """Read from checkpoint files?"""
+    """Read from checkpoint files."""
     report: int
-    """Unknown!"""
+    """Reporting interval for usage."""
     restart_itinc: int
-    """Checkpoint iteration increment?"""
+    """Checkpoint iteration increment."""
     scale: int
     """Unknown!"""
     smodfile: str
     """Path to vs file"""
     span: int
-    """Unknown!"""
+    """Number of time steps per I/O operation."""
     stype: str
-    """Unknown!"""
+    """Source time function type."""
     swap_bytes: int
-    """Endianness?"""
+    """Endianness for file I/O."""
     ts_inc: int
-    """Unknown!"""
+    """Time slice increment."""
     ts_start: int
-    """Unknown!"""
+    """Start time for time slices."""
     ts_total: int
-    """Unknown!"""
+    """Total number of time slices."""
     ts_xy: int
-    """Unknown!"""
+    """Enable XY time slices."""
     ts_xz: int
-    """Unknown!"""
+    """Enable XZ time slices."""
     ts_yz: int
-    """Unknown!"""
+    """Enable YZ time slices."""
     tzero: float
     """Start time offset"""
     vmodel_swapb: int
@@ -658,7 +658,7 @@ class EMOD3DParameters(RealisationConfiguration):
     zseis: int
     """Unknown!"""
     pertbfile: str
-    """Path to pertubation file"""
+    """Path to perturbation file."""
 
 
 @dataclasses.dataclass
