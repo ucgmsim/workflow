@@ -29,9 +29,10 @@ See the output of `im-calc --help`.
 """
 
 import multiprocessing
+import sys
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Callable
+from typing import Annotated, Callable, Optional
 
 import h5py
 import numba
@@ -42,6 +43,7 @@ import pandas as pd
 import tqdm
 import typer
 
+from workflow import log_utils
 from workflow.realisations import (
     BroadbandParameters,
     IntensityMeasureCalcuationParameters,
@@ -141,7 +143,7 @@ def rotd_psa_values(
     comp_000: npt.NDArray[np.float32],
     comp_090: npt.NDArray[np.float32],
     w: npt.NDArray[np.float32],
-    step: int = multiprocessing.cpu_count(),
+    step: int,
 ) -> npt.NDArray[np.float32]:
     """Compute the rotated pSA statistics.
 
@@ -165,10 +167,14 @@ def rotd_psa_values(
         rotd50, 1 = rotd100).
     """
     theta = np.linspace(0, np.pi, num=180, dtype=np.float32)
-    ne.set_num_threads(multiprocessing.cpu_count())
     psa = np.zeros((comp_000.shape[0], comp_000.shape[-1], 2), np.float32)
     out = np.zeros((step, *comp_000.shape[1:], 180), np.float32)
+    logger = log_utils.get_logger("im_calc")
+    logger.info(
+        log_utils.structured_log("psa rotd buffer size", memory=sys.getsizeof(out))
+    )
     w2 = np.square(w)
+
     for i in tqdm.trange(0, comp_000.shape[0], step):
         step_000 = comp_000[i : i + step]
         step_090 = comp_000[i : i + step]
@@ -199,6 +205,8 @@ def compute_psa(
     waveforms: npt.NDArray[np.float32],
     periods: npt.NDArray[np.float32],
     dt: float,
+    num_processes: int,
+    psa_rotd_maximum_memory_allocation: Optional[float] = None,
 ) -> pd.DataFrame:
     """Compute pSA statistics for all waveforms.
 
@@ -222,6 +230,17 @@ def compute_psa(
     """
     t = np.arange(waveforms.shape[1]) * dt
     w = 2 * np.pi / periods
+
+    logger = log_utils.get_logger("im_calc")
+    logger.info(
+        log_utils.structured_log(
+            "about to compute newmark psa repsonse curves",
+            waveforms_shape=waveforms.shape,
+            t_shape=t.shape,
+            dt=dt,
+            w=w,
+        )
+    )
     comp_0 = newmark_estimate_psa(
         waveforms[:, :, 1],
         t,
@@ -235,8 +254,21 @@ def compute_psa(
         dt,
         w,
     )
-
-    rotd_psa = rotd_psa_values(comp_0, comp_90, w, step=multiprocessing.cpu_count())
+    # Step size is either the CPU count, or the maximum number of
+    # steps that fits within the psa_rotd_maximum_memory_allocation.
+    if psa_rotd_maximum_memory_allocation:
+        step = min(
+            num_processes,
+            int(psa_rotd_maximum_memory_allocation / (180 * sys.getsizeof(comp_0[0]))),
+        )
+    else:
+        step = multiprocessing.cpu_count()
+    if step < 1:
+        raise ValueError(
+            "PSA rotd memory allocation is too small (cannot even calculate a single station's pSA)."
+        )
+    logger.info(log_utils.structured_log("calculated", step=step))
+    rotd_psa = rotd_psa_values(comp_0, comp_90, w, step=step)
 
     conversion_factor = np.square(w)[np.newaxis, :]
     comp_0_psa = conversion_factor * np.abs(comp_0).max(axis=1)
@@ -402,6 +434,21 @@ def calculate_instensity_measures(
     simulated_stations: Annotated[
         bool, typer.Option(help="If passed, calculate for simulated stations.")
     ] = True,
+    psa_rotd_maximum_memory_allocation: Annotated[
+        Optional[float],
+        typer.Option(
+            help="Maximum amount of memory allocated for rotated PSA calculation station buffer, in gigabytes.",
+            min=0,
+        ),
+    ] = None,
+    num_processes: Annotated[
+        int,
+        typer.Option(
+            help="The number of processes to use for multi-processing (or, in slurm, the number of cores allocated).",
+            min=1,
+            max=multiprocessing.cpu_count(),
+        ),
+    ] = multiprocessing.cpu_count(),
 ):
     """Calculate intensity measures for simulation data.
 
@@ -414,6 +461,8 @@ def calculate_instensity_measures(
     output_path : Path
         Output directory for IM calc summary statistics.
     """
+    ne.set_num_threads(num_processes)
+
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     broadband_parameters = BroadbandParameters.read_from_realisation(realisation_ffp)
     intensity_measure_parameters = (
@@ -488,6 +537,11 @@ def calculate_instensity_measures(
                         intensity_measure_parameters.valid_periods, dtype=np.float32
                     ),
                     broadband_parameters.dt,
+                    num_processes,
+                    psa_rotd_maximum_memory_allocation=psa_rotd_maximum_memory_allocation
+                    * 1e9
+                    if psa_rotd_maximum_memory_allocation
+                    else None,
                 )
 
         intensity_measure_statistics = pd.concat(
