@@ -63,7 +63,8 @@ app = typer.Typer()
         "broadband_config",
         "n2",
         "work_directory",
-    }
+    },
+    include_result=False
 )
 def bb_simulate_station(
     lf: timeseries.LFSeis,
@@ -159,9 +160,7 @@ def bb_simulate_station(
         )
         bb_acc.append((hf_c + lf_c) / 981.0)
 
-    bb_acc_numpy = np.array(bb_acc).T.astype(np.float32)
-    with open(output_bb_file, "wb") as station_bb_file:
-        bb_acc_numpy.tofile(station_bb_file)
+    return np.array(bb_acc).T.astype(np.float32)
 
 
 @app.command(
@@ -204,12 +203,6 @@ def combine_hf_and_lf(
         Path,
         typer.Argument(
             help="Path to output broadband file.", dir_okay=False, writable=True
-        ),
-    ],
-    work_directory: Annotated[
-        Path,
-        typer.Option(
-            help="Path to work directory", file_okay=False, exists=True, writable=True
         ),
     ],
 ):
@@ -321,7 +314,7 @@ def combine_hf_and_lf(
     stations = stations.join(station_vs30, how="inner")
 
     with multiprocessing.Pool() as pool:
-        pool.starmap(
+        waveforms_raw = np.array(list(pool.starmap(
             functools.partial(
                 bb_simulate_station,
                 lf,
@@ -333,7 +326,8 @@ def combine_hf_and_lf(
                 work_directory,
             ),
             stations.iterrows(),
-        )
+        )),
+        dtype=np.float32)
 
     with h5py.File(output_ffp, "w") as output_h5py:
         header_data = {
@@ -343,15 +337,14 @@ def combine_hf_and_lf(
         }
         output_h5py.attrs.update(header_data)
         waveforms_dset = output_h5py.create_dataset(
-            "waveforms", shape=(len(stations), bb_nt, 3), dtype=np.float32
+            "waveforms",
+            data=waveforms_raw,
+            shape=(len(stations), bb_nt, 3), dtype=np.float32, compression='gzip'
         )
+        waveforms_dset.dims[0].label = '90'
+        waveforms_dset.dims[1].label = '0'
+        waveforms_dset.dims[2].label = 'vertical'
 
-        for i, (name, station) in enumerate(stations.iterrows()):
-            station_file_path = work_directory / f"{name}.bb"
-            with open(station_file_path, mode="rb") as station_file_data:
-                waveforms_dset[i] = np.fromfile(
-                    station_file_data, dtype=np.float32
-                ).reshape((bb_nt, 3))
 
     stations["name"] = stations.index
     stations["x"] = lf.stations.x

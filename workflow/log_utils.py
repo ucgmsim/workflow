@@ -139,7 +139,7 @@ def log_call(
                     )
                 )
                 raise
-            if result and include_result:
+            if include_result and result:
                 logger.info(
                     structured_log(
                         "completed", function=name, id=function_id, result=result
