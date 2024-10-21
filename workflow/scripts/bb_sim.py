@@ -224,8 +224,6 @@ def combine_hf_and_lf(
         Directory containing velocity model files.
     output_ffp : Path
         Path to the output file where the combined broadband waveforms will be saved.
-    work_directory : Path
-        Directory for temporary work files.
 
     See Also
     --------
