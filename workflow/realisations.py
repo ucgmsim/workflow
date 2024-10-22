@@ -339,7 +339,7 @@ class DomainParameters(RealisationConfiguration):
     _schema: ClassVar[Schema] = schemas.DOMAIN_SCHEMA
 
     resolution: float
-    """The simulation resoultion in kilometres."""
+    """The simulation resolution in kilometres."""
     domain: BoundingBox
     """The bounding box for the domain."""
     depth: float
