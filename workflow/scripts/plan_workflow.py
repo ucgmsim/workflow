@@ -594,10 +594,6 @@ def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
     """
     workflow_plan = nx.from_dict_of_lists(
         {
-            Stage(StageIdentifier.CopyInput, "", None): [
-                Stage(StageIdentifier.NSHMToRealisation, event, sample),
-                Stage(StageIdentifier.GCMTToRealisation, event, sample),
-            ],
             Stage(StageIdentifier.NSHMToRealisation, event, sample): [
                 Stage(StageIdentifier.SRFGeneration, event, sample),
             ],
@@ -750,6 +746,11 @@ def create_abstract_workflow_plan(
                 edges=reduced_graph.edges(), nodes=reduced_graph.nodes()
             )
 
+    roots = [node for node, degree in output_graph.in_degree() if degree == 0]
+    copy_input_stage = Stage(StageIdentifier.CopyInput, "", None)
+    output_graph.add_node(copy_input_stage)
+    for root in roots:
+        output_graph.add_edge(copy_input_stage, root)
     return output_graph
 
 
