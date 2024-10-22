@@ -10,8 +10,9 @@ from enum import StrEnum
 
 import numpy as np
 from schema import And, Literal, Optional, Or, Schema, Use
-from source_modelling import rupture_propagation, sources
 from velocity_modelling.bounding_box import BoundingBox
+
+from source_modelling import rupture_propagation, sources
 from workflow.defaults import DefaultsVersion
 
 # NOTE: These functions seem silly and short, however there is a good

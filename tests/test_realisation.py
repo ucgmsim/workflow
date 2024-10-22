@@ -68,7 +68,7 @@ def test_domain_parameters_properties():
     assert domain_parameters.nz == 400
 
 
-def test_srf_config_example(tmp_path):
+def test_srf_config_example(tmp_path: Path):
     domain_parameters = realisations.DomainParameters(
         resolution=0.1,  # a 0.1km resolution
         domain=bounding_box.BoundingBox.from_centroid_bearing_extents(
@@ -308,7 +308,7 @@ def test_rupture_prop_properties():
     assert rup_prop.initial_fault == "A"
 
 
-def test_hf_config(tmp_path):
+def test_hf_config(tmp_path: Path):
     test_realisation = tmp_path / "realisation.json"
     test_realisation.write_text("{}")
     hf_config = realisations.HFConfig.read_from_realisation_or_defaults(
