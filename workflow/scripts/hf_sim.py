@@ -34,7 +34,6 @@ See the output of `hf-sim --help`.
 
 import functools
 import multiprocessing
-import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -289,11 +288,20 @@ def run_hf(
         waveforms_dset = output_h5py.create_dataset(
             "waveforms", shape=(len(stations), nt, 3), dtype=np.float32
         )
+        logger = log_utils.get_logger(__name__)
         for i, station in stations.iterrows():
             station_file_path = work_directory / f"{station['name']}.hf"
             with open(station_file_path, mode="rb") as station_file_data:
-                waveforms_dset[i] = np.fromfile(
-                    station_file_data, dtype=np.float32
-                ).reshape((nt, 3))
+                waveform = np.fromfile(station_file_data, dtype=np.float32).reshape(
+                    (nt, 3)
+                )
+                if np.isnan(waveform).any():
+                    logger.error(
+                        log_utils.structured_log(
+                            "Station HF had NaN waveform", station=station
+                        )
+                    )
+                    raise typer.Exit(code=1)
+                waveforms_dset[i] = waveform
 
     stations.to_hdf(out_file, key="stations", mode="a")
