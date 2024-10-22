@@ -64,7 +64,7 @@ app = typer.Typer()
         "n2",
         "work_directory",
     },
-    include_result=False
+    include_result=False,
 )
 def bb_simulate_station(
     lf: timeseries.LFSeis,
@@ -122,6 +122,18 @@ def bb_simulate_station(
         np.array(hf["waveforms"][int(station["waveform_index"])]),
         int(round(hf.attrs["duration"] / broadband_config.dt)),
     )
+    logger = log_utils.get_logger(__name__)
+    if np.isnan(lf_acc).any():
+        logger.error(
+            log_utils.structured_log("Station LF had NaN waveform", station=station)
+        )
+        raise ValueError(f"Station {station_name} had NaN waveform")
+    if np.isnan(hf_acc).any():
+        logger.error(
+            log_utils.structured_log("Station HF had NaN waveform", station=station)
+        )
+        raise ValueError(f"Station {station_name} had NaN waveform")
+
     pga = np.max(np.abs(hf_acc), axis=0) / 981.0
     bb_acc: list[npt.NDArray[np.float32]] = []
     for c in range(3):
@@ -312,20 +324,24 @@ def combine_hf_and_lf(
     stations = stations.join(station_vs30, how="inner")
 
     with multiprocessing.Pool() as pool:
-        waveforms_raw = np.array(list(pool.starmap(
-            functools.partial(
-                bb_simulate_station,
-                lf,
-                high_frequency_waveform_file,
-                hf_padding,
-                lf_padding,
-                broadband_config,
-                n2,
-                work_directory,
+        waveforms_raw = np.array(
+            list(
+                pool.starmap(
+                    functools.partial(
+                        bb_simulate_station,
+                        lf,
+                        high_frequency_waveform_file,
+                        hf_padding,
+                        lf_padding,
+                        broadband_config,
+                        n2,
+                        work_directory,
+                    ),
+                    stations.iterrows(),
+                )
             ),
-            stations.iterrows(),
-        )),
-        dtype=np.float32)
+            dtype=np.float32,
+        )
 
     with h5py.File(output_ffp, "w") as output_h5py:
         header_data = {
@@ -337,12 +353,13 @@ def combine_hf_and_lf(
         waveforms_dset = output_h5py.create_dataset(
             "waveforms",
             data=waveforms_raw,
-            shape=(len(stations), bb_nt, 3), dtype=np.float32, compression='gzip'
+            shape=(len(stations), bb_nt, 3),
+            dtype=np.float32,
+            compression="gzip",
         )
-        waveforms_dset.dims[0].label = '90'
-        waveforms_dset.dims[1].label = '0'
-        waveforms_dset.dims[2].label = 'vertical'
-
+        waveforms_dset.dims[0].label = "90"
+        waveforms_dset.dims[1].label = "0"
+        waveforms_dset.dims[2].label = "vertical"
 
     stations["name"] = stations.index
     stations["x"] = lf.stations.x

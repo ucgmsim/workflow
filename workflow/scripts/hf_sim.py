@@ -295,13 +295,6 @@ def run_hf(
                 waveform = np.fromfile(station_file_data, dtype=np.float32).reshape(
                     (nt, 3)
                 )
-                if np.isnan(waveform).any():
-                    logger.error(
-                        log_utils.structured_log(
-                            "Station HF had NaN waveform", station=station
-                        )
-                    )
-                    raise typer.Exit(code=1)
                 waveforms_dset[i] = waveform
 
     stations.to_hdf(out_file, key="stations", mode="a")
