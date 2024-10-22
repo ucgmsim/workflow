@@ -10,9 +10,8 @@ from enum import StrEnum
 
 import numpy as np
 from schema import And, Literal, Optional, Or, Schema, Use
-from velocity_modelling.bounding_box import BoundingBox
-
 from source_modelling import rupture_propagation, sources
+from velocity_modelling.bounding_box import BoundingBox
 from workflow.defaults import DefaultsVersion
 
 # NOTE: These functions seem silly and short, however there is a good
@@ -374,7 +373,9 @@ VELOCITY_MODEL_SCHEMA = Schema(
         ),
         Literal("vs30", "VS30 value"): And(float, is_positive),
         Literal("s_wave_velocity", "S-wave velocity"): And(float, is_positive),
-        Literal('pgv_interpolants', 'PGV interpolants to estimate domain size'): And([[And(float, is_positive)]], Use(np.array))
+        Literal("pgv_interpolants", "PGV interpolants to estimate domain size"): And(
+            [[And(float, is_positive)]], Use(np.array)
+        ),
     }
 )
 
@@ -470,30 +471,47 @@ HF_CONFIG_SCHEMA = Schema(
 
 EMOD3D_PARAMETERS_SCHEMA = Schema(
     {
-        "all_in_one": int,
-        "bfilt": int,
-        "bforce": int,
-        "dampwidth": int,
-        "dblcpl": int,
-        "dmodfile": str,
-        "dtts": int,
-        "dump_itinc": int,
+        Literal(
+            "all_in_one",
+            description="Handles the option to output all-in-one seismograms.",
+        ): bool,
+        Literal(
+            "bfilt", description="Indicates whether bandpass filtering is applied."
+        ): bool,
+        Literal("bforce", description="If true, applies body force source."): bool,
+        Literal("dampwidth", description="Width of damping region."): int,
+        Literal("dblcpl", description="Specifies double couple source"): bool,
+        Literal("dmodfile", description="Name of density velocity model file"): str,
+        Literal("dtts", description="dt per timeslice"): And(int, is_positive),
+        Literal("dump_itinc", description="Increment to dump output"): And(
+            int, is_positive
+        ),
         "dxout": int,
-        "dxts": int,
+        Literal("dxts", description="dx per timeslice"): And(int, is_positive),
         "dyout": int,
-        "dyts": int,
+        Literal("dyts", description="dy per timeslice"): And(int, is_positive),
         "dzout": int,
-        "dzts": int,
-        "elas_only": int,
-        "enable_output_dump": int,
-        "enable_restart": int,
-        "ffault": int,
-        "fhi": float,
-        "fmax": float,
-        "fmin": float,
-        "freesurf": int,
-        "geoproj": int,
-        "intmem": int,
+        Literal("dzts", description="dz per timeslice"): And(int, is_positive),
+        Literal("elas_only", description="If true, perform elastic calculations"): bool,
+        "enable_output_dump": bool,
+        Literal("enable_restart", description="Enable checkpoints"): bool,
+        Literal("ffault", description="If true, source is a finite fault."): bool,
+        Literal("fhi", description="High-frequency cutoff."): And(float, is_positive),
+        Literal("fmax", description="Maximum simulation frequency"): And(
+            float, is_positive
+        ),
+        Literal("fmin", description="Minimum simulation frequency"): And(
+            float, is_positive
+        ),
+        Literal(
+            "freesurf",
+            description="Boundary condition: false for absorbing, true for free surface.",
+        ): bool,
+        Literal(
+            "geoproj",
+            description="The geographic projection to use. False for spherical projection with local kmplat and kmplon, true for standard spherical projection",
+        ): bool,
+        Literal("intmem", description="Internal memory flag for model storage"): bool,
         "ix_ts": int,
         "ix_ys": int,
         "ix_zs": int,
@@ -503,37 +521,57 @@ EMOD3D_PARAMETERS_SCHEMA = Schema(
         "iz_ts": int,
         "iz_xs": int,
         "iz_ys": int,
-        "lonlat_out": int,
-        "maxmem": int,
-        "model_style": int,
+        Literal(
+            "lonlat_out", description="Output coordinates in longitude and latitude."
+        ): bool,
+        Literal("maxmem", description="Maximum memory usage in Mb"): And(
+            int, is_positive
+        ),
+        Literal("model_style", description="Model type for simulation."): Or(
+            0, 1, 2, 3
+        ),
         "nseis": int,
-        "order": int,
-        "pmodfile": str,
-        "pointmt": int,
-        "qbndmax": float,
-        "qpfrac": float,
-        "qpqs_factor": float,
-        "qsfrac": float,
-        "read_restart": int,
-        "report": int,
-        "restart_itinc": int,
+        Literal("order", description="Spatial differencing order."): And(
+            int, is_positive
+        ),
+        Literal("pmodfile", description="Name of the Vp file."): str,
+        Literal(
+            "pointmt", description="If true, use a point moment tensor source flag"
+        ): bool,
+        Literal("qbndmax", descrption="Maximum boundary quality factor"): float,
+        Literal("qpfrac", description="Multiplier from Vp, to Qp"): float,
+        Literal("qpqs_factor", description="Ratio between Qp and Qs"): float,
+        Literal("qsfrac", description="Ratio between Vs to Qs."): float,
+        Literal("read_restart", description="If true read from checkpoint files"): bool,
+        Literal("report", description="Reporting increment."): And(int, is_positive),
+        Literal("restart_itinc", description="Checkpoint iteration increment"): And(
+            int, is_positive
+        ),
         "scale": int,
-        "smodfile": str,
-        "span": int,
-        "stype": str,
-        "swap_bytes": int,
-        "ts_inc": int,
-        "ts_start": int,
-        "ts_total": int,
-        "ts_xy": int,
-        "ts_xz": int,
-        "ts_yz": int,
-        "tzero": float,
-        "vmodel_swapb": int,
+        Literal("smodfile", description="Path to the vs file."): str,
+        Literal("span", description="Number of timesteps per I/O operation."): And(
+            int, is_positive
+        ),
+        Literal("stype", description="Source time function type."): str,
+        Literal("swap_bytes", description="If true, swap byte output order."): bool,
+        Literal("ts_inc", description="Time slice increment."): And(int, is_positive),
+        Literal("ts_start", description="Start time for time slices."): And(
+            int, is_non_negative
+        ),
+        Literal("ts_total", description="Total number of time slices."): And(
+            int, is_positive
+        ),
+        Literal("ts_xy", description="Enable xy time slices"): bool,
+        Literal("ts_xz", description="Enable xz time slices"): bool,
+        Literal("ts_yz", description="Enable yz time slices"): bool,
+        Literal("tzero", description="Start time offset."): float,
+        Literal(
+            "vmodel_swapb", description="If true, swap velocity model byte order"
+        ): bool,
         "xseis": int,
         "yseis": int,
         "zseis": int,
-        "pertbfile": str,
+        Literal("pertbfile", description="Path to perturbation file."): str,
     }
 )
 

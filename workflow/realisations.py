@@ -17,11 +17,10 @@ from typing import Any, ClassVar, Literal, Optional, Self, Union
 import numpy as np
 import numpy.typing as npt
 from schema import Schema
-from velocity_modelling.bounding_box import BoundingBox
-
 from source_modelling import sources
 from source_modelling.rupture_propagation import JumpPair
 from source_modelling.sources import IsSource
+from velocity_modelling.bounding_box import BoundingBox
 from workflow import defaults, schemas
 from workflow.defaults import DefaultsVersion
 
@@ -539,15 +538,15 @@ class EMOD3DParameters(RealisationConfiguration):
     _config_key: ClassVar[str] = "emod3d"
     _schema: ClassVar[Schema] = schemas.EMOD3D_PARAMETERS_SCHEMA
 
-    all_in_one: int
+    all_in_one: bool
     """Handles the option to output all-in-one seismograms."""
-    bfilt: int
+    bfilt: bool
     """Indicates whether bandpass filtering is applied."""
-    bforce: int
+    bforce: bool
     """If non-zero, applies body force source."""
     dampwidth: int
     """Width of damping region"""
-    dblcpl: int
+    dblcpl: bool
     """Specifies double couple source."""
     dmodfile: str
     """Path to the density file."""
@@ -569,11 +568,11 @@ class EMOD3DParameters(RealisationConfiguration):
     """dz per timeslice"""
     elas_only: int
     """If non-zero, perform elastic calculations"""
-    enable_output_dump: int
+    enable_output_dump: bool
     """Unknown!"""
-    enable_restart: int
+    enable_restart: bool
     """Enable checkpoints"""
-    ffault: int
+    ffault: bool
     """If non-zero, source is a finite fault"""
     fhi: float
     """High-frequency cutoff."""
@@ -581,11 +580,11 @@ class EMOD3DParameters(RealisationConfiguration):
     """Maximum simulation frequency"""
     fmin: float
     """Minimum simulation frequency"""
-    freesurf: int
+    freesurf: bool
     """Boundary condition: 0 for absorbing, 1 for free surface."""
-    geoproj: int
+    geoproj: bool
     """Geographic projection to use"""
-    intmem: int
+    intmem: bool
     """Internal memory flag for model storage."""
     ix_ts: int
     """Timeslice offset for ix?"""
@@ -597,7 +596,7 @@ class EMOD3DParameters(RealisationConfiguration):
     iz_ts: int
     iz_xs: int
     iz_ys: int
-    lonlat_out: int
+    lonlat_out: bool
     """Output coordinates in longitude and latitude."""
     maxmem: int
     """Maximum memory usage in Mb"""
@@ -609,7 +608,7 @@ class EMOD3DParameters(RealisationConfiguration):
     """Spatial differencing order"""
     pmodfile: str
     """Point to Vp file."""
-    pointmt: int
+    pointmt: bool
     """Point moment tensor source flag."""
     qbndmax: float
     """Maximum boundary quality factor."""
@@ -619,7 +618,7 @@ class EMOD3DParameters(RealisationConfiguration):
     """Ratio between qpfrac and qsfrac"""
     qsfrac: float
     """Multiplier from Vs to Qs"""
-    read_restart: int
+    read_restart: bool
     """Read from checkpoint files."""
     report: int
     """Reporting interval for usage."""
@@ -633,7 +632,7 @@ class EMOD3DParameters(RealisationConfiguration):
     """Number of time steps per I/O operation."""
     stype: str
     """Source time function type."""
-    swap_bytes: int
+    swap_bytes: bool
     """Endianness for file I/O."""
     ts_inc: int
     """Time slice increment."""
@@ -641,15 +640,15 @@ class EMOD3DParameters(RealisationConfiguration):
     """Start time for time slices."""
     ts_total: int
     """Total number of time slices."""
-    ts_xy: int
+    ts_xy: bool
     """Enable XY time slices."""
-    ts_xz: int
+    ts_xz: bool
     """Enable XZ time slices."""
-    ts_yz: int
+    ts_yz: bool
     """Enable YZ time slices."""
     tzero: float
     """Start time offset"""
-    vmodel_swapb: int
+    vmodel_swapb: bool
     """Velocity model endianness"""
     xseis: int
     """Unknown!"""
