@@ -32,12 +32,7 @@ def test_bounding_box_example(tmp_path: Path):
         assert json.load(realisation_handle) == {
             "domain": {
                 "resolution": 0.1,
-                "domain": [
-                    {"latitude": -43.524793866326725, "longitude": 171.76204128885567},
-                    {"latitude": -44.16756820707226, "longitude": 172.63312824122775},
-                    {"latitude": -43.53034935969409, "longitude": 173.51210368762364},
-                    {"latitude": -42.894200350955856, "longitude": 172.64076673694242},
-                ],
+                "domain": realisations.to_name_coordinate_dictionary(domain_parameters.domain.corners),
                 "depth": 40.0,
                 "duration": 60.0,
                 "dt": 0.005,
@@ -99,18 +94,7 @@ def test_srf_config_example(tmp_path):
     srf_config.write_to_realisation(realisation_ffp)
     with open(realisation_ffp, "r") as realisation_handle:
         assert json.load(realisation_handle) == {
-            "domain": {
-                "resolution": 0.1,
-                "domain": [
-                    {"latitude": -43.524793866326725, "longitude": 171.76204128885567},
-                    {"latitude": -44.16756820707226, "longitude": 172.63312824122775},
-                    {"latitude": -43.53034935969409, "longitude": 173.51210368762364},
-                    {"latitude": -42.894200350955856, "longitude": 172.64076673694242},
-                ],
-                "depth": 40.0,
-                "duration": 60.0,
-                "dt": 0.005,
-            },
+            "domain": domain_parameters.to_dict(),
             "srf": {
                 "genslip_dt": 1.0,
                 "genslip_seed": 1,

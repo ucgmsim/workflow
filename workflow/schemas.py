@@ -540,7 +540,7 @@ EMOD3D_PARAMETERS_SCHEMA = Schema(
         Literal(
             "pointmt", description="If true, use a point moment tensor source flag"
         ): bool,
-        Literal("qbndmax", descrption="Maximum boundary quality factor"): float,
+        Literal("qbndmax", description="Maximum boundary quality factor"): float,
         Literal("qpfrac", description="Multiplier from Vp, to Qp"): float,
         Literal("qpqs_factor", description="Ratio between Qp and Qs"): float,
         Literal("qsfrac", description="Ratio between Vs to Qs."): float,
