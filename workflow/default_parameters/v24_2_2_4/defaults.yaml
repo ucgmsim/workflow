@@ -1,9 +1,9 @@
 emod3d:
-  all_in_one: 1
+  all_in_one: true
   bfilt: 4
-  bforce: 0
+  bforce: false
   dampwidth: 0
-  dblcpl: 0
+  dblcpl: false
   dmodfile: rho3dfile.d
   dtts: 20
   dump_itinc: 4000
@@ -13,16 +13,16 @@ emod3d:
   dyts: 5
   dzout: 1
   dzts: 1
-  elas_only: 0
-  enable_output_dump: 1
-  enable_restart: 1
+  elas_only: false
+  enable_output_dump: true
+  enable_restart: true
   ffault: 2
   fhi: 0.0
   fmax: 25.0
   fmin: 0.01
-  freesurf: 1
-  geoproj: 1
-  intmem: 1
+  freesurf: true
+  geoproj: true
+  intmem: true
   ix_ts: 99
   ix_ys: 100
   ix_zs: 100
@@ -32,33 +32,33 @@ emod3d:
   iz_ts: 1
   iz_xs: 1
   iz_ys: 1
-  lonlat_out: 1
+  lonlat_out: true
   maxmem: 1500
   model_style: 1
   nseis: 1
   order: 4
   pmodfile: vp3dfile.p
-  pointmt: 0
+  pointmt: false
   qbndmax: 100.0
   qpfrac: 100.0
   qpqs_factor: 2.0
   qsfrac: 50.0
-  read_restart: 0
+  read_restart: false
   report: 100
   restart_itinc: 20000
   scale: 1
   smodfile: vs3dfile.s
   span: 1
   stype: 2tri-p10-h20
-  swap_bytes: 0
+  swap_bytes: false
   ts_inc: 1
   ts_start: 0
   ts_total: 218
-  ts_xy: 1
-  ts_xz: 0
-  ts_yz: 0
+  ts_xy: true
+  ts_xz: false
+  ts_yz: false
   tzero: 0.6
-  vmodel_swapb: 0
+  vmodel_swapb: false
   xseis: 0
   yseis: 0
   zseis: 0
@@ -118,7 +118,22 @@ velocity_model:
   topo_type: "SQUASHED_TAPERED"
   vs30: 500.0
   s_wave_velocity: 3500.0
-  pgv_interpolants: [[3.5, 0.015], [4.1, 0.0375], [4.7, 0.075], [5.2, 0.15], [5.5, 0.25], [5.8, 0.4], [6.2, 0.7], [6.5, 1.0], [6.8, 1.35], [7.0, 1.65], [7.4, 2.1], [7.7, 2.5], [8.0, 3.0]]
+  pgv_interpolants:
+    [
+      [3.5, 0.015],
+      [4.1, 0.0375],
+      [4.7, 0.075],
+      [5.2, 0.15],
+      [5.5, 0.25],
+      [5.8, 0.4],
+      [6.2, 0.7],
+      [6.5, 1.0],
+      [6.8, 1.35],
+      [7.0, 1.65],
+      [7.4, 2.1],
+      [7.7, 2.5],
+      [8.0, 3.0],
+    ]
 bb:
   flo: 0.5
   dt: 0.02

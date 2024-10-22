@@ -475,9 +475,9 @@ EMOD3D_PARAMETERS_SCHEMA = Schema(
             "all_in_one",
             description="Handles the option to output all-in-one seismograms.",
         ): bool,
-        Literal(
-            "bfilt", description="Indicates whether bandpass filtering is applied."
-        ): bool,
+        Literal("bfilt", description="Bandpass filtering order."): And(
+            int, is_non_negative
+        ),
         Literal("bforce", description="If true, applies body force source."): bool,
         Literal("dampwidth", description="Width of damping region."): int,
         Literal("dblcpl", description="Specifies double couple source"): bool,
@@ -495,8 +495,10 @@ EMOD3D_PARAMETERS_SCHEMA = Schema(
         Literal("elas_only", description="If true, perform elastic calculations"): bool,
         "enable_output_dump": bool,
         Literal("enable_restart", description="Enable checkpoints"): bool,
-        Literal("ffault", description="If true, source is a finite fault."): bool,
-        Literal("fhi", description="High-frequency cutoff."): And(float, is_positive),
+        Literal("ffault", description="Finite fault model source."): int,
+        Literal("fhi", description="High-frequency cutoff."): And(
+            float, is_non_negative
+        ),
         Literal("fmax", description="Maximum simulation frequency"): And(
             float, is_positive
         ),
