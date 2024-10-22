@@ -1,2 +1,3 @@
 [[{{stage_node_identifier(stage)}}]]
         script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/{{realisation_identifier(stage)}}:/share,$CYLC_WORKFLOW_SHARE_DIR/{{stage.event}}/stations:/stations" /mnt/hypo_scratch/containers/runner_latest.sif hf-sim /share/realisation.json /share/realisation.stoch /stations/stations.ll /share/realisation.hf
+        inherit = large_job

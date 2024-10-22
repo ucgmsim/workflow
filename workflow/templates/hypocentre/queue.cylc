@@ -1,0 +1,5 @@
+[scheduling]
+        [[queues]]
+                [[[large_job]]]
+                        limit = 1
+                        members = large_job
