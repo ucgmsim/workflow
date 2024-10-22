@@ -34,14 +34,18 @@ class StageIdentifier(StrEnum):
     """Valid stage identifier in the workflow plan."""
 
     CopyInput = "copy_input"
+
     GCMTToRealisation = "gcmt_to_realisation"
+
     DomainGeneration = "generate_velocity_model_parameters"
     VelocityModelGeneration = "generate_velocity_model"
     StationSelection = "generate_station_coordinates"
     ModelCoordinates = "write_model_coordinates"
     SRFGeneration = "realisation_to_srf"
+    CheckSRF = "check_srf"
     CopyDomainParameters = "copy_domain_parameters"
     EMOD3DParameters = "create_e3d_par"
+    CheckDomain = "check_domain"
     StochGeneration = "generate_stoch"
     HighFrequency = "hf_sim"
     LowFrequency = "emod3d"
@@ -601,6 +605,9 @@ def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
                 Stage(StageIdentifier.SRFGeneration, event, sample)
             ],
             Stage(StageIdentifier.SRFGeneration, event, sample): [
+                StageIdentifier.CheckSRF
+            ],
+            Stage(StageIdentifier.CheckSRF, event, sample): [
                 Stage(StageIdentifier.StochGeneration, event, sample),
                 Stage(StageIdentifier.EMOD3DParameters, event, sample),
             ],
@@ -616,6 +623,9 @@ def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
                 Stage(StageIdentifier.EMOD3DParameters, event, sample)
             ],
             Stage(StageIdentifier.EMOD3DParameters, event, sample): [
+                Stage(StageIdentifier.CheckDomain, event, sample)
+            ],
+            Stage(StageIdentifier.CheckDomain, event, sample): [
                 Stage(StageIdentifier.LowFrequency, event, sample)
             ],
             Stage(StageIdentifier.LowFrequency, event, sample): [
