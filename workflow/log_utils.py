@@ -102,7 +102,7 @@ def log_call(
     Returns
     -------
     Callable
-        A decorator that logs it's wrapped function's arguments every
+        A decorator that logs its wrapped function's arguments every
         time the function is called, and logs once it has completed
         (with it's return value if `include_result` is True).
     """
