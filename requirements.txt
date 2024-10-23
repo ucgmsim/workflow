@@ -3,5 +3,10 @@ networkx
 printree
 pyvis
 pyyaml
+source_modelling @ git+https://github.com/ucgmsim/source_modelling
+velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling
+numpy
+pytest
+schema
 tqdm
 typer
