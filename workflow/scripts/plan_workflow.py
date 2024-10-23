@@ -989,7 +989,13 @@ def plan_workflow(
         defaults_version=defaults_version,
         realisations=realisations,
         target_host=target_host,
-        workflow_plan=nx.to_dict_of_lists(workflow_plan),
+        workflow_plan={
+            node: sorted(dependents, key=lambda stage: stage_to_node_string(stage))
+            for node, dependents in sorted(
+                nx.to_dict_of_lists(workflow_plan).items(),
+                key=lambda kv: stage_to_node_string(kv[0]),
+            )
+        },
     )
     flow_file.write_text(
         # strip empty lines from the output flow template
