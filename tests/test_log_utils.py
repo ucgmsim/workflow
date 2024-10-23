@@ -2,18 +2,19 @@ import logging
 import re
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
-import logging
 
 from workflow import log_utils
 
 
 def test_structured_log():
-    assert log_utils.structured_log('test', a=1, b=2, c=3) == 'test\ta=1\tb=2\tc=3'
+    assert log_utils.structured_log("test", a=1, b=2, c=3) == "test\ta=1\tb=2\tc=3"
+
 
 @log_utils.log_call()
-def foo(a, b):
+def foo(a: int, b: int):
     return a + b
 
 
@@ -25,18 +26,18 @@ def test_basic_log(caplog: pytest.LogCaptureFixture):
 
     call_log = caplog.messages[0]
     assert re.match(
-        'called\tfunction=foo\tid=.*\ta=1\tb=2',
+        "called\tfunction=foo\tid=.*\ta=1\tb=2",
         call_log,
     )
     return_log = caplog.messages[1]
     assert re.match(
-        'completed\tfunction=foo\tid=.*\tresult=3',
+        "completed\tfunction=foo\tid=.*\tresult=3",
         return_log,
     )
 
 
 @log_utils.log_call(exclude_args={"b"})
-def foo_less_b(a, b):
+def foo_less_b(a: int, b: int):
     return a + b
 
 
@@ -48,18 +49,18 @@ def test_excluded_log(caplog: pytest.LogCaptureFixture):
     assert len(caplog.messages) == 2
     call_log = caplog.messages[0]
     assert re.match(
-        'called\tfunction=foo_less_b\tid=.*\ta=1',
+        "called\tfunction=foo_less_b\tid=.*\ta=1",
         call_log,
     )
     return_log = caplog.messages[1]
     assert re.match(
-        'completed\tfunction=foo_less_b\tid=.*\tresult=3',
+        "completed\tfunction=foo_less_b\tid=.*\tresult=3",
         return_log,
     )
 
 
 @log_utils.log_call(action_name="FOOBAR")
-def bar(a):
+def bar(a: Any):
     pass
 
 
@@ -70,18 +71,18 @@ def test_renamed_bar(caplog: pytest.LogCaptureFixture):
     assert len(caplog.messages) == 2
     call_log = caplog.messages[0]
     assert re.match(
-        'called\tfunction=FOOBAR\tid=.*\ta=1',
+        "called\tfunction=FOOBAR\tid=.*\ta=1",
         call_log,
     )
     return_log = caplog.messages[1]
     assert re.match(
-        'completed\tfunction=FOOBAR\tid=.*',
+        "completed\tfunction=FOOBAR\tid=.*",
         return_log,
     )
 
 
 @log_utils.log_call(include_result=False)
-def baz(a):
+def baz(a: Any):
     return 1
 
 
@@ -92,12 +93,12 @@ def test_no_result(caplog: pytest.LogCaptureFixture):
     assert len(caplog.messages) == 2
     call_log = caplog.messages[0]
     assert re.match(
-        'called\tfunction=baz\tid=.*\ta=1',
+        "called\tfunction=baz\tid=.*\ta=1",
         call_log,
     )
     return_log = caplog.messages[1]
     assert re.match(
-        'completed\tfunction=baz\tid=.*',
+        "completed\tfunction=baz\tid=.*",
         return_log,
     )
 
@@ -114,7 +115,9 @@ def test_failing_function(caplog: pytest.LogCaptureFixture):
 
     assert len(caplog.messages) == 2
     return_log = caplog.messages[1]
-    assert re.match('failed\tfunction=failing_function\tid=.*\terror=Traceback.*', return_log)
+    assert re.match(
+        "failed\tfunction=failing_function\tid=.*\terror=Traceback.*", return_log
+    )
 
 
 def test_successful_check_call_log(caplog: pytest.LogCaptureFixture, tmp_path: Path):
@@ -124,11 +127,12 @@ def test_successful_check_call_log(caplog: pytest.LogCaptureFixture, tmp_path: P
     log_utils.log_check_call(["ls", str(tmp_path)])
 
     assert len(caplog.messages) == 2
-    execution_message =caplog.messages[0]
+    execution_message = caplog.messages[0]
     assert re.match("executing\tcommand=ls\targs=\\['.*'\\]\tid=.*", execution_message)
     completion_message = caplog.messages[1]
-    assert re.match("completed\tcommand=ls\tstdout=test.txt\n\tid=.*", completion_message)
-
+    assert re.match(
+        "completed\tcommand=ls\tstdout=test.txt\n\tid=.*", completion_message
+    )
 
 
 def test_failing_check_call_log(caplog: pytest.LogCaptureFixture):
@@ -138,4 +142,7 @@ def test_failing_check_call_log(caplog: pytest.LogCaptureFixture):
 
     assert len(caplog.messages) == 2
     completion_message = caplog.messages[1]
-    assert re.match("failed\tcommand=ls\tid=.*\tcode=2\tstdout=\tstderr=ls: cannot access '/bad-path': No such file or directory", completion_message)
+    assert re.match(
+        "failed\tcommand=ls\tid=.*\tcode=2\tstdout=\tstderr=ls: cannot access '/bad-path': No such file or directory",
+        completion_message,
+    )
