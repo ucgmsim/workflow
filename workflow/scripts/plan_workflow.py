@@ -874,7 +874,9 @@ def build_filetree(files: set[AnnotatedPath]) -> dict[str, Any]:
 def plan_workflow(
     realisation_ids: Annotated[
         list[str],
-        typer.Argument(help="List of realisations to generate workflows for."),
+        typer.Argument(
+            help="List of realisations to generate workflows for. Realisations have the format event:realisation_count, such as Darfield:4."
+        ),
     ],
     flow_file: Annotated[
         Path,
