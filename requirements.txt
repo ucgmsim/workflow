@@ -1,1 +1,7 @@
+jinja2
+networkx
+printree
+pyvis
 pyyaml
+tqdm
+typer
