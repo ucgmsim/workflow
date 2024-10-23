@@ -1,0 +1,113 @@
+[scheduling]
+    [[graph]]
+        R1 = """
+        check_srf_Ahuriri => generate_stoch_Ahuriri
+        check_srf_Ahuriri_1 => generate_stoch_Ahuriri_1
+        check_srf_Darfield => generate_stoch_Darfield
+        check_srf_Darfield_1 => generate_stoch_Darfield_1
+        copy_domain_parameters_Ahuriri_1 => hf_sim_Ahuriri_1
+        copy_domain_parameters_Darfield_1 => hf_sim_Darfield_1
+        copy_input => check_srf_Ahuriri
+        copy_input => check_srf_Ahuriri_1
+        copy_input => check_srf_Darfield
+        copy_input => check_srf_Darfield_1
+        copy_input => generate_velocity_model_parameters_Ahuriri
+        copy_input => generate_velocity_model_parameters_Darfield
+        generate_station_coordinates_Ahuriri => hf_sim_Ahuriri
+        generate_station_coordinates_Ahuriri => hf_sim_Ahuriri_1
+        generate_station_coordinates_Darfield => hf_sim_Darfield
+        generate_station_coordinates_Darfield => hf_sim_Darfield_1
+        generate_stoch_Ahuriri => hf_sim_Ahuriri
+        generate_stoch_Ahuriri_1 => hf_sim_Ahuriri_1
+        generate_stoch_Darfield => hf_sim_Darfield
+        generate_stoch_Darfield_1 => hf_sim_Darfield_1
+        generate_velocity_model_Ahuriri => hf_sim_Ahuriri
+        generate_velocity_model_Ahuriri => hf_sim_Ahuriri_1
+        generate_velocity_model_Darfield => hf_sim_Darfield
+        generate_velocity_model_Darfield => hf_sim_Darfield_1
+        generate_velocity_model_parameters_Ahuriri => copy_domain_parameters_Ahuriri_1
+        generate_velocity_model_parameters_Ahuriri => generate_station_coordinates_Ahuriri
+        generate_velocity_model_parameters_Ahuriri => generate_velocity_model_Ahuriri
+        generate_velocity_model_parameters_Darfield => copy_domain_parameters_Darfield_1
+        generate_velocity_model_parameters_Darfield => generate_station_coordinates_Darfield
+        generate_velocity_model_parameters_Darfield => generate_velocity_model_Darfield
+        """
+    [runtime]
+    [[root]]
+        platform = mahuika-slurm
+        pre-script = """
+        module load Apptainer
+        """
+        [[[directives]]]
+                --account = nesi00213
+    [[check_srf_Ahuriri]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Ahuriri:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif check-srf /share/realisation.json /share/realisation.srf
+    [[check_srf_Ahuriri_1]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Ahuriri_1:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif check-srf /share/realisation.json /share/realisation.srf
+    [[check_srf_Darfield]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif check-srf /share/realisation.json /share/realisation.srf
+    [[check_srf_Darfield_1]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield_1:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif check-srf /share/realisation.json /share/realisation.srf
+    [[copy_domain_parameters_Ahuriri_1]]
+        platform = localhost
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Ahuriri_1:/share,$CYLC_WORKFLOW_SHARE_DIR/Ahuriri:/parent" /nesi/nobackup/nesi00213/containers/runner_latest.sif copy-domain-parameters /parent/realisation.json /share/realisation.json
+    [[copy_domain_parameters_Darfield_1]]
+        platform = localhost
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield_1:/share,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/parent" /nesi/nobackup/nesi00213/containers/runner_latest.sif copy-domain-parameters /parent/realisation.json /share/realisation.json
+    [[copy_input]]
+        platform = localhost
+        script = "[[ ! -d $CYLC_WORKFLOW_RUN_DIR/input ]] || cp -rn $CYLC_WORKFLOW_RUN_DIR/input/. $CYLC_WORKFLOW_SHARE_DIR"
+    [[generate_station_coordinates_Ahuriri]]
+    platform = localhost        
+    script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Ahuriri:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-station-coordinates /share/realisation.json /share/stations --stat-file /stations.ll
+    [[generate_station_coordinates_Darfield]]
+    platform = localhost        
+    script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-station-coordinates /share/realisation.json /share/stations --stat-file /stations.ll
+    [[generate_stoch_Ahuriri]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Ahuriri:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-stoch /share/realisation.json /share/realisation.srf /share/realisation.stoch
+    [[generate_stoch_Ahuriri_1]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Ahuriri_1:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-stoch /share/realisation.json /share/realisation.srf /share/realisation.stoch
+    [[generate_stoch_Darfield]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-stoch /share/realisation.json /share/realisation.srf /share/realisation.stoch
+    [[generate_stoch_Darfield_1]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield_1:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-stoch /share/realisation.json /share/realisation.srf /share/realisation.stoch
+    [[ generate_velocity_model_Ahuriri ]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Ahuriri:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc)'
+        [[[directives]]]
+                --cpus-per-task = 32
+                --time = 01:00:00
+                --partition = milan
+    [[ generate_velocity_model_Darfield ]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc)'
+        [[[directives]]]
+                --cpus-per-task = 32
+                --time = 01:00:00
+                --partition = milan
+    [[generate_velocity_model_parameters_Ahuriri]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Ahuriri:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-velocity-model-parameters /share/realisation.json
+    [[generate_velocity_model_parameters_Darfield]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-velocity-model-parameters /share/realisation.json
+    [[hf_sim_Ahuriri]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Ahuriri:/share,$CYLC_WORKFLOW_SHARE_DIR/Ahuriri/stations:/stations" /nesi/nobackup/nesi00213/containers/runner_latest.sif hf-sim /share/realisation.json /share/realisation.stoch /stations/stations.ll /share/realisation.hf
+        [[[directives]]]
+                --cpus-per-task = 32
+                --time = 01:00:00
+                --partition = milan
+    [[hf_sim_Ahuriri_1]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Ahuriri_1:/share,$CYLC_WORKFLOW_SHARE_DIR/Ahuriri/stations:/stations" /nesi/nobackup/nesi00213/containers/runner_latest.sif hf-sim /share/realisation.json /share/realisation.stoch /stations/stations.ll /share/realisation.hf
+        [[[directives]]]
+                --cpus-per-task = 32
+                --time = 01:00:00
+                --partition = milan
+    [[hf_sim_Darfield]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share,$CYLC_WORKFLOW_SHARE_DIR/Darfield/stations:/stations" /nesi/nobackup/nesi00213/containers/runner_latest.sif hf-sim /share/realisation.json /share/realisation.stoch /stations/stations.ll /share/realisation.hf
+        [[[directives]]]
+                --cpus-per-task = 32
+                --time = 01:00:00
+                --partition = milan
+    [[hf_sim_Darfield_1]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield_1:/share,$CYLC_WORKFLOW_SHARE_DIR/Darfield/stations:/stations" /nesi/nobackup/nesi00213/containers/runner_latest.sif hf-sim /share/realisation.json /share/realisation.stoch /stations/stations.ll /share/realisation.hf
+        [[[directives]]]
+                --cpus-per-task = 32
+                --time = 01:00:00
+                --partition = milan
