@@ -146,8 +146,7 @@ EXPECTED_OUTPUT = """You require the following files for your simulation:
         ├── flow.cylc: Your workflow file (the file {output_path}).
         └── input
             └── Darfield
-                ├── realisation.json: Realisation file for event containing: metadata, rupture_propagation, sources.
-                └── realisation.srf: Slip model of source (Section: SRF Format).
+                └── realisation.json: Realisation file for event containing: metadata, rupture_propagation, sources.
 
 Refer to the indicated sections in https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation
 Refer to the realisation glossary at URL HERE for details on filling in the realisation files.

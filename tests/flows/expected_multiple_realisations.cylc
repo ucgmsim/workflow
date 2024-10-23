@@ -7,12 +7,12 @@
         check_srf_Darfield_1 => generate_stoch_Darfield_1
         copy_domain_parameters_Ahuriri_1 => hf_sim_Ahuriri_1
         copy_domain_parameters_Darfield_1 => hf_sim_Darfield_1
-        copy_input => check_srf_Ahuriri
-        copy_input => check_srf_Ahuriri_1
-        copy_input => check_srf_Darfield
-        copy_input => check_srf_Darfield_1
         copy_input => generate_velocity_model_parameters_Ahuriri
         copy_input => generate_velocity_model_parameters_Darfield
+        copy_input => realisation_to_srf_Ahuriri
+        copy_input => realisation_to_srf_Ahuriri_1
+        copy_input => realisation_to_srf_Darfield
+        copy_input => realisation_to_srf_Darfield_1
         generate_station_coordinates_Ahuriri => hf_sim_Ahuriri
         generate_station_coordinates_Ahuriri => hf_sim_Ahuriri_1
         generate_station_coordinates_Darfield => hf_sim_Darfield
@@ -31,6 +31,10 @@
         generate_velocity_model_parameters_Darfield => copy_domain_parameters_Darfield_1
         generate_velocity_model_parameters_Darfield => generate_station_coordinates_Darfield
         generate_velocity_model_parameters_Darfield => generate_velocity_model_Darfield
+        realisation_to_srf_Ahuriri => check_srf_Ahuriri
+        realisation_to_srf_Ahuriri_1 => check_srf_Ahuriri_1
+        realisation_to_srf_Darfield => check_srf_Darfield
+        realisation_to_srf_Darfield_1 => check_srf_Darfield_1
         """
     [runtime]
     [[root]]
@@ -111,3 +115,11 @@
                 --cpus-per-task = 32
                 --time = 01:00:00
                 --partition = milan
+    [[realisation_to_srf_Ahuriri]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Ahuriri:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif realisation-to-srf /share/realisation.json /share/realisation.srf
+    [[realisation_to_srf_Ahuriri_1]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Ahuriri_1:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif realisation-to-srf /share/realisation.json /share/realisation.srf
+    [[realisation_to_srf_Darfield]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif realisation-to-srf /share/realisation.json /share/realisation.srf
+    [[realisation_to_srf_Darfield_1]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield_1:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif realisation-to-srf /share/realisation.json /share/realisation.srf

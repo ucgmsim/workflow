@@ -3,13 +3,14 @@
         R1 = """
         check_srf_Darfield => create_e3d_par_Darfield
         check_srf_Darfield => generate_stoch_Darfield
-        copy_input => check_srf_Darfield
         copy_input => generate_velocity_model_parameters_Darfield
+        copy_input => realisation_to_srf_Darfield
         generate_station_coordinates_Darfield => create_e3d_par_Darfield
         generate_velocity_model_Darfield => create_e3d_par_Darfield
         generate_velocity_model_parameters_Darfield => generate_station_coordinates_Darfield
         generate_velocity_model_parameters_Darfield => generate_velocity_model_Darfield
         generate_velocity_model_parameters_Darfield => write_model_coordinates_Darfield
+        realisation_to_srf_Darfield => check_srf_Darfield
         write_model_coordinates_Darfield => create_e3d_par_Darfield
         """
     [runtime]
@@ -41,6 +42,8 @@
                 --partition = milan
     [[generate_velocity_model_parameters_Darfield]]
         script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-velocity-model-parameters /share/realisation.json
+    [[realisation_to_srf_Darfield]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif realisation-to-srf /share/realisation.json /share/realisation.srf
     [[write_model_coordinates_Darfield]]
         platform = localhost
         script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-model-coordinates /share/realisation.json /share/model

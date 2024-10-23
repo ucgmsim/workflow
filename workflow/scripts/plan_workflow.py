@@ -601,7 +601,7 @@ def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
                 Stage(StageIdentifier.SRFGeneration, event, sample)
             ],
             Stage(StageIdentifier.SRFGeneration, event, sample): [
-                StageIdentifier.CheckSRF
+                Stage(StageIdentifier.CheckSRF, event, sample)
             ],
             Stage(StageIdentifier.CheckSRF, event, sample): [
                 Stage(StageIdentifier.StochGeneration, event, sample),
@@ -979,7 +979,6 @@ def plan_workflow(
     excluding_set |= set.union(
         *excluding_source_map.values()
     ) - excluding_source_map.get(source, set())
-
     workflow_plan = create_abstract_workflow_plan(realisations, goal_set, excluding_set)
     env = jinja2.Environment(
         loader=jinja2.PackageLoader("workflow"),
