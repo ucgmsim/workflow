@@ -1,0 +1,2 @@
+[[{{stage_node_identifier(stage)}}]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share/{{realisation_identifier(stage)}}" merge-ts /share/LF/OutBin /share/LF/OutBin/output.e3d

@@ -1,0 +1,9 @@
+[[{{stage_node_identifier(stage)}}]]
+        pre-script = module load foss/2023a
+        script = srun /nesi/project/nesi00213/opt/EMOD3D_cylc/tools/emod3d-mpi_v3.0.8 -args "par=$CYLC_WORKFLOW_SHARE_DIR/{{realisation_identifier(stage)}}/LF/e3d.par"
+        [[[directives]]]
+                --partition = milan
+                --ntasks = 160
+                --mem-per-cpu = 2000MB
+                --nodes = 2
+                --time = 06:00:00

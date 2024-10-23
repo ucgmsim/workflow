@@ -1,0 +1,7 @@
+[[ {{stage_node_identifier(stage)}} ]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/{{realisation_identifier(stage)}}:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc)'
+        [[[directives]]]
+                --cpus-per-task = 32
+                --time = 01:00:00
+                --partition = milan
+

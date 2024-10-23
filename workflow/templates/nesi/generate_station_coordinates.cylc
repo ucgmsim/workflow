@@ -1,0 +1,3 @@
+[[{{stage_node_identifier(stage)}}]]
+    platform = localhost        
+    script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/{{realisation_identifier(stage)}}:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-station-coordinates /share/realisation.json /share/stations --stat-file /stations.ll
