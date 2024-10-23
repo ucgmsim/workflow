@@ -891,47 +891,48 @@ def plan_workflow(
         typer.Option(
             help="List of workflow outputs to generate",
             default_factory=lambda: [],
+            rich_help_panel='Planning Workflows'
         ),
     ],
     group_goal: Annotated[
         list[GroupIdentifier],
         typer.Option(
-            help="List of group goals to generate", default_factory=lambda: []
+            help="List of group goals to generate", default_factory=lambda: [], rich_help_panel='Planning Workflows'
         ),
     ],
     excluding: Annotated[
         list[StageIdentifier],
-        typer.Option(help="List of stages to exclude", default_factory=lambda: []),
+        typer.Option(help="List of stages to exclude", default_factory=lambda: [], rich_help_panel='Planning Workflows'),
     ],
     excluding_group: Annotated[
         list[GroupIdentifier],
         typer.Option(
-            help="List of stage groups to exclude", default_factory=lambda: []
+            help="List of stage groups to exclude", default_factory=lambda: [], rich_help_panel='Planning Workflows'
         ),
     ],
     visualise: Annotated[
-        bool, typer.Option(help="Visualise the planned workflow as a graph")
+        bool, typer.Option(help="Visualise the planned workflow as a graph", rich_help_panel='Visualising Workflows')
     ] = False,
     show_required_files: Annotated[
         bool,
         typer.Option(
-            help="Print the expected directory tree at the start of the simulation."
+            help="Print the expected directory tree at the start of the simulation.", rich_help_panel='Visualising Workflows'
         ),
     ] = True,
     target_host: Annotated[
         WorkflowTarget,
-        typer.Option(help="Select the target host where the workflow will be run"),
+        typer.Option(help="Select the target host where the workflow will be run", rich_help_panel='Planning Workflows'),
     ] = WorkflowTarget.NeSI,
     source: Annotated[
         Optional[Source],
         typer.Option(
-            help="If given, set the source of the realisation. For NSHM and GCMT, the realisation id corresponds to the rupture id and GCMT PublicID respectively."
+            help="If given, set the source of the realisation. For NSHM and GCMT, the realisation id corresponds to the rupture id and GCMT PublicID respectively.", rich_help_panel='Sources'
         ),
     ] = None,
     defaults_version: Annotated[
         Optional[DefaultsVersion],
         typer.Option(
-            help="The simulation defaults to apply for all realisations. Required if source is specified."
+            help="The simulation defaults to apply for all realisations. Required if source is specified.", rich_help_panel='Sources'
         ),
     ] = None,
 ):
