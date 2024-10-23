@@ -28,8 +28,8 @@ import os
 import subprocess
 import traceback
 import uuid
-from collections.abc import Iterable
-from typing import Any, Callable, Optional
+from collections.abc import Callable, Iterable
+from typing import Any, Optional
 
 
 def get_logger(name: str) -> logging.Logger:
