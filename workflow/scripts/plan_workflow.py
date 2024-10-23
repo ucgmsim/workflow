@@ -5,7 +5,7 @@ to generate a base Cylc workflow to modify and extend.
 """
 
 import tempfile
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from enum import StrEnum
 from pathlib import Path, PurePath
 from typing import Annotated, Any, NamedTuple, Optional
@@ -34,9 +34,7 @@ class StageIdentifier(StrEnum):
     """Valid stage identifier in the workflow plan."""
 
     CopyInput = "copy_input"
-
     GCMTToRealisation = "gcmt_to_realisation"
-
     DomainGeneration = "generate_velocity_model_parameters"
     VelocityModelGeneration = "generate_velocity_model"
     StationSelection = "generate_station_coordinates"
@@ -57,6 +55,8 @@ class StageIdentifier(StrEnum):
 
 
 class Source(StrEnum):
+    """Realisation source options."""
+
     GCMT = "gcmt"
     NSHM = "nshm"
 
@@ -694,7 +694,7 @@ def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
 
 
 def create_abstract_workflow_plan(
-    realisations: Sequence[tuple[str, Optional[int]]],
+    realisations: set[tuple[str, Optional[int]]],
     goals: Iterable[StageIdentifier],
     excluding: Iterable[StageIdentifier],
 ) -> nx.DiGraph:
