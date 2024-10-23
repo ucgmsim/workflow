@@ -82,6 +82,7 @@ GROUP_STAGES = {
         StageIdentifier.SRFGeneration,
         StageIdentifier.EMOD3DParameters,
         StageIdentifier.NSHMToRealisation,
+        StageIdentifier.GCMTToRealisation,
         StageIdentifier.StochGeneration,
         StageIdentifier.CopyDomainParameters,
     },
