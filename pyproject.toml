@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm", "cython"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "workflow"
+authors = [
+    {name = "QuakeCoRE" },
+]
+description = "Next generation workflow for type-5 and Pegasus simulations."
+readme = "README.md"
+requires-python = ">=3.9"
+dynamic = ["version", "dependencies"]
+
+[project.scripts]
+nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:app"
+gcmt-to-realisation = "workflow.scripts.gcmt_to_realisation:app"
+realisation-to-srf = "workflow.scripts.realisation_to_srf:app"
+generate-velocity-model-parameters = "workflow.scripts.generate_velocity_model_parameters:app"
+
+[tool.setuptools.package-dir]
+workflow = "workflow"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.ruff.lint]
+extend-select = [
+  # isort imports
+  "I",
+  # Use r'\s+' rather than '\s+'
+  "W605",
+  # All the naming errors, like using camel case for function names.
+  "N",
+  # Missing docstrings in classes, methods, and functions
+  "D101",
+  "D102",
+  "D103",
+  "D105",
+  "D107",
+  # Use f-string instead of a format call
+  "UP032",
+  # Standard library import is deprecated
+  "UP035",
+  # Missing function argument type-annotation
+  "ANN001",
+  # Using except without specifying an exception type to catch
+  "BLE001"
+]
+ignore = ["D104"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "source_modelling",
+    "workflow",
+    "pygmt_helper",
+    "qcore",
+    "empirical",
+    "nshmdb",
+    "IM_calculation",
+    "mera"
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore no docstring in __init__.py
+"__init__.py" = ["D104"]
+# Ignore docstring errors in tests folder
+"tests/**.py" = ["D"]
+
+
