@@ -1,0 +1,24 @@
+{% macro stage_node_identifier(stage) -%}
+{{stage.identifier}}{% if stage.event %}_{{stage.event}}{% if stage.sample %}_{{stage.sample}}{% endif %}{% endif %}
+{%- endmacro -%}
+
+{% macro realisation_identifier(stage) -%}
+{{stage.event}}{% if stage.sample %}_{{stage.sample}}{% endif %}
+{%- endmacro -%}
+
+[scheduling]
+    [[graph]]
+        R1 = """
+        {% for stage, next_stages in workflow_plan.items() -%}
+        {% for next_stage in next_stages %}
+        {{ stage_node_identifier(stage) }} => {{ stage_node_identifier(next_stage) }}
+        {% endfor -%}
+        {% endfor -%}
+        """
+    {% include target_host + '/queue.cylc' -%}
+[runtime]
+    {% include target_host + '/root.cylc' %}
+    {% for stage, next_stages in workflow_plan.items() -%}
+    {% include target_host + '/' + stage.identifier + '.cylc' %}
+    {% endfor %}
+                                                                                                                                                                                                                                                                                                

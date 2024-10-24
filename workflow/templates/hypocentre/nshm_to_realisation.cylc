@@ -1,0 +1,2 @@
+[[{{stage_node_identifier(stage)}}]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/{{realisation_identifier(stage)}}:/share" /mnt/hypo_scratch/containers/runner_latest.sif nshm2022-to-realisation /nshmdb.db {{stage.event}} /share/realisation.json {{defaults_version}}

@@ -1,0 +1,3 @@
+[[copy_input]]
+        platform = localhost
+        script = "[[ ! -d $CYLC_WORKFLOW_RUN_DIR/input ]] || cp -rn $CYLC_WORKFLOW_RUN_DIR/input/. $CYLC_WORKFLOW_SHARE_DIR"

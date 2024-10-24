@@ -1,0 +1,69 @@
+[scheduling]
+    [[graph]]
+        R1 = """
+        bb_sim_Darfield => im_calc_Darfield
+        check_domain_Darfield => emod3d_Darfield
+        check_srf_Darfield => create_e3d_par_Darfield
+        check_srf_Darfield => generate_stoch_Darfield
+        copy_input => generate_velocity_model_parameters_Darfield
+        copy_input => realisation_to_srf_Darfield
+        create_e3d_par_Darfield => check_domain_Darfield
+        emod3d_Darfield => bb_sim_Darfield
+        emod3d_Darfield => merge_ts_Darfield
+        generate_station_coordinates_Darfield => create_e3d_par_Darfield
+        generate_station_coordinates_Darfield => hf_sim_Darfield
+        generate_stoch_Darfield => hf_sim_Darfield
+        generate_velocity_model_Darfield => create_e3d_par_Darfield
+        generate_velocity_model_Darfield => hf_sim_Darfield
+        generate_velocity_model_parameters_Darfield => generate_station_coordinates_Darfield
+        generate_velocity_model_parameters_Darfield => generate_velocity_model_Darfield
+        generate_velocity_model_parameters_Darfield => write_model_coordinates_Darfield
+        hf_sim_Darfield => bb_sim_Darfield
+        merge_ts_Darfield => plot_ts_Darfield
+        realisation_to_srf_Darfield => check_srf_Darfield
+        write_model_coordinates_Darfield => create_e3d_par_Darfield
+        """
+    [scheduling]
+        [[queues]]
+                [[[large_job]]]
+                        limit = 1
+                        members = large_job[runtime]
+    [[root]]
+        platform = localhost
+[[large_job]]
+    [[bb_sim_Darfield]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/parent" /mnt/hypo_scratch/containers/runner_latest.sif bb-sim /share/realisation.json /stations.vs30 /share/LF/OutBin /share/realisation.hf /parent/Velocity_Model /share/realisation.bb
+        inherit = large_job
+    [[check_domain_Darfield]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/parent" /mnt/hypo_scratch/containers/runner_latest.sif check-domain /share/realisation.json /share/realisation.srf /parent/Velocity_Model
+    [[check_srf_Darfield]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share" /mnt/hypo_scratch/containers/runner_latest.sif check-srf /share/realisation.json /share/realisation.srf
+    [[copy_input]]
+        script = "[[ ! -d $CYLC_WORKFLOW_RUN_DIR/input ]] || cp -rn $CYLC_WORKFLOW_RUN_DIR/input/. $CYLC_WORKFLOW_SHARE_DIR"
+    [[create_e3d_par_Darfield]]
+        script = apptainer exec --bind "/mnt:/mnt" /mnt/hypo_scratch/containers/runner_latest.sif create-e3d-par $CYLC_WORKFLOW_SHARE_DIR/Darfield/realisation.json $CYLC_WORKFLOW_SHARE_DIR/Darfield/realisation.srf $CYLC_WORKFLOW_SHARE_DIR/Darfield/Velocity_Model $CYLC_WORKFLOW_SHARE_DIR/Darfield/stations $CYLC_WORKFLOW_SHARE_DIR/Darfield/model $CYLC_WORKFLOW_SHARE_DIR/Darfield/LF --emod3d-path /mnt/hypo_scratch/EMOD3D/tools/emod3d-mpi_v3.0.8 --scratch-ffp $CYLC_WORKFLOW_SHARE_DIR/Darfield/LF
+    [[emod3d_Darfield]]
+        script = mpirun -n 24 /mnt/hypo_scratch/EMOD3D/tools/emod3d-mpi_v3.0.8 -args "par=$CYLC_WORKFLOW_SHARE_DIR/Darfield/LF/e3d.par"
+        inherit = large_job
+    [[generate_station_coordinates_Darfield]]
+    script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share" /mnt/hypo_scratch/containers/runner_latest.sif generate-station-coordinates /share/realisation.json /share/stations --stat-file /stations.ll
+    [[generate_stoch_Darfield]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share" /mnt/hypo_scratch/containers/runner_latest.sif generate-stoch /share/realisation.json /share/realisation.srf /share/realisation.stoch
+    [[generate_velocity_model_Darfield]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share" /mnt/hypo_scratch/containers/runner_latest.sif sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc)'
+    [[generate_velocity_model_parameters_Darfield]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share" /mnt/hypo_scratch/containers/runner_latest.sif generate-velocity-model-parameters /share/realisation.json
+    [[hf_sim_Darfield]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share,$CYLC_WORKFLOW_SHARE_DIR/Darfield/stations:/stations" /mnt/hypo_scratch/containers/runner_latest.sif hf-sim /share/realisation.json /share/realisation.stoch /stations/stations.ll /share/realisation.hf
+        inherit = large_job
+    [[im_calc_Darfield]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share" /mnt/hypo_scratch/containers/runner_latest.sif im-calc /share/realisation.json /share/realisation.bb /share/intensity_measures.parquet
+        inherit = large_job
+    [[merge_ts_Darfield]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share/Darfield" merge-ts /share/LF/OutBin /share/LF/OutBin/output.e3d
+    [[plot_ts_Darfield]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share/Darfield" plot-ts /share/LF/OutBin/output.e3d /share/animation.mp4
+    [[realisation_to_srf_Darfield]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share" /mnt/hypo_scratch/containers/runner_latest.sif realisation-to-srf /share/realisation.json /share/realisation.srf
+    [[write_model_coordinates_Darfield]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/Darfield:/share" /mnt/hypo_scratch/containers/runner_latest.sif generate-model-coordinates /share/realisation.json /share/model

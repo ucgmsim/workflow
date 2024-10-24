@@ -1,0 +1,7 @@
+[[root]]
+        platform = mahuika-slurm
+        pre-script = """
+        module load Apptainer
+        """
+        [[[directives]]]
+                --account = nesi00213
