@@ -36,13 +36,13 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Callable, Optional
 
-import fast_konno_ohmachi as fko
 import h5py
 import numba
 import numexpr as ne
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import pykooh
 import scipy as sp
 import tqdm
 import typer
@@ -430,16 +430,11 @@ def generate_fa_spectrum(waveform: npt.NDArray, dt: float):
 
 
 def compute_fas_single(
-    waveform: npt.NDArray[np.float32],
-    dt: float,
-    freq: npt.NDArray[np.float32],
+    waveform: npt.NDArray[np.float32], dt: float, smoother: Callable
 ) -> npt.NDArray[np.float32]:
-    fa_spectrum, fa_frequencies = generate_fa_spectrum(waveform, dt)
-    smoothed = fko.fast_konno_ohmachi(fa_spectrum, fa_frequencies, smooth_coeff=20)
-    interpolator = sp.interpolate.interp1d(
-        fa_frequencies, smoothed, fill_value="extrapolate"
-    )
-    return interpolator(smoothed)
+    n = len(waveform)
+    fa_spectrum = np.abs(np.fft.rfft(waveform, n=2 ** int(np.ceil(np.log2(n)))) * dt)
+    return smoother(fa_spectrum)
 
 
 def compute_fas(
@@ -449,46 +444,48 @@ def compute_fas(
     freqs: npt.NDArray[np.float32],
     num_processes: int,
 ) -> pd.DataFrame:
+    fa_frequencies = np.fft.rfftfreq(2 ** int(np.ceil(np.log2(waveforms.shape[1]))), dt)
+    smoother = pykooh.CachedSmoother(fa_frequencies, freqs, 40)
     with multiprocessing.Pool(num_processes) as pool:
         fas_0 = np.fromiter(
             pool.imap(
-                functools.partial(compute_fas_single, dt=dt, freq=freqs),
+                functools.partial(compute_fas_single, dt=dt, smoother=smoother),
                 waveforms[:, :, 1],
             ),
             dtype=np.float32,
         )
         fas_90 = np.fromiter(
             pool.imap(
-                functools.partial(compute_fas_single, dt=dt, freq=freqs),
+                functools.partial(compute_fas_single, dt=dt, smoother=smoother),
                 waveforms[:, :, 0],
             ),
             dtype=np.float32,
         )
         fas_ver = np.fromiter(
             pool.imap(
-                functools.partial(compute_fas_single, dt=dt, freq=freqs),
+                functools.partial(compute_fas_single, dt=dt, smoother=smoother),
                 waveforms[:, :, 2],
             ),
             dtype=np.float32,
         )
-        fas_mean = np.sqrt(np.square(fas_0) + np.square(fas_90))
-        return pd.concat(
-            [
-                pd.DataFrame(
-                    {
-                        "station": stations,
-                        "intensity_measure": f"FAS_{freq:.2f}",
-                        "000": fas_0[:, i],
-                        "090": fas_90[:, i],
-                        "ver": fas_ver[:, i],
-                        "geom": np.nan,
-                        "rotd50": fas_mean,
-                        "rotd100": np.nan,
-                    }
-                )
-                for i, freq in enumerate(freqs)
-            ]
-        )
+    fas_mean = np.sqrt(np.square(fas_0) + np.square(fas_90))
+    return pd.concat(
+        [
+            pd.DataFrame(
+                {
+                    "station": stations,
+                    "intensity_measure": f"FAS_{freq:.2f}",
+                    "000": fas_0[:, i],
+                    "090": fas_90[:, i],
+                    "ver": fas_ver[:, i],
+                    "geom": np.nan,
+                    "rotd50": fas_mean,
+                    "rotd100": np.nan,
+                }
+            )
+            for i, freq in enumerate(freqs)
+        ]
+    )
 
 
 @app.command(help="Calculate instensity measures for simulation data.")
