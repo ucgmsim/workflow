@@ -480,7 +480,7 @@ def calculate_instensity_measures(
 
     stations = pd.read_hdf(broadband_simulation_ffp, key="stations")
     if not simulated_stations:
-        stations = stations.filter(regex=r"\w{4}", axis=0)
+        stations = stations.filter(regex=r"^\w{4}$", axis=0)
         waveforms = waveforms[stations["waveform_index"]]
 
     intensity_measures = intensity_measure_parameters.ims
