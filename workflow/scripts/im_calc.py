@@ -28,6 +28,7 @@ For More Help
 See the output of `im-calc --help`.
 """
 
+import functools
 import gc
 import multiprocessing
 import sys
@@ -35,14 +36,17 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Callable, Optional
 
+import fast_konno_ohmachi as fko
 import h5py
 import numba
 import numexpr as ne
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import scipy as sp
 import tqdm
 import typer
+from pyfftw.interfaces import numpy_fft as fft
 
 from workflow import log_utils
 from workflow.realisations import (
@@ -415,6 +419,78 @@ def compute_significant_duration(
     return threshold_values.ravel()
 
 
+def generate_fa_spectrum(waveform: npt.NDArray, dt: float):
+    # RLL decided to put a more compact fft code here with proper normalization
+    # Currently no time domain taper is applied
+    n = len(waveform)
+    nfft = 2 ** int(np.ceil(np.log2(n)))
+    fa_spectrum = fft.rfft(waveform, n=nfft) * dt
+    fa_frequencies = fft.rfftfreq(nfft, dt)
+    return np.abs(fa_spectrum), fa_frequencies
+
+
+def compute_fas_single(
+    waveform: npt.NDArray[np.float32],
+    dt: float,
+    freq: npt.NDArray[np.float32],
+) -> npt.NDArray[np.float32]:
+    fa_spectrum, fa_frequencies = generate_fa_spectrum(waveform, dt)
+    smoothed = fko.fast_konno_ohmachi(fa_spectrum, fa_frequencies, smooth_coeff=20)
+    interpolator = sp.interpolate.interp1d(
+        fa_frequencies, smoothed, fill_value="extrapolate"
+    )
+    return interpolator(smoothed)
+
+
+def compute_fas(
+    stations: pd.Series,
+    waveforms: npt.NDArray[np.float32],
+    dt: float,
+    freqs: npt.NDArray[np.float32],
+    num_processes: int,
+) -> pd.DataFrame:
+    with multiprocessing.Pool(num_processes) as pool:
+        fas_0 = np.fromiter(
+            pool.imap(
+                functools.partial(compute_fas_single, dt=dt, freq=freqs),
+                waveforms[:, :, 1],
+            ),
+            dtype=np.float32,
+        )
+        fas_90 = np.fromiter(
+            pool.imap(
+                functools.partial(compute_fas_single, dt=dt, freq=freqs),
+                waveforms[:, :, 0],
+            ),
+            dtype=np.float32,
+        )
+        fas_ver = np.fromiter(
+            pool.imap(
+                functools.partial(compute_fas_single, dt=dt, freq=freqs),
+                waveforms[:, :, 2],
+            ),
+            dtype=np.float32,
+        )
+        fas_mean = np.sqrt(np.square(fas_0) + np.square(fas_90))
+        return pd.concat(
+            [
+                pd.DataFrame(
+                    {
+                        "station": stations,
+                        "intensity_measure": f"FAS_{freq:.2f}",
+                        "000": fas_0[:, i],
+                        "090": fas_90[:, i],
+                        "ver": fas_ver[:, i],
+                        "geom": np.nan,
+                        "rotd50": fas_mean,
+                        "rotd100": np.nan,
+                    }
+                )
+                for i, freq in enumerate(freqs)
+            ]
+        )
+
+
 @app.command(help="Calculate instensity measures for simulation data.")
 def calculate_instensity_measures(
     realisation_ffp: Annotated[
@@ -550,6 +626,16 @@ def calculate_instensity_measures(
                     * 1e9
                     if psa_rotd_maximum_memory_allocation
                     else None,
+                )
+            case "fas":
+                individual_intensity_measure_statistics = compute_fas(
+                    stations.index,
+                    waveforms,
+                    broadband_parameters.dt,
+                    np.array(
+                        intensity_measure_parameters.fas_frequencies, dtype=np.float32
+                    ),
+                    num_processes,
                 )
 
         intensity_measure_statistics = pd.concat(
