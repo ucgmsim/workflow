@@ -28,6 +28,7 @@ For More Help
 See the output of `im-calc --help`.
 """
 
+import gc
 import multiprocessing
 import sys
 from enum import StrEnum
@@ -197,6 +198,9 @@ def rotd_psa_values(
             ),
             [1, 2, 0],
         )
+
+    del out
+    gc.collect()  # This is required because Python's GC is too lazy to remove the out array when it should
     return w2[np.newaxis, :, np.newaxis] * psa
 
 
@@ -274,7 +278,7 @@ def compute_psa(
     comp_0_psa = conversion_factor * np.abs(comp_0).max(axis=1)
     comp_90_psa = conversion_factor * np.abs(comp_90).max(axis=1)
     ver_psa = conversion_factor * np.abs(
-        newmark_estimate_psa(waveforms[:, :, 0], t, dt, w)
+        newmark_estimate_psa(waveforms[:, :, 2], t, dt, w)
     ).max(axis=1)
     geom_psa = np.sqrt(comp_0_psa * comp_90_psa)
     return pd.concat(
@@ -475,6 +479,10 @@ def calculate_instensity_measures(
         waveforms = np.array(broadband_file["waveforms"])
 
     stations = pd.read_hdf(broadband_simulation_ffp, key="stations")
+    if not simulated_stations:
+        stations = stations.filter(regex=r"\w{4}", axis=0)
+        waveforms = waveforms[stations["waveform_index"]]
+
     intensity_measures = intensity_measure_parameters.ims
     intensity_measure_statistics = pd.DataFrame()
     pbar = tqdm.tqdm(intensity_measures)
