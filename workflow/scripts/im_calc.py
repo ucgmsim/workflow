@@ -561,20 +561,20 @@ def calculate_instensity_measures(
                     waveforms, lambda v: v.max(axis=1)
                 )
                 individual_intensity_measure_statistics["station"] = stations.index
-                individual_intensity_measure_statistics["intensity_measure"] = "pga"
+                individual_intensity_measure_statistics["intensity_measure"] = "PGA"
             case "pgv":
                 individual_intensity_measure_statistics = compute_in_rotations(
                     np.cumsum(waveforms, axis=1) * g * broadband_parameters.dt,
                     lambda v: v.max(axis=1),
                 )
                 individual_intensity_measure_statistics["station"] = stations.index
-                individual_intensity_measure_statistics["intensity_measure"] = "pgv"
+                individual_intensity_measure_statistics["intensity_measure"] = "PGV"
             case "cav":
                 individual_intensity_measure_statistics = compute_in_rotations(
                     waveforms, lambda v: trapz(v, broadband_parameters.dt)
                 )
                 individual_intensity_measure_statistics["station"] = stations.index
-                individual_intensity_measure_statistics["intensity_measure"] = "cav"
+                individual_intensity_measure_statistics["intensity_measure"] = "CAV"
             case "ai":
                 individual_intensity_measure_statistics = compute_in_rotations(
                     waveforms,
@@ -582,7 +582,7 @@ def calculate_instensity_measures(
                     component_wise_operation=ComponentWiseOperation.SQUARE,
                 )
                 individual_intensity_measure_statistics["station"] = stations.index
-                individual_intensity_measure_statistics["intensity_measure"] = "ai"
+                individual_intensity_measure_statistics["intensity_measure"] = "AI"
             case "ds575":
                 individual_intensity_measure_statistics = compute_in_rotations(
                     waveforms,
@@ -592,7 +592,7 @@ def calculate_instensity_measures(
                     component_wise_operation=ComponentWiseOperation.SQUARE,
                 )
                 individual_intensity_measure_statistics["station"] = stations.index
-                individual_intensity_measure_statistics["intensity_measure"] = "ds575"
+                individual_intensity_measure_statistics["intensity_measure"] = "Ds575"
             case "ds595":
                 individual_intensity_measure_statistics = compute_in_rotations(
                     waveforms,
@@ -602,7 +602,7 @@ def calculate_instensity_measures(
                     component_wise_operation=ComponentWiseOperation.SQUARE,
                 )
                 individual_intensity_measure_statistics["station"] = stations.index
-                individual_intensity_measure_statistics["intensity_measure"] = "ds595"
+                individual_intensity_measure_statistics["intensity_measure"] = "Ds595"
             case "psa":
                 individual_intensity_measure_statistics = compute_psa(
                     stations.index,
