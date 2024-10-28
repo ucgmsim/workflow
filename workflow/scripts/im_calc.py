@@ -450,16 +450,16 @@ def compute_fas(
     fa_spectrum = np.abs(np.fft.rfft(waveforms, n=n_fft, axis=1))
     smoother = pykooh.CachedSmoother(fa_frequencies, freqs, 40)
     with multiprocessing.Pool(num_processes) as pool:
-        fas_0 = np.fromiter(
-            pool.imap(smoother, fa_spectrum[:, :, 1]),
+        fas_0 = np.array(
+            pool.map(smoother, fa_spectrum[:, :, 1]),
             dtype=np.float32,
         )
-        fas_90 = np.fromiter(
-            pool.imap(smoother, fa_spectrum[:, :, 0]),
+        fas_90 = np.array(
+            pool.map(smoother, fa_spectrum[:, :, 0]),
             dtype=np.float32,
         )
-        fas_ver = np.fromiter(
-            pool.imap(smoother, fa_spectrum[:, :, 2]),
+        fas_ver = np.array(
+            pool.map(smoother, fa_spectrum[:, :, 2]),
             dtype=np.float32,
         )
     fas_mean = np.sqrt(np.square(fas_0) + np.square(fas_90))
