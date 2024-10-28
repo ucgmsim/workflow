@@ -43,7 +43,6 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pykooh
-import scipy as sp
 import tqdm
 import typer
 from pyfftw.interfaces import numpy_fft as fft
@@ -419,24 +418,6 @@ def compute_significant_duration(
     return threshold_values.ravel()
 
 
-def generate_fa_spectrum(waveform: npt.NDArray, dt: float):
-    # RLL decided to put a more compact fft code here with proper normalization
-    # Currently no time domain taper is applied
-    n = len(waveform)
-    nfft = 2 ** int(np.ceil(np.log2(n)))
-    fa_spectrum = fft.rfft(waveform, n=nfft) * dt
-    fa_frequencies = fft.rfftfreq(nfft, dt)
-    return np.abs(fa_spectrum), fa_frequencies
-
-
-def compute_fas_single(
-    waveform: npt.NDArray[np.float32], dt: float, smoother: Callable
-) -> npt.NDArray[np.float32]:
-    n = len(waveform)
-    fa_spectrum = np.abs(np.fft.rfft(waveform, n=2 ** int(np.ceil(np.log2(n)))) * dt)
-    return smoother(fa_spectrum)
-
-
 def compute_fas(
     stations: pd.Series,
     waveforms: npt.NDArray[np.float32],
@@ -444,28 +425,41 @@ def compute_fas(
     freqs: npt.NDArray[np.float32],
     num_processes: int,
 ) -> pd.DataFrame:
-    fa_frequencies = np.fft.rfftfreq(2 ** int(np.ceil(np.log2(waveforms.shape[1]))), dt)
+    """Compute fourier amplitude spectrum (FAS) of a seismic waveform.
+
+    Parameters
+    ----------
+    stations : pd.Series
+        Station information for each waveform entry.
+    waveforms : npt.NDArray[np.float32]
+        The waveform array.
+    dt : float
+        The timestep for the waveforms.
+    freqs : npt.NDArray[np.float32]
+        The frequencies to compute FAS for.
+    num_processes : int
+        The number of processes to compute FAS in parallel for.
+
+    Returns
+    -------
+    pd.DataFrame
+        A dataframe containing the FAS calculation for each station at each period.
+    """
+    n_fft = 2 ** int(np.ceil(np.log2(waveforms.shape[1])))
+    fa_frequencies = np.fft.rfftfreq(n_fft, dt)
+    fa_spectrum = np.abs(np.fft.rfft(waveforms, n=n_fft, axis=1))
     smoother = pykooh.CachedSmoother(fa_frequencies, freqs, 40)
     with multiprocessing.Pool(num_processes) as pool:
         fas_0 = np.fromiter(
-            pool.imap(
-                functools.partial(compute_fas_single, dt=dt, smoother=smoother),
-                waveforms[:, :, 1],
-            ),
+            pool.imap(smoother, fa_spectrum[:, :, 1]),
             dtype=np.float32,
         )
         fas_90 = np.fromiter(
-            pool.imap(
-                functools.partial(compute_fas_single, dt=dt, smoother=smoother),
-                waveforms[:, :, 0],
-            ),
+            pool.imap(smoother, fa_spectrum[:, :, 0]),
             dtype=np.float32,
         )
         fas_ver = np.fromiter(
-            pool.imap(
-                functools.partial(compute_fas_single, dt=dt, smoother=smoother),
-                waveforms[:, :, 2],
-            ),
+            pool.imap(smoother, fa_spectrum[:, :, 2]),
             dtype=np.float32,
         )
     fas_mean = np.sqrt(np.square(fas_0) + np.square(fas_90))
@@ -478,8 +472,8 @@ def compute_fas(
                     "000": fas_0[:, i],
                     "090": fas_90[:, i],
                     "ver": fas_ver[:, i],
-                    "geom": np.nan,
-                    "rotd50": fas_mean,
+                    "geom": fas_mean[:, i],
+                    "rotd50": np.nan,
                     "rotd100": np.nan,
                 }
             )
