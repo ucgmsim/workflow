@@ -28,7 +28,6 @@ For More Help
 See the output of `im-calc --help`.
 """
 
-import functools
 import gc
 import multiprocessing
 import sys
@@ -45,7 +44,6 @@ import pandas as pd
 import pykooh
 import tqdm
 import typer
-from pyfftw.interfaces import numpy_fft as fft
 
 from workflow import log_utils
 from workflow.realisations import (
@@ -463,7 +461,7 @@ def compute_fas(
             dtype=np.float32,
         )
     fas_mean = np.sqrt(np.square(fas_0) + np.square(fas_90))
-    return pd.concat(
+    fas_df = pd.concat(
         [
             pd.DataFrame(
                 {
@@ -473,13 +471,14 @@ def compute_fas(
                     "090": fas_90[:, i],
                     "ver": fas_ver[:, i],
                     "geom": fas_mean[:, i],
-                    "rotd50": np.nan,
-                    "rotd100": np.nan,
                 }
             )
             for i, freq in enumerate(freqs)
         ]
     )
+    fas_df["rotd50"] = np.nan
+    fas_df["rotd100"] = np.nan
+    return fas_df
 
 
 @app.command(help="Calculate instensity measures for simulation data.")
