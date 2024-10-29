@@ -149,6 +149,10 @@ def bb_simulate_station(
             version=broadband_config.site_amp_version,
         )
 
+        logger.info(f"HF {station_name} amplification factor {hf_amp_val}")
+        logger.info(
+            f"HF {station_name} max {hf_acc[:, c].max()} and min {hf_acc[:, c].min()}"
+        )
         hf_filtered = timeseries.bwfilter(
             timeseries.ampdeamp(
                 hf_acc[:, c],
@@ -159,18 +163,31 @@ def bb_simulate_station(
             broadband_config.flo,
             "highpass",
         )
+        logger.info(
+            f"station {station_name} HF filtered and amplified max {hf_filtered[:, c].max()} and min {hf_filtered[:, c].min()}"
+        )
+        logger.info(
+            f"station {station_name} LF max {lf_acc[:, c].max()} and min {lf_acc[:, c].min()}"
+        )
         lf_filtered = timeseries.bwfilter(
             lf_acc[:, c],
             broadband_config.dt,
             broadband_config.flo,
             "lowpass",
         )
+        logger.info(
+            f"station {station_name} LF filtered max {lf_filtered[:, c].max()} and min {lf_filtered[:, c].min()}"
+        )
         hf_c = np.pad(hf_filtered, hf_padding)
         lf_c = np.pad(lf_filtered, lf_padding)
         print(
             station_name, ((hf_c + lf_c) / 981.0).max(), ((hf_c + lf_c) / 981.0).min()
         )
-        bb_acc.append((hf_c + lf_c) / 981.0)
+        bb_comp = (hf_c + lf_c) / 981.0
+        logger.info(
+            f"station {station_name} broadband max: {bb_comp.max()}, min: {bb_comp.min()}"
+        )
+        bb_acc.append(bb_comp)
 
     return np.array(bb_acc).T.astype(np.float32)
 
