@@ -32,7 +32,6 @@ Usage
 
 import functools
 import multiprocessing
-import os
 from pathlib import Path
 from typing import Annotated
 
@@ -62,7 +61,6 @@ app = typer.Typer()
         "lf_padding",
         "broadband_config",
         "n2",
-        "work_directory",
     },
     include_result=False,
 )
@@ -73,7 +71,6 @@ def bb_simulate_station(
     lf_padding: tuple[int, int],
     broadband_config: BroadbandParameters,
     n2: float,
-    work_directory: Path,
     station_name: str,
     station: pd.Series,
 ):
@@ -214,16 +211,6 @@ def combine_hf_and_lf(
             help="Path to output broadband file.", dir_okay=False, writable=True
         ),
     ],
-    work_directory: Annotated[
-        Path,
-        typer.Option(
-            help="Intermediate work directory for broadband output.",
-            file_okay=False,
-            dir_okay=True,
-            exists=True,
-            writable=True,
-        ),
-    ] = Path("/tmp"),
     num_processes: Annotated[
         int,
         typer.Option(
@@ -350,7 +337,6 @@ def combine_hf_and_lf(
                         lf_padding,
                         broadband_config,
                         n2,
-                        work_directory,
                     ),
                     stations.iterrows(),
                 )
