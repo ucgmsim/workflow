@@ -1,5 +1,4 @@
 # visualization @ git+https://github.com/ucgmsim/visualization
-IM_calc @ git+https://github.com/ucgmsim/IM_calculation@cylc
 empirical @ git+https://github.com/ucgmsim/Empirical_Engine
 fastparquet
 fiona
@@ -11,6 +10,7 @@ numba
 numexpr
 numpy<2
 openquake-engine @ git+https://github.com/gem/oq-engine
+pykooh
 pandas
 printree
 pyarrow
