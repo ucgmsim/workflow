@@ -108,13 +108,7 @@ def bb_simulate_station(
         VS30 value for the station site.
     """
     hf = h5py.File(hf_path)
-    output_bb_file = work_directory / f"{station_name}.bb"
     # we expected waveform files to have size n_components (3) * float size (4) * number of padded timesteps.
-    expected_bb_size = 12 * (
-        lf_padding[0] + round(lf.duration / broadband_config.dt) + lf_padding[1]
-    )
-    if output_bb_file.exists() and os.stat(output_bb_file).st_size == expected_bb_size:
-        return
     station_vs = station["vs"]
     station_vs30 = station["vs30"]
     lf_acc = np.copy(lf.acc(station_name, dt=broadband_config.dt))
@@ -149,10 +143,6 @@ def bb_simulate_station(
             version=broadband_config.site_amp_version,
         )
 
-        logger.info(f"HF {station_name} amplification factor {hf_amp_val}")
-        logger.info(
-            f"HF {station_name} max {hf_acc[:, c].max()} and min {hf_acc[:, c].min()}"
-        )
         hf_filtered = timeseries.bwfilter(
             timeseries.ampdeamp(
                 hf_acc[:, c],
@@ -163,30 +153,20 @@ def bb_simulate_station(
             broadband_config.flo,
             "highpass",
         )
-        logger.info(
-            f"station {station_name} HF filtered and amplified max {hf_filtered.max()} and min {hf_filtered.min()}"
-        )
-        logger.info(
-            f"station {station_name} LF max {lf_acc[:, c].max()} and min {lf_acc[:, c].min()}"
-        )
         lf_filtered = timeseries.bwfilter(
             lf_acc[:, c],
             broadband_config.dt,
             broadband_config.flo,
             "lowpass",
         )
-        logger.info(
-            f"station {station_name} LF filtered max {lf_filtered.max()} and min {lf_filtered.min()}"
-        )
+
         hf_c = np.pad(hf_filtered, hf_padding)
         lf_c = np.pad(lf_filtered, lf_padding)
         print(
             station_name, ((hf_c + lf_c) / 981.0).max(), ((hf_c + lf_c) / 981.0).min()
         )
         bb_comp = (hf_c + lf_c) / 981.0
-        logger.info(
-            f"station {station_name} broadband max: {bb_comp.max()}, min: {bb_comp.min()}"
-        )
+
         bb_acc.append(bb_comp)
 
     return np.array(bb_acc).T.astype(np.float32)
@@ -348,7 +328,7 @@ def combine_hf_and_lf(
     )
     stations["waveform_index"] = np.arange(len(stations))
     # ensure that LF and HF agree on station list, sometimes LF can drop a station or two
-    stations = stations.loc[lf.stations["name"]]
+    stations = stations.loc[lf.stations.index]
 
     station_vs30 = pd.read_csv(
         station_vs30_ffp,
