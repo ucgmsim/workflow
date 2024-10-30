@@ -397,6 +397,8 @@ def combine_hf_and_lf(
         waveforms_dset.dims[2].label = "vertical"
 
     stations["name"] = stations.index
+    # The waveform index referred to the waveform index in HF, we want to update this to refer to the index in broadband!
+    stations["waveform_index"] = np.arange(len(stations))
     stations["x"] = lf.stations.x
     stations["y"] = lf.stations.y
     stations["z"] = lf.stations.z
