@@ -18,7 +18,7 @@ pytest
 pyvis
 pyvista
 pyyaml
-qcore @ git+https://github.com/ucgmsim/qcore@pegasus
+qcore @ git+https://github.com/ucgmsim/qcore
 schema
 scipy
 shapely
