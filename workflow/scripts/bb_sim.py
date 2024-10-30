@@ -164,7 +164,7 @@ def bb_simulate_station(
             "highpass",
         )
         logger.info(
-            f"station {station_name} HF filtered and amplified max {hf_filtered[:, c].max()} and min {hf_filtered[:, c].min()}"
+            f"station {station_name} HF filtered and amplified max {hf_filtered.max()} and min {hf_filtered.min()}"
         )
         logger.info(
             f"station {station_name} LF max {lf_acc[:, c].max()} and min {lf_acc[:, c].min()}"
@@ -176,7 +176,7 @@ def bb_simulate_station(
             "lowpass",
         )
         logger.info(
-            f"station {station_name} LF filtered max {lf_filtered[:, c].max()} and min {lf_filtered[:, c].min()}"
+            f"station {station_name} LF filtered max {lf_filtered.max()} and min {lf_filtered.min()}"
         )
         hf_c = np.pad(hf_filtered, hf_padding)
         lf_c = np.pad(lf_filtered, lf_padding)
@@ -234,6 +234,24 @@ def combine_hf_and_lf(
             help="Path to output broadband file.", dir_okay=False, writable=True
         ),
     ],
+    work_directory: Annotated[
+        Path,
+        typer.Option(
+            help="Intermediate work directory for broadband output.",
+            file_okay=False,
+            dir_okay=True,
+            exists=True,
+            writable=True,
+        ),
+    ] = Path("/tmp"),
+    num_processes: Annotated[
+        int,
+        typer.Option(
+            help="Number of processes to execute with.",
+            min=1,
+            max=multiprocessing.cpu_count(),
+        ),
+    ] = multiprocessing.cpu_count(),
 ):
     """Combine low-frequency and high-frequency seismic waveforms.
 
@@ -340,7 +358,7 @@ def combine_hf_and_lf(
     ).set_index("name")
     stations = stations.join(station_vs30, how="inner")
 
-    with multiprocessing.Pool() as pool:
+    with multiprocessing.Pool(num_processes) as pool:
         waveforms_raw = np.array(
             list(
                 pool.starmap(
