@@ -481,6 +481,25 @@ def compute_fas(
     return fas_df
 
 
+@numba.njit(parallel=True)
+def cav_integrate(
+    waveform: npt.NDArray[np.float32], dt: float
+) -> npt.NDArray[np.float32]:
+    """Compute the Cumulative Absolute Velocity (CAV) of a waveform."""
+    cav = np.zeros((waveform.shape[0],), dtype=np.float32)
+    for i in range(waveform.shape[0]):
+        for j in range(waveform.shape[1] - 1):
+            if np.sign(waveform[i, j]) * np.sign(waveform[i, j + 1]) >= 0:
+                cav[i] += dt / 2 * (np.abs(waveform[i, j]) + np.abs(waveform[i, j + 1]))
+            else:
+                slope = (waveform[i, j + 1] - waveform[i, j]) / dt
+                x0 = -waveform[i, j] / slope
+                cav[i] += x0 / 2 * np.abs(waveform[i, j]) + (dt - x0) / 2 * np.abs(
+                    waveform[i, j + 1]
+                )
+    return cav
+
+
 @app.command(help="Calculate instensity measures for simulation data.")
 def calculate_instensity_measures(
     realisation_ffp: Annotated[
@@ -571,7 +590,7 @@ def calculate_instensity_measures(
                 individual_intensity_measure_statistics["intensity_measure"] = "PGV"
             case "cav":
                 individual_intensity_measure_statistics = compute_in_rotations(
-                    waveforms, lambda v: trapz(v, broadband_parameters.dt)
+                    waveforms, lambda v: cav_integrate(v, broadband_parameters.dt)
                 )
                 individual_intensity_measure_statistics["station"] = stations.index
                 individual_intensity_measure_statistics["intensity_measure"] = "CAV"
