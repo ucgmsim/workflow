@@ -590,7 +590,7 @@ def calculate_instensity_measures(
                 individual_intensity_measure_statistics["intensity_measure"] = "PGV"
             case "cav":
                 individual_intensity_measure_statistics = compute_in_rotations(
-                    waveforms, lambda v: cav_integrate(v, broadband_parameters.dt)
+                    waveforms, lambda v: cav_integrate(v, broadband_parameters.dt), component_wise_operation=ComponentWiseOperation.NONE
                 )
                 individual_intensity_measure_statistics["station"] = stations.index
                 individual_intensity_measure_statistics["intensity_measure"] = "CAV"
