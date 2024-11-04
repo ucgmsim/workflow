@@ -3,7 +3,7 @@ name: Deptry Dependency Check
 on: [pull_request]
 
 jobs:
-  deptry:
+  dependencies:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -13,7 +13,15 @@ jobs:
           python-version: "3.11"
       # Install deptry
       - run: pip install deptry
+      # Remove testing related packages
+      - run: sed -e '/hypothesis*/d' -e '/pytest*/d' -i requirements.txt
+      # Install all other packages
+      - run: pip install -r requirements.txt
       # Remove pyproject.toml so that deptry doesn't get confused
       - run: rm pyproject.toml
+      # Remove the pytest modules because they are for testing only.
+      - run: sed -i -e '/pytest/d' -e '/hypothesis/d' -e '/diffimg/d' requirements.txt
+      # Install requirements
+      - run: pip install -r requirements.txt
       # Run deptry to check that all dependencies are present.
-      - run: deptry .
+      - run: deptry . --per-rule-ignores "DEP001=workflow,DEP002=workflow,DEP003=workflow"

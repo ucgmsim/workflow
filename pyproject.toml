@@ -7,9 +7,9 @@ name = "workflow"
 authors = [
     {name = "QuakeCoRE" },
 ]
-description = "Next generation workflow for type-5 and Pegasus simulations."
+description = "Next generation workflow powered by cylc."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 dynamic = ["version", "dependencies"]
 
 [project.scripts]
