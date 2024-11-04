@@ -25,7 +25,6 @@ For More Help
 See the output of `generate-stoch --help` or `workflow.scripts.generate_stoch`.
 """
 
-import subprocess
 from pathlib import Path
 from typing import Annotated
 

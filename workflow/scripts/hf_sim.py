@@ -288,7 +288,6 @@ def run_hf(
         waveforms_dset = output_h5py.create_dataset(
             "waveforms", shape=(len(stations), nt, 3), dtype=np.float32
         )
-        logger = log_utils.get_logger(__name__)
         for i, station in stations.iterrows():
             station_file_path = work_directory / f"{station['name']}.hf"
             with open(station_file_path, mode="rb") as station_file_data:

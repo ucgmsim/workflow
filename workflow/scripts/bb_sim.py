@@ -114,6 +114,7 @@ def bb_simulate_station(
         int(round(hf.attrs["duration"] / broadband_config.dt)),
     )
     logger = log_utils.get_logger(__name__)
+
     if np.isnan(lf_acc).any():
         logger.error(
             log_utils.structured_log("Station LF had NaN waveform", station=station)
@@ -159,9 +160,6 @@ def bb_simulate_station(
 
         hf_c = np.pad(hf_filtered, hf_padding)
         lf_c = np.pad(lf_filtered, lf_padding)
-        print(
-            station_name, ((hf_c + lf_c) / 981.0).max(), ((hf_c + lf_c) / 981.0).min()
-        )
         bb_comp = (hf_c + lf_c) / 981.0
 
         bb_acc.append(bb_comp)
@@ -285,6 +283,7 @@ def combine_hf_and_lf(
         )
     )
 
+
     if (
         lf_start_padding + round(lf.duration / broadband_config.dt) + lf_end_padding
         != hf_start_padding
@@ -294,7 +293,6 @@ def combine_hf_and_lf(
         raise ValueError("HF and LF padded timesteps do not align.")
     lf_padding = (lf_start_padding, lf_end_padding)
     hf_padding = (hf_start_padding, hf_end_padding)
-
     bb_nt = int(
         lf_start_padding + round(lf.duration / broadband_config.dt) + lf_end_padding
     )
