@@ -6,7 +6,7 @@ import pandas as pd
 import requests
 import typer
 
-from source_modelling import ccldpy, sources, community_fault_model
+from source_modelling import ccldpy, community_fault_model, sources
 from source_modelling.community_fault_model import NodalPlane
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import (
@@ -16,7 +16,7 @@ from workflow.realisations import (
 )
 
 MOMENT_TENSOR_SOLUTION_URL = "https://raw.githubusercontent.com/GeoNet/data/main/moment-tensor/GeoNet_CMT_solutions.csv"
-AUTOMATED_TENSOR_URL = 'https://gcmt-realtime-database-default-rtdb.asia-southeast1.firebasedatabase.app/c059adc9c34b9b1c77a3bfc04e4059ea/earthquakes.json'
+AUTOMATED_TENSOR_URL = "https://gcmt-realtime-database-default-rtdb.asia-southeast1.firebasedatabase.app/c059adc9c34b9b1c77a3bfc04e4059ea/earthquakes.json"
 NAN_PUBLIC_ID = "9999999"
 app = typer.Typer()
 
@@ -59,25 +59,33 @@ def gcmt_to_realisation(
 
     if gcmt_event_id in gcmt_solutions.index:
         solution = gcmt_solutions.loc[gcmt_event_id]
-        latitude = solution['Latitude']
-        longitude = solution['Longitude']
-        centroid_depth = solution['CD']
-        magnitude = solution['Mw']
-        nodal_plane_1 = NodalPlane(solution['strike1'], solution['dip1'], solution['rake1'])
-        nodal_plane_2 = NodalPlane(solution['strike2'], solution['dip2'], solution['rake2'])
+        latitude = solution["Latitude"]
+        longitude = solution["Longitude"]
+        centroid_depth = solution["CD"]
+        magnitude = solution["Mw"]
+        nodal_plane_1 = NodalPlane(
+            solution["strike1"], solution["dip1"], solution["rake1"]
+        )
+        nodal_plane_2 = NodalPlane(
+            solution["strike2"], solution["dip2"], solution["rake2"]
+        )
     elif gcmt_event_id in automated_gcmt_solutions:
-        solution = gcmt_solutions.loc[gcmt_event_id]
-        latitude = solution['location']['latitude']
-        longitude = solution['location']['longitude']
-        centroid_depth = solution['location']['depth']
-        magnitude = solution['maginute']
-        nodal_plane_1 = NodalPlane(**solution['nodalPlanes'][0])
-        nodal_plane_2 = NodalPlane(**solution['nodalPlanes'][1])
+        solution = automated_gcmt_solutions[gcmt_event_id]
+        latitude = solution["location"]["latitude"]
+        longitude = solution["location"]["longitude"]
+        centroid_depth = solution["location"]["depth"]
+        magnitude = solution["magnitude"]
+        nodal_plane_1 = NodalPlane(**solution["nodalPlanes"][0])
+        nodal_plane_2 = NodalPlane(**solution["nodalPlanes"][1])
     else:
-        raise typer.Abort(f"GCMT event ID {gcmt_event_id} not found in either the published GCMT solutions or automated solutions.")
+        raise typer.Abort(
+            f"GCMT event ID {gcmt_event_id} not found in either the published GCMT solutions or automated solutions."
+        )
 
     model = community_fault_model.get_community_fault_model()
-    selected_nodal_plane = community_fault_model.most_likely_nodal_plane(model, np.array([latitude, longitude]), nodal_plane_1, nodal_plane_2)
+    selected_nodal_plane = community_fault_model.most_likely_nodal_plane(
+        model, np.array([latitude, longitude]), nodal_plane_1, nodal_plane_2
+    )
 
     # Get a likely rupture using CCLDpy
     _, ccld_selected_rupture = ccldpy.simulate_rupture_surface(
@@ -92,7 +100,7 @@ def gcmt_to_realisation(
         [334, 333, 333, 111, 111, 111, 0],
         strike=selected_nodal_plane.strike,
         dip=selected_nodal_plane.dip,
-        rake=selected_nodal_plane.rake
+        rake=selected_nodal_plane.rake,
     )
     ccld_selected_rupture = ccld_selected_rupture.iloc[0]
     corners = np.array(
