@@ -15,7 +15,7 @@
         {% endfor -%}
         {% endfor -%}
         """
-    {% include target_host + 'queue.cylc' -%}
+    {% include target_host + '/queue.cylc' -%}
 [runtime]
     {% include target_host + '/root.cylc' %}
     {% for stage, next_stages in workflow_plan.items() -%}
