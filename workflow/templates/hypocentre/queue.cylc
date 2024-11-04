@@ -1,4 +1,3 @@
-[scheduling]
         [[queues]]
                 [[[large_job]]]
                         limit = 1
