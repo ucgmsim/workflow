@@ -82,6 +82,7 @@ GROUP_STAGES = {
         StageIdentifier.SRFGeneration,
         StageIdentifier.EMOD3DParameters,
         StageIdentifier.NSHMToRealisation,
+        StageIdentifier.GCMTToRealisation,
         StageIdentifier.StochGeneration,
         StageIdentifier.CopyDomainParameters,
     },
@@ -601,7 +602,7 @@ def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
                 Stage(StageIdentifier.SRFGeneration, event, sample)
             ],
             Stage(StageIdentifier.SRFGeneration, event, sample): [
-                StageIdentifier.CheckSRF
+                Stage(StageIdentifier.CheckSRF, event, sample)
             ],
             Stage(StageIdentifier.CheckSRF, event, sample): [
                 Stage(StageIdentifier.StochGeneration, event, sample),
@@ -874,7 +875,9 @@ def build_filetree(files: set[AnnotatedPath]) -> dict[str, Any]:
 def plan_workflow(
     realisation_ids: Annotated[
         list[str],
-        typer.Argument(help="List of realisations to generate workflows for."),
+        typer.Argument(
+            help="List of realisations to generate workflows for. Realisations have the format event:realisation_count, such as Darfield:4."
+        ),
     ],
     flow_file: Annotated[
         Path,
@@ -889,47 +892,48 @@ def plan_workflow(
         typer.Option(
             help="List of workflow outputs to generate",
             default_factory=lambda: [],
+            rich_help_panel='Planning Workflows'
         ),
     ],
     group_goal: Annotated[
         list[GroupIdentifier],
         typer.Option(
-            help="List of group goals to generate", default_factory=lambda: []
+            help="List of group goals to generate", default_factory=lambda: [], rich_help_panel='Planning Workflows'
         ),
     ],
     excluding: Annotated[
         list[StageIdentifier],
-        typer.Option(help="List of stages to exclude", default_factory=lambda: []),
+        typer.Option(help="List of stages to exclude", default_factory=lambda: [], rich_help_panel='Planning Workflows'),
     ],
     excluding_group: Annotated[
         list[GroupIdentifier],
         typer.Option(
-            help="List of stage groups to exclude", default_factory=lambda: []
+            help="List of stage groups to exclude", default_factory=lambda: [], rich_help_panel='Planning Workflows'
         ),
     ],
     visualise: Annotated[
-        bool, typer.Option(help="Visualise the planned workflow as a graph")
+        bool, typer.Option(help="Visualise the planned workflow as a graph", rich_help_panel='Visualising Workflows')
     ] = False,
     show_required_files: Annotated[
         bool,
         typer.Option(
-            help="Print the expected directory tree at the start of the simulation."
+            help="Print the expected directory tree at the start of the simulation.", rich_help_panel='Visualising Workflows'
         ),
     ] = True,
     target_host: Annotated[
         WorkflowTarget,
-        typer.Option(help="Select the target host where the workflow will be run"),
+        typer.Option(help="Select the target host where the workflow will be run", rich_help_panel='Planning Workflows'),
     ] = WorkflowTarget.NeSI,
     source: Annotated[
         Optional[Source],
         typer.Option(
-            help="If given, set the source of the realisation. For NSHM and GCMT, the realisation id corresponds to the rupture id and GCMT PublicID respectively."
+            help="If given, set the source of the realisation. For NSHM and GCMT, the realisation id corresponds to the rupture id and GCMT PublicID respectively.", rich_help_panel='Sources'
         ),
     ] = None,
     defaults_version: Annotated[
         Optional[DefaultsVersion],
         typer.Option(
-            help="The simulation defaults to apply for all realisations. Required if source is specified."
+            help="The simulation defaults to apply for all realisations. Required if source is specified.", rich_help_panel='Sources'
         ),
     ] = None,
 ):
@@ -977,7 +981,6 @@ def plan_workflow(
     excluding_set |= set.union(
         *excluding_source_map.values()
     ) - excluding_source_map.get(source, set())
-
     workflow_plan = create_abstract_workflow_plan(realisations, goal_set, excluding_set)
     env = jinja2.Environment(
         loader=jinja2.PackageLoader("workflow"),
@@ -987,7 +990,13 @@ def plan_workflow(
         defaults_version=defaults_version,
         realisations=realisations,
         target_host=target_host,
-        workflow_plan=nx.to_dict_of_lists(workflow_plan),
+        workflow_plan={
+            node: sorted(dependents, key=lambda stage: stage_to_node_string(stage))
+            for node, dependents in sorted(
+                nx.to_dict_of_lists(workflow_plan).items(),
+                key=lambda kv: stage_to_node_string(kv[0]),
+            )
+        },
     )
     flow_file.write_text(
         # strip empty lines from the output flow template
