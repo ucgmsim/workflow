@@ -61,7 +61,7 @@ def gcmt_auto_simulate(
     nz_polygon = get_nz_outline_polygon()
     solutions_to_simulate = [
         gcmt_id
-        for gcmt_id, solution in updated_gcmt_solutions
+        for gcmt_id, solution in updated_gcmt_solutions.items()
         if gcmt_id not in old_gcmt_solutions
         and solution["magnitude"] >= 4
         and solution["location"]["depth"] <= 60
