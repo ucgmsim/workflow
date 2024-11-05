@@ -52,7 +52,7 @@ def gcmt_auto_simulate(
     ],
 ):
     """Automatically simulate GCMT solutions that are new and within 30 km of New Zealand."""
-    updated_gcmt_solutions = requests.get(GCMT_SOLUTIONS_JSON).json()
+    updated_gcmt_solutions = requests.get(gcmt_solutions_url).json()
     if old_gcmt_solutions_path.exists():
         with open(old_gcmt_solutions_path) as old_gcmt_solutions_handle:
             old_gcmt_solutions = json.load(old_gcmt_solutions_handle)
