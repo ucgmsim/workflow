@@ -32,6 +32,7 @@ im-calc = "workflow.scripts.im_calc:app"
 check-srf = "workflow.scripts.check_srf:app"
 check-domain = "workflow.scripts.check_domain:app"
 plan-workflow = "workflow.scripts.plan_workflow:app"
+gcmt-auto-simulate = "workflow.scripts.gcmt_auto_simulate:app"
 
 [tool.setuptools.package-dir]
 workflow = "workflow"
