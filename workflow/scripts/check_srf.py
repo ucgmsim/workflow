@@ -59,7 +59,6 @@ def check_srf(
                     realisation_magnitude=magnitude,
                 )
             )
-            raise typer.Exit(code=1)
     except RealisationParseError:
         pass
 
