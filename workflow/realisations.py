@@ -206,7 +206,7 @@ class RealisationConfiguration(ABC):
                 realisation_configuration = json.load(realisation_file_handle)
         realisation_configuration.update({self._config_key: self.to_dict()})
         with open(realisation_ffp, "w", encoding="utf-8") as realisation_file_handle:
-            json.dump(realisation_configuration, realisation_file_handle)
+            json.dump(realisation_configuration, realisation_file_handle, indent=4)
 
 
 @dataclasses.dataclass
