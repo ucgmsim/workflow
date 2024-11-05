@@ -34,7 +34,6 @@ import geopandas as gpd
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import scipy as sp
 import shapely
 import typer
 from shapely import Polygon
@@ -85,72 +84,6 @@ def get_nz_outline_polygon() -> Polygon:
     north_island = north_island.simplify(100)
     return shapely.union(south_island, north_island)
 
-
-def find_rrup(pgv_target: float, magnitude: float, avg_dip: float, avg_rake: float) -> float:
-    """Find rrup at which pgv estimated from magnitude is close to target.
-
-    Estimates rrup by calculating the rrup value that produces an
-    estimated PGV value when measured from a site rrup distance
-    away. The pgv -> rrup estimation comes from Chiou and Young (2014) [0].
-
-    Parameters
-    ----------
-    magnitude : float
-        The magnitude of the rupture.
-    avg_dip : float
-        The average dip of the faults involved.
-    avg_rake : float
-        The average rake of the faults involved.
-
-    Returns
-    -------
-    float
-        The inverse calculated rrup.
-
-    References
-    ----------
-    [0]: Chiou BS-J, Youngs RR. Update of the Chiou and Youngs NGA Model for the Average Horizontal Component of Peak Ground Motion and Response Spectra. Earthquake Spectra. 2014;30(3):1117-1153.
-    """
-
-    def pgv_delta_from_rrup(rrup: float):
-        vs30 = 500
-        oq_dataframe = pd.DataFrame.from_dict(
-            {
-                "vs30": [vs30],
-                "vs30measured": [False],
-                "z1pt0": [z_model_calculations.chiou_young_08_calc_z1p0(vs30) * 1000],
-                "dip": [avg_dip],
-                "rake": [avg_rake],
-                "mag": [magnitude],
-                "ztor": [0],
-                "rrup": [rrup],
-                "rx": [rrup],
-                "rjb": [rrup],
-            }
-        )
-        # NOTE: I am assuming here that openquake returns PGV in
-        # log-space. This is based on the fact that it does this for
-        # PGA in this model (check the CY14_Italy_MEAN.csv test data
-        # and compare the expected PGA with the PGA you calculate from
-        # oq_run without exponentiation and you'll see this is true).
-        pgv = np.exp(
-            openquake.oq_run(
-                GMM.CY_14,
-                TectType.ACTIVE_SHALLOW,
-                oq_dataframe,
-                "PGV",
-            )["PGV_mean"].iloc[0]
-        )
-        return np.abs(pgv - pgv_target)
-
-    rrup_optimise_result = sp.optimize.minimize_scalar(
-        pgv_delta_from_rrup, bounds=(0, 1e4)
-    )
-    rrup = rrup_optimise_result.x
-    pgv_delta = rrup_optimise_result.fun
-    if pgv_delta > 1e-4:
-        raise ValueError("Failed to converge on rrup optimisation.")
-    return rrup
 
 
 def estimate_simulation_duration(
@@ -321,16 +254,8 @@ def generate_velocity_model_parameters(
 
     rupture_magnitude = total_magnitude(np.array(list(magnitudes.values())))
 
-    rakes = rupture_propagation.rakes
-    pgv_target = np.interp(rupture_magnitude, velocity_model_parameters.pgv_interpolants[:, 0], velocity_model_parameters.pgv_interpolants[:, 1])
-
     rrups = {
-        fault_name: find_rrup(
-            pgv_target,
-            magnitudes[fault_name],
-            rupture_propagation.magnitudes[fault_name],
-            rakes[fault_name],
-        )
+        fault_name: np.interp(magnitudes[fault_name], velocity_model_parameters.rrup_interpolants[:, 0], velocity_model_parameters.rrup_interpolants[:, 1])
         for fault_name, fault in source_config.source_geometries.items()
     }
     logger = log_utils.get_logger(__name__)

@@ -403,7 +403,7 @@ class VelocityModelParameters(RealisationConfiguration):
     """The reference vs30 value for duration estimation."""
     s_wave_velocity: float
     """The s-wave velocity."""
-    pgv_interpolants: npt.NDArray[np.float32]
+    rrup_interpolants: npt.NDArray[np.float32]
     """PGV interpolation nodes between rupture magnitude and PGV target values."""
 
     def to_dict(self) -> dict:
@@ -416,7 +416,7 @@ class VelocityModelParameters(RealisationConfiguration):
             Dictionary representation of the object.
         """
         _dict = dataclasses.asdict(self)
-        _dict["pgv_interpolants"] = _dict["pgv_interpolants"].tolist()
+        _dict["rrup_interpolants"] = _dict["rrup_interpolants"].tolist()
         return _dict
 
 
