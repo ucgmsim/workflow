@@ -16,6 +16,7 @@ from typing import Any, ClassVar, Literal, Optional, Self, Union
 
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 from schema import Schema
 from velocity_modelling.bounding_box import BoundingBox
 
@@ -417,6 +418,41 @@ class VelocityModelParameters(RealisationConfiguration):
         """
         _dict = dataclasses.asdict(self)
         _dict["rrup_interpolants"] = _dict["rrup_interpolants"].tolist()
+        return _dict
+
+
+@dataclasses.dataclass
+class VelocityModel1D(RealisationConfiguration):
+    """1D Velocity Model for SRF and HF."""
+
+    _config_key: ClassVar[str] = "velocity_model_1d"
+    _schema: ClassVar[Schema] = schemas.VELOCITY_MODEL_1D_SCHEMA
+
+    model: pd.DataFrame
+
+    def write_velocity_model(self, velocity_model_path: Path):
+        """Write a 1D velocity model to the specified path.
+
+        Parameters
+        ----------
+        velocity_model_path : Path
+            The path to write the 1D velocity model.
+        """
+        with open(velocity_model_path, "w") as velocity_model:
+            velocity_model.write(f"{len(self.model)}\n")
+            self.model.to_csv(velocity_model, header=False, index=False, sep=" ")
+
+    def to_dict(self) -> dict:
+        """
+        Convert the object to a dictionary representation.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the object.
+        """
+        _dict = dataclasses.asdict(self)
+        _dict["model"] = _dict["model"].to_dict("records")
         return _dict
 
 

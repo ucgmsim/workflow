@@ -139,6 +139,213 @@ bb:
   fmidbot: 0.5
   fmin: 0.25
   site_amp_version: "2014"
+
+velocity_model_1d:
+  model:
+    - thickness: 0.0500
+      Vp: 1.8000
+      Vs: 0.3800
+      rho: 1.8100
+      Qp: 38.00
+      Qs: 19.00
+    - thickness: 0.0500
+      Vp: 1.8000
+      Vs: 0.4800
+      rho: 1.8100
+      Qp: 48.00
+      Qs: 24.00
+    - thickness: 0.0500
+      Vp: 1.8000
+      Vs: 0.5800
+      rho: 1.8100
+      Qp: 58.00
+      Qs: 29.00
+    - thickness: 0.0500
+      Vp: 1.8000
+      Vs: 0.6800
+      rho: 1.8100
+      Qp: 68.00
+      Qs: 34.00
+    - thickness: 0.1000
+      Vp: 1.8000
+      Vs: 0.7500
+      rho: 1.8100
+      Qp: 75.00
+      Qs: 37.50
+    - thickness: 0.1000
+      Vp: 1.8000
+      Vs: 0.8300
+      rho: 1.8100
+      Qp: 83.00
+      Qs: 41.50
+    - thickness: 0.2000
+      Vp: 1.9000
+      Vs: 0.9000
+      rho: 1.8600
+      Qp: 90.00
+      Qs: 45.00
+    - thickness: 0.2000
+      Vp: 2.0300
+      Vs: 1.0000
+      rho: 1.9200
+      Qp: 100.00
+      Qs: 50.00
+    - thickness: 0.2000
+      Vp: 2.1400
+      Vs: 1.0500
+      rho: 1.9700
+      Qp: 105.00
+      Qs: 52.50
+    - thickness: 0.2000
+      Vp: 2.2000
+      Vs: 1.1000
+      rho: 1.9900
+      Qp: 110.00
+      Qs: 55.00
+    - thickness: 0.2000
+      Vp: 2.4000
+      Vs: 1.1500
+      rho: 2.0600
+      Qp: 115.00
+      Qs: 57.50
+    - thickness: 0.2000
+      Vp: 2.7000
+      Vs: 1.2000
+      rho: 2.1500
+      Qp: 120.00
+      Qs: 60.00
+    - thickness: 0.2000
+      Vp: 3.0000
+      Vs: 1.4300
+      rho: 2.2200
+      Qp: 143.00
+      Qs: 71.50
+    - thickness: 0.2000
+      Vp: 3.2700
+      Vs: 1.6400
+      rho: 2.2800
+      Qp: 164.00
+      Qs: 82.00
+    - thickness: 0.2000
+      Vp: 3.5300
+      Vs: 1.8600
+      rho: 2.3200
+      Qp: 186.00
+      Qs: 93.00
+    - thickness: 0.2000
+      Vp: 3.8000
+      Vs: 2.0700
+      rho: 2.3600
+      Qp: 207.00
+      Qs: 103.50
+    - thickness: 0.2000
+      Vp: 4.0700
+      Vs: 2.2800
+      rho: 2.4000
+      Qp: 228.00
+      Qs: 114.00
+    - thickness: 0.2000
+      Vp: 4.3300
+      Vs: 2.4900
+      rho: 2.4400
+      Qp: 249.00
+      Qs: 124.50
+    - thickness: 0.2000
+      Vp: 4.6000
+      Vs: 2.7000
+      rho: 2.4800
+      Qp: 270.00
+      Qs: 135.00
+    - thickness: 0.2000
+      Vp: 4.7100
+      Vs: 2.7700
+      rho: 2.4900
+      Qp: 277.00
+      Qs: 138.50
+    - thickness: 0.2000
+      Vp: 4.8200
+      Vs: 2.8400
+      rho: 2.5100
+      Qp: 284.00
+      Qs: 142.00
+    - thickness: 0.2000
+      Vp: 4.9300
+      Vs: 2.9100
+      rho: 2.5200
+      Qp: 291.00
+      Qs: 145.50
+    - thickness: 0.2000
+      Vp: 5.0400
+      Vs: 2.9800
+      rho: 2.5400
+      Qp: 298.00
+      Qs: 149.00
+    - thickness: 0.2000
+      Vp: 5.1500
+      Vs: 3.0500
+      rho: 2.5600
+      Qp: 305.00
+      Qs: 152.50
+    - thickness: 0.2000
+      Vp: 5.2600
+      Vs: 3.1200
+      rho: 2.5800
+      Qp: 312.00
+      Qs: 156.00
+    - thickness: 0.2000
+      Vp: 5.3700
+      Vs: 3.1900
+      rho: 2.6000
+      Qp: 319.00
+      Qs: 159.50
+    - thickness: 0.2000
+      Vp: 5.4800
+      Vs: 3.2600
+      rho: 2.6100
+      Qp: 326.00
+      Qs: 163.00
+    - thickness: 0.2000
+      Vp: 5.5900
+      Vs: 3.3300
+      rho: 2.6300
+      Qp: 333.00
+      Qs: 166.50
+    - thickness: 0.2000
+      Vp: 5.7000
+      Vs: 3.4000
+      rho: 2.6600
+      Qp: 340.00
+      Qs: 170.00
+    - thickness: 3.0000
+      Vp: 6.0000
+      Vs: 3.6000
+      rho: 2.7200
+      Qp: 360.00
+      Qs: 180.00
+    - thickness: 4.0000
+      Vp: 6.0000
+      Vs: 3.6000
+      rho: 2.7200
+      Qp: 360.00
+      Qs: 180.00
+    - thickness: 15.0000
+      Vp: 6.5000
+      Vs: 3.7000
+      rho: 2.8300
+      Qp: 370.00
+      Qs: 185.00
+    - thickness: 12.0000
+      Vp: 7.5000
+      Vs: 4.3000
+      rho: 3.1200
+      Qp: 430.00
+      Qs: 215.00
+    - thickness: 999.0000
+      Vp: 8.1000
+      Vs: 4.6000
+      rho: 3.3300
+      Qp: 460.00
+      Qs: 230.00
 im:
   ims: ["PGA", "PGV", "CAV", "AI", "Ds575", "Ds595", "MMI", "pSA"]
   components: ["000", "090", "ver", "geom", "rotd50", "rotd100"]

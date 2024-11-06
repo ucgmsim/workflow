@@ -37,7 +37,6 @@ You can visualise the output of this stage using the SRF plotting tools in the [
 """
 
 import functools
-import logging
 import multiprocessing
 import re
 import shutil
@@ -58,9 +57,13 @@ from source_modelling import rupture_propagation, srf
 from source_modelling.sources import IsSource
 from workflow import log_utils
 from workflow.log_utils import log_call
-from workflow.realisations import (RealisationMetadata,
-                                   RupturePropagationConfig, SourceConfig,
-                                   SRFConfig)
+from workflow.realisations import (
+    RealisationMetadata,
+    RupturePropagationConfig,
+    SourceConfig,
+    SRFConfig,
+    VelocityModel1D,
+)
 
 app = typer.Typer()
 
@@ -134,7 +137,6 @@ def generate_fault_srf(
     hypocentre_local_coordinates: npt.NDArray[np.float64],
     output_directory: Path,
     srf_config: SRFConfig,
-    velocity_model_path: Path,
     genslip_path: Path,
 ):
     """Generate an SRF file for a given fault.
@@ -151,6 +153,7 @@ def generate_fault_srf(
         The geometry resolution.
     """
     gsf_output_directory = output_directory / "gsf"
+
     gsf_file_path = generate_fault_gsf(
         name,
         fault,
@@ -172,6 +175,7 @@ def generate_fault_srf(
     genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
         hypocentre_local_coordinates - np.array([1 / 2, 0])
     )
+    velocity_model_path = output_directory / "velocity_model"
     genslip_cmd = [
         str(genslip_path),
         "read_erf=0",
@@ -204,20 +208,28 @@ def generate_fault_srf(
     srf_file_path = output_directory / "srf" / (name + ".srf")
     with open(srf_file_path, "w", encoding="utf-8") as srf_file_handle:
         logger = log_utils.get_logger(__name__)
-        logger.info(log_utils.structured_log("executing command", cmd=" ".join(genslip_cmd)))
+        logger.info(
+            log_utils.structured_log("executing command", cmd=" ".join(genslip_cmd))
+        )
         try:
             proc = subprocess.run(
                 genslip_cmd, stdout=srf_file_handle, stderr=subprocess.PIPE, check=True
             )
         except subprocess.CalledProcessError as e:
-            logger.error(log_utils.structured_log(
-                "failed",
-                exception=e.output.decode("utf-8"),
-                code=e.returncode,
-                stderr=e.stderr.decode("utf-8"),
-            ))
+            logger.error(
+                log_utils.structured_log(
+                    "failed",
+                    exception=e.output.decode("utf-8"),
+                    code=e.returncode,
+                    stderr=e.stderr.decode("utf-8"),
+                )
+            )
             raise
-        logger.info(log_utils.structured_log("command compeleted", stderr=proc.stderr.decode("utf-8")))
+        logger.info(
+            log_utils.structured_log(
+                "command compeleted", stderr=proc.stderr.decode("utf-8")
+            )
+        )
 
 
 def concatenate_csr_arrays(csr_arrays: list[csr_array]) -> csr_array:
@@ -327,15 +339,17 @@ def stitch_srf_files(
             )
             t_delay = parent_srf.points["tinit"].iloc[jump_index]
             logger = log_utils.get_logger(__name__)
-            logger.info(log_utils.structured_log(
-                "computed delay",
-                fault_name=fault_name,
-                delay=t_delay,
-                jump_from=parent_coords.tolist(),
-                jump_to=parent_srf.points[["lat", "lon", "dep"]]
-                .iloc[jump_index]
-                .tolist(),
-            ))
+            logger.info(
+                log_utils.structured_log(
+                    "computed delay",
+                    fault_name=fault_name,
+                    delay=t_delay,
+                    jump_from=parent_coords.tolist(),
+                    jump_to=parent_srf.points[["lat", "lon", "dep"]]
+                    .iloc[jump_index]
+                    .tolist(),
+                )
+            )
             srf_file.points["tinit"] += t_delay
         srf_files[fault_name] = srf_file
     output_srf_file = srf.SrfFile(
@@ -370,7 +384,7 @@ def generate_fault_srfs_parallel(
     rupture_propagation_config: RupturePropagationConfig,
     output_directory: Path,
     srf_config: SRFConfig,
-    velocity_model_path: Path,
+    velocity_model_1d: VelocityModel1D,
     genslip_path: Path,
 ):
     """Generate fault SRF files in parallel.
@@ -389,6 +403,8 @@ def generate_fault_srfs_parallel(
     gsf_directory.mkdir(exist_ok=True)
     srf_directory = output_directory / "srf"
     srf_directory.mkdir(exist_ok=True)
+    velocity_model_1d.write_velocity_model(output_directory / "velocity_model")
+
     magnitudes = rupture_propagation_config.magnitudes
     rakes = rupture_propagation_config.rakes
     hypocentres = {
@@ -416,7 +432,6 @@ def generate_fault_srfs_parallel(
                 generate_fault_srf,
                 output_directory=output_directory,
                 srf_config=srf_config,
-                velocity_model_path=velocity_model_path,
                 genslip_path=genslip_path,
             ),
             srf_generation_parameters,
@@ -449,12 +464,6 @@ def generate_srf(
             file_okay=False,
         ),
     ] = Path("/out"),
-    velocity_model: Annotated[
-        Path,
-        typer.Option(
-            help="Path to the genslip velocity model.", readable=True, dir_okay=False
-        ),
-    ] = Path("/genslip_velocity_model.vmod"),
     genslip_path: Annotated[
         Path,
         typer.Option(help="Path to genslip binary.", readable=True, dir_okay=False),
@@ -487,6 +496,9 @@ def generate_srf(
 
     rupture_propagation = RupturePropagationConfig.read_from_realisation(
         realisation_ffp
+    )
+    velocity_model = VelocityModel1D.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
     )
     source_config = SourceConfig.read_from_realisation(realisation_ffp)
 

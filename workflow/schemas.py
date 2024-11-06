@@ -6,9 +6,11 @@ the [Realisations page](https://github.com/ucgmsim/workflow/wiki/Realisations), 
 for a description of realisations and the schemas.
 """
 
+import functools
 from enum import StrEnum
 
 import numpy as np
+import pandas as pd
 from schema import And, Literal, Optional, Or, Schema, Use
 from velocity_modelling.bounding_box import BoundingBox
 
@@ -374,7 +376,27 @@ VELOCITY_MODEL_SCHEMA = Schema(
         ),
         Literal("vs30", "VS30 value"): And(float, is_positive),
         Literal("s_wave_velocity", "S-wave velocity"): And(float, is_positive),
-        Literal('rrup_interpolants', 'RRup interpolants to estimate domain size'): And([[And(float, is_positive)]], Use(np.array))
+        Literal("rrup_interpolants", "RRup interpolants to estimate domain size"): And(
+            [[And(float, is_positive)]], Use(np.array)
+        ),
+    }
+)
+
+VELOCITY_MODEL_1D_SCHEMA = Schema(
+    {
+        Literal("model", description="The 1D velocity model"): And(
+            [
+                {
+                    "thickness": And(float, is_positive),
+                    "Vp": And(float, is_positive),
+                    "Vs": And(float, is_positive),
+                    "rho": And(float, is_positive),
+                    "Qp": And(float, is_positive),
+                    "Qs": And(float, is_positive),
+                }
+            ],
+            Use(pd.DataFrame),
+        )
     }
 )
 
