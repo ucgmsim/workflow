@@ -44,7 +44,7 @@ import numpy as np
 import pandas as pd
 import typer
 
-from workflow import log_utils
+from workflow import log_utils, utils
 from workflow.realisations import (
     DomainParameters,
     HFConfig,
@@ -250,7 +250,7 @@ def run_hf(
     )
     velocity_model_path = work_directory / "velocity_model"
     velocity_model.write_velocity_model(velocity_model_path)
-    with multiprocessing.Pool() as pool:
+    with multiprocessing.Pool(utils.get_available_cores()) as pool:
         stations["epicentre_distance"] = pool.starmap(
             functools.partial(
                 hf_simulate_station,

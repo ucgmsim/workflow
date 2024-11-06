@@ -55,7 +55,7 @@ from scipy.sparse import csr_array
 from qcore import coordinates, grid, gsf
 from source_modelling import rupture_propagation, srf
 from source_modelling.sources import IsSource
-from workflow import log_utils
+from workflow import log_utils, utils
 from workflow.log_utils import log_call
 from workflow.realisations import (
     RealisationMetadata,
@@ -426,7 +426,7 @@ def generate_fault_srfs_parallel(
         for fault_name in faults
     ]
 
-    with multiprocessing.Pool() as worker_pool:
+    with multiprocessing.Pool(utils.get_available_cores()) as worker_pool:
         worker_pool.starmap(
             functools.partial(
                 generate_fault_srf,

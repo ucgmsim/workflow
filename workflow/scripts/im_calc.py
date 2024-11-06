@@ -31,9 +31,10 @@ See the output of `im-calc --help`.
 import gc
 import multiprocessing
 import sys
+from collections.abc import Callable
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Callable, Optional
+from typing import Annotated, Optional
 
 import h5py
 import numba
@@ -45,7 +46,7 @@ import pykooh
 import tqdm
 import typer
 
-from workflow import log_utils
+from workflow import log_utils, utils
 from workflow.realisations import (
     BroadbandParameters,
     IntensityMeasureCalcuationParameters,
@@ -210,7 +211,6 @@ def compute_psa(
     waveforms: npt.NDArray[np.float32],
     periods: npt.NDArray[np.float32],
     dt: float,
-    num_processes: int,
     psa_rotd_maximum_memory_allocation: Optional[float] = None,
 ) -> pd.DataFrame:
     """Compute pSA statistics for all waveforms.
@@ -263,7 +263,7 @@ def compute_psa(
     # steps that fits within the psa_rotd_maximum_memory_allocation.
     if psa_rotd_maximum_memory_allocation:
         step = min(
-            num_processes,
+            utils.get_available_cores(),
             int(psa_rotd_maximum_memory_allocation / (180 * sys.getsizeof(comp_0[0]))),
         )
     else:
@@ -421,7 +421,6 @@ def compute_fas(
     waveforms: npt.NDArray[np.float32],
     dt: float,
     freqs: npt.NDArray[np.float32],
-    num_processes: int,
 ) -> pd.DataFrame:
     """Compute fourier amplitude spectrum (FAS) of a seismic waveform.
 
@@ -435,8 +434,6 @@ def compute_fas(
         The timestep for the waveforms.
     freqs : npt.NDArray[np.float32]
         The frequencies to compute FAS for.
-    num_processes : int
-        The number of processes to compute FAS in parallel for.
 
     Returns
     -------
@@ -447,7 +444,7 @@ def compute_fas(
     fa_frequencies = np.fft.rfftfreq(n_fft, dt)
     fa_spectrum = np.abs(np.fft.rfft(waveforms, n=n_fft, axis=1))
     smoother = pykooh.CachedSmoother(fa_frequencies, freqs, 40)
-    with multiprocessing.Pool(num_processes) as pool:
+    with multiprocessing.Pool(utils.get_available_cores()) as pool:
         fas_0 = np.array(
             pool.map(smoother, fa_spectrum[:, :, 1]),
             dtype=np.float32,
@@ -530,14 +527,6 @@ def calculate_instensity_measures(
             min=0,
         ),
     ] = None,
-    num_processes: Annotated[
-        int,
-        typer.Option(
-            help="The number of processes to use for multi-processing (or, in slurm, the number of cores allocated).",
-            min=1,
-            max=multiprocessing.cpu_count(),
-        ),
-    ] = multiprocessing.cpu_count(),
 ):
     """Calculate intensity measures for simulation data.
 
@@ -550,7 +539,7 @@ def calculate_instensity_measures(
     output_path : Path
         Output directory for IM calc summary statistics.
     """
-    ne.set_num_threads(num_processes)
+    ne.set_num_threads(utils.get_available_cores())
 
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     broadband_parameters = BroadbandParameters.read_from_realisation(realisation_ffp)
@@ -590,7 +579,9 @@ def calculate_instensity_measures(
                 individual_intensity_measure_statistics["intensity_measure"] = "PGV"
             case "cav":
                 individual_intensity_measure_statistics = compute_in_rotations(
-                    waveforms, lambda v: cav_integrate(v, broadband_parameters.dt), component_wise_operation=ComponentWiseOperation.NONE
+                    waveforms,
+                    lambda v: cav_integrate(v, broadband_parameters.dt),
+                    component_wise_operation=ComponentWiseOperation.NONE,
                 )
                 individual_intensity_measure_statistics["station"] = stations.index
                 individual_intensity_measure_statistics["intensity_measure"] = "CAV"
@@ -630,7 +621,6 @@ def calculate_instensity_measures(
                         intensity_measure_parameters.valid_periods, dtype=np.float32
                     ),
                     broadband_parameters.dt,
-                    num_processes,
                     psa_rotd_maximum_memory_allocation=psa_rotd_maximum_memory_allocation
                     * 1e9
                     if psa_rotd_maximum_memory_allocation
@@ -644,7 +634,6 @@ def calculate_instensity_measures(
                     np.array(
                         intensity_measure_parameters.fas_frequencies, dtype=np.float32
                     ),
-                    num_processes,
                 )
 
         intensity_measure_statistics = pd.concat(

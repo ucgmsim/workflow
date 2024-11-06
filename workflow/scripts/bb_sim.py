@@ -43,7 +43,7 @@ import scipy as sp
 import typer
 
 from qcore import siteamp_models, timeseries
-from workflow import log_utils
+from workflow import log_utils, utils
 from workflow.realisations import (
     BroadbandParameters,
     DomainParameters,
@@ -209,14 +209,6 @@ def combine_hf_and_lf(
             help="Path to output broadband file.", dir_okay=False, writable=True
         ),
     ],
-    num_processes: Annotated[
-        int,
-        typer.Option(
-            help="Number of processes to execute with.",
-            min=1,
-            max=multiprocessing.cpu_count(),
-        ),
-    ] = multiprocessing.cpu_count(),
 ):
     """Combine low-frequency and high-frequency seismic waveforms.
 
@@ -283,7 +275,6 @@ def combine_hf_and_lf(
         )
     )
 
-
     if (
         lf_start_padding + round(lf.duration / broadband_config.dt) + lf_end_padding
         != hf_start_padding
@@ -323,7 +314,7 @@ def combine_hf_and_lf(
     ).set_index("name")
     stations = stations.join(station_vs30, how="inner")
 
-    with multiprocessing.Pool(num_processes) as pool:
+    with multiprocessing.Pool(utils.get_available_cores()) as pool:
         waveforms_raw = np.array(
             list(
                 pool.starmap(
