@@ -44,14 +44,29 @@ def get_nz_outline_polygon() -> Polygon:
     return shapely.union(south_island, north_island)
 
 
-@app.command()
+@app.command(
+    help="Automatically simulate GCMT solutions that are new, large, and within 30 km of New Zealand."
+)
 def gcmt_auto_simulate(
     gcmt_solutions_url: Annotated[str, typer.Argument(help="GCMT Solutions URL.")],
     old_gcmt_solutions_path: Annotated[
         Path, typer.Argument(help="Path to old GCMT Solutions.")
     ],
 ):
-    """Automatically simulate GCMT solutions that are new and within 30 km of New Zealand."""
+    """Automatically simulate GCMT solutions that are new, large, and within 30 km of New Zealand.
+
+    Parameters
+    ----------
+    gcmt_solutions_url : str
+        GCMT Solutions URL.
+    old_gcmt_solutions_path : Path
+        Path to old GCMT Solutions.
+
+    Raises
+    ------
+    typer.Exit
+        If there are no new solutions to simulate.
+    """
     updated_gcmt_solutions = requests.get(gcmt_solutions_url).json()
     if old_gcmt_solutions_path.exists():
         with open(old_gcmt_solutions_path) as old_gcmt_solutions_handle:
