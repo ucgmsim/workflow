@@ -45,7 +45,12 @@ import pandas as pd
 import typer
 
 from workflow import log_utils
-from workflow.realisations import DomainParameters, HFConfig, RealisationMetadata
+from workflow.realisations import (
+    DomainParameters,
+    HFConfig,
+    RealisationMetadata,
+    VelocityModel1D,
+)
 
 app = typer.Typer()
 
@@ -189,12 +194,6 @@ def run_hf(
     hf_sim_path: Annotated[Path, typer.Option(help="Path to HF sim binary")] = Path(
         "/EMOD3D/tools/hb_high_binmod_v6.0.3"
     ),
-    velocity_model: Annotated[
-        Path,
-        typer.Option(
-            help="Path to velocity model (1D). Ignored if --site-specific is set"
-        ),
-    ] = Path("/Cant1D_v2-midQ_leer.1d"),
     work_directory: Annotated[
         Path,
         typer.Option(
@@ -236,6 +235,9 @@ def run_hf(
     """
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
+    velocity_model = VelocityModel1D.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
     hf_config = HFConfig.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
@@ -246,14 +248,15 @@ def run_hf(
         header=None,
         names=["longitude", "latitude", "name"],
     )
-
+    velocity_model_path = work_directory / "velocity_model"
+    velocity_model.write_velocity_model(velocity_model_path)
     with multiprocessing.Pool() as pool:
         stations["epicentre_distance"] = pool.starmap(
             functools.partial(
                 hf_simulate_station,
                 hf_config,
                 domain_parameters,
-                velocity_model,
+                velocity_model_path,
                 stoch_ffp,
                 work_directory,
                 hf_sim_path,
@@ -263,10 +266,9 @@ def run_hf(
         stations["epicentre_distance"] = stations["epicentre_distance"].astype(
             np.float32
         )
-    with open(velocity_model, "r") as f:
-        f.readline()
-        vs = np.float32(float(f.readline().split()[2]) * 1000.0)
-        stations["vs"] = vs
+
+    vs = velocity_model.model["Vs"].iloc[0] * 1000
+    stations["vs"] = vs
 
     nt = int(domain_parameters.duration / hf_config.dt)
     with h5py.File(out_file, "w") as output_h5py:
@@ -274,7 +276,6 @@ def run_hf(
             "hf_tstart": 0.0,
             "duration": nt * hf_config.dt,
             "stoch_ffp": stoch_ffp.name,
-            "velocity_model": velocity_model.name,
         }
         # H5Py cannot store regular Python bools, and requires converting them too booleans
         attributes = {
