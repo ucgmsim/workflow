@@ -31,7 +31,7 @@ from typing import Annotated
 import typer
 
 from workflow import log_utils
-from workflow.realisations import HFConfig, RealisationMetadata
+from workflow.realisations import HFConfig, RealisationMetadata, SourceConfig
 
 app = typer.Typer()
 
@@ -71,12 +71,19 @@ def generate_stoch(
     hf_config = HFConfig.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
+    sources = SourceConfig.read_from_realisation(realisation_ffp)
+    min_length, min_width = min(
+        (fault.length, fault.width) for fault in sources.source_geometries.values()
+    )
+    # If the stoch dx is greater than the length (resp. dy and width), we might get an empty stoch file
+    dx = min(hf_config.stoch_dx, min_length / 2)
+    dy = min(hf_config.stoch_dx, min_width / 2)
 
     log_utils.log_check_call(
         [
             str(srf2stoch_path),
-            f"dx={hf_config.stoch_dx}",
-            f"dy={hf_config.stoch_dy}",
+            f"dx={dx}",
+            f"dy={dy}",
             f"infile={srf_ffp}",
             f"outfile={stoch_ffp}",
         ]
