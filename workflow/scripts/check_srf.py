@@ -7,7 +7,12 @@ import typer
 from qcore.uncertainties import mag_scaling
 from source_modelling import moment, srf
 from workflow import log_utils
-from workflow.realisations import RealisationParseError, RupturePropagationConfig
+from workflow.realisations import (
+    RealisationMetadata,
+    RealisationParseError,
+    RupturePropagationConfig,
+    VelocityModel1D,
+)
 
 app = typer.Typer()
 
@@ -34,11 +39,23 @@ def check_srf(
     typer.Exit
         If any of the checks fail.typer.Exit
     """
+    metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
+    velocity_model = VelocityModel1D.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    ).model
+    velocity_model["mu"] = velocity_model["Vs"] ** 2 * velocity_model["rho"] * 1e10
+    velocity_model["depth"] = (
+        velocity_model["thickness"].cumsum() - velocity_model["thickness"]
+    )
+
     srf_file = srf.read_srf(srf_ffp)
-    srf_magnitude = moment.moment_to_magnitude(
-        moment.MU
-        * (srf_file.points["area"].sum() / 1e6)
-        * srf_file.points["slip"].mean()
+    indices = np.minimum(
+        len(velocity_model["depth"]) - 1,
+        np.searchsorted(velocity_model["depth"], srf_file.points["dep"]),
+    )
+    mu = velocity_model["mu"].iloc[indices].values
+    srf_magnitude = mag_scaling.mom2mag(
+        (srf_file.points["area"].values * srf_file.points["slip"].values * mu).sum()
     )
     logger = log_utils.get_logger("__name__")
     try:
@@ -59,6 +76,7 @@ def check_srf(
                     realisation_magnitude=magnitude,
                 )
             )
+            raise typer.Exit(code=1)
     except RealisationParseError:
         pass
 
