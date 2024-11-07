@@ -130,6 +130,9 @@ def hf_simulate_station(
             f"{hf_config.fa_sig1} {hf_config.fa_sig2} {hf_config.rv_sig1}",
             hf_config.path_dur,
             0,  # maybe don't need this?
+            # If running v5.4.5 it stops reading input here and so
+            # these parameters are unused. It is harmless to add them
+            # regardless of version
             f"{hf_config.stress_parameter_adjustment_fault_area or -1} "
             f"{hf_config.stress_parameter_adjustment_target_magnitude or -1} "
             f"{hf_config.stress_parameter_adjustment_tect_type or -1}",
