@@ -181,12 +181,16 @@ def stage_inputs(
     realisation_requirements = sorted(
         required_realisation_sections.get((stage.event, stage.sample), set())
     )
-    realisation = {
-        AnnotatedPath(
-            event_directory / "realisation.json",
-            f'Realisation file for event containing: {', '.join(realisation_requirements)}.',
-        )
-    }
+    if realisation_requirements:
+
+        realisation = {
+            AnnotatedPath(
+                event_directory / "realisation.json",
+                f'Realisation file for event containing: {', '.join(realisation_requirements)}.',
+            )
+        }
+    else:
+        realisation = set()
     station_ll = AnnotatedPath(
         parent_directory / "stations" / "stations.ll",
         "lat,lon coordinates corresponding to x,y coordinates of stations in domain.",
@@ -204,12 +208,16 @@ def stage_inputs(
         ):
             return realisation
         case Stage(identifier=StageIdentifier.CopyDomainParameters):
-            return {
-                AnnotatedPath(
-                    parent_directory / "realisation.json",
-                    f"Realisation file for event containing: {', '.join(required_realisation_sections.get((stage.event, None), set()))}.",
-                )
-            }
+            stage_requirements = required_realisation_sections.get((stage.event, None), set())
+            if stage_requirements:
+                return {
+                    AnnotatedPath(
+                        parent_directory / "realisation.json",
+                        f"Realisation file for event containing: {', '.join(stage_requirements)}.",
+                    )
+                }
+            else:
+                return set()
         case Stage(
             identifier=StageIdentifier.EMOD3DParameters
             | StageIdentifier.LowFrequency,
@@ -464,17 +472,13 @@ def stage_outputs(stage: Stage, root: Path) -> set[AnnotatedPath]:
     if stage.sample:
         realisation_identifier += f"_{stage.sample}"
     event_directory = root / realisation_identifier
-    realisation = {
-        AnnotatedPath(
-            event_directory / "realisation.json", "Realisation file for event."
-        )
-    }
     match stage:
         case Stage(
             identifier=StageIdentifier.NSHMToRealisation
             | StageIdentifier.GCMTToRealisation
         ):
-            return realisation
+
+            return {AnnotatedPath(event_directory / 'realisation.json',  'Realisation file for event containing: metadata, rupture_propagation, sources.')}
         case Stage(identifier=StageIdentifier.SRFGeneration):
             return {
                 AnnotatedPath(
@@ -1037,8 +1041,8 @@ def plan_workflow(
         for stage in workflow_plan.nodes:
             inputs |= stage_inputs(stage, root_path, required_realisation_sections)
             outputs |= stage_outputs(stage, root_path)
-
         missing_file_tree = build_filetree(inputs - outputs)
+
 
         if missing_file_tree:
             print("You require the following files for your simulation:")
