@@ -4,11 +4,12 @@ This is the starting point for most workflow usages, and can be used
 to generate a base Cylc workflow to modify and extend.
 """
 
+import dataclasses
 import tempfile
 from collections.abc import Iterable
 from enum import StrEnum
 from pathlib import Path, PurePath
-from typing import Annotated, Any, NamedTuple, Optional
+from typing import Annotated, Any, Optional, Self
 
 import jinja2
 import networkx as nx
@@ -116,269 +117,76 @@ GROUP_GOALS = {
 }
 
 
-class Stage(NamedTuple):
+@dataclasses.dataclass
+class Stage:
     """Representation of a workflow stage in the output Cylc file."""
 
     identifier: StageIdentifier
     """The stage identifier."""
-    event: str
+    event: Optional[str]
     """The event the stage is running for."""
     sample: Optional[int]
     """The sample number of the realisation."""
 
+    @property
+    def parent(self) -> Self:
+        """Stage: the parent stage of this stage."""
+        return self.__class__(self.identifier, self.event, None)
 
-class AnnotatedPath(PurePath):
-    """Pure path annotated with description of the file."""
+    @property
+    def directory(self) -> Optional[PurePath]:
+        """Optional[PurePath]: the directory for this stage."""
+        if not self.event:
+            return None
+        directory = self.event
+        if self.sample:
+            directory += f"_{self.sample}"
+        return PurePath(directory)
 
-    def __init__(self, path: str | Path, description: Optional[str] = None):
-        """Create an annotated path.
+    @property
+    def outputs(self) -> set[PurePath]:
+        """set[PurePath]: the outputs for this stage."""
+        directory = self.directory
+        if not directory:
+            return set()
+        return {directory / output for output in stage_outputs(self.identifier)}
 
-        Parameters
-        ----------
-        path : str | Path
-            The path to annotate.
-        description : Optional[str]
-            The description of the path.
-        """
-        super().__init__(path)
-        self.path = path
-        self.description = description
+    @property
+    def inputs(self) -> set[PurePath]:
+        """set[PurePath]: the inputs for this stage."""
+        directory = self.directory
+        if not self.event or not directory:
+            return set()
+        workflow_plan = realisation_workflow(self.event, self.sample)
+        try:
+            input_stages = list(workflow_plan.predecessors(self))
+            inputs = set()
+            for stage in input_stages:
+                inputs |= stage.outputs
+            return inputs
+        except nx.NetworkXError:
+            return set()
 
-    def __hash__(self):
-        """Construct a unique hash for Annotated Paths."""
-        if super().name == "realisation.json":
-            # Realisations should also have their annotations hashed.
-            return hash((self.path, self.description))
-        else:
-            return super().__hash__()
+    def __hash__(self) -> int:
+        """Hash the stage identifier, event and sample number."""
+        return hash((self.identifier, self.event, self.sample))
 
-
-def stage_inputs(
-    stage: Stage,
-    root: Path,
-    required_realisation_sections: dict[tuple[str, Optional[int]], set[str]],
-) -> set[AnnotatedPath]:
-    """Return a list of stage inputs for the stage.
-
-    Parameters
-    ----------
-    stage : Stage
-        The stage to get inputs for.
-    root : Path
-        The root directory of the simulation.
-
-
-    Returns
-    -------
-    set[Path]
-        A set of input paths required by the stage.
-    """
-    realisation_identifier = stage.event
-    if stage.sample:
-        realisation_identifier += f"_{stage.sample}"
-    parent_directory = root / stage.event
-    event_directory = root / realisation_identifier
-    realisation_requirements = sorted(
-        required_realisation_sections.get((stage.event, stage.sample), set())
-    )
-    if realisation_requirements:
-
-        realisation = {
-            AnnotatedPath(
-                event_directory / "realisation.json",
-                f'Realisation file for event containing: {', '.join(realisation_requirements)}.',
-            )
-        }
-    else:
-        realisation = set()
-    station_ll = AnnotatedPath(
-        parent_directory / "stations" / "stations.ll",
-        "lat,lon coordinates corresponding to x,y coordinates of stations in domain.",
-    )
-    s_wave = AnnotatedPath(
-        parent_directory / "Velocity_Model" / "vs3dfile.s",
-        "s-wave velocity file for velocity model (Section: Velocity Model Files).",
-    )
-    match stage:
-        case Stage(
-            identifier=StageIdentifier.SRFGeneration
-            | StageIdentifier.VelocityModelGeneration
-            | StageIdentifier.StationSelection
-            | StageIdentifier.ModelCoordinates
-        ):
-            return realisation
-        case Stage(identifier=StageIdentifier.CopyDomainParameters):
-            stage_requirements = required_realisation_sections.get((stage.event, None), set())
-            if stage_requirements:
-                return {
-                    AnnotatedPath(
-                        parent_directory / "realisation.json",
-                        f"Realisation file for event containing: {', '.join(stage_requirements)}.",
-                    )
-                }
-            else:
-                return set()
-        case Stage(
-            identifier=StageIdentifier.EMOD3DParameters
-            | StageIdentifier.LowFrequency,
-        ):
-            return (
-                realisation
-                | {
-                    station_ll,
-                    AnnotatedPath(
-                        parent_directory / "stations" / "stations.statcords",
-                        "x,y coordinates of stations in domain.",
-                    ),
-                    AnnotatedPath(
-                        parent_directory / "model" / "model_params",
-                        "Model centre and corners for EMOD3D.",
-                    ),
-                    AnnotatedPath(
-                        parent_directory / "model" / "grid_file",
-                        "Domain extents for EMOD3D.",
-                    ),
-                    AnnotatedPath(
-                        parent_directory / "Velocity_Model" / "rho3dfile.d",
-                        "Density component file for velocity model. (Section: Velocity Model Files)",
-                    ),
-                    AnnotatedPath(
-                        parent_directory / "Velocity_Model" / "vp3dfile.p",
-                        "p-wave velocity file for velocity model. (Section: Velocity Model Files)",
-                    ),
-                    s_wave,
-                    AnnotatedPath(
-                        parent_directory / "Velocity_Model" / "in_basin_mask.b",
-                        "Boolean basin mask (Section: Velocity Model Files).",
-                    ),
-                    AnnotatedPath(
-                        event_directory / "realisation.srf",
-                        "Slip model of source (Section: SRF Format).",
-                    ),
-                }
-                | (
-                    set()
-                    if stage.identifier == StageIdentifier.EMOD3DParameters
-                    else {
-                        AnnotatedPath(
-                            event_directory / "LF" / "e3d.par",
-                            "EMOD3D Parameters (Section: https://wiki.canterbury.ac.nz/pages/viewpage.action?pageId=100794983)",
-                        )
-                    }
-                )
-            )
-        case Stage(identifier=StageIdentifier.StochGeneration):
-            return realisation | {
-                AnnotatedPath(
-                    event_directory / "realisation.srf",
-                    "Slip model of source (Section: SRF Format).",
-                )
-            }
-        case Stage(identifier=StageIdentifier.HighFrequency):
-            return realisation | {
-                AnnotatedPath(
-                    event_directory / "realisation.stoch",
-                    "Downsampled SRF for stochastic source model input (Section: Stoch format).",
-                ),
-                station_ll,
-                s_wave,
-            }
-        case Stage(identifier=StageIdentifier.Broadband):
-            return realisation | {
-                station_ll,
-                AnnotatedPath(
-                    event_directory / "LF", "Low-frequency simulation directory."
-                ),
-                AnnotatedPath(
-                    event_directory / "realisation.hf",
-                    "High-frequency waveform file (Section: LF/HF/BB binary format).",
-                ),
-                s_wave,
-            }
-        case Stage(identifier=StageIdentifier.IntensityMeasureCalculation):
-            return realisation | {
-                AnnotatedPath(
-                    event_directory / "realisation.bb",
-                    "Broadband waveform file (Section: LF/HF/BB binary format).",
-                )
-            }
-        case Stage(identifier=StageIdentifier.PlotTimeslices):
-            return {
-                AnnotatedPath(
-                    event_directory / "LF" / "OutBin" / "output.e3d",
-                    "Merged xyts-slices of low-frequency simulation (Section: XYTS.e3d binary format).",
-                )
-            }
-        case Stage(identifier=StageIdentifier.MergeTimeslices):
-            return {
-                AnnotatedPath(
-                    event_directory / "LF" / "OutBin",
-                    "Component xyts-slices of low-frequency simulation, one per compute node (Section: XYTS.e3d binary format).",
-                )
-            }
-    return set()
+    def __str__(self) -> str:
+        """str: the string representation of the stage."""
+        _str = str(self.identifier)
+        if self.event:
+            _str += f"_{self.event}"
+        if self.sample:
+            _str += f"_{self.sample}"
+        return _str
 
 
-def stage_config_inputs(stage: Stage) -> set[str]:
-    """Get the realisation configuration inputs for a given stage.
-
-    Parameters
-    ----------
-    stage : Stage
-        The stage to get inputs for.
-
-
-    Returns
-    -------
-    set[str]
-        The input config sections for this stage.
-    """
-    input_dictionary = {
-        StageIdentifier.EMOD3DParameters: {
-            realisations.DomainParameters._config_key,
-            realisations.VelocityModelParameters._config_key,
-            realisations.RealisationMetadata._config_key,
-        },
-        StageIdentifier.Broadband: {
-            realisations.RealisationMetadata._config_key,
-            realisations.DomainParameters._config_key,
-        },
-        StageIdentifier.StationSelection: {realisations.DomainParameters._config_key},
-        StageIdentifier.VelocityModelGeneration: {
-            realisations.DomainParameters._config_key,
-            realisations.RealisationMetadata._config_key,
-        },
-        StageIdentifier.HighFrequency: {
-            realisations.DomainParameters._config_key,
-            realisations.RealisationMetadata._config_key,
-        },
-        StageIdentifier.IntensityMeasureCalculation: {
-            realisations.RealisationMetadata._config_key,
-            realisations.BroadbandParameters._config_key,
-        },
-        StageIdentifier.DomainGeneration: {
-            realisations.RealisationMetadata._config_key,
-            realisations.RupturePropagationConfig._config_key,
-            realisations.SourceConfig._config_key,
-        },
-        StageIdentifier.SRFGeneration: {
-            realisations.RealisationMetadata._config_key,
-            realisations.SourceConfig._config_key,
-            realisations.RupturePropagationConfig._config_key,
-        },
-        StageIdentifier.ModelCoordinates: {realisations.DomainParameters._config_key},
-        StageIdentifier.StochGeneration: {realisations.RealisationMetadata._config_key},
-        StageIdentifier.StationSelection: {realisations.DomainParameters._config_key},
-    }
-    return input_dictionary.get(stage.identifier, set())
-
-
-def stage_config_outputs(stage: Stage) -> set[str]:
+def stage_config_outputs(identifier: StageIdentifier) -> set[str]:
     """Get the realisation configuration outputs for a given stage.
 
     Parameters
     ----------
-    stage : Stage
+    identifier : StageIdentifier
         The stage to get outputs for.
 
 
@@ -418,41 +226,12 @@ def stage_config_outputs(stage: Stage) -> set[str]:
         StageIdentifier.SRFGeneration: {realisations.SRFConfig._config_key},
         StageIdentifier.StochGeneration: {realisations.HFConfig._config_key},
     }
-    return output_dictionary.get(stage.identifier, set())
+    return output_dictionary.get(identifier, set())
 
 
-def realisation_configuration_requirements(
-    workflow_plan: nx.DiGraph, realisation: tuple[str, Optional[int]]
-) -> set[str]:
-    """Get the requirements for the realisation.json in this stage.
-
-    Parameters
-    ----------
-    workflow_plan : nx.DiGraph
-        The overall workflow plane.
-    realisation : tuple[str, Optional[int]]
-        The realisation to retrieve requirements for.
-
-    Returns
-    -------
-    set[str]
-        The realisation configuration sections that must be present
-        for the workflow to run correctly.
-    """
-    stages = [
-        stage
-        for stage in workflow_plan.nodes
-        if (stage.event, stage.sample) == realisation
-    ]
-    if stages:
-        return set.union(*[stage_config_inputs(stage) for stage in stages]) - set.union(
-            *[stage_config_outputs(stage) for stage in stages]
-        )
-    else:
-        return set()
-
-
-def stage_outputs(stage: Stage, root: Path) -> set[AnnotatedPath]:
+def stage_outputs(
+    identifier: StageIdentifier, include_config_outputs: bool = True
+) -> set[PurePath]:
     """Return a list of stage inputs for the stage.
 
     Parameters
@@ -468,119 +247,46 @@ def stage_outputs(stage: Stage, root: Path) -> set[AnnotatedPath]:
     set[Path]
         A set of input paths required by the stage.
     """
-    realisation_identifier = stage.event
-    if stage.sample:
-        realisation_identifier += f"_{stage.sample}"
-    event_directory = root / realisation_identifier
-    match stage:
-        case Stage(
-            identifier=StageIdentifier.NSHMToRealisation
-            | StageIdentifier.GCMTToRealisation
-        ):
+    output_dictionary = {
+        StageIdentifier.SRFGeneration: {
+            PurePath("realisation.srf"),
+        },
+        StageIdentifier.ModelCoordinates: {
+            PurePath("model") / "model_params",
+            PurePath("model") / "grid_file",
+        },
+        StageIdentifier.StationSelection: {
+            PurePath("stations") / "stations.ll",
+            PurePath("stations") / "stations.statcords",
+        },
+        StageIdentifier.VelocityModelGeneration: {
+            PurePath("Velocity_Model") / "rho3dfile.d",
+            PurePath("Velocity_Model") / "vp3dfile.p",
+            PurePath("Velocity_Model") / "vs3dfile.s",
+            PurePath("Velocity_Model") / "in_basin_mask.b",
+        },
+        StageIdentifier.EMOD3DParameters: {
+            PurePath("LF"),
+            PurePath("LF") / "e3d.par",
+        },
+        StageIdentifier.LowFrequency: {PurePath("LF")},
+        StageIdentifier.StochGeneration: {
+            PurePath("realisation.stoch"),
+        },
+        StageIdentifier.HighFrequency: {PurePath("realisation.hf")},
+        StageIdentifier.Broadband: {PurePath("realisation.bb")},
+        StageIdentifier.IntensityMeasureCalculation: {
+            PurePath("intensity_measures.parquet")
+        },
+        StageIdentifier.PlotTimeslices: {PurePath("animation.mp4")},
+        StageIdentifier.MergeTimeslices: {PurePath("LF") / "OutBin" / "output.e3d"},
+    }
+    file_outputs = output_dictionary.get(identifier, set())
+    if include_config_outputs:
+        for output in stage_config_outputs(identifier):
+            file_outputs.add(PurePath("realisation.json") / output)
 
-            return {AnnotatedPath(event_directory / 'realisation.json',  'Realisation file for event containing: metadata, rupture_propagation, sources.')}
-        case Stage(identifier=StageIdentifier.SRFGeneration):
-            return {
-                AnnotatedPath(
-                    event_directory / "realisation.srf",
-                    "Slip model of source.",
-                )
-            }
-        case Stage(identifier=StageIdentifier.ModelCoordinates):
-            return {
-                AnnotatedPath(
-                    event_directory / "model" / "model_params",
-                    "Model centre and corners for EMOD3D.",
-                ),
-                AnnotatedPath(
-                    event_directory / "model" / "grid_file",
-                    "Domain extents for EMOD3D.",
-                ),
-            }
-        case Stage(identifier=StageIdentifier.StationSelection):
-            return {
-                AnnotatedPath(
-                    event_directory / "stations" / "stations.ll",
-                    "lat,lon coordinates corresponding to x,y coordinates of stations in domain.",
-                ),
-                AnnotatedPath(
-                    event_directory / "stations" / "stations.statcords",
-                    "x,y coordinates of stations in domain.",
-                ),
-            }
-        case Stage(identifier=StageIdentifier.VelocityModelGeneration):
-            return {
-                AnnotatedPath(
-                    event_directory / "Velocity_Model" / "rho3dfile.d",
-                    "Density component file for velocity model.",
-                ),
-                AnnotatedPath(
-                    event_directory / "Velocity_Model" / "vp3dfile.p",
-                    "p-wave velocity file for velocity model.",
-                ),
-                AnnotatedPath(
-                    event_directory / "Velocity_Model" / "vs3dfile.s",
-                    "s-wave velocity file for velocity model.",
-                ),
-                AnnotatedPath(
-                    event_directory / "Velocity_Model" / "in_basin_mask.b",
-                    "Boolean basin mask.",
-                ),
-            }
-        case Stage(identifier=StageIdentifier.EMOD3DParameters):
-            return {
-                AnnotatedPath(
-                    event_directory / "LF", "Low-frequency simulation directory."
-                ),
-                AnnotatedPath(event_directory / "LF" / "e3d.par", "EMOD3D Parameters"),
-            }
-        case Stage(identifier=StageIdentifier.LowFrequency):
-            return {
-                AnnotatedPath(
-                    event_directory / "LF", "Low-frequency simulation directory."
-                )
-            }
-        case Stage(identifier=StageIdentifier.StochGeneration):
-            return {
-                AnnotatedPath(
-                    event_directory / "realisation.stoch",
-                    "Downsampled SRF for stochastic source model input.",
-                )
-            }
-        case Stage(identifier=StageIdentifier.HighFrequency):
-            return {
-                AnnotatedPath(
-                    event_directory / "realisation.hf", "High-frequency waveform file."
-                )
-            }
-        case Stage(identifier=StageIdentifier.Broadband):
-            return {
-                AnnotatedPath(
-                    event_directory / "realisation.bb", "Broadband waveform file."
-                )
-            }
-        case Stage(identifier=StageIdentifier.IntensityMeasureCalculation):
-            return {
-                AnnotatedPath(
-                    event_directory / "intensity_measures.parquet", "Intensity measure statistics."
-                )
-            }
-        case Stage(identifier=StageIdentifier.PlotTimeslices):
-            return {
-                AnnotatedPath(
-                    event_directory / "animation.mp4",
-                    "Animation of low-frequency waveform.",
-                )
-            }
-        case Stage(identifier=StageIdentifier.MergeTimeslices):
-            return {
-                AnnotatedPath(
-                    event_directory / "LF" / "OutBin" / "output.e3d",
-                    "Merged xyts-slices of low-frequency simulation.",
-                )
-            }
-        case _:
-            return set()
+    return file_outputs
 
 
 def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
@@ -598,16 +304,38 @@ def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
     sample : Optional[int]
         The sample number (or None, if the original event).
     """
+    requires_base = [
+        StageIdentifier.SRFGeneration,
+        StageIdentifier.StochGeneration,
+        StageIdentifier.CheckSRF,
+        StageIdentifier.VelocityModelGeneration,
+        StageIdentifier.DomainGeneration,
+        StageIdentifier.EMOD3DParameters,
+        StageIdentifier.IntensityMeasureCalculation,
+        StageIdentifier.HighFrequency,
+        StageIdentifier.Broadband,
+    ]
+    requires_domain = [
+        StageIdentifier.ModelCoordinates,
+        StageIdentifier.Broadband,
+        StageIdentifier.StationSelection,
+        StageIdentifier.CheckDomain,
+        StageIdentifier.CopyDomainParameters,
+        StageIdentifier.VelocityModelGeneration,
+        StageIdentifier.HighFrequency,
+        StageIdentifier.EMOD3DParameters,
+    ]
     workflow_plan = nx.from_dict_of_lists(
         {
             Stage(StageIdentifier.NSHMToRealisation, event, sample): [
-                Stage(StageIdentifier.SRFGeneration, event, sample),
+                Stage(id, event, sample) for id in requires_base
             ],
             Stage(StageIdentifier.GCMTToRealisation, event, sample): [
-                Stage(StageIdentifier.SRFGeneration, event, sample)
+                Stage(id, event, sample) for id in requires_base
             ],
             Stage(StageIdentifier.SRFGeneration, event, sample): [
-                Stage(StageIdentifier.CheckSRF, event, sample)
+                Stage(StageIdentifier.CheckSRF, event, sample),
+                Stage(StageIdentifier.LowFrequency, event, sample),
             ],
             Stage(StageIdentifier.CheckSRF, event, sample): [
                 Stage(StageIdentifier.StochGeneration, event, sample),
@@ -616,6 +344,9 @@ def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
             Stage(StageIdentifier.VelocityModelGeneration, event, None): [
                 Stage(StageIdentifier.EMOD3DParameters, event, sample),
                 Stage(StageIdentifier.HighFrequency, event, sample),
+                Stage(
+                    StageIdentifier.Broadband, event, sample
+                ),  # This is a transitive dependency, but is useful for determining stage inputs
             ],
             Stage(StageIdentifier.StationSelection, event, None): [
                 Stage(StageIdentifier.EMOD3DParameters, event, sample),
@@ -625,7 +356,8 @@ def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
                 Stage(StageIdentifier.EMOD3DParameters, event, sample)
             ],
             Stage(StageIdentifier.EMOD3DParameters, event, sample): [
-                Stage(StageIdentifier.CheckDomain, event, sample)
+                Stage(StageIdentifier.CheckDomain, event, sample),
+                Stage(StageIdentifier.LowFrequency, event, sample),
             ],
             Stage(StageIdentifier.CheckDomain, event, sample): [
                 Stage(StageIdentifier.LowFrequency, event, sample)
@@ -678,6 +410,15 @@ def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
                 ),
             ]
         )
+        workflow_plan.add_edges_from(
+            [
+                (
+                    Stage(StageIdentifier.DomainGeneration, event, sample),
+                    Stage(id, event, sample),
+                )
+                for id in requires_domain
+            ]
+        )
     else:
         workflow_plan.add_edges_from(
             [
@@ -685,17 +426,18 @@ def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
                     Stage(StageIdentifier.DomainGeneration, event, None),
                     Stage(StageIdentifier.CopyDomainParameters, event, sample),
                 ),
-                (
-                    Stage(StageIdentifier.CopyDomainParameters, event, sample),
-                    Stage(StageIdentifier.EMOD3DParameters, event, sample),
-                ),
-                (
-                    Stage(StageIdentifier.CopyDomainParameters, event, sample),
-                    Stage(StageIdentifier.HighFrequency, event, sample),
-                ),
             ]
         )
-
+        workflow_plan.add_edges_from(
+            [
+                (
+                    Stage(StageIdentifier.CopyDomainParameters, event, sample),
+                    Stage(id, event, sample),
+                )
+                for id in requires_domain
+                if id != StageIdentifier.CopyDomainParameters
+            ]
+        )
     return workflow_plan
 
 
@@ -766,29 +508,6 @@ def create_abstract_workflow_plan(
     return output_graph
 
 
-def stage_to_node_string(stage: Stage) -> str:
-    r"""Convert a `Stage` into a human readable node identifier string.
-
-    Parameters
-    ----------
-    stage : Stage
-        The stage to render.
-
-    Returns
-    -------
-    str
-        A string of the format
-        {stage.identifier}\n{stage.event}_{stage.sample}, if event and
-        sample are non-trivial.
-    """
-    node_string = str(stage.identifier)
-    if stage.event:
-        node_string += f"\n{stage.event}"
-    if stage.sample:
-        node_string += f"_{stage.sample}"
-    return node_string
-
-
 def pyvis_graph(workflow_plan: nx.DiGraph) -> Network:
     """Convert a workflow plan into a pyvis diagram for visualisation.
 
@@ -812,7 +531,7 @@ def pyvis_graph(workflow_plan: nx.DiGraph) -> Network:
     stage: Stage
     for stage in workflow_plan.nodes():
         network.add_node(
-            stage_to_node_string(stage),
+            str(stage),
             group=f"{stage.event}_{stage.sample or ''}",
             size=20,
             level=max(
@@ -825,7 +544,7 @@ def pyvis_graph(workflow_plan: nx.DiGraph) -> Network:
             ),
         )
     for stage, next_stage in workflow_plan.edges():
-        network.add_edge(stage_to_node_string(stage), stage_to_node_string(next_stage))
+        network.add_edge(str(stage), str(next_stage))
     return network
 
 
@@ -854,12 +573,14 @@ def parse_realisation(realisation_id: str) -> set[tuple[str, Optional[int]]]:
         return {(realisation_id, None)}
 
 
-def build_filetree(files: set[AnnotatedPath]) -> dict[str, Any]:
-    """Build a file tree from a set of annotated file paths.
+def build_filetree(root_path: PurePath, files: set[PurePath]) -> dict[str, Any]:
+    """Build a file tree from a set of file paths.
 
     Parameters
     ----------
-    files : set[AnnotatedPath]
+    root_path : PurePath
+        The root path for the file tree.
+    files : set[PurePath]
         The set of files to construct a tree for.
 
 
@@ -868,15 +589,57 @@ def build_filetree(files: set[AnnotatedPath]) -> dict[str, Any]:
     dict[str, Any]
         A file tree.
     """
+    file_descriptions = {
+        "realisation.srf": "Contains the slip model for the realisation.",
+        "model_params": "Parameters for the model used in the simulation.",
+        "grid_file": "Grid file for the model coordinates.",
+        "stations.ll": "Station coordinates (lat, lon) in the simulation domain.",
+        "stations.statcords": "Station coordinates (x, y) in the simulation domain.",
+        "rho3dfile.d": "3D density model file.",
+        "vp3dfile.p": "3D P-wave velocity model file.",
+        "vs3dfile.s": "3D S-wave velocity model file.",
+        "in_basin_mask.b": "In-basin mask file for the velocity model.",
+        "LF": "Directory containing low frequency simulation files.",
+        "e3d.par": "EMOD3D parameter file.",
+        "realisation.stoch": "Stochastic file for the realisation.",
+        "realisation.hf": "High frequency waveform file for the realisation.",
+        "realisation.bb": "Broadband waveform file for the realisation.",
+        "intensity_measures.parquet": "Parquet file containing intensity measures.",
+        "animation.mp4": "Animation of the timeslices.",
+        "output.e3d": "Merged output file from the low frequency simulation.",
+    }
+    config_descriptions = {
+        realisations.RealisationMetadata._config_key: "Metadata for describing a realisation.",
+        realisations.SRFConfig._config_key: "Configuration for SRF generation.",
+        realisations.SourceConfig._config_key: "Configuration for defining sources.",
+        realisations.RupturePropagationConfig._config_key: "Configuration for rupture propagation.",
+        realisations.DomainParameters._config_key: "Parameters defining the spatial and temporal domain for simulation.",
+        realisations.VelocityModelParameters._config_key: "Parameters defining the velocity model.",
+        realisations.VelocityModel1D._config_key: "1D Velocity Model for SRF and HF.",
+        realisations.HFConfig._config_key: "High frequency simulation configuration.",
+        realisations.EMOD3DParameters._config_key: "Parameters for EMOD3D LF simulation.",
+        realisations.BroadbandParameters._config_key: "Parameters for broadband waveform merger.",
+        realisations.IntensityMeasureCalcuationParameters._config_key: "Intensity measure calculation parameters.",
+    }
     filetree: dict[str, Any] = {}
+
+    root = filetree
+    for part in root_path.parts:
+        root[part] = {}
+        root = root[part]
+
     for file in sorted(files):
-        cur = filetree
+        cur = root
         for part in file.parts[:-1]:
             if part not in cur:
                 cur[part] = {}
             cur = cur[part]
-        if not cur.get(file.parts[-1]):
-            cur[file.parts[-1]] = file.description
+
+        if file.parent.name == "realisation.json":
+            cur[file.parts[-1]] = config_descriptions.get(file.name, {})
+        else:
+            cur[file.parts[-1]] = file_descriptions.get(file.name, {})
+
     return filetree
 
 
@@ -903,52 +666,77 @@ def plan_workflow(
         typer.Option(
             help="List of workflow outputs to generate",
             default_factory=lambda: [],
-            rich_help_panel='Planning Workflows'
+            rich_help_panel="Planning Workflows",
         ),
     ],
     group_goal: Annotated[
         list[GroupIdentifier],
         typer.Option(
-            help="List of group goals to generate", default_factory=lambda: [], rich_help_panel='Planning Workflows'
+            help="List of group goals to generate",
+            default_factory=lambda: [],
+            rich_help_panel="Planning Workflows",
         ),
     ],
     excluding: Annotated[
         list[StageIdentifier],
-        typer.Option(help="List of stages to exclude", default_factory=lambda: [], rich_help_panel='Planning Workflows'),
+        typer.Option(
+            help="List of stages to exclude",
+            default_factory=lambda: [],
+            rich_help_panel="Planning Workflows",
+        ),
     ],
     excluding_group: Annotated[
         list[GroupIdentifier],
         typer.Option(
-            help="List of stage groups to exclude", default_factory=lambda: [], rich_help_panel='Planning Workflows'
+            help="List of stage groups to exclude",
+            default_factory=lambda: [],
+            rich_help_panel="Planning Workflows",
         ),
     ],
     archive: Annotated[
         list[StageIdentifier],
-        typer.Option(help='Add stage outputs to the archive tarball.', default_factory=lambda: [StageIdentifier.Broadband, StageIdentifier.IntensityMeasureCalculation], rich_help_panel='Archiving')
+        typer.Option(
+            help="Add stage outputs to the archive tarball.",
+            default_factory=lambda: [
+                StageIdentifier.Broadband,
+                StageIdentifier.IntensityMeasureCalculation,
+            ],
+            rich_help_panel="Archiving",
+        ),
     ],
     visualise: Annotated[
-        bool, typer.Option(help="Visualise the planned workflow as a graph", rich_help_panel='Visualising Workflows')
+        bool,
+        typer.Option(
+            help="Visualise the planned workflow as a graph",
+            rich_help_panel="Visualising Workflows",
+        ),
     ] = False,
     show_required_files: Annotated[
         bool,
         typer.Option(
-            help="Print the expected directory tree at the start of the simulation.", rich_help_panel='Visualising Workflows'
+            help="Print the expected directory tree at the start of the simulation.",
+            rich_help_panel="Visualising Workflows",
         ),
     ] = True,
     target_host: Annotated[
         WorkflowTarget,
-        typer.Option(help="Select the target host where the workflow will be run", rich_help_panel='Planning Workflows'),
+        typer.Option(
+            help="Select the target host where the workflow will be run",
+            rich_help_panel="Planning Workflows",
+        ),
     ] = WorkflowTarget.NeSI,
     source: Annotated[
         Optional[Source],
         typer.Option(
-            help="If given, set the source of the realisation. For NSHM and GCMT, the realisation id corresponds to the rupture id and GCMT PublicID respectively.", rich_help_panel='Sources'
+            help="If given, set the source of the realisation. For NSHM and GCMT, the realisation id corresponds to the rupture id and GCMT PublicID respectively.",
+            rich_help_panel="Sources",
         ),
     ] = None,
     defaults_version: Annotated[
         Optional[DefaultsVersion],
         typer.Option(
-            help="The simulation defaults to apply for all realisations. Required if source is specified.", rich_help_panel='Sources'
+            help="The simulation defaults to apply for all realisations. Required if source is specified.",
+            rich_help_panel="Sources",
         ),
     ] = None,
 ):
@@ -1002,7 +790,9 @@ def plan_workflow(
     )
     archiving = set()
     for stage_id in archive:
-            archiving |= {file.name for file in stage_outputs(Stage(stage_id, '', None), Path())}
+        archiving |= {
+            file.name for file in stage_outputs(stage_id, include_config_outputs=False)
+        }
 
     template = env.get_template("flow.cylc")
     flow_template = template.render(
@@ -1011,10 +801,10 @@ def plan_workflow(
         target_host=target_host,
         archiving=archiving,
         workflow_plan={
-            node: sorted(dependents, key=lambda stage: stage_to_node_string(stage))
+            node: sorted(dependents, key=lambda stage: str(stage))
             for node, dependents in sorted(
                 nx.to_dict_of_lists(workflow_plan).items(),
-                key=lambda kv: stage_to_node_string(kv[0]),
+                key=lambda kv: str(kv[0]),
             )
         },
     )
@@ -1025,24 +815,17 @@ def plan_workflow(
     if show_required_files:
         root_path = Path("cylc-src") / "WORKFLOW_NAME" / "input"
         inputs = {
-            AnnotatedPath(
+            PurePath(
                 Path("cylc-src") / "WORKFLOW_NAME" / "flow.cylc",
-                f"Your workflow file (the file {flow_file}).",
             )
         }
         outputs = set()
-        required_realisation_sections = {
-            realisation: realisation_configuration_requirements(
-                workflow_plan, realisation
-            )
-            for realisation in realisations
-        }
-
+        inputs = set()
         for stage in workflow_plan.nodes:
-            inputs |= stage_inputs(stage, root_path, required_realisation_sections)
-            outputs |= stage_outputs(stage, root_path)
-        missing_file_tree = build_filetree(inputs - outputs)
+            inputs |= stage.inputs
+            outputs |= stage.outputs
 
+        missing_file_tree = build_filetree(root_path, inputs - outputs)
 
         if missing_file_tree:
             print("You require the following files for your simulation:")
@@ -1050,11 +833,7 @@ def plan_workflow(
             printree.ptree(missing_file_tree)
             print()
             print(
-                "Refer to the indicated sections in https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation"
-            )
-        if any(required_realisation_sections.values()):
-            print(
-                "Refer to the realisation glossary at URL HERE for details on filling in the realisation files."
+                "You can find documentation for the output files at https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation."
             )
     if visualise:
         network = pyvis_graph(workflow_plan)
