@@ -477,25 +477,30 @@ def compute_fas(
     fas_df["rotd100"] = np.nan
     return fas_df
 
-
+# CAV calculation improved by
+# Jérôme Richard: https://stackoverflow.com/questions/79164983/numerically-integrating-signals-with-absolute-value/79173972#79173972
 @numba.njit(parallel=True)
 def cav_integrate(
     waveform: npt.NDArray[np.float32], dt: float
 ) -> npt.NDArray[np.float32]:
     """Compute the Cumulative Absolute Velocity (CAV) of a waveform."""
-    cav = np.zeros((waveform.shape[0],), dtype=np.float32)
-    for i in range(waveform.shape[0]):
-        for j in range(waveform.shape[1] - 1):
-            if np.sign(waveform[i, j]) * np.sign(waveform[i, j + 1]) >= 0:
-                cav[i] += dt / 2 * (np.abs(waveform[i, j]) + np.abs(waveform[i, j + 1]))
-            else:
-                slope = (waveform[i, j + 1] - waveform[i, j]) / dt
-                x0 = -waveform[i, j] / slope
-                cav[i] += x0 / 2 * np.abs(waveform[i, j]) + (dt - x0) / 2 * np.abs(
-                    waveform[i, j + 1]
-                )
+    cav = np.zeros((waveform.shape[0], waveform.shape[-1]), dtype=np.float32)
+    dtf = np.float32(dt)
+    half = np.float32(0.5)
+    for i in numba.prange(waveform.shape[0]):
+        for c in range(waveform.shape[-1]):
+            tmp = np.float32(0)
+            for j in range(waveform.shape[1] - 1):
+                v1 = waveform[i, j, c]
+                v2 = waveform[i, j + 1, c]
+                if min(v1, v2) >= 0 or max(v1, v2) <= 0:
+                    tmp += dtf * (np.abs(v1) + np.abs(v2))
+                else:
+                    inv_slope = dtf / (v2 - v1)
+                    x0 = -v1 * inv_slope
+                    tmp += x0 * np.abs(v1) + (dtf - x0) * np.abs(v2)
+            cav[i, c] = tmp * half
     return cav
-
 
 @app.command(help="Calculate instensity measures for simulation data.")
 def calculate_instensity_measures(
