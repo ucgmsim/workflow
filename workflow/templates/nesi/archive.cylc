@@ -1,0 +1,3 @@
+[[{{stage_node_identifier(stage)}}]]
+        platform = localhost
+        script = timestamp=$(date +%Y%m%d%H%M%S) && tar -caf "$timestamp.tar.xz" --files-from=<(find $CYLC_WORKFLOW_SHARE_DIR -type f \( -name "realisation.json" {%- for pattern in archiving %} -o -name "{{pattern}}"  {%- endfor %}\)) && rclone copy "$timestamp.tar.xz" dropbox:/QuakeCoRE/Simulation\ Results\ Inbox/$USER/"$timestamp.tar.xz"

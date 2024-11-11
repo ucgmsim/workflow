@@ -21,4 +21,3 @@
     {% for stage, next_stages in workflow_plan.items() -%}
     {% include target_host + '/' + stage.identifier + '.cylc' %}
     {% endfor %}
-                                                                                                                                                                                                                                                                                                

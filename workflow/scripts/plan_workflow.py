@@ -34,6 +34,7 @@ class StageIdentifier(StrEnum):
     """Valid stage identifier in the workflow plan."""
 
     CopyInput = "copy_input"
+    Archive = "archive"
     GCMTToRealisation = "gcmt_to_realisation"
     DomainGeneration = "generate_velocity_model_parameters"
     VelocityModelGeneration = "generate_velocity_model"
@@ -557,7 +558,7 @@ def stage_outputs(stage: Stage, root: Path) -> set[AnnotatedPath]:
         case Stage(identifier=StageIdentifier.IntensityMeasureCalculation):
             return {
                 AnnotatedPath(
-                    event_directory / "ims.parquet", "Intensity measure statistics."
+                    event_directory / "intensity_measures.parquet", "Intensity measure statistics."
                 )
             }
         case Stage(identifier=StageIdentifier.PlotTimeslices):
@@ -748,10 +749,16 @@ def create_abstract_workflow_plan(
             )
 
     roots = [node for node, degree in output_graph.in_degree() if degree == 0]
+    ends = [node for node, degree in output_graph.out_degree() if degree == 0]
     copy_input_stage = Stage(StageIdentifier.CopyInput, "", None)
+    archive_output_stage = Stage(StageIdentifier.Archive, "", None)
+
     output_graph.add_node(copy_input_stage)
+    output_graph.add_node(archive_output_stage)
     for root in roots:
         output_graph.add_edge(copy_input_stage, root)
+    for end in ends:
+        output_graph.add_edge(end, archive_output_stage)
     return output_graph
 
 
@@ -911,6 +918,10 @@ def plan_workflow(
             help="List of stage groups to exclude", default_factory=lambda: [], rich_help_panel='Planning Workflows'
         ),
     ],
+    archive: Annotated[
+        list[StageIdentifier],
+        typer.Option(help='Add stage outputs to the archive tarball.', default_factory=lambda: [StageIdentifier.Broadband, StageIdentifier.IntensityMeasureCalculation], rich_help_panel='Archiving')
+    ],
     visualise: Annotated[
         bool, typer.Option(help="Visualise the planned workflow as a graph", rich_help_panel='Visualising Workflows')
     ] = False,
@@ -985,11 +996,16 @@ def plan_workflow(
     env = jinja2.Environment(
         loader=jinja2.PackageLoader("workflow"),
     )
+    archiving = set()
+    for stage_id in archive:
+            archiving |= {file.name for file in stage_outputs(Stage(stage_id, '', None), Path())}
+
     template = env.get_template("flow.cylc")
     flow_template = template.render(
         defaults_version=defaults_version,
         realisations=realisations,
         target_host=target_host,
+        archiving=archiving,
         workflow_plan={
             node: sorted(dependents, key=lambda stage: stage_to_node_string(stage))
             for node, dependents in sorted(
