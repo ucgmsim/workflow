@@ -330,8 +330,10 @@ def compute_in_rotations(
     comp_0 = waveforms[:, :, 1]
     comp_90 = waveforms[:, :, 0]
     for i in range(180):
-        theta = np.deg2rad(i)
-        values[:, i] = function(ne.evaluate(component_wise_operation))
+        theta = np.deg2rad(i).astype(np.float32)
+
+        array = ne.evaluate(component_wise_operation)
+        values[:, i] = function(array)
 
     comp_0 = values[:, 0]
     comp_90 = values[:, 90]
@@ -484,22 +486,21 @@ def cav_integrate(
     waveform: npt.NDArray[np.float32], dt: float
 ) -> npt.NDArray[np.float32]:
     """Compute the Cumulative Absolute Velocity (CAV) of a waveform."""
-    cav = np.zeros((waveform.shape[0], waveform.shape[-1]), dtype=np.float32)
+    cav = np.zeros((waveform.shape[0],), dtype=np.float32)
     dtf = np.float32(dt)
     half = np.float32(0.5)
-    for i in numba.prange(waveform.shape[0]):
-        for c in range(waveform.shape[-1]):
-            tmp = np.float32(0)
-            for j in range(waveform.shape[1] - 1):
-                v1 = waveform[i, j, c]
-                v2 = waveform[i, j + 1, c]
-                if min(v1, v2) >= 0 or max(v1, v2) <= 0:
-                    tmp += dtf * (np.abs(v1) + np.abs(v2))
-                else:
-                    inv_slope = dtf / (v2 - v1)
-                    x0 = -v1 * inv_slope
-                    tmp += x0 * np.abs(v1) + (dtf - x0) * np.abs(v2)
-            cav[i, c] = tmp * half
+    for i in numba.prange(np.int32(waveform.shape[0])):
+        tmp = np.float32(0)
+        for j in range(np.int32(waveform.shape[1] - 1)):
+            v1 = waveform[i, j]
+            v2 = waveform[i, j + 1]
+            if min(v1, v2) >= 0 or max(v1, v2) <= 0:
+                tmp += dtf * (np.abs(v1) + np.abs(v2))
+            else:
+                inv_slope = dtf / (v2 - v1)
+                x0 = -v1 * inv_slope
+                tmp += x0 * np.abs(v1) + (dtf - x0) * np.abs(v2)
+        cav[i] = tmp * half
     return cav
 
 @app.command(help="Calculate instensity measures for simulation data.")
@@ -555,7 +556,7 @@ def calculate_instensity_measures(
     )
 
     with h5py.File(broadband_simulation_ffp, mode="r") as broadband_file:
-        waveforms = np.array(broadband_file["waveforms"])
+        waveforms = np.array(broadband_file["waveforms"]).astype(np.float32)
 
     stations = pd.read_hdf(broadband_simulation_ffp, key="stations")
     if not simulated_stations:
