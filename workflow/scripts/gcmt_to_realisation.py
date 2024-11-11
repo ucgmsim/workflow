@@ -153,6 +153,7 @@ def gcmt_to_realisation(
     metadata = RealisationMetadata(
         name=gcmt_event_id, version="1", defaults_version=defaults_version, tag="gcmt"
     )
+    realisation_ffp.parent.mkdir(parents=True, exist_ok=True)
     metadata.write_to_realisation(realisation_ffp)
     source_config.write_to_realisation(realisation_ffp)
     rupture_config.write_to_realisation(realisation_ffp)

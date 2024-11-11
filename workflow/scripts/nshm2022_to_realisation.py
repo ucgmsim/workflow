@@ -184,6 +184,6 @@ def generate_realisation(
         tag="nshm",
         defaults_version=defaults_version,
     )
-
+    realisation_ffp.parent.mkdir(parents=True, exist_ok=True)
     for section in [metadata, source_config, rupture_propagation_config]:
         section.write_to_realisation(realisation_ffp)
