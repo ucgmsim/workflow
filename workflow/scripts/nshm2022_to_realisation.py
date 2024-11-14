@@ -34,10 +34,12 @@ For More Help
 See the output of `nshm2022-to-realisation --help`.
 """
 
+import random
 from pathlib import Path
 from typing import Annotated
 
 import numpy as np
+import scipy as sp
 import typer
 
 from nshmdb import nshmdb
@@ -131,6 +133,9 @@ def generate_realisation(
         DefaultsVersion,
         typer.Argument(help="Scientific default parameters version to use"),
     ],
+    seed: Annotated[
+        int, typer.Option(help="The seed to choose the initial fault.")
+    ] = 1,
 ):
     """Generate realisation stub files from ruptures in the NSHM 2022 database.
 
@@ -153,30 +158,37 @@ def generate_realisation(
     faults = db.get_rupture_faults(rupture_id)
     faults_info = db.get_rupture_fault_info(rupture_id)
 
-    initial_fault = list(faults)[0]
+    source_config = realisations.SourceConfig(faults)
 
+    rakes = {
+        fault_name: fault_info.rake for fault_name, fault_info in faults_info.items()
+    }
+    magnitudes = default_magnitude_estimation(faults, rakes)
+    mfds_rates = db.most_likely_fault(rupture_id, magnitudes)
+    random.seed(seed)
+    initial_fault = random.choices(
+        list(mfds_rates), weights=[sum(rates) for rates in mfds_rates.values()]
+    )[0]
     rupture_causality_tree = (
         rupture_propagation.estimate_most_likely_rupture_propagation(
             faults, initial_fault
         )
     )
 
-    source_config = realisations.SourceConfig(faults)
-
-    rakes = {
-        fault_name: fault_info.rake for fault_name, fault_info in faults_info.items()
-    }
-    expected_hypocentre = np.array(
-        [1 / 2, distributions.truncated_weibull_expected_value(1)]
+    hypocentre = np.array(
+        [
+            sp.stats.truncnorm(-2, 2, loc=1 / 2, scale=1 / 4).rvs(random_state=seed),
+            distributions.truncated_weibull(1, seed=seed),
+        ]
     )
     rupture_propagation_config = realisations.RupturePropagationConfig(
-        magnitudes=default_magnitude_estimation(faults, rakes),
+        magnitudes=magnitudes,
         rupture_causality_tree=rupture_causality_tree,
         jump_points=rupture_propagation.jump_points_from_rupture_tree(
             faults, rupture_causality_tree
         ),
         rakes=rakes,
-        hypocentre=expected_hypocentre,
+        hypocentre=hypocentre,
     )
     metadata = realisations.RealisationMetadata(
         name=f"Rupture {rupture_id}",
