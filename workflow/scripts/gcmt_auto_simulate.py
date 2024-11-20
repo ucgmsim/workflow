@@ -97,7 +97,6 @@ def gcmt_auto_simulate(
     ]
     if not solutions_to_simulate:
         raise typer.Exit(code=0)
-
     now = datetime.datetime.now()
     workflow_id = f'gcmt_{now.strftime("%Y%m%d_%H%M%S")}'
     cylc_directory = Path.home() / "cylc-src" / workflow_id

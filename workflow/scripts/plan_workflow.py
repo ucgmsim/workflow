@@ -548,9 +548,6 @@ def pyvis_graph(workflow_plan: nx.DiGraph) -> Network:
     return network
 
 
-REALISATION_ITERATION_RE = r"_rel\d+$"
-
-
 def parse_realisation(realisation_id: str) -> set[tuple[str, Optional[int]]]:
     """Parse a realisation identifier string from the command line into a realisation identifier.
 
