@@ -39,7 +39,6 @@ from pathlib import Path
 from typing import Annotated
 
 import numpy as np
-import scipy as sp
 import typer
 
 from nshmdb import nshmdb
@@ -174,11 +173,11 @@ def generate_realisation(
             faults, initial_fault
         )
     )
-
+    np.random.seed(seed=seed)
     hypocentre = np.array(
         [
-            sp.stats.truncnorm(-2, 2, loc=1 / 2, scale=1 / 4).rvs(random_state=seed),
-            distributions.truncated_weibull(1, seed=seed),
+            distributions.truncated_normal(1 / 2, 1 / 4),
+            distributions.truncated_weibull(1),
         ]
     )
     rupture_propagation_config = realisations.RupturePropagationConfig(
