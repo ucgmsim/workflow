@@ -43,6 +43,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pykooh
+import scipy as sp
 import tqdm
 import typer
 
@@ -409,7 +410,7 @@ def compute_significant_duration(
     npt.NDArray[np.float32]
         The significant duration for each station (in seconds).
     """
-    arias_intensity = np.cumsum(waveforms, axis=1)
+    arias_intensity = cumulative_arias_integrate(waveforms, dt)
     arias_intensity /= arias_intensity[:, -1][:, np.newaxis]
     sum_mask = ne.evaluate(
         "(arias_intensity >= percent_low / 100) & (arias_intensity <= percent_high / 100)"
@@ -479,6 +480,7 @@ def compute_fas(
     fas_df["rotd100"] = np.nan
     return fas_df
 
+
 # CAV calculation improved by
 # Jérôme Richard: https://stackoverflow.com/questions/79164983/numerically-integrating-signals-with-absolute-value/79173972#79173972
 @numba.njit(parallel=True)
@@ -502,6 +504,54 @@ def cav_integrate(
                 tmp += x0 * np.abs(v1) + (dtf - x0) * np.abs(v2)
         cav[i] = tmp * half
     return cav
+
+
+@numba.njit(parallel=True)
+def arias_integrate(
+    waveform: npt.NDArray[np.float32], dt: float
+) -> npt.NDArray[np.float32]:
+    """Compute the Arias Intensity (AI) of a waveform."""
+    ai = np.zeros((waveform.shape[0],), dtype=np.float32)
+    dtf = np.float32(dt)
+    half = np.float32(0.5)
+    for i in numba.prange(np.int32(waveform.shape[0])):
+        tmp = np.float32(0)
+        for j in range(np.int32(waveform.shape[1] - 1)):
+            v1 = waveform[i, j]
+            v2 = waveform[i, j + 1]
+            if min(v1, v2) >= 0 or max(v1, v2) <= 0:
+                tmp += dtf * (np.abs(v1) + np.abs(v2))
+            else:
+                inv_slope = dtf / (v2 - v1)
+                x0 = -v1 * inv_slope
+                tmp += x0 * np.square(v1) + (dtf - x0) * np.square(v2)
+        ai[i] = tmp * half
+    return ai
+
+
+@numba.njit(parallel=True)
+def cumulative_arias_integrate(
+    waveform: npt.NDArray[np.float32], dt: float
+) -> npt.NDArray[np.float32]:
+    """Compute the cumulative AI of a waveform."""
+    ai = np.zeros_like(waveform, dtype=np.float32)
+    dtf = np.float32(dt)
+    half = np.float32(0.5)
+    for i in numba.prange(np.int32(waveform.shape[0])):
+        tmp = np.float32(0)
+        for j in range(np.int32(waveform.shape[1] - 1)):
+            v1 = waveform[i, j]
+            v2 = waveform[i, j + 1]
+            if min(v1, v2) >= 0 or max(v1, v2) <= 0:
+                tmp += dtf * (np.abs(v1) + np.abs(v2))
+            else:
+                inv_slope = dtf / (v2 - v1)
+                x0 = -v1 * inv_slope
+                tmp += x0 * np.square(v1) + (dtf - x0) * np.square(v2)
+
+            ai[i, j + 1] = tmp
+    return ai * half
+
 
 @app.command(help="Calculate instensity measures for simulation data.")
 def calculate_instensity_measures(
@@ -578,8 +628,14 @@ def calculate_instensity_measures(
                 individual_intensity_measure_statistics["intensity_measure"] = "PGA"
             case "pgv":
                 individual_intensity_measure_statistics = compute_in_rotations(
-                    np.cumsum(waveforms, axis=1) * g * broadband_parameters.dt,
+                    np.abs(
+                        sp.integrate.cumulative_trapezoid(
+                            waveforms, dx=broadband_parameters.dt, axis=1
+                        )
+                    )
+                    * g,
                     lambda v: v.max(axis=1),
+                    component_wise_operation=ComponentWiseOperation.NONE,
                 )
                 individual_intensity_measure_statistics["station"] = stations.index
                 individual_intensity_measure_statistics["intensity_measure"] = "PGV"
@@ -594,8 +650,10 @@ def calculate_instensity_measures(
             case "ai":
                 individual_intensity_measure_statistics = compute_in_rotations(
                     waveforms,
-                    lambda v: (np.pi * g) / 2 * trapz(v, broadband_parameters.dt),
-                    component_wise_operation=ComponentWiseOperation.SQUARE,
+                    lambda v: (np.pi * g)
+                    / 2
+                    * arias_integrate(v, broadband_parameters.dt),
+                    component_wise_operation=ComponentWiseOperation.NONE,
                 )
                 individual_intensity_measure_statistics["station"] = stations.index
                 individual_intensity_measure_statistics["intensity_measure"] = "AI"
@@ -605,7 +663,7 @@ def calculate_instensity_measures(
                     lambda v: compute_significant_duration(
                         v, broadband_parameters.dt, 5, 75
                     ),
-                    component_wise_operation=ComponentWiseOperation.SQUARE,
+                    component_wise_operation=ComponentWiseOperation.NONE,
                 )
                 individual_intensity_measure_statistics["station"] = stations.index
                 individual_intensity_measure_statistics["intensity_measure"] = "Ds575"
@@ -615,7 +673,7 @@ def calculate_instensity_measures(
                     lambda v: compute_significant_duration(
                         v, broadband_parameters.dt, 5, 95
                     ),
-                    component_wise_operation=ComponentWiseOperation.SQUARE,
+                    component_wise_operation=ComponentWiseOperation.NONE,
                 )
                 individual_intensity_measure_statistics["station"] = stations.index
                 individual_intensity_measure_statistics["intensity_measure"] = "Ds595"
