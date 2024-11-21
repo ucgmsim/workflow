@@ -46,7 +46,7 @@ from qcore.uncertainties import distributions, mag_scaling
 from source_modelling import rupture_propagation
 from source_modelling.sources import Fault
 from workflow import realisations
-from workflow.defaults import DefaultsVersion
+from workflow.defaults import DefaultsVersion, Seeds
 from workflow.log_utils import log_call
 
 app = typer.Typer()
@@ -132,9 +132,6 @@ def generate_realisation(
         DefaultsVersion,
         typer.Argument(help="Scientific default parameters version to use"),
     ],
-    seed: Annotated[
-        int, typer.Option(help="The seed to choose the initial fault.")
-    ] = 1,
 ):
     """Generate realisation stub files from ruptures in the NSHM 2022 database.
 
@@ -153,10 +150,12 @@ def generate_realisation(
     defaults_version : DefaultsVersion
         Scientific default parameters version to use.
     """
+
     db = nshmdb.NSHMDB(nshm_db_file)
     faults = db.get_rupture_faults(rupture_id)
     faults_info = db.get_rupture_fault_info(rupture_id)
-
+    seeds = realisations.Seeds.read_from_realisation_or_defaults(realisation_ffp)
+    np.random.seed(seed=seeds.nshm_to_realisation_seed)
     source_config = realisations.SourceConfig(faults)
 
     rakes = {
@@ -164,16 +163,18 @@ def generate_realisation(
     }
     magnitudes = default_magnitude_estimation(faults, rakes)
     mfds_rates = db.most_likely_fault(rupture_id, magnitudes)
-    random.seed(seed)
-    initial_fault = random.choices(
-        list(mfds_rates), weights=[sum(rates) for rates in mfds_rates.values()]
-    )[0]
+    mfds_probabilities = np.array(mfds_rates.values())
+    if np.allclose(mfds_probabilities, 0):
+        mfds_probabilities = np.ones_like(mfds_probabilities)
+    mfds_probabilities /= mfds_probabilities.sum()
+    initial_fault = np.random.choice(list(mfds_rates), p=mfds_probabilities)
+
     rupture_causality_tree = (
         rupture_propagation.estimate_most_likely_rupture_propagation(
             faults, initial_fault
         )
     )
-    np.random.seed(seed=seed)
+
     hypocentre = np.array(
         [
             distributions.truncated_normal(1 / 2, 1 / 4),

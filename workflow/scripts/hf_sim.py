@@ -49,6 +49,7 @@ from workflow.realisations import (
     DomainParameters,
     HFConfig,
     RealisationMetadata,
+    Seeds,
     VelocityModel1D,
 )
 
@@ -60,6 +61,7 @@ FLOAT_SIZE = 4
 
 def hf_simulate_station(
     hf_config: HFConfig,
+    seeds: Seeds,
     domain_parameters: DomainParameters,
     velocity_model: Path,
     stoch_ffp: Path,
@@ -117,7 +119,7 @@ def hf_simulate_station(
             f"{len(hf_config.rayset)} {' '.join(str(ray) for ray in hf_config.rayset)}",
             int(not hf_config.no_siteamp),
             f"{hf_config.nbu} {hf_config.ift} {hf_config.flo} {hf_config.fhi}",
-            hf_config.seed,
+            seeds.hf_seed,
             1,  # one station in the input
             f"{domain_parameters.duration} {hf_config.dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",
             f"{hf_config.rvfac} {hf_config.rvfac_shal} {hf_config.rvfac_deep} {hf_config.czero} {hf_config.calpha}",
@@ -236,6 +238,7 @@ def run_hf(
     None
         The function does not return any value. It writes the HF output directly to `out_file`.
     """
+    seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     velocity_model = VelocityModel1D.read_from_realisation_or_defaults(
@@ -258,6 +261,7 @@ def run_hf(
             functools.partial(
                 hf_simulate_station,
                 hf_config,
+                seeds,
                 domain_parameters,
                 velocity_model_path,
                 stoch_ffp,

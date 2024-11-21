@@ -10,6 +10,8 @@ module become an "everything" module.
 
 import dataclasses
 import json
+import random
+import struct
 from abc import ABC
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Optional, Self, Union
@@ -211,6 +213,63 @@ class RealisationConfiguration(ABC):
 
 
 @dataclasses.dataclass
+class Seeds(RealisationConfiguration):
+    """Configuration block for random seeds."""
+
+    _config_key: ClassVar[str] = "seeds"
+    _schema: ClassVar[Schema] = schemas.SEED_SCHEMA
+
+    nshm_to_realisation_seed: int
+    """The random seed for NSHM -> realisation."""
+    genslip_seed: int
+    """The random seed passed to genslip."""
+    srfgen_seed: int
+    """A second random seed for genslip, used for specific purposes in the generation process."""
+    hf_seed: int
+    """HF seed."""
+
+    @classmethod
+    def read_from_realisation_or_defaults(
+        cls, realisation_ffp: Path, *args
+    ) -> Self:  # *args is to maintain compat with superclass (remove this and see the error in mypy).
+        """Read configuration from realisation, or read from defaults and write to realisation.
+
+
+        Returns
+        -------
+        RealisationConfiguration
+            The configuration loaded from the realisation filepath, or the
+            defaults if the realisation does not contain the configuration
+            key. The configuration schema is looked up from `cls._config_key`
+            and the key within the config is specified `cls._schema`.
+
+        Raises
+        ------
+        RealisationParseError
+            If the key in `cls._config_key` is not present in
+            the realisation or scientific defaults configuration.
+        """
+        try:
+            return cls.read_from_realisation(realisation_ffp)
+        except RealisationParseError:
+            return cls(
+                **{
+                    field.name: random.randint(
+                        # The following bounds for a random integer
+                        # are based on the maximum machine size
+                        # integer with the "long" datatype used in
+                        # genslip and HF.
+                        # See:
+                        # https://stackoverflow.com/questions/13795758/what-is-sys-maxint-in-python-3/13796364#13796364
+                        0,
+                        2 ** (struct.Struct("l").size * 8 - 1) - 1,
+                    )
+                    for field in dataclasses.fields(cls)
+                }
+            )
+
+
+@dataclasses.dataclass
 class SourceConfig(RealisationConfiguration):
     """Configuration for defining sources."""
 
@@ -262,14 +321,11 @@ class SRFConfig(RealisationConfiguration):
 
     genslip_dt: float
     """The timestep for genslip (used to specify the resolution for the `TINIT` values)."""
-    genslip_seed: int
-    """The random seed passed to genslip."""
+
     genslip_version: str
     """The version of genslip to use (currently supports "5.4.2")."""
     resolution: float
     """The resolution of the SRF geometry"""
-    srfgen_seed: int
-    """A second random seed for genslip, used for specific purposes in the generation process."""
 
 
 @dataclasses.dataclass
@@ -525,8 +581,6 @@ class HFConfig(RealisationConfiguration):
     """rvfac shallow fault multiplier"""
     rvfac_deep: float
     """rvfac deep fault multiplier"""
-    seed: int
-    """HF seed."""
     czero: float
     """C0 coefficient"""
     calpha: float

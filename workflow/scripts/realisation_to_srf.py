@@ -60,6 +60,7 @@ from workflow.log_utils import log_call
 from workflow.realisations import (
     RealisationMetadata,
     RupturePropagationConfig,
+    Seeds,
     SourceConfig,
     SRFConfig,
     VelocityModel1D,
@@ -137,6 +138,7 @@ def generate_fault_srf(
     hypocentre_local_coordinates: npt.NDArray[np.float64],
     output_directory: Path,
     srf_config: SRFConfig,
+    seeds: Seeds,
     genslip_path: Path,
 ):
     """Generate an SRF file for a given fault.
@@ -188,7 +190,7 @@ def generate_fault_srf(
         f"ndip={ny}",
         "ns=1",
         "nh=1",
-        f"seed={srf_config.genslip_seed}",
+        f"seed={seeds.genslip_seed}",
         f"velfile={velocity_model_path}",
         f"shypo={genslip_hypocentre_coords[0]}",
         f"dhypo={genslip_hypocentre_coords[1]}",
@@ -384,6 +386,7 @@ def generate_fault_srfs_parallel(
     rupture_propagation_config: RupturePropagationConfig,
     output_directory: Path,
     srf_config: SRFConfig,
+    seeds: Seeds,
     velocity_model_1d: VelocityModel1D,
     genslip_path: Path,
 ):
@@ -433,6 +436,7 @@ def generate_fault_srfs_parallel(
                 output_directory=output_directory,
                 srf_config=srf_config,
                 genslip_path=genslip_path,
+                seeds=seeds,
             ),
             srf_generation_parameters,
         )
@@ -493,7 +497,7 @@ def generate_srf(
     srf_config = SRFConfig.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
-
+    seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
     rupture_propagation = RupturePropagationConfig.read_from_realisation(
         realisation_ffp
     )
@@ -507,6 +511,7 @@ def generate_srf(
         rupture_propagation,
         work_directory,
         srf_config,
+        seeds,
         velocity_model,
         genslip_path,
     )

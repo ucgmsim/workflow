@@ -102,12 +102,9 @@ hf:
   stress_parameter_adjustment_fault_area: null
   stoch_dx: 2.0
   stoch_dy: 2.0
-  seed: 0
 srf:
   resolution: 0.1
-  genslip_seed: 1
   genslip_dt: 0.05
-  srfgen_seed: 1
   genslip_version: 5.4.2
 velocity_model:
   min_vs: 0.5

@@ -292,16 +292,9 @@ SRF_SCHEMA = Schema(
             "genslip_dt",
             description="The timestep for genslip (used to specify the resolution for the `TINIT` values)",
         ): And(float, is_positive),
-        Literal("genslip_seed", description="The random seed passed to genslip"): And(
-            int, is_non_negative
-        ),
         Literal("genslip_version", description="The version of genslip to use"): Or(
             "5.4.2"
         ),
-        Literal(
-            "srfgen_seed",
-            description="A second random seed for genslip (TODO: how does genslip use this value?)",
-        ): And(int, is_non_negative),
         Literal("resolution", description="Subdivision resolution."): And(
             float, is_positive
         ),
@@ -379,6 +372,21 @@ VELOCITY_MODEL_SCHEMA = Schema(
         Literal("rrup_interpolants", "RRup interpolants to estimate domain size"): And(
             [[And(float, is_positive)]], Use(np.array)
         ),
+    }
+)
+
+SEED_SCHEMA = Schema(
+    {
+        Literal("genslip_seed", description="The random seed passed to genslip."): int,
+        Literal(
+            "nshm_to_realisation_seed",
+            description="The random seed passed for NSHM -> realisation.",
+        ): int,
+        Literal(
+            "srfgen_seed",
+            description="A second random seed for genslip, used for specific purposes in the generation process.",
+        ): int,
+        Literal("hf_seed", description="HF seed."): int,
     }
 )
 
@@ -484,7 +492,6 @@ HF_CONFIG_SCHEMA = Schema(
         Literal(
             "stress_parameter_adjustment_fault_area", "Fault area (or inferred if null)"
         ): Or(float, None),
-        Literal("seed", description="HF seed"): int,
         Literal("stoch_dx", description="Stoch file dx"): And(float, is_positive),
         Literal("stoch_dy", description="Stoch file dy"): And(float, is_positive),
     }
