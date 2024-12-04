@@ -5,7 +5,7 @@ fiona
 geopandas
 h5py
 jinja2
-nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB@source_modelling
+nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB
 numba
 numexpr
 numpy<2
