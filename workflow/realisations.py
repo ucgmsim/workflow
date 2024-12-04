@@ -254,21 +254,23 @@ class Seeds(RealisationConfiguration):
         try:
             return cls.read_from_realisation(realisation_ffp)
         except RealisationParseError:
-            return cls(
+            config = cls(
                 **{
                     field.name: random.randint(
                         # The following bounds for a random integer
                         # are based on the maximum machine size
-                        # integer with the "long" datatype used in
+                        # integer with the "i" datatype used in
                         # genslip and HF.
                         # See:
                         # https://stackoverflow.com/questions/13795758/what-is-sys-maxint-in-python-3/13796364#13796364
                         0,
-                        2 ** (struct.Struct("l").size * 8 - 1) - 1,
+                        2 ** (struct.Struct("i").size * 8 - 1) - 1,
                     )
                     for field in dataclasses.fields(cls)
                 }
             )
+            config.write_to_realisation(realisation_ffp)
+            return config
 
 
 @dataclasses.dataclass
