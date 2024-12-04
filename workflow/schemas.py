@@ -386,6 +386,9 @@ SEED_SCHEMA = Schema(
             "srfgen_seed",
             description="A second random seed for genslip, used for specific purposes in the generation process.",
         ): int,
+        Literal(
+            "rupture_propagation_seed", description="Seed for rupture propagation"
+        ): int,
         Literal("hf_seed", description="HF seed."): int,
     }
 )

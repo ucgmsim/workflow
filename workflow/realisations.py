@@ -221,6 +221,8 @@ class Seeds(RealisationConfiguration):
 
     nshm_to_realisation_seed: int
     """The random seed for NSHM -> realisation."""
+    rupture_propagation_seed: int
+    """The random seed for rupture propagation."""
     genslip_seed: int
     """The random seed passed to genslip."""
     srfgen_seed: int

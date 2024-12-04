@@ -32,6 +32,7 @@ For More Help
 See the output of `nshm2022-to-realisation --help`.
 """
 
+import random
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -156,20 +157,24 @@ def generate_rupture_propagation(
     rakes : dict[str, float]
         A dictionary mapping fault names to fault rake values.
     """
+    seeds = realisations.Seeds.read_from_realisation_or_defaults(realisation_ffp)
     source_config = realisations.SourceConfig.read_from_realisation(realisation_ffp)
     faults = source_config.source_geometries
 
+    random.seed(seeds.rupture_propagation_seed)
+    np.random.seed(random.randint(0, 2**32 - 1))
     if shypo is not None and dhypo is not None:
-        expected_hypocentre = np.array([shypo, dhypo])
+        hypocentre = np.array([shypo, dhypo])
     else:
-        expected_hypocentre = np.array(
-            [1 / 2, distributions.truncated_weibull_expected_value(1)]
+        hypocentre = np.array(
+            [
+                distributions.truncated_normal(1 / 2, 1 / 4),
+                distributions.truncated_weibull(1),
+            ]
         )
 
-    rupture_causality_tree = (
-        rupture_propagation.estimate_most_likely_rupture_propagation(
-            faults, initial_fault
-        )
+    rupture_causality_tree = rupture_propagation.sample_rupture_propagation(
+        faults, initial_source=initial_fault
     )
 
     rupture_propagation_config = realisations.RupturePropagationConfig(
@@ -179,7 +184,7 @@ def generate_rupture_propagation(
             faults, rupture_causality_tree
         ),
         rakes=rakes,
-        hypocentre=expected_hypocentre,
+        hypocentre=hypocentre,
     )
 
     rupture_propagation_config.write_to_realisation(realisation_ffp)

@@ -1,8 +1,6 @@
-import os
 from pathlib import Path
 from typing import Annotated
 
-import numpy as np
 import shapely
 import typer
 
