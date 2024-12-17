@@ -773,7 +773,7 @@ class BroadbandParameters(RealisationConfiguration):
 
 
 @dataclasses.dataclass
-class IntensityMeasureCalcuationParameters(RealisationConfiguration):
+class IntensityMeasureCalculationParameters(RealisationConfiguration):
     """Intensity measure calculation parameters."""
 
     _config_key: ClassVar[str] = "im"

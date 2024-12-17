@@ -213,7 +213,7 @@ def stage_config_outputs(identifier: StageIdentifier) -> set[str]:
         },
         StageIdentifier.HighFrequency: {realisations.HFConfig._config_key},
         StageIdentifier.IntensityMeasureCalculation: {
-            realisations.IntensityMeasureCalcuationParameters._config_key
+            realisations.IntensityMeasureCalculationParameters._config_key
         },
         StageIdentifier.CopyDomainParameters: {
             realisations.VelocityModelParameters._config_key,
@@ -616,7 +616,7 @@ def build_filetree(root_path: PurePath, files: set[PurePath]) -> dict[str, Any]:
         realisations.HFConfig._config_key: "High frequency simulation configuration.",
         realisations.EMOD3DParameters._config_key: "Parameters for EMOD3D LF simulation.",
         realisations.BroadbandParameters._config_key: "Parameters for broadband waveform merger.",
-        realisations.IntensityMeasureCalcuationParameters._config_key: "Intensity measure calculation parameters.",
+        realisations.IntensityMeasureCalculationParameters._config_key: "Intensity measure calculation parameters.",
     }
     filetree: dict[str, Any] = {}
 

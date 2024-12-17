@@ -50,7 +50,7 @@ import typer
 from workflow import log_utils, utils
 from workflow.realisations import (
     BroadbandParameters,
-    IntensityMeasureCalcuationParameters,
+    IntensityMeasureCalculationParameters,
     RealisationMetadata,
 )
 
@@ -600,7 +600,7 @@ def calculate_instensity_measures(
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     broadband_parameters = BroadbandParameters.read_from_realisation(realisation_ffp)
     intensity_measure_parameters = (
-        IntensityMeasureCalcuationParameters.read_from_realisation_or_defaults(
+        IntensityMeasureCalculationParameters.read_from_realisation_or_defaults(
             realisation_ffp, metadata.defaults_version
         )
     )
