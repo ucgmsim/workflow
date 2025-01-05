@@ -181,7 +181,7 @@ def rotd_psa_values(
 
     for i in tqdm.trange(0, comp_000.shape[0], step):
         step_000 = comp_000[i : i + step]
-        step_090 = comp_000[i : i + step]
+        step_090 = comp_090[i : i + step]
         psa[i : i + step] = np.transpose(
             np.percentile(
                 np.max(
