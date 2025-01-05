@@ -460,7 +460,7 @@ def compute_fas(
             pool.map(smoother, fa_spectrum[:, :, 2]),
             dtype=np.float32,
         )
-    fas_mean = np.sqrt(0.5 * (np.square(fas_0) + np.square(fas_90)))
+    fas_mean = np.sqrt(np.square(fas_0) + np.square(fas_90))
     fas_df = pd.concat(
         [
             pd.DataFrame(
