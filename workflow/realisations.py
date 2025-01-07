@@ -532,6 +532,38 @@ class RealisationMetadata(RealisationConfiguration):
     tag: Optional[str] = None
     """Metadata tag for the realisation used to specify the origin or
     category of the realisation (e.g. NSHM, GCMT or custom)."""
+    input_reference: Optional[str] = None
+    """Input git reference used to download files."""
+
+
+@dataclasses.dataclass
+class RealisationInput:
+    """
+    Represents the input specification for a simulation realisation.
+
+    This class defines where input files for the simulation should be sourced
+    from within a Git-based registry. It ensures reproducibility by associating
+    the files with a specific Git commit and verifying their integrity using
+    content hashes.
+    """
+
+    _config_key: ClassVar[str] = "input"
+    _schema: ClassVar[Schema] = schemas.REALISATION_INPUT_SCHEMA
+
+    commit: str
+    """The Git commit hash identifying the version of the registry to use.
+    
+    This ensures that the input files are sourced from a specific, immutable
+    state of the registry for reproducibility.
+    """
+
+    files: dict[Path, Path]
+    """A mapping of simulation file paths to their sources in the registry.
+    
+    The keys represent the paths where the files will be used in the simulation,
+    and the values are paths specifying the source file
+    information from the registry.
+    """
 
 
 @dataclasses.dataclass

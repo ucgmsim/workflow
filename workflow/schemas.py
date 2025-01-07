@@ -6,12 +6,13 @@ the [Realisations page](https://github.com/ucgmsim/workflow/wiki/Realisations), 
 for a description of realisations and the schemas.
 """
 
-import functools
+import re
 from enum import StrEnum
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from schema import And, Literal, Optional, Or, Schema, Use
+from schema import And, Literal, Optional, Or, Regex, Schema, Use
 from velocity_modelling.bounding_box import BoundingBox
 
 from source_modelling import rupture_propagation, sources
@@ -644,5 +645,19 @@ INTENSITY_MEASURE_CALCUATION_PARAMETERS = Schema(
         Literal("units", description="Units to calculate intensity measures in"): And(
             str, Use(Units)
         ),
+    }
+)
+
+
+REALISATION_INPUT_SCHEMA = Schema(
+    {
+        Literal(
+            "commit",
+            description="The git commit hash identifying the version of the registry to use.",
+        ): Regex("[a-f0-9]{40}", re.I),
+        Literal(
+            "files",
+            description="A mapping of simulation file paths to their sources in the registry.",
+        ): {And(str, Use(Path)): And(str, Use(Path))},
     }
 )
