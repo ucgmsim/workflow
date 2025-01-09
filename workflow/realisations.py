@@ -13,15 +13,16 @@ import json
 import random
 import struct
 from abc import ABC
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Any, ClassVar, Literal, Optional, Self, Union
 
 import numpy as np
 import numpy.typing as npt
-import pandas as pd
+import yaml
 from schema import Schema
 from velocity_modelling.bounding_box import BoundingBox
 
+from qcore import registry
 from source_modelling import sources
 from source_modelling.rupture_propagation import JumpPair
 from source_modelling.sources import IsSource
@@ -181,7 +182,16 @@ class RealisationConfiguration(ABC):
         try:
             return cls.read_from_realisation(realisation_ffp)
         except RealisationParseError:
-            default_config = cls.read_from_defaults(defaults_version)
+            inputs = RealisationInput.read_from_realisation_or_defaults(realisation_ffp)
+            defaults_yaml = inputs.fetch_file(
+                PurePath("v" + defaults_version.value.replace(".", "_"))
+                / "defaults.yaml"
+            )
+            with open(defaults_yaml, "r", encoding="utf-8") as fp:
+                defaults_yaml_obj = yaml.safe_load(fp)
+                default_config = cls(
+                    **cls._schema.validate(defaults_yaml_obj[cls._config_key])
+                )
             default_config.write_to_realisation(realisation_ffp)
             return default_config
 
@@ -482,41 +492,6 @@ class VelocityModelParameters(RealisationConfiguration):
 
 
 @dataclasses.dataclass
-class VelocityModel1D(RealisationConfiguration):
-    """1D Velocity Model for SRF and HF."""
-
-    _config_key: ClassVar[str] = "velocity_model_1d"
-    _schema: ClassVar[Schema] = schemas.VELOCITY_MODEL_1D_SCHEMA
-
-    model: pd.DataFrame
-
-    def write_velocity_model(self, velocity_model_path: Path):
-        """Write a 1D velocity model to the specified path.
-
-        Parameters
-        ----------
-        velocity_model_path : Path
-            The path to write the 1D velocity model.
-        """
-        with open(velocity_model_path, "w") as velocity_model:
-            velocity_model.write(f"{len(self.model)}\n")
-            self.model.to_csv(velocity_model, header=False, index=False, sep=" ")
-
-    def to_dict(self) -> dict:
-        """
-        Convert the object to a dictionary representation.
-
-        Returns
-        -------
-        dict
-            Dictionary representation of the object.
-        """
-        _dict = dataclasses.asdict(self)
-        _dict["model"] = _dict["model"].to_dict("records")
-        return _dict
-
-
-@dataclasses.dataclass
 class RealisationMetadata(RealisationConfiguration):
     """Metadata for describing a realisation."""
 
@@ -532,12 +507,14 @@ class RealisationMetadata(RealisationConfiguration):
     tag: Optional[str] = None
     """Metadata tag for the realisation used to specify the origin or
     category of the realisation (e.g. NSHM, GCMT or custom)."""
+    input_set: Optional[schemas.InputSet] = None
+    """The input file set."""
     input_reference: Optional[str] = None
     """Input git reference used to download files."""
 
 
 @dataclasses.dataclass
-class RealisationInput:
+class RealisationInput(RealisationConfiguration):
     """
     Represents the input specification for a simulation realisation.
 
@@ -560,10 +537,73 @@ class RealisationInput:
     files: dict[Path, Path]
     """A mapping of simulation file paths to their sources in the registry.
     
-    The keys represent the paths where the files will be used in the simulation,
-    and the values are paths specifying the source file
-    information from the registry.
+    The keys represent the paths where the files will be used in the
+    simulation, and the values are paths specifying the source file information
+    from the registry. These can be used to override default file locations
+    and request custom locations.
     """
+
+    registry: dict[Path, str]
+    """The registry hashes of the realisation inputs."""
+
+    @classmethod
+    def read_from_realisation_or_defaults(cls, realisation_ffp: Path, *args) -> Self:
+        """Read configuration from realisation, or read from defaults and write to realisation.
+
+
+        Returns
+        -------
+        RealisationConfiguration
+            The configuration loaded from the realisation filepath, or the
+            defaults if the realisation does not contain the configuration
+            key. The configuration schema is looked up from `cls._config_key`
+            and the key within the config is specified `cls._schema`.
+
+        Raises
+        ------
+        RealisationParseError
+            If the key in `cls._config_key` is not present in
+            the realisation or scientific defaults configuration.
+        """
+        try:
+            return cls.read_from_realisation(realisation_ffp)
+        except RealisationParseError:
+            realisation_metadata = RealisationMetadata.read_from_realisation(
+                realisation_ffp
+            )
+            commit = registry.resolve_git_reference(
+                realisation_metadata.input_reference or "main"
+            )
+            qcore_registry = registry.qcore_registry(reference=commit).registry
+            realisation_inputs = cls(commit=commit, files={}, registry=qcore_registry)
+            realisation_inputs.write_to_realisation(realisation_ffp)
+            return realisation_inputs
+
+    def fetch_file(self, filepath: PurePath) -> Path:
+        """Fetch a file from the qcore registry.
+
+        Parameters
+        ----------
+        self :
+            self
+        filepath : Path
+            The path to the file (from the repository root).
+
+        Returns
+        -------
+        Path
+            The path to the file downloaded to disk.
+        """
+        qcore_registry = registry.qcore_registry(
+            registry=self.registry, reference=self.commit
+        )
+        return registry.fetch_file(qcore_registry, filepath)
+
+    def to_dict(self) -> dict:
+        obj_dict = dataclasses.asdict(self)
+        obj_dict["files"] = {str(k): str(v) for k, v in self.files.items()}
+        obj_dict["registry"] = {str(k): v for k, v in self.registry.items()}
+        return obj_dict
 
 
 @dataclasses.dataclass

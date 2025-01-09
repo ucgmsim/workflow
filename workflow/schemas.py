@@ -8,7 +8,7 @@ for a description of realisations and the schemas.
 
 import re
 from enum import StrEnum
-from pathlib import Path
+from pathlib import Path, PurePath
 
 import numpy as np
 import pandas as pd
@@ -412,21 +412,40 @@ VELOCITY_MODEL_1D_SCHEMA = Schema(
     }
 )
 
+
+class InputSet(StrEnum):
+    """Input file set to source for the simulations."""
+
+    CYBERSHAKE = "cybershake"
+    """The cybershake file set."""
+    VALIDATION = "validation"
+    """The validation file set."""
+
+
 REALISATION_METADATA_SCHEMA = Schema(
     {
         Literal("name", description="The name of the realisation"): str,
         Literal("version", description="The version of the realisation format"): Or(
             "1"
         ),
+        Literal(
+            "defaults_version", description="Simulation default parameters version."
+        ): And(str, Use(DefaultsVersion)),
         Optional(
             Literal(
                 "tag",
                 description="Metadata tag for the realisation used to specify the origin or category of the realisation (e.g. NSHM, GCMT or custom).",
             )
         ): Or(str, None),
-        Literal(
-            "defaults_version", description="Simulation default parameters version."
-        ): And(str, Use(DefaultsVersion)),
+        Optional(Literal("input_set", description="The input file set.")): Or(
+            And(str, Use(InputSet)), None
+        ),
+        Optional(
+            Literal(
+                "input_reference",
+                description="Input git reference used to download files.",
+            )
+        ): Or(str, None),
     }
 )
 
@@ -658,6 +677,9 @@ REALISATION_INPUT_SCHEMA = Schema(
         Literal(
             "files",
             description="A mapping of simulation file paths to their sources in the registry.",
-        ): {And(str, Use(Path)): And(str, Use(Path))},
+        ): Or({And(str, Use(Path)): And(str, Use(PurePath))}, {}),
+        Literal("registry", description="The registry associated with the commit."): Or(
+            {And(str, Use(PurePath)): Regex("[a-f0-9]{64}", re.I)}, {}
+        ),
     }
 )

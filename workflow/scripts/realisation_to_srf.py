@@ -42,7 +42,7 @@ import re
 import shutil
 import subprocess
 from collections.abc import Iterable
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Annotated, Optional
 
 import numpy as np
@@ -58,12 +58,12 @@ from source_modelling.sources import IsSource
 from workflow import log_utils, utils
 from workflow.log_utils import log_call
 from workflow.realisations import (
+    RealisationInput,
     RealisationMetadata,
     RupturePropagationConfig,
     Seeds,
     SourceConfig,
     SRFConfig,
-    VelocityModel1D,
 )
 
 app = typer.Typer()
@@ -140,6 +140,7 @@ def generate_fault_srf(
     srf_config: SRFConfig,
     seeds: Seeds,
     genslip_path: Path,
+    velocity_model_path: Path,
 ):
     """Generate an SRF file for a given fault.
 
@@ -177,7 +178,6 @@ def generate_fault_srf(
     genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
         hypocentre_local_coordinates - np.array([1 / 2, 0])
     )
-    velocity_model_path = output_directory / "velocity_model"
     genslip_cmd = [
         str(genslip_path),
         "read_erf=0",
@@ -387,7 +387,7 @@ def generate_fault_srfs_parallel(
     output_directory: Path,
     srf_config: SRFConfig,
     seeds: Seeds,
-    velocity_model_1d: VelocityModel1D,
+    velocity_model_path: Path,
     genslip_path: Path,
 ):
     """Generate fault SRF files in parallel.
@@ -406,7 +406,6 @@ def generate_fault_srfs_parallel(
     gsf_directory.mkdir(exist_ok=True)
     srf_directory = output_directory / "srf"
     srf_directory.mkdir(exist_ok=True)
-    velocity_model_1d.write_velocity_model(output_directory / "velocity_model")
 
     magnitudes = rupture_propagation_config.magnitudes
     rakes = rupture_propagation_config.rakes
@@ -436,6 +435,7 @@ def generate_fault_srfs_parallel(
                 output_directory=output_directory,
                 srf_config=srf_config,
                 genslip_path=genslip_path,
+                velocity_model_path=velocity_model_path,
                 seeds=seeds,
             ),
             srf_generation_parameters,
@@ -468,6 +468,12 @@ def generate_srf(
             file_okay=False,
         ),
     ] = Path("/out"),
+    velocity_model_path: Annotated[
+        PurePath, typer.Option(help="Path to velocity model (in registry).")
+    ] = PurePath("default_1d_velocity_model"),
+    local_velocity_model_path: Annotated[
+        Optional[Path], typer.Option(help="Path to local 1d velocity model.")
+    ] = None,
     genslip_path: Annotated[
         Path,
         typer.Option(help="Path to genslip binary.", readable=True, dir_okay=False),
@@ -498,12 +504,14 @@ def generate_srf(
         realisation_ffp, metadata.defaults_version
     )
     seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
+
     rupture_propagation = RupturePropagationConfig.read_from_realisation(
         realisation_ffp
     )
-    velocity_model = VelocityModel1D.read_from_realisation_or_defaults(
-        realisation_ffp, metadata.defaults_version
+    realisation_input = RealisationInput.read_from_realisation_or_defaults(
+        realisation_ffp
     )
+
     source_config = SourceConfig.read_from_realisation(realisation_ffp)
 
     generate_fault_srfs_parallel(
@@ -512,7 +520,9 @@ def generate_srf(
         work_directory,
         srf_config,
         seeds,
-        velocity_model,
+        local_velocity_model_path
+        if local_velocity_model_path
+        else realisation_input.fetch_file(velocity_model_path),
         genslip_path,
     )
     srf_name = normalise_name(metadata.name)

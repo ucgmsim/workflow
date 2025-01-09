@@ -242,9 +242,10 @@ def combine_hf_and_lf(
     )
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
 
-    # As LF has a start time offset it is necessary to pad the start of HF by the same number of timesteps
-    # Similar code to account for an end time difference is also present
-    # allowing for HF and LF to have separate start times and durations
+    # As LF has a start time offset it is necessary to pad the start of HF by
+    # the same number of timesteps Similar code to account for an end time
+    # difference is also present allowing for HF and LF to have separate
+    # start times and durations
 
     bb_start_sec = min(lf.start_sec, hf.attrs["t_sec"])
     lf_start_sec_offset = max(lf.start_sec - hf.attrs["t_sec"], 0)

@@ -50,7 +50,6 @@ from workflow.realisations import (
     HFConfig,
     RealisationMetadata,
     Seeds,
-    VelocityModel1D,
 )
 
 app = typer.Typer()

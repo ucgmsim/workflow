@@ -28,15 +28,15 @@ For More Help
 See the output of `generate-station-coordinates --help`.
 """
 
-from pathlib import Path
-from typing import Annotated
+from pathlib import Path, PurePath
+from typing import Annotated, Optional
 
 import numpy as np
 import pandas as pd
 import typer
 
 from workflow import log_utils
-from workflow.realisations import DomainParameters
+from workflow.realisations import DomainParameters, RealisationInput
 
 app = typer.Typer()
 
@@ -53,16 +53,18 @@ def generate_fd_files(
             help="Output path for station files", file_okay=False, writable=True
         ),
     ],
-    keep_dup_station: Annotated[
-        bool,
-        typer.Option(help="Keep stations whose gridpoint coordinates are identical"),
-    ] = True,
     stat_file: Annotated[
-        Path,
+        Optional[PurePath],
+        typer.Option(help="The location of the station file (from registry)."),
+    ],
+    local_stat_file: Annotated[
+        Optional[Path],
         typer.Option(
-            help="The location of the station files.", readable=True, exists=True
+            help="The location of the station files (local file).",
+            readable=True,
+            exists=True,
         ),
-    ] = Path("/input/stations.ll"),
+    ] = None,
 ) -> None:
     """Generate station coordinate files.
 
@@ -77,6 +79,19 @@ def generate_fd_files(
     stat_file : Path
         If True, keep stations whose gridpoint coordinates are identical.
     """
+    if not local_stat_file and not stat_file:
+        print(
+            "You must specify either a local station file "
+            "(--local-stat-file) or a path in the registry (--stat-file)."
+        )
+        raise typer.Exit(1)
+
+    registry_local_path: Optional[Path] = None
+
+    if stat_file:
+        realisation_input = RealisationInput.read_from_realisation_or_defaults(realisations_ffp)
+        registry_local_path = realisation_input.fetch_file(stat_file)
+
     output_path.mkdir(exist_ok=True)
     domain_parameters = DomainParameters.read_from_realisation(realisations_ffp)
 
@@ -86,7 +101,10 @@ def generate_fd_files(
 
     # retrieve in station names, latitudes and longitudes
     stations = pd.read_csv(
-        stat_file, delimiter=r"\s+", comment="#", names=["lon", "lat", "name"]
+        local_stat_file or registry_local_path,
+        delimiter=r"\s+",
+        comment="#",
+        names=["lon", "lat", "name"]
     )
 
     in_domain_mask = domain_parameters.domain.contains(
@@ -101,7 +119,8 @@ def generate_fd_files(
     stations["x"] = np.round(
         domain_parameters.domain.extent_x * xy[:, 0] / domain_parameters.resolution
     ).astype(int)
-    # the bounding box local coordinates start from the left bottom, so we flip that so that it starts from the top left
+    # the bounding box local coordinates start from the left bottom, so we
+    # flip that so that it starts from the top left
     stations["y"] = np.round(
         domain_parameters.domain.extent_y
         * (1 - xy[:, 1])
