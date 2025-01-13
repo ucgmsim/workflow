@@ -1,24 +1,25 @@
-# visualization @ git+https://github.com/ucgmsim/visualization
 empirical @ git+https://github.com/ucgmsim/Empirical_Engine
 fastparquet
-fiona
 geopandas
 h5py
 jinja2
+networkx
 nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB
 numba
 numexpr
 numpy<2
-openquake-engine @ git+https://github.com/gem/oq-engine
-pykooh
 pandas
 printree
+pygmt
+pygmt_helper @ git+https://github.com/ucgmsim/pygmt_helper.git
 pyarrow
+pykooh
 pytest
 pyvis
 pyvista
 pyyaml
 qcore @ git+https://github.com/ucgmsim/qcore.git
+requests
 schema
 scipy
 shapely
