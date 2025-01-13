@@ -11,7 +11,7 @@ numpy<2
 pandas
 printree
 pygmt
-pygmt_helper @ git+https://github.com/ucgmsim/pygmt_helper.git
+pygmt_helper @ git+https://github.com/ucgmsim/pygmt_helper
 pyarrow
 pykooh
 pytest
