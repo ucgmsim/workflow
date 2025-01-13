@@ -158,4 +158,6 @@ def calculate_instensity_measures(
             result.to_hdf(output_path, key=im_name, mode="a")
         elif isinstance(result, xr.DataArray):
             result = result.assign_coords(station=stations.index.values)
+            # NetCDF is a file format that is compatible with HDF5. For
+            # legacy reasons, xarray uses `to_netcdf` instead of `to_hdf5`.
             result.to_netcdf(output_path, mode="a", group=im_name)
