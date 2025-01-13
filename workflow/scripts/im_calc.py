@@ -14,7 +14,6 @@ Outputs
 -------
 A CSV containing intensity measure summary statistics.
 
-
 Environment
 -----------
 Can be run in the cybershake container. Can also be run from your own computer using the `im-calc` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
@@ -41,6 +40,7 @@ import typer
 import xarray as xr
 
 from IM import ims
+from IM.im_calculation import IM
 from workflow import utils
 from workflow.realisations import (
     BroadbandParameters,
@@ -113,25 +113,25 @@ def calculate_instensity_measures(
 
     intensity_measures = intensity_measure_parameters.ims
     im_function_map = {
-        "pga": functools.partial(ims.peak_ground_velocity, dt=broadband_parameters.dt),
-        "pgv": functools.partial(ims.peak_ground_velocity, dt=broadband_parameters.dt),
-        "cav": functools.partial(
+        IM.PGA: functools.partial(ims.peak_ground_velocity, dt=broadband_parameters.dt),
+        IM.PGV: functools.partial(ims.peak_ground_velocity, dt=broadband_parameters.dt),
+        IM.CAV: functools.partial(
             ims.cumulative_absolute_velocity, dt=broadband_parameters.dt
         ),
-        "ai": functools.partial(ims.arias_intensity, dt=broadband_parameters.dt),
-        "ds575": functools.partial(
+        IM.AI: functools.partial(ims.arias_intensity, dt=broadband_parameters.dt),
+        IM.Ds575: functools.partial(
             ims.significant_duration,
             dt=broadband_parameters.dt,
             percent_low=5,
             percent_high=75,
         ),
-        "ds595": functools.partial(
+        IM.Ds595: functools.partial(
             ims.significant_duration,
             dt=broadband_parameters.dt,
             percent_low=5,
             percent_high=75,
         ),
-        "psa": functools.partial(
+        IM.pSA: functools.partial(
             ims.pseudo_spectral_acceleration,
             periods=np.array(
                 intensity_measure_parameters.valid_periods, dtype=np.float32
@@ -142,7 +142,7 @@ def calculate_instensity_measures(
             else None,
             cores=utils.get_available_cores(),
         ),
-        "fas": functools.partial(
+        IM.FAS: functools.partial(
             ims.fourier_amplitude_spectra,
             dt=broadband_parameters.dt,
             freqs=intensity_measure_parameters.fas_frequencies,

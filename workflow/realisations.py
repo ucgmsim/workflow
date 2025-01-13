@@ -25,6 +25,7 @@ from velocity_modelling.bounding_box import BoundingBox
 from source_modelling import sources
 from source_modelling.rupture_propagation import JumpPair
 from source_modelling.sources import IsSource
+from IM import im_calculation
 from workflow import defaults, schemas
 from workflow.defaults import DefaultsVersion
 
@@ -779,16 +780,12 @@ class IntensityMeasureCalculationParameters(RealisationConfiguration):
     _config_key: ClassVar[str] = "im"
     _schema: ClassVar[Schema] = schemas.INTENSITY_MEASURE_CALCUATION_PARAMETERS
 
-    ims: list[schemas.IntensityMeasure]
+    ims: list[im_calculation.IM]
     """Intensity measures to calculate."""
-    components: list[schemas.Component]
-    """Components to calculate intensity measures in."""
     valid_periods: npt.NDArray[np.float64]
     """Valid periods to calculate for, applicable for pSA and SDI."""
     fas_frequencies: npt.NDArray[np.float64]
     """Fourier spectrum frequencies."""
-    units: schemas.Units
-    """Units to calculate intensity measures in."""
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -800,7 +797,6 @@ class IntensityMeasureCalculationParameters(RealisationConfiguration):
             Dictionary representation of the object.
         """
         _dict = dataclasses.asdict(self)
-        _dict["components"] = [component.value for component in self.components]
         _dict["valid_periods"] = self.valid_periods.tolist()
         _dict["fas_frequencies"] = self.fas_frequencies.tolist()
         return _dict
