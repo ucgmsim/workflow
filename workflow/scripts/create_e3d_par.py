@@ -34,7 +34,6 @@ from typing import Annotated
 import numpy as np
 import typer
 
-from qcore import coordinates
 from workflow.realisations import (
     DomainParameters,
     EMOD3DParameters,
