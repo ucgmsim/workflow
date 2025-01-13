@@ -76,7 +76,7 @@ known-first-party = [
     "qcore",
     "empirical",
     "nshmdb",
-    "IM_calculation",
+    "IM",
     "mera"
 ]
 

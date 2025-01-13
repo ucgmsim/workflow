@@ -4,6 +4,7 @@ fastparquet
 fiona
 geopandas
 h5py
+h5netcdf
 jinja2
 nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB
 numba
@@ -27,3 +28,5 @@ tables
 tqdm
 typer
 velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling@cylc
+im_calculation @ git+https://github.com/ucgmsim/IM_calculation@rewrite
+xarray
