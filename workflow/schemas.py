@@ -6,7 +6,6 @@ the [Realisations page](https://github.com/ucgmsim/workflow/wiki/Realisations), 
 for a description of realisations and the schemas.
 """
 
-import functools
 from enum import StrEnum
 
 import numpy as np

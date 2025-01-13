@@ -5,7 +5,7 @@ import numpy as np
 import typer
 
 from qcore.uncertainties import mag_scaling
-from source_modelling import moment, srf
+from source_modelling import srf
 from workflow import log_utils
 from workflow.realisations import (
     RealisationMetadata,
