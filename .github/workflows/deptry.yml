@@ -24,4 +24,4 @@ jobs:
       # Install requirements
       - run: pip install -r requirements.txt
       # Run deptry to check that all dependencies are present.
-      - run: deptry . --per-rule-ignores "DEP001=workflow,DEP002=workflow,DEP003=workflow"
+      - run: deptry . --per-rule-ignores "DEP001=workflow,DEP002=workflow,DEP003=workflow,DEP002=pyarrow,DEP002=fastparquet,DEP002=tables"

@@ -45,7 +45,7 @@ from qcore.uncertainties import distributions, mag_scaling
 from source_modelling import rupture_propagation
 from source_modelling.sources import Fault
 from workflow.defaults import (
-    DefaultsVersion,
+from workflow.defaults import DefaultsVersion
 )
 from workflow.log_utils import log_call
 from workflow.realisations import (

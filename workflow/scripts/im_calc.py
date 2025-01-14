@@ -333,7 +333,10 @@ def compute_in_rotations(
     for i in range(180):
         theta = np.deg2rad(i).astype(np.float32)
 
-        array = ne.evaluate(component_wise_operation)
+        array = ne.evaluate(
+            component_wise_operation,
+            {"comp_0": comp_0, "theta": theta, "comp_90": comp_90},
+        )
         values[:, i] = function(array)
 
     comp_0 = values[:, 0]
