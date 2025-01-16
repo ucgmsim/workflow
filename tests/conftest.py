@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pytest
-from pytest import Parser
+from pytest import FixtureRequest, Parser
 
 
 def pytest_addoption(parser: Parser):
@@ -38,24 +38,25 @@ def pytest_addoption(parser: Parser):
 
 
 @pytest.fixture
-def genslip_path(request):
+def genslip_path(request: FixtureRequest):
     return request.config.getoption("--genslip-path")
 
 
 @pytest.fixture
-def velocity_model_path(request):
+def velocity_model_path(request: FixtureRequest):
     return request.config.getoption("--velocity-model-path")
 
 
 @pytest.fixture
-def nshmdb_path(request):
+def nshmdb_path(request: FixtureRequest):
     return request.config.getoption("--nshmdb-path")
 
 
 @pytest.fixture
-def srf2stoch_path(request):
+def srf2stoch_path(request: FixtureRequest):
     return request.config.getoption("--srf2stoch-path")
 
+
 @pytest.fixture
-def hf_sim_path(request):
-    return request.config.getoption('--hf-sim-path')
+def hf_sim_path(request: FixtureRequest):
+    return request.config.getoption("--hf-sim-path")

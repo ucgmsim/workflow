@@ -34,7 +34,6 @@ For More Help
 See the output of `nshm2022-to-realisation --help`.
 """
 
-import random
 from pathlib import Path
 from typing import Annotated
 
@@ -46,7 +45,7 @@ from qcore.uncertainties import distributions, mag_scaling
 from source_modelling import rupture_propagation
 from source_modelling.sources import Fault
 from workflow import realisations
-from workflow.defaults import DefaultsVersion, Seeds
+from workflow.defaults import DefaultsVersion
 from workflow.log_utils import log_call
 
 app = typer.Typer()
