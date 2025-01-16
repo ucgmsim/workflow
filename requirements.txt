@@ -27,6 +27,6 @@ source_modelling @ git+https://github.com/ucgmsim/source_modelling
 tables
 tqdm
 typer
-velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling@cylc
+velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling
 im_calculation @ git+https://github.com/ucgmsim/IM_calculation@rewrite
 xarray
