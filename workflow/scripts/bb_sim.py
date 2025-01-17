@@ -33,7 +33,7 @@ Usage
 import functools
 import multiprocessing
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 import h5py
 import numpy as np
@@ -47,6 +47,7 @@ from workflow import log_utils, utils
 from workflow.realisations import (
     BroadbandParameters,
     DomainParameters,
+    RealisationInput,
     RealisationMetadata,
 )
 
@@ -176,12 +177,6 @@ def combine_hf_and_lf(
         Path,
         typer.Argument(help="Path to realisation file", dir_okay=False, exists=True),
     ],
-    station_vs30_ffp: Annotated[
-        Path,
-        typer.Argument(
-            help="Station VS30 reference values.", dir_okay=False, exists=True
-        ),
-    ],
     low_frequency_waveform_directory: Annotated[
         Path,
         typer.Argument(
@@ -209,6 +204,16 @@ def combine_hf_and_lf(
             help="Path to output broadband file.", dir_okay=False, writable=True
         ),
     ],
+    station_vs30_ffp: Annotated[
+        Path,
+        typer.Option(help="The station file to use (from registry)."),
+    ] = Path("default_stations_file"),
+    local_station_vs30_ffp: Annotated[
+        Optional[Path],
+        typer.Option(
+            help="The station file to use (local file).", dir_okay=False, exists=True
+        ),
+    ] = None,
 ):
     """Combine low-frequency and high-frequency seismic waveforms.
 
@@ -237,6 +242,7 @@ def combine_hf_and_lf(
     lf = timeseries.LFSeis(low_frequency_waveform_directory)
     hf = h5py.File(high_frequency_waveform_file, mode="r")
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
+    input = RealisationInput.read_from_realisation_or_defaults(realisation_ffp)
     broadband_config = BroadbandParameters.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
@@ -307,12 +313,8 @@ def combine_hf_and_lf(
     # ensure that LF and HF agree on station list, sometimes LF can drop a station or two
     stations = stations.loc[lf.stations["name"]]
 
-    station_vs30 = pd.read_csv(
-        station_vs30_ffp,
-        delimiter=r"\s+",
-        header=None,
-        names=["name", "vs30"],
-    ).set_index("name")
+    station_vs30 = pd.read_parquet(local_station_vs30_ffp or input.fetch_file(station_vs30_ffp))
+    station_vs30 = station_vs30.index.rename('name')
     stations = stations.join(station_vs30, how="inner")
 
     with multiprocessing.Pool(utils.get_available_cores()) as pool:

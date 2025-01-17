@@ -56,7 +56,7 @@ def generate_fd_files(
     stat_file_path: Annotated[
         Path,
         typer.Option(help="The location of the station file (from registry)."),
-    ] = Path("default_stations_file.ll"),
+    ] = Path("default_stations_file"),
     local_stat_file: Annotated[
         Optional[Path],
         typer.Option(
@@ -89,20 +89,17 @@ def generate_fd_files(
     ll_out = output_path / "stations.ll"
 
     # retrieve in station names, latitudes and longitudes
-    stations = pd.read_csv(
+    stations = pd.read_parquet(
         local_stat_file or input.fetch_file(stat_file_path),
-        delimiter=r"\s+",
-        comment="#",
-        names=["lon", "lat", "name"],
     )
 
     in_domain_mask = domain_parameters.domain.contains(
-        stations[["lat", "lon"]].to_numpy()
+        stations[["latitude", "longitude"]].to_numpy()
     )
     stations = stations.loc[in_domain_mask]
     # convert ll to grid points
     xy = domain_parameters.domain.wgs_depth_coordinates_to_local_coordinates(
-        stations[["lat", "lon"]].to_numpy()
+        stations[["latitude", "longitude"]].to_numpy()
     )
 
     stations["x"] = np.round(
