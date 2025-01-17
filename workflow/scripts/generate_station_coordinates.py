@@ -149,7 +149,7 @@ def generate_fd_files(
     with open(ll_out, "w", encoding="utf-8") as llf:
         stations.apply(
             lambda station: llf.write(
-                f"{station['grid_lon']:11.5f} {station['grid_lat']:11.5f} {station['name']}\n"
+                f"{station['grid_lon']:11.5f} {station['grid_lat']:11.5f} {station.name}\n"
             ),
             axis=1,
         )
