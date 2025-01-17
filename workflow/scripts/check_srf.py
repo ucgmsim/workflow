@@ -1,17 +1,17 @@
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 import numpy as np
 import typer
+from velocity_modelling import velocity_model_1d
 
 from qcore.uncertainties import mag_scaling
 from source_modelling import srf
 from workflow import log_utils
 from workflow.realisations import (
-    RealisationMetadata,
+    RealisationInput,
     RealisationParseError,
     RupturePropagationConfig,
-    VelocityModel1D,
 )
 
 app = typer.Typer()
@@ -24,6 +24,8 @@ def check_srf(
         Path, typer.Argument(help="The path to the realisation for the SRF.")
     ],
     srf_ffp: Annotated[Path, typer.Argument(help="The path to the SRF file to check.")],
+    velocity_model_path: Annotated[Path, typer.Argument(help='Path to 1D velocity model (in registry)')] = Path('default_1d_velocity_model'),
+    local_velocity_model_path: Annotated[Optional[Path], typer.Argument(help='Path to 1D velocity model (local file)')] = None,
 ):
     """Check an SRF's contents for viability.
 
@@ -39,10 +41,8 @@ def check_srf(
     typer.Exit
         If any of the checks fail.typer.Exit
     """
-    metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
-    velocity_model = VelocityModel1D.read_from_realisation_or_defaults(
-        realisation_ffp, metadata.defaults_version
-    ).model
+    input = RealisationInput.read_from_realisation_or_defaults(realisation_ffp)
+    velocity_model = velocity_model_1d.read_velocity_model_1d(local_velocity_model_path or input.fetch_file(velocity_model_path))
     velocity_model["mu"] = velocity_model["Vs"] ** 2 * velocity_model["rho"] * 1e10
     velocity_model["depth"] = (
         velocity_model["thickness"].cumsum() - velocity_model["thickness"]

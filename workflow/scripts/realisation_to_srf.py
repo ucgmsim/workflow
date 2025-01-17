@@ -42,7 +42,7 @@ import re
 import shutil
 import subprocess
 from collections.abc import Iterable
-from pathlib import Path, PurePath
+from pathlib import Path
 from typing import Annotated, Optional
 
 import numpy as np
@@ -51,6 +51,7 @@ import pandas as pd
 import scipy as sp
 import typer
 from scipy.sparse import csr_array
+from velocity_modelling import velocity_model_1d
 
 from qcore import coordinates, grid, gsf
 from source_modelling import rupture_propagation, srf
@@ -387,7 +388,7 @@ def generate_fault_srfs_parallel(
     output_directory: Path,
     srf_config: SRFConfig,
     seeds: Seeds,
-    velocity_model_path: Path,
+    velocity_model: pd.DataFrame,
     genslip_path: Path,
 ):
     """Generate fault SRF files in parallel.
@@ -406,6 +407,8 @@ def generate_fault_srfs_parallel(
     gsf_directory.mkdir(exist_ok=True)
     srf_directory = output_directory / "srf"
     srf_directory.mkdir(exist_ok=True)
+    velocity_model_path =output_directory / 'velocity_model'
+    velocity_model_1d.write_velocity_model_1d_plain_text(velocity_model)
 
     magnitudes = rupture_propagation_config.magnitudes
     rakes = rupture_propagation_config.rakes
@@ -435,7 +438,7 @@ def generate_fault_srfs_parallel(
                 output_directory=output_directory,
                 srf_config=srf_config,
                 genslip_path=genslip_path,
-                velocity_model_path=velocity_model_path,
+                velocity_model=velocity_model_path,
                 seeds=seeds,
             ),
             srf_generation_parameters,
@@ -469,8 +472,8 @@ def generate_srf(
         ),
     ] = Path("/out"),
     velocity_model_path: Annotated[
-        PurePath, typer.Option(help="Path to velocity model (in registry).")
-    ] = PurePath("default_1d_velocity_model"),
+        Path, typer.Option(help="Path to velocity model (in registry).")
+    ] = Path("default_1d_velocity_model"),
     local_velocity_model_path: Annotated[
         Optional[Path], typer.Option(help="Path to local 1d velocity model.")
     ] = None,
@@ -511,6 +514,7 @@ def generate_srf(
     realisation_input = RealisationInput.read_from_realisation_or_defaults(
         realisation_ffp
     )
+    velocity_model = velocity_model_1d.read_velocity_model_1d(local_velocity_model_path or realisation_input.fetch_file(velocity_model_path))
 
     source_config = SourceConfig.read_from_realisation(realisation_ffp)
 
@@ -520,9 +524,7 @@ def generate_srf(
         work_directory,
         srf_config,
         seeds,
-        local_velocity_model_path
-        if local_velocity_model_path
-        else realisation_input.fetch_file(velocity_model_path),
+        velocity_model,
         genslip_path,
     )
     srf_name = normalise_name(metadata.name)

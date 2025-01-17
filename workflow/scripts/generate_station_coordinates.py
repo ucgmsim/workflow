@@ -28,7 +28,7 @@ For More Help
 See the output of `generate-station-coordinates --help`.
 """
 
-from pathlib import Path, PurePath
+from pathlib import Path
 from typing import Annotated, Optional
 
 import numpy as np
@@ -53,10 +53,10 @@ def generate_fd_files(
             help="Output path for station files", file_okay=False, writable=True
         ),
     ],
-    stat_file: Annotated[
-        Optional[PurePath],
+    stat_file_path: Annotated[
+        Path,
         typer.Option(help="The location of the station file (from registry)."),
-    ],
+    ] = Path('default_station_file'),
     local_stat_file: Annotated[
         Optional[Path],
         typer.Option(
@@ -79,21 +79,10 @@ def generate_fd_files(
     stat_file : Path
         If True, keep stations whose gridpoint coordinates are identical.
     """
-    if not local_stat_file and not stat_file:
-        print(
-            "You must specify either a local station file "
-            "(--local-stat-file) or a path in the registry (--stat-file)."
-        )
-        raise typer.Exit(1)
-
-    registry_local_path: Optional[Path] = None
-
-    if stat_file:
-        realisation_input = RealisationInput.read_from_realisation_or_defaults(realisations_ffp)
-        registry_local_path = realisation_input.fetch_file(stat_file)
 
     output_path.mkdir(exist_ok=True)
     domain_parameters = DomainParameters.read_from_realisation(realisations_ffp)
+    input = RealisationInput.read_from_realisation_or_defaults(stat_file_path)
 
     # where to save gridpoint and longlat station files
     gp_out = output_path / "stations.statcords"
@@ -101,7 +90,7 @@ def generate_fd_files(
 
     # retrieve in station names, latitudes and longitudes
     stations = pd.read_csv(
-        local_stat_file or registry_local_path,
+        local_stat_file or input.fetch_file(stat_file_path),
         delimiter=r"\s+",
         comment="#",
         names=["lon", "lat", "name"]

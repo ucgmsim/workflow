@@ -37,17 +37,19 @@ import multiprocessing
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 import h5py
 import numpy as np
 import pandas as pd
 import typer
+from velocity_modelling import velocity_model_1d
 
 from workflow import log_utils, utils
 from workflow.realisations import (
     DomainParameters,
     HFConfig,
+    RealisationInput,
     RealisationMetadata,
     Seeds,
 )
@@ -198,6 +200,12 @@ def run_hf(
     hf_sim_path: Annotated[Path, typer.Option(help="Path to HF sim binary")] = Path(
         "/EMOD3D/tools/hb_high_binmod_v6.0.3"
     ),
+    velocity_model_path: Annotated[
+        Path, typer.Option(help="Path to velocity model (in registry)")
+    ] = Path("default_1d_velocity_model"),
+    local_velocity_model_path: Annotated[
+        Optional[Path], typer.Option(help="Path to velocity model (local file)")
+    ] = None,
     work_directory: Annotated[
         Path,
         typer.Option(
@@ -240,9 +248,8 @@ def run_hf(
     seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
-    velocity_model = VelocityModel1D.read_from_realisation_or_defaults(
-        realisation_ffp, metadata.defaults_version
-    )
+    input = RealisationInput.read_from_realisation_or_defaults(realisation_ffp)
+    velocity_model = velocity_model_1d.read_velocity_model_1d(local_velocity_model_path or input.fetch_file(velocity_model_path))
     hf_config = HFConfig.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
@@ -253,8 +260,9 @@ def run_hf(
         header=None,
         names=["longitude", "latitude", "name"],
     )
-    velocity_model_path = work_directory / "velocity_model"
-    velocity_model.write_velocity_model(velocity_model_path)
+
+    work_velocity_model_path = work_directory / "velocity_model"
+    velocity_model_1d.write_velocity_model_1d_plain_text(velocity_model, work_velocity_model_path)
     with multiprocessing.Pool(utils.get_available_cores()) as pool:
         stations["epicentre_distance"] = pool.starmap(
             functools.partial(
@@ -262,7 +270,7 @@ def run_hf(
                 hf_config,
                 seeds,
                 domain_parameters,
-                velocity_model_path,
+                work_velocity_model_path,
                 stoch_ffp,
                 work_directory,
                 hf_sim_path,

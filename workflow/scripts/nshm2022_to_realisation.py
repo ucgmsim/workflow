@@ -34,7 +34,7 @@ For More Help
 See the output of `nshm2022-to-realisation --help`.
 """
 
-from pathlib import Path, PurePath
+from pathlib import Path
 from typing import Annotated, Optional
 
 import numpy as np
@@ -130,8 +130,8 @@ def generate_realisation(
         typer.Argument(help="Scientific default parameters version to use"),
     ],
     nshmdb_path: Annotated[
-        PurePath, typer.Option(help="Path to NSHMDB (in container).")
-    ] = PurePath("nshmdb.db"),
+        Path, typer.Option(help="Path to NSHMDB (in container).")
+    ] = Path("nshmdb.db"),
     local_nshmdb_path: Annotated[
         Optional[Path],
         typer.Option(help="Path to local NSHMDB.", readable=True, exists=True),
