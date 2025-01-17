@@ -285,7 +285,7 @@ def run_hf(
             np.float32
         )
 
-    vs = velocity_model.model["Vs"].iloc[0] * 1000
+    vs = velocity_model["Vs"].iloc[0] * 1000
     stations["vs"] = vs
 
     nt = int(domain_parameters.duration / hf_config.dt)
