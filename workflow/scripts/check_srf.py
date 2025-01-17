@@ -50,14 +50,11 @@ def check_srf(
         local_velocity_model_path or input.fetch_file(velocity_model_path)
     )
     velocity_model["mu"] = velocity_model["Vs"] ** 2 * velocity_model["rho"] * 1e10
-    velocity_model["depth"] = (
-        velocity_model["thickness"].cumsum() - velocity_model["thickness"]
-    )
-
+    
     srf_file = srf.read_srf(srf_ffp)
     indices = np.minimum(
-        len(velocity_model["depth"]) - 1,
-        np.searchsorted(velocity_model["depth"], srf_file.points["dep"]),
+        len(velocity_model["top_depth"]) - 1,
+        np.searchsorted(velocity_model["top_depth"], srf_file.points["dep"]),
     )
     mu = velocity_model["mu"].iloc[indices].values
     srf_magnitude = mag_scaling.mom2mag(
