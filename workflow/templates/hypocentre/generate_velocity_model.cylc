@@ -1,4 +1,4 @@
 [[{{stage_node_identifier(stage)}}]]
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/{{realisation_identifier(stage)}}:/share" /mnt/hypo_scratch/containers/runner_latest.sif sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc)'
+        script = apptainer exec -c --bind "$CYLC_WORKFLOW_SHARE_DIR/.cache:/cache,$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/{{realisation_identifier(stage)}}:/share" /mnt/hypo_scratch/containers/runner_latest.sif sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc)'
         inherit = large_job
 
