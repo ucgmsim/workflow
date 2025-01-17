@@ -600,6 +600,14 @@ class RealisationInput(RealisationConfiguration):
         return registry.fetch_file(qcore_registry, filepath)
 
     def to_dict(self) -> dict:
+        """
+        Convert the object to a dictionary representation.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the object.
+        """
         obj_dict = dataclasses.asdict(self)
         obj_dict["files"] = {str(k): str(v) for k, v in self.files.items()}
         obj_dict["registry"] = {str(k): v for k, v in self.registry.items()}
