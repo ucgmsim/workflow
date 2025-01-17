@@ -82,7 +82,7 @@ def generate_fd_files(
 
     output_path.mkdir(exist_ok=True)
     domain_parameters = DomainParameters.read_from_realisation(realisations_ffp)
-    input = RealisationInput.read_from_realisation_or_defaults(stat_file_path)
+    input = RealisationInput.read_from_realisation_or_defaults(realisations_ffp)
 
     # where to save gridpoint and longlat station files
     gp_out = output_path / "stations.statcords"
