@@ -25,10 +25,10 @@ def check_srf(
     ],
     srf_ffp: Annotated[Path, typer.Argument(help="The path to the SRF file to check.")],
     velocity_model_path: Annotated[
-        Path, typer.Argument(help="Path to 1D velocity model (in registry)")
+        Path, typer.Option(help="Path to 1D velocity model (in registry)")
     ] = Path("default_1d_velocity_model"),
     local_velocity_model_path: Annotated[
-        Optional[Path], typer.Argument(help="Path to 1D velocity model (local file)")
+        Optional[Path], typer.Option(help="Path to 1D velocity model (local file)")
     ] = None,
 ):
     """Check an SRF's contents for viability.
