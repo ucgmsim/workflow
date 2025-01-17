@@ -56,7 +56,7 @@ def generate_fd_files(
     stat_file_path: Annotated[
         Path,
         typer.Option(help="The location of the station file (from registry)."),
-    ] = Path("default_station_file"),
+    ] = Path("default_stations_file.ll"),
     local_stat_file: Annotated[
         Optional[Path],
         typer.Option(
