@@ -1,3 +1,12 @@
 [[copy_input]]
         platform = localhost
-        script = "[[ ! -d $CYLC_WORKFLOW_RUN_DIR/input ]] || cp -rn $CYLC_WORKFLOW_RUN_DIR/input/. $CYLC_WORKFLOW_SHARE_DIR"
+        script = """
+            # Create the $CYLC_WORKFLOW_RUN_DIR/input directory if it doesn't exist
+            mkdir -p "$CYLC_WORKFLOW_RUN_DIR/input"
+
+            # Copy the contents of the input directory to $CYLC_WORKFLOW_SHARE_DIR
+            cp -r "$CYLC_WORKFLOW_RUN_DIR/input/." "$CYLC_WORKFLOW_SHARE_DIR"
+
+            # Create the $CYLC_WORKFLOW_SHARE_DIR/.cache directory if it doesn't exist
+            mkdir -p "$CYLC_WORKFLOW_SHARE_DIR/.cache"
+        """
