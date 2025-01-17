@@ -44,9 +44,10 @@ def test_hf_output(
     assert (
         os.stat(tmp_path / "output.hf").st_size == os.stat(expected_output_hf).st_size
     )
-    with open(tmp_path / "output.hf", "rb") as test_output, open(
-        expected_output_hf, "rb"
-    ) as expected_output:
+    with (
+        open(tmp_path / "output.hf", "rb") as test_output,
+        open(expected_output_hf, "rb") as expected_output,
+    ):
         header_size = 288
         stations_output_size = 24 * expected_station_count
         offset = 512

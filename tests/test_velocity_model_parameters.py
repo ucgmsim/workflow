@@ -21,7 +21,10 @@ def test_velocity_model_parameter_generation(tmp_path: Path, rupture_id: int):
     generate_velocity_model_parameters.generate_velocity_model_parameters(
         test_realisation_path
     )
-    with open(test_realisation_path, "r") as test_realisation, open(
-        CORRECT_REALISATION_FILES / f"rupture_{rupture_id}.json", "r"
-    ) as correct_realisation:
+    with (
+        open(test_realisation_path, "r") as test_realisation,
+        open(
+            CORRECT_REALISATION_FILES / f"rupture_{rupture_id}.json", "r"
+        ) as correct_realisation,
+    ):
         assert json.load(test_realisation) == json.load(correct_realisation)

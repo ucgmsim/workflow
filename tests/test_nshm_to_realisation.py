@@ -15,7 +15,10 @@ def test_nshm_to_realisation(nshmdb_path: Path, tmp_path: Path, rupture_id: int)
     nshm2022_to_realisation.generate_realisation(
         nshmdb_path, rupture_id, realisation_path, DefaultsVersion.v24_2_2_1
     )
-    with open(realisation_path, "r") as generated_realisation, open(
-        REALISATION_FILES / f"rupture_{rupture_id}.json", "r"
-    ) as expected_realisation:
+    with (
+        open(realisation_path, "r") as generated_realisation,
+        open(
+            REALISATION_FILES / f"rupture_{rupture_id}.json", "r"
+        ) as expected_realisation,
+    ):
         assert json.load(generated_realisation) == json.load(expected_realisation)

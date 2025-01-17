@@ -407,8 +407,10 @@ def generate_fault_srfs_parallel(
     gsf_directory.mkdir(exist_ok=True)
     srf_directory = output_directory / "srf"
     srf_directory.mkdir(exist_ok=True)
-    velocity_model_path =output_directory / 'velocity_model'
-    velocity_model_1d.write_velocity_model_1d_plain_text(velocity_model)
+    velocity_model_path = output_directory / "velocity_model"
+    velocity_model_1d.write_velocity_model_1d_plain_text(
+        velocity_model, velocity_model_path
+    )
 
     magnitudes = rupture_propagation_config.magnitudes
     rakes = rupture_propagation_config.rakes
@@ -438,7 +440,7 @@ def generate_fault_srfs_parallel(
                 output_directory=output_directory,
                 srf_config=srf_config,
                 genslip_path=genslip_path,
-                velocity_model=velocity_model_path,
+                velocity_model_path=velocity_model_path,
                 seeds=seeds,
             ),
             srf_generation_parameters,
@@ -514,7 +516,9 @@ def generate_srf(
     realisation_input = RealisationInput.read_from_realisation_or_defaults(
         realisation_ffp
     )
-    velocity_model = velocity_model_1d.read_velocity_model_1d(local_velocity_model_path or realisation_input.fetch_file(velocity_model_path))
+    velocity_model = velocity_model_1d.read_velocity_model_1d(
+        local_velocity_model_path or realisation_input.fetch_file(velocity_model_path)
+    )
 
     source_config = SourceConfig.read_from_realisation(realisation_ffp)
 

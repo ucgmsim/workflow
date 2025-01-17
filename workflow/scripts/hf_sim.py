@@ -249,7 +249,9 @@ def run_hf(
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     input = RealisationInput.read_from_realisation_or_defaults(realisation_ffp)
-    velocity_model = velocity_model_1d.read_velocity_model_1d(local_velocity_model_path or input.fetch_file(velocity_model_path))
+    velocity_model = velocity_model_1d.read_velocity_model_1d(
+        local_velocity_model_path or input.fetch_file(velocity_model_path)
+    )
     hf_config = HFConfig.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
@@ -262,7 +264,9 @@ def run_hf(
     )
 
     work_velocity_model_path = work_directory / "velocity_model"
-    velocity_model_1d.write_velocity_model_1d_plain_text(velocity_model, work_velocity_model_path)
+    velocity_model_1d.write_velocity_model_1d_plain_text(
+        velocity_model, work_velocity_model_path
+    )
     with multiprocessing.Pool(utils.get_available_cores()) as pool:
         stations["epicentre_distance"] = pool.starmap(
             functools.partial(

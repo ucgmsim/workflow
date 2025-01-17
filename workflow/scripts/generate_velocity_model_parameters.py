@@ -85,7 +85,6 @@ def get_nz_outline_polygon() -> Polygon:
     return shapely.union(south_island, north_island)
 
 
-
 def estimate_simulation_duration(
     bounding_box: BoundingBox,
     magnitude: float,
@@ -255,7 +254,11 @@ def generate_velocity_model_parameters(
     rupture_magnitude = total_magnitude(np.array(list(magnitudes.values())))
 
     rrups = {
-        fault_name: np.interp(magnitudes[fault_name], velocity_model_parameters.rrup_interpolants[:, 0], velocity_model_parameters.rrup_interpolants[:, 1])
+        fault_name: np.interp(
+            magnitudes[fault_name],
+            velocity_model_parameters.rrup_interpolants[:, 0],
+            velocity_model_parameters.rrup_interpolants[:, 1],
+        )
         for fault_name, fault in source_config.source_geometries.items()
     }
     logger = log_utils.get_logger(__name__)

@@ -56,7 +56,7 @@ def generate_fd_files(
     stat_file_path: Annotated[
         Path,
         typer.Option(help="The location of the station file (from registry)."),
-    ] = Path('default_station_file'),
+    ] = Path("default_station_file"),
     local_stat_file: Annotated[
         Optional[Path],
         typer.Option(
@@ -93,7 +93,7 @@ def generate_fd_files(
         local_stat_file or input.fetch_file(stat_file_path),
         delimiter=r"\s+",
         comment="#",
-        names=["lon", "lat", "name"]
+        names=["lon", "lat", "name"],
     )
 
     in_domain_mask = domain_parameters.domain.contains(

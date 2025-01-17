@@ -167,7 +167,7 @@ def generate_realisation(
     metadata.write_to_realisation(realisation_ffp)
     inputs = RealisationInput.read_from_realisation_or_defaults(realisation_ffp)
     db = nshmdb.NSHMDB(local_nshmdb_path or inputs.fetch_file(nshmdb_path))
-    
+
     faults = db.get_rupture_faults(rupture_id)
     faults_info = db.get_rupture_fault_info(rupture_id)
     seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
