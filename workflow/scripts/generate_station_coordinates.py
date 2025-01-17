@@ -126,7 +126,7 @@ def generate_fd_files(
         # x, y, z, station
         stations.apply(
             lambda station: gpf.write(
-                f"{station['x'].astype(int):5d} {station['y'].astype(int):5d} {1:5d} {station.index.value}\n"
+                f"{station['x'].astype(int):5d} {station['y'].astype(int):5d} {1:5d} {station.name}\n"
             ),
             axis=1,
         )
