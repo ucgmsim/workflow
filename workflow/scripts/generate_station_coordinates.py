@@ -123,10 +123,10 @@ def generate_fd_files(
     with open(gp_out, "w", encoding="utf-8") as gpf:
         # file starts with number of entries
         gpf.write(f"{len(stations)}\n")
-        # x, y, z, name
+        # x, y, z, station
         stations.apply(
             lambda station: gpf.write(
-                f"{station['x'].astype(int):5d} {station['y'].astype(int):5d} {1:5d} {station['name']}\n"
+                f"{station['x'].astype(int):5d} {station['y'].astype(int):5d} {1:5d} {station.index.value}\n"
             ),
             axis=1,
         )
