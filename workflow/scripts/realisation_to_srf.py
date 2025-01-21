@@ -291,6 +291,7 @@ def concatenate_slip_values(
 def stitch_srf_files(
     faults: dict[str, IsSource],
     rupture_propagation_config: RupturePropagationConfig,
+    velocity_model_1d: VelocityModel1D,
     output_directory: Path,
     output_name: str,
 ) -> Path:
@@ -308,77 +309,135 @@ def stitch_srf_files(
     Path
         The path to the stitched together SRF file.
     """
-    srf_output_filepath = output_directory / f"{output_name}.srf"
-    order = list(
-        rupture_propagation.tree_nodes_in_order(
-            rupture_propagation_config.rupture_causality_tree
-        )
-    )
-    srf_files: dict[str, srf.SrfFile] = {}
+    output_srf_path = output_directory / f"{output_name}.srf"
 
-    for fault_name in order:
+    # Determine the order of faults from the rupture causality tree
+    srf_stitching_order = rupture_propagation.tree_nodes_in_order(
+        rupture_propagation_config.rupture_causality_tree
+    )
+
+    srf_file_map: dict[str, srf.SrfFile] = {}
+     
+    # Depth boundaries are used to compute rupture speed between jump points.
+    depth_boundaries = velocity_model_1d.model['thickness'].cumsum() - velocity_model_1d.model['thickness']
+
+    def compute_rupture_delay(tinit: float, parent_coordinates: np.ndarray, child_coordinates: np.ndarray) -> float:
+        """ Compute the rupture jump delay between the parent SRF and child SRF.
+
+        delay = T_p + d / s
+        where T_p is the initial rupture time of the closest point on
+        the parent SRF, d is the jumping distance, and s is the average
+        rupture speed between the two jump points.
+
+        Parameters
+        ----------
+        tinit : float
+            The initiation time for the jumping point on the parent SRF.
+        parent_coordinates: np.ndarray
+            The coordinates of the parent jumping location, WGS84+depth (jumping from here).
+        child_coordinates : np.ndarray
+            The coordinates of the child jumping location, WGS84+depth (jumping to here).
+
+        Returns
+        -------
+        float
+            The delay for the child SRF.
+        """
+        # Compute the average rupture jumping speed between the two points
+        # parent_coordinates and child_coordinates.
+        average_rupture_speed = sp.integrate.quad(
+            lambda t: 0.75 * velocity_model_1d.model['Vs'].iloc[
+                np.searchsorted(depth_boundaries, np.interp(t, [0, 1], [parent_coordinates[-1], child_coordinates[-1]]) / 1000)
+            ],
+            0, 1
+        )
+        jump_distance_km = coordinates.distance_between_wgs_depth_coordinates(
+            parent_coordinates, child_coordinates
+        ) / 1000
+        return tinit + jump_distance_km / average_rupture_speed
+
+    def process_fault(fault_name: str) -> None:
+        """ Delay fault SRF according to rupture delay from parents + propagation speed across the gap between faults.
+
+        Parameters
+        ----------
+        fault_name : str
+            The fault to process.
+        """
         fault = faults[fault_name]
-        parent = rupture_propagation_config.rupture_causality_tree[fault_name]
-        srf_ffp = output_directory / "srf" / (normalise_name(fault_name) + ".srf")
-        srf_file = srf.read_srf(srf_ffp)
-        if parent:
-            # The value of -999, -999 is used in the SRF spec to say
-            # "no hypocentre for this segment."
-            srf_file.header["shyp"] = -999
-            srf_file.header["dhyp"] = -999
-            parent_srf = srf_files[parent]
-            parent_coords = fault.fault_coordinates_to_wgs_depth_coordinates(
-                rupture_propagation_config.jump_points[fault_name].from_point
+        parent_fault_name = rupture_propagation_config.rupture_causality_tree.get(fault_name)
+        fault_srf_path = output_directory / "srf" / f"{normalise_name(fault_name)}.srf"
+        fault_srf = srf.read_srf(fault_srf_path)
+
+        if parent_fault_name:
+            jump_point = rupture_propagation_config.jump_points[fault_name]
+            # For all SRFs except the initial SRF, there is no hypocentre,
+            # so we set shyp, dhyp to -999. This means "no hypocentre in
+            # this segment".
+            fault_srf.header["shyp"] = -999
+            fault_srf.header["dhyp"] = -999
+
+            parent_srf = srf_file_map[parent_fault_name]
+            parent_fault = faults[parent_fault_name]
+
+            parent_coordinates = parent_fault.fault_coordinates_to_wgs_depth_coordinates(
+                jump_point.from_point
             )
+            child_coordinates = fault.fault_coordinates_to_wgs_depth_coordinates(
+                jump_point.to_point
+            )
+
             jump_index = int(
                 np.argmin(
                     coordinates.distance_between_wgs_depth_coordinates(
-                        parent_srf.points[["lat", "lon", "dep"]].to_numpy()
-                        * np.array([1, 1, 1000]),
-                        parent_coords,
+                        parent_srf.points[["lat", "lon", "dep"]].to_numpy() * np.array([1, 1, 1000]),
+                        parent_coordinates,
                     )
                 )
             )
-            t_delay = parent_srf.points["tinit"].iloc[jump_index]
+            tinit = parent_srf.points["tinit"].iloc[jump_index]
+            time_delay = compute_rupture_delay(tinit, parent_coordinates, child_coordinates)
+
             logger = log_utils.get_logger(__name__)
             logger.info(
                 log_utils.structured_log(
                     "computed delay",
                     fault_name=fault_name,
-                    delay=t_delay,
-                    jump_from=parent_coords.tolist(),
-                    jump_to=parent_srf.points[["lat", "lon", "dep"]]
-                    .iloc[jump_index]
-                    .tolist(),
+                    delay=time_delay,
                 )
             )
-            srf_file.points["tinit"] += t_delay
-        srf_files[fault_name] = srf_file
-    output_srf_file = srf.SrfFile(
-        "1.0",
-        pd.concat(srf_file.header for srf_file in srf_files.values()),
-        pd.concat(srf_file.points for srf_file in srf_files.values()),
-        concatenate_slip_values(
-            srf_file.slipt1_array
-            if srf_file.slipt1_array is not None
-            else csr_array((len(srf_file.points), 1))
-            for srf_file in srf_files.values()
+
+            fault_srf.points["tinit"] += time_delay
+
+        srf_file_map[fault_name] = fault_srf
+
+    # Process each fault in the determined order
+    for fault_name in srf_stitching_order:
+        process_fault(fault_name)
+
+    # Combine SRF file components
+    combined_srf = srf.SrfFile(
+        version="1.0",
+        header=pd.concat([fault_srf.header for fault_srf in srf_file_map.values()]),
+        points=pd.concat([fault_srf.points for fault_srf in srf_file_map.values()]),
+        slipt1_array=concatenate_slip_values(
+            fault_srf.slipt1_array or csr_array((len(fault_srf.points), 1))
+            for fault_srf in srf_file_map.values()
         ),
-        concatenate_slip_values(
-            srf_file.slipt2_array
-            if srf_file.slipt2_array is not None
-            else csr_array((len(srf_file.points), 1))
-            for srf_file in srf_files.values()
+        slipt2_array=concatenate_slip_values(
+            fault_srf.slipt2_array or csr_array((len(fault_srf.points), 1))
+            for fault_srf in srf_file_map.values()
         ),
-        concatenate_slip_values(
-            srf_file.slipt3_array
-            if srf_file.slipt3_array is not None
-            else csr_array((len(srf_file.points), 1))
-            for srf_file in srf_files.values()
+        slipt3_array=concatenate_slip_values(
+            fault_srf.slipt3_array or csr_array((len(fault_srf.points), 1))
+            for fault_srf in srf_file_map.values()
         ),
     )
-    srf.write_srf(srf_output_filepath, output_srf_file)
-    return srf_output_filepath
+
+    # Write the combined SRF file
+    srf.write_srf(output_srf_path, combined_srf)
+
+    return output_srf_path
 
 
 def generate_fault_srfs_parallel(
@@ -519,6 +578,7 @@ def generate_srf(
     stitch_srf_files(
         source_config.source_geometries,
         rupture_propagation,
+        velocity_model,
         work_directory,
         srf_name,
     )
