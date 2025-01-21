@@ -291,7 +291,6 @@ def concatenate_slip_values(
 def stitch_srf_files(
     faults: dict[str, IsSource],
     rupture_propagation_config: RupturePropagationConfig,
-    velocity_model_1d: VelocityModel1D,
     output_directory: Path,
     output_name: str,
 ) -> Path:
@@ -569,7 +568,6 @@ def generate_srf(
     stitch_srf_files(
         source_config.source_geometries,
         rupture_propagation,
-        velocity_model,
         work_directory,
         srf_name,
     )
