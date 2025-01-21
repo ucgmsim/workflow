@@ -343,18 +343,11 @@ def stitch_srf_files(
         float
             The delay for the child SRF.
         """
-        # Compute the average rupture jumping speed between the two points
-        # parent_coordinates and child_coordinates.
-        average_rupture_speed = sp.integrate.quad(
-            lambda t: 0.75 * velocity_model_1d.model['Vs'].iloc[
-                np.searchsorted(depth_boundaries, np.interp(t, [0, 1], [parent_coordinates[-1], child_coordinates[-1]]) / 1000)
-            ],
-            0, 1
-        )
         jump_distance_km = coordinates.distance_between_wgs_depth_coordinates(
             parent_coordinates, child_coordinates
         ) / 1000
-        return tinit + jump_distance_km / average_rupture_speed
+        # TODO: Add exponential random variable here to perturb the jump delay.
+        return tinit + jump_distance_km / 3.5 
 
     def process_fault(fault_name: str) -> None:
         """ Delay fault SRF according to rupture delay from parents + propagation speed across the gap between faults.
