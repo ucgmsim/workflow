@@ -6,14 +6,13 @@ the [Realisations page](https://github.com/ucgmsim/workflow/wiki/Realisations), 
 for a description of realisations and the schemas.
 """
 
-from enum import StrEnum
 
 import numpy as np
 import pandas as pd
-from IM import im_calculation
 from schema import And, Literal, Optional, Or, Schema, Use
 from velocity_modelling.bounding_box import BoundingBox
 
+from IM import im_calculation
 from source_modelling import rupture_propagation, sources
 from workflow.defaults import DefaultsVersion
 

@@ -22,10 +22,10 @@ import pandas as pd
 from schema import Schema
 from velocity_modelling.bounding_box import BoundingBox
 
+from IM import im_calculation
 from source_modelling import sources
 from source_modelling.rupture_propagation import JumpPair
 from source_modelling.sources import IsSource
-from IM import im_calculation
 from workflow import defaults, schemas
 from workflow.defaults import DefaultsVersion
 
