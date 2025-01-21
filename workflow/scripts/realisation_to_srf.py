@@ -317,9 +317,6 @@ def stitch_srf_files(
     )
 
     srf_file_map: dict[str, srf.SrfFile] = {}
-     
-    # Depth boundaries are used to compute rupture speed between jump points.
-    depth_boundaries = velocity_model_1d.model['thickness'].cumsum() - velocity_model_1d.model['thickness']
 
     def compute_rupture_delay(tinit: float, parent_coordinates: np.ndarray, child_coordinates: np.ndarray) -> float:
         """ Compute the rupture jump delay between the parent SRF and child SRF.
@@ -392,15 +389,16 @@ def stitch_srf_files(
             time_delay = compute_rupture_delay(tinit, parent_coordinates, child_coordinates)
 
             logger = log_utils.get_logger(__name__)
+            fault_srf.points["tinit"] += time_delay
             logger.info(
                 log_utils.structured_log(
                     "computed delay",
                     fault_name=fault_name,
                     delay=time_delay,
+                    srf_min=fault_srf.points['tinit'].min()
                 )
             )
 
-            fault_srf.points["tinit"] += time_delay
 
         srf_file_map[fault_name] = fault_srf
 
