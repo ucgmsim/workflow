@@ -414,15 +414,15 @@ def stitch_srf_files(
         header=pd.concat([fault_srf.header for fault_srf in srf_file_map.values()]),
         points=pd.concat([fault_srf.points for fault_srf in srf_file_map.values()]),
         slipt1_array=concatenate_slip_values(
-            fault_srf.slipt1_array or csr_array((len(fault_srf.points), 1))
+            fault_srf.slipt1_array if fault_srf.slipt1_array is not None else csr_array((len(fault_srf.points), 1))
             for fault_srf in srf_file_map.values()
         ),
         slipt2_array=concatenate_slip_values(
-            fault_srf.slipt2_array or csr_array((len(fault_srf.points), 1))
+            fault_srf.slipt2_array if fault_srf.slipt2_array is not None else csr_array((len(fault_srf.points), 1))
             for fault_srf in srf_file_map.values()
         ),
         slipt3_array=concatenate_slip_values(
-            fault_srf.slipt3_array or csr_array((len(fault_srf.points), 1))
+            fault_srf.slipt3_array if fault_srf.slipt3_array is not None else csr_array((len(fault_srf.points), 1))
             for fault_srf in srf_file_map.values()
         ),
     )
