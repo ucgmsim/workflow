@@ -1,17 +1,17 @@
-empirical @ git+https://github.com/ucgmsim/Empirical_Engine
+empirical @ git+https://github.com/ucgmsim/Empirical_Engine.git
 fastparquet
 geopandas
 h5py
 jinja2
 networkx
-nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB
+nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB.git
 numba
 numexpr
 numpy<2
 pandas
 printree
 pygmt
-pygmt_helper @ git+https://github.com/ucgmsim/pygmt_helper
+pygmt_helper @ git+https://github.com/ucgmsim/pygmt_helper.git
 pyarrow
 pykooh
 pytest
@@ -23,8 +23,8 @@ requests
 schema
 scipy
 shapely
-source_modelling @ git+https://github.com/ucgmsim/source_modelling
+source_modelling @ git+https://github.com/ucgmsim/source_modelling.git
 tables
 tqdm
 typer
-velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling
+velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling.git
