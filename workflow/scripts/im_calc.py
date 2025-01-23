@@ -112,6 +112,7 @@ def calculate_instensity_measures(
         waveforms = waveforms[stations["waveform_index"]]
 
     intensity_measures = intensity_measure_parameters.ims
+    nyquist_frequency = 1 / (2 * broadband_parameters.dt)
     im_function_map = {
         IM.PGA: functools.partial(ims.peak_ground_velocity, dt=broadband_parameters.dt),
         IM.PGV: functools.partial(ims.peak_ground_velocity, dt=broadband_parameters.dt),
@@ -145,7 +146,7 @@ def calculate_instensity_measures(
         IM.FAS: functools.partial(
             ims.fourier_amplitude_spectra,
             dt=broadband_parameters.dt,
-            freqs=intensity_measure_parameters.fas_frequencies,
+            freqs=intensity_measure_parameters.fas_frequencies[intensity_measure_parameters.fas_frequencies <= nyquist_frequency],
             cores=utils.get_available_cores(),
         ),
     }
