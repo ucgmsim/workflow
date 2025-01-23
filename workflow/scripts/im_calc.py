@@ -114,23 +114,19 @@ def calculate_instensity_measures(
     intensity_measures = intensity_measure_parameters.ims
     nyquist_frequency = 1 / (2 * broadband_parameters.dt)
     im_function_map = {
-        IM.PGA: functools.partial(ims.peak_ground_velocity, dt=broadband_parameters.dt),
+        IM.PGA: ims.peak_ground_acceleration,
         IM.PGV: functools.partial(ims.peak_ground_velocity, dt=broadband_parameters.dt),
         IM.CAV: functools.partial(
             ims.cumulative_absolute_velocity, dt=broadband_parameters.dt
         ),
         IM.AI: functools.partial(ims.arias_intensity, dt=broadband_parameters.dt),
         IM.Ds575: functools.partial(
-            ims.significant_duration,
+            ims.ds575,
             dt=broadband_parameters.dt,
-            percent_low=5,
-            percent_high=75,
         ),
         IM.Ds595: functools.partial(
-            ims.significant_duration,
+            ims.ds595,
             dt=broadband_parameters.dt,
-            percent_low=5,
-            percent_high=75,
         ),
         IM.pSA: functools.partial(
             ims.pseudo_spectral_acceleration,
@@ -146,11 +142,14 @@ def calculate_instensity_measures(
         IM.FAS: functools.partial(
             ims.fourier_amplitude_spectra,
             dt=broadband_parameters.dt,
-            freqs=intensity_measure_parameters.fas_frequencies[intensity_measure_parameters.fas_frequencies <= nyquist_frequency],
+            freqs=intensity_measure_parameters.fas_frequencies[
+                intensity_measure_parameters.fas_frequencies <= nyquist_frequency
+            ],
             cores=utils.get_available_cores(),
         ),
     }
-    for im_name in tqdm.tqdm(intensity_measures):
+    for im_name in (pbar := tqdm.tqdm(intensity_measures)):
+        pbar.set_description(im_name)
         im_fn = im_function_map[im_name]
         result = im_fn(waveforms)
         if isinstance(result, pd.DataFrame):
@@ -161,4 +160,4 @@ def calculate_instensity_measures(
             result = result.assign_coords(station=stations.index.values)
             # NetCDF is a file format that is compatible with HDF5. For
             # legacy reasons, xarray uses `to_netcdf` instead of `to_hdf5`.
-            result.to_netcdf(output_path, mode="a", group=im_name)
+            result.to_netcdf(output_path, mode="a", group=im_name, engine="h5netcdf")
