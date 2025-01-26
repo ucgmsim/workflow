@@ -35,10 +35,10 @@ import h5py
 import numexpr as ne
 import numpy as np
 import pandas as pd
+import pint_xarray  # noqa: F401
 import tqdm
 import typer
 import xarray as xr
-import pint_xarray
 
 from IM import ims, units
 from IM.im_calculation import IM
@@ -218,6 +218,7 @@ def calculate_instensity_measures(
     # Add each column of the DataFrame as a coordinate
     for column in station_metadata.columns:
         dataset = dataset.assign_coords({column: ("station", station_metadata[column])})
+
     dataset = dataset.pint.quantify(columns)
 
     for im_name in (pbar := tqdm.tqdm(intensity_measures)):
