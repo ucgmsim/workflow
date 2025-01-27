@@ -35,12 +35,11 @@ import h5py
 import numexpr as ne
 import numpy as np
 import pandas as pd
-import pint_xarray  # noqa: F401
 import tqdm
 import typer
 import xarray as xr
 
-from IM import ims, units
+from IM import ims, im_reader
 from IM.im_calculation import IM
 from qcore import coordinates
 from workflow import utils
@@ -204,33 +203,9 @@ def calculate_instensity_measures(
         / 1000
     )
 
-    coordinate_metadata = {
-        "station": {"description": "Station identifiers", "units": None},
-        "component": {"description": "Component of motion", "units": None},
-        "period": {"description": "Oscillation period", "units": "s"},
-        "vs30": {
-            "description": "Average shear-wave velocity to 30m depth",
-            "units": "m/s",
-        },
-        "epi": {"description": "Epicentral distance", "units": "km"},
-        "hyp": {"description": "Hypocentral distance", "units": "km"},
-        "rrup": {"description": "Rupture distance", "units": "km"},
-        "rjb": {"description": "Joyner-Boore distance", "units": "km"},
-        "latitude": {"description": "Station latitude", "units": "degrees"},
-        "longitude": {"description": "Station longitude", "units": "degrees"},
-        "frequency": {"description": "Frequency of motion", "units": "Hz"},
-    }
-    ims_metadata = {
-        IM.PGA: "Peak ground acceleration",
-        IM.PGV: "Peak ground velocity",
-        IM.CAV: "Cumulative absolute velocity",
-        IM.AI: "Arias intensity",
-        IM.Ds575: "Significant duration (5-75%)",
-        IM.Ds595: "Significant duration (5-95%)",
-        IM.pSA: "Pseudo-spectral acceleration",
-        IM.FAS: "Fourier amplitude spectrum",
-    }
-    station_metadata = stations[list(set(coordinate_metadata) & set(stations.columns))]
+    station_metadata = stations[
+        list(set(im_reader.IM_METADATA) & set(stations.columns))
+    ]
 
     dataset = xr.Dataset(coords={"station": station_metadata.index})
 
@@ -249,11 +224,5 @@ def calculate_instensity_measures(
         elif isinstance(result, xr.DataArray):
             result = result.assign_coords(station=stations.index.values)
         dataset[im_name] = result
-        dataset[im_name].attrs["description"] = ims_metadata[im_name]
 
-    dataset = dataset.pint.quantify(units.IM_UNITS)
-
-    for name, description in coordinate_metadata.items():
-        dataset.coords[name].attrs.update(coordinate_metadata[name])
-
-    dataset.pint.dequantify().to_netcdf(output_path, mode="w", engine="h5netcdf")
+    im_reader.write_intensity_measures(dataset, output_path)
