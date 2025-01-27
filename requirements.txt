@@ -2,11 +2,9 @@ empirical @ git+https://github.com/ucgmsim/Empirical_Engine.git
 fastparquet
 geopandas
 h5py
-h5netcdf
 jinja2
 networkx
 nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB.git
-numba
 numexpr
 numpy<2
 pandas
@@ -14,7 +12,6 @@ printree
 pygmt
 pygmt_helper @ git+https://github.com/ucgmsim/pygmt_helper.git
 pyarrow
-pykooh
 pytest
 pyvis
 pyvista
