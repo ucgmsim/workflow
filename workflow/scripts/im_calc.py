@@ -120,6 +120,7 @@ def calculate_instensity_measures(
 
     intensity_measures = intensity_measure_parameters.ims
     nyquist_frequency = 1 / (2 * broadband_parameters.dt)
+
     im_function_map = {
         IM.PGA: ims.peak_ground_acceleration,
         IM.PGV: functools.partial(ims.peak_ground_velocity, dt=broadband_parameters.dt),
@@ -155,6 +156,7 @@ def calculate_instensity_measures(
             cores=utils.get_available_cores(),
         ),
     }
+
     stations["rrup"] = (
         np.array(
             [
@@ -201,25 +203,40 @@ def calculate_instensity_measures(
         )
         / 1000
     )
-    columns = {
-        "vs30": "km/s",
-        "epi": "km",
-        "hyp": "km",
-        "rrup": "km",
-        "rjb": "km",
-        "latitude": None,
-        "longitude": None,
-    }
 
-    station_metadata = stations[list(columns)]
+    coordinate_metadata = {
+        "station": {"description": "Station identifiers", "units": None},
+        "component": {"description": "Component of motion", "units": None},
+        "period": {"description": "Oscillation period", "units": "s"},
+        "vs30": {
+            "description": "Average shear-wave velocity to 30m depth",
+            "units": "m/s",
+        },
+        "epi": {"description": "Epicentral distance", "units": "km"},
+        "hyp": {"description": "Hypocentral distance", "units": "km"},
+        "rrup": {"description": "Rupture distance", "units": "km"},
+        "rjb": {"description": "Joyner-Boore distance", "units": "km"},
+        "latitude": {"description": "Station latitude", "units": "degrees"},
+        "longitude": {"description": "Station longitude", "units": "degrees"},
+        "frequency": {"description": "Frequency of motion", "units": "Hz"},
+    }
+    ims_metadata = {
+        IM.PGA: "Peak ground acceleration",
+        IM.PGV: "Peak ground velocity",
+        IM.CAV: "Cumulative absolute velocity",
+        IM.AI: "Arias intensity",
+        IM.Ds575: "Significant duration (5-75%)",
+        IM.Ds595: "Significant duration (5-95%)",
+        IM.pSA: "Pseudo-spectral acceleration",
+        IM.FAS: "Fourier amplitude spectrum",
+    }
+    station_metadata = stations[list(set(coordinate_metadata) & set(stations.columns))]
 
     dataset = xr.Dataset(coords={"station": station_metadata.index})
 
     # Add each column of the DataFrame as a coordinate
     for column in station_metadata.columns:
         dataset = dataset.assign_coords({column: ("station", station_metadata[column])})
-
-    dataset = dataset.pint.quantify(columns)
 
     for im_name in (pbar := tqdm.tqdm(intensity_measures)):
         pbar.set_description(im_name)
@@ -232,6 +249,11 @@ def calculate_instensity_measures(
         elif isinstance(result, xr.DataArray):
             result = result.assign_coords(station=stations.index.values)
         dataset[im_name] = result
+        dataset[im_name].attrs["description"] = ims_metadata[im_name]
 
     dataset = dataset.pint.quantify(units.IM_UNITS)
+
+    for name, description in coordinate_metadata.items():
+        dataset.coords[name].attrs.update(coordinate_metadata[name])
+
     dataset.pint.dequantify().to_netcdf(output_path, mode="w", engine="h5netcdf")
