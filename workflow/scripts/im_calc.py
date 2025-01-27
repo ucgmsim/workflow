@@ -39,7 +39,7 @@ import tqdm
 import typer
 import xarray as xr
 
-from IM import ims, im_reader
+from IM import im_reader, ims
 from IM.im_calculation import IM
 from qcore import coordinates
 from workflow import utils
