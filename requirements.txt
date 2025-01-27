@@ -9,7 +9,6 @@ nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB.git
 numexpr
 numpy<2
 pandas
-pint-xarray
 printree
 pyarrow
 pygmt
