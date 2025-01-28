@@ -53,7 +53,7 @@ def generate_fd_files(
             help="Output path for station files", file_okay=False, writable=True
         ),
     ],
-    stat_file_path: Annotated[
+    registry_stat_file_path: Annotated[
         Path,
         typer.Option(help="The location of the station file (from registry)."),
     ] = Path("default_stations_file"),
@@ -90,7 +90,7 @@ def generate_fd_files(
 
     # retrieve in station names, latitudes and longitudes
     stations = pd.read_parquet(
-        local_stat_file or input.fetch_file(stat_file_path),
+        local_stat_file or input.fetch_file(registry_stat_file_path),
     )
 
     in_domain_mask = domain_parameters.domain.contains(

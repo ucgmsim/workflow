@@ -194,13 +194,11 @@ def run_hf(
     station_file: Annotated[
         Path, typer.Argument(help="Location of station file.", exists=True)
     ],
-    out_file: Annotated[
-        Path, typer.Argument(help="Filepath for HF output.")
-    ],
+    out_file: Annotated[Path, typer.Argument(help="Filepath for HF output.")],
     hf_sim_path: Annotated[Path, typer.Option(help="Path to HF sim binary")] = Path(
         "/EMOD3D/tools/hb_high_binmod_v6.0.3"
     ),
-    velocity_model_path: Annotated[
+    registry_velocity_model_path: Annotated[
         Path, typer.Option(help="Path to velocity model (in registry)")
     ] = Path("default_1d_velocity_model"),
     local_velocity_model_path: Annotated[
@@ -250,7 +248,7 @@ def run_hf(
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     input = RealisationInput.read_from_realisation_or_defaults(realisation_ffp)
     velocity_model = velocity_model_1d.read_velocity_model_1d(
-        local_velocity_model_path or input.fetch_file(velocity_model_path)
+        local_velocity_model_path or input.fetch_file(registry_velocity_model_path)
     )
     hf_config = HFConfig.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version

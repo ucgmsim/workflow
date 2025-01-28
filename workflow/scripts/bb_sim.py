@@ -204,7 +204,7 @@ def combine_hf_and_lf(
             help="Path to output broadband file.", dir_okay=False, writable=True
         ),
     ],
-    station_vs30_ffp: Annotated[
+    registry_station_vs30_ffp: Annotated[
         Path,
         typer.Option(help="The station file to use (from registry)."),
     ] = Path("default_stations_file"),
@@ -313,8 +313,10 @@ def combine_hf_and_lf(
     # ensure that LF and HF agree on station list, sometimes LF can drop a station or two
     stations = stations.loc[lf.stations["name"]]
 
-    station_vs30 = pd.read_parquet(local_station_vs30_ffp or input.fetch_file(station_vs30_ffp))
-    station_vs30 = station_vs30.index.rename('name')
+    station_vs30 = pd.read_parquet(
+        local_station_vs30_ffp or input.fetch_file(registry_station_vs30_ffp)
+    )
+    station_vs30 = station_vs30.index.rename("name")
     stations = stations.join(station_vs30, how="inner")
 
     with multiprocessing.Pool(utils.get_available_cores()) as pool:

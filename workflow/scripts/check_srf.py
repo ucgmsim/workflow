@@ -24,7 +24,7 @@ def check_srf(
         Path, typer.Argument(help="The path to the realisation for the SRF.")
     ],
     srf_ffp: Annotated[Path, typer.Argument(help="The path to the SRF file to check.")],
-    velocity_model_path: Annotated[
+    registry_velocity_model_path: Annotated[
         Path, typer.Option(help="Path to 1D velocity model (in registry)")
     ] = Path("default_1d_velocity_model"),
     local_velocity_model_path: Annotated[
@@ -47,10 +47,10 @@ def check_srf(
     """
     input = RealisationInput.read_from_realisation_or_defaults(realisation_ffp)
     velocity_model = velocity_model_1d.read_velocity_model_1d(
-        local_velocity_model_path or input.fetch_file(velocity_model_path)
+        local_velocity_model_path or input.fetch_file(registry_velocity_model_path)
     )
     velocity_model["mu"] = velocity_model["Vs"] ** 2 * velocity_model["rho"] * 1e10
-    
+
     srf_file = srf.read_srf(srf_ffp)
     indices = np.minimum(
         len(velocity_model["top_depth"]) - 1,

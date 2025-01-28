@@ -129,7 +129,7 @@ def generate_realisation(
         DefaultsVersion,
         typer.Argument(help="Scientific default parameters version to use"),
     ],
-    nshmdb_path: Annotated[
+    registry_nshmdb_path: Annotated[
         Path, typer.Option(help="Path to NSHMDB (in container).")
     ] = Path("nshmdb.db"),
     local_nshmdb_path: Annotated[
@@ -166,7 +166,7 @@ def generate_realisation(
     )
     metadata.write_to_realisation(realisation_ffp)
     inputs = RealisationInput.read_from_realisation_or_defaults(realisation_ffp)
-    db = nshmdb.NSHMDB(local_nshmdb_path or inputs.fetch_file(nshmdb_path))
+    db = nshmdb.NSHMDB(local_nshmdb_path or inputs.fetch_file(registry_nshmdb_path))
 
     faults = db.get_rupture_faults(rupture_id)
     faults_info = db.get_rupture_fault_info(rupture_id)
