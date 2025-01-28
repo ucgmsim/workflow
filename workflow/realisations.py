@@ -22,8 +22,8 @@ import yaml
 from schema import Schema
 from velocity_modelling.bounding_box import BoundingBox
 
-from qcore import registry
 from IM import im_calculation
+from qcore import registry
 from source_modelling import sources
 from source_modelling.rupture_propagation import JumpPair
 from source_modelling.sources import IsSource
