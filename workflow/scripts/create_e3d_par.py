@@ -98,6 +98,7 @@ def emod3d_duration_parameters(
         "flo": flo,
         "dt": domain_parameters.dt,
         "ts_total": int(extended_simulation_duration / (domain_parameters.dt * dtts)),
+        "restart_itinc": round(nt / 3),
     }
 
 
