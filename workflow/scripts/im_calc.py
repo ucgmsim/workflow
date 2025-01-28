@@ -39,13 +39,16 @@ import tqdm
 import typer
 import xarray as xr
 
-from IM import ims
+from IM import im_reader, ims
 from IM.im_calculation import IM
+from qcore import coordinates
 from workflow import utils
 from workflow.realisations import (
     BroadbandParameters,
     IntensityMeasureCalculationParameters,
     RealisationMetadata,
+    RupturePropagationConfig,
+    SourceConfig,
 )
 
 app = typer.Typer()
@@ -102,35 +105,35 @@ def calculate_instensity_measures(
             realisation_ffp, metadata.defaults_version
         )
     )
+    source_geometries = SourceConfig.read_from_realisation(realisation_ffp)
+    rup_prop_config = RupturePropagationConfig.read_from_realisation(realisation_ffp)
 
     with h5py.File(broadband_simulation_ffp, mode="r") as broadband_file:
         waveforms = np.array(broadband_file["waveforms"]).astype(np.float32)
 
     stations = pd.read_hdf(broadband_simulation_ffp, key="stations")
+
     if not simulated_stations:
         stations = stations.filter(regex=r"^\w{4}$", axis=0)
         waveforms = waveforms[stations["waveform_index"]]
 
     intensity_measures = intensity_measure_parameters.ims
     nyquist_frequency = 1 / (2 * broadband_parameters.dt)
+
     im_function_map = {
-        IM.PGA: functools.partial(ims.peak_ground_velocity, dt=broadband_parameters.dt),
+        IM.PGA: ims.peak_ground_acceleration,
         IM.PGV: functools.partial(ims.peak_ground_velocity, dt=broadband_parameters.dt),
         IM.CAV: functools.partial(
             ims.cumulative_absolute_velocity, dt=broadband_parameters.dt
         ),
         IM.AI: functools.partial(ims.arias_intensity, dt=broadband_parameters.dt),
         IM.Ds575: functools.partial(
-            ims.significant_duration,
+            ims.ds575,
             dt=broadband_parameters.dt,
-            percent_low=5,
-            percent_high=75,
         ),
         IM.Ds595: functools.partial(
-            ims.significant_duration,
+            ims.ds595,
             dt=broadband_parameters.dt,
-            percent_low=5,
-            percent_high=75,
         ),
         IM.pSA: functools.partial(
             ims.pseudo_spectral_acceleration,
@@ -146,19 +149,80 @@ def calculate_instensity_measures(
         IM.FAS: functools.partial(
             ims.fourier_amplitude_spectra,
             dt=broadband_parameters.dt,
-            freqs=intensity_measure_parameters.fas_frequencies[intensity_measure_parameters.fas_frequencies <= nyquist_frequency],
+            freqs=intensity_measure_parameters.fas_frequencies[
+                intensity_measure_parameters.fas_frequencies <= nyquist_frequency
+            ],
             cores=utils.get_available_cores(),
         ),
     }
-    for im_name in tqdm.tqdm(intensity_measures):
+
+    stations["rrup"] = (
+        np.array(
+            [
+                min(
+                    source.rrup_distance(np.append(station, 0))
+                    for source in source_geometries.source_geometries.values()
+                )
+                for station in stations[["latitude", "longitude"]].values
+            ]
+        )
+        / 1000
+    )
+    stations["rjb"] = (
+        np.array(
+            [
+                min(
+                    source.rjb_distance(np.append(station, 0))
+                    for source in source_geometries.source_geometries.values()
+                )
+                for station in stations[["latitude", "longitude"]].values
+            ]
+        )
+        / 1000
+    )
+    hypocentre = source_geometries.source_geometries[
+        rup_prop_config.initial_fault
+    ].fault_coordinates_to_wgs_depth_coordinates(rup_prop_config.hypocentre)
+    stations["hyp"] = (
+        coordinates.distance_between_wgs_depth_coordinates(
+            np.hstack(
+                (
+                    stations[["latitude", "longitude"]].values,
+                    np.zeros((len(stations), 1)),
+                )
+            ),
+            hypocentre,
+        )
+        / 1000
+    )
+    stations["epi"] = (
+        coordinates.distance_between_wgs_depth_coordinates(
+            stations[["latitude", "longitude"]].values,
+            hypocentre[:2],
+        )
+        / 1000
+    )
+
+    station_metadata = stations[
+        list(set(im_reader.IM_METADATA) & set(stations.columns))
+    ]
+
+    dataset = xr.Dataset(coords={"station": station_metadata.index})
+
+    # Add each column of the DataFrame as a coordinate
+    for column in station_metadata.columns:
+        dataset = dataset.assign_coords({column: ("station", station_metadata[column])})
+
+    for im_name in (pbar := tqdm.tqdm(intensity_measures)):
+        pbar.set_description(im_name)
         im_fn = im_function_map[im_name]
         result = im_fn(waveforms)
+
         if isinstance(result, pd.DataFrame):
             result["station"] = stations.index.values
-            result = result.set_index("station")
-            result.to_hdf(output_path, key=im_name, mode="a")
+            result = result.set_index("station").to_xarray().to_array(dim="component")
         elif isinstance(result, xr.DataArray):
             result = result.assign_coords(station=stations.index.values)
-            # NetCDF is a file format that is compatible with HDF5. For
-            # legacy reasons, xarray uses `to_netcdf` instead of `to_hdf5`.
-            result.to_netcdf(output_path, mode="a", group=im_name)
+        dataset[im_name] = result
+
+    im_reader.write_intensity_measures(dataset, output_path)

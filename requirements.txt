@@ -2,19 +2,17 @@ empirical @ git+https://github.com/ucgmsim/Empirical_Engine.git
 fastparquet
 geopandas
 h5py
-h5netcdf
+im_calculation @ git+https://github.com/ucgmsim/IM_calculation.git
 jinja2
 networkx
 nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB.git
-numba
 numexpr
 numpy<2
 pandas
 printree
-pykooh
+pyarrow
 pygmt
 pygmt_helper @ git+https://github.com/ucgmsim/pygmt_helper.git
-pyarrow
 pytest
 pyvis
 pyvista
@@ -28,6 +26,5 @@ source_modelling @ git+https://github.com/ucgmsim/source_modelling.git
 tables
 tqdm
 typer
-im_calculation @ git+https://github.com/ucgmsim/IM_calculation.git
-xarray
 velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling.git
+xarray[io]
