@@ -181,7 +181,7 @@ class RealisationConfiguration(ABC):
         """
         try:
             return cls.read_from_realisation(realisation_ffp)
-        except RealisationParseError:
+        except (RealisationParseError, FileNotFoundError):
             default_config = cls.read_from_defaults(defaults_version)
             default_config.write_to_realisation(realisation_ffp)
             return default_config
@@ -254,24 +254,35 @@ class Seeds(RealisationConfiguration):
         """
         try:
             return cls.read_from_realisation(realisation_ffp)
-        except RealisationParseError:
-            config = cls(
-                **{
-                    field.name: random.randint(
-                        # The following bounds for a random integer
-                        # are based on the maximum machine size
-                        # integer with the "i" datatype used in
-                        # genslip and HF.
-                        # See:
-                        # https://stackoverflow.com/questions/13795758/what-is-sys-maxint-in-python-3/13796364#13796364
-                        0,
-                        2 ** (struct.Struct("i").size * 8 - 1) - 1,
-                    )
-                    for field in dataclasses.fields(cls)
-                }
-            )
+        except (RealisationParseError, FileNotFoundError):
+            config = cls.random_seeds()
             config.write_to_realisation(realisation_ffp)
             return config
+
+    @classmethod
+    def random_seeds(cls) -> Self:
+        """Generate random seeds for the seeds configuration.
+
+        Returns
+        -------
+        Self
+            A new instance of the configuration with random seeds.
+        """
+        return cls(
+            **{
+                field.name: random.randint(
+                    # The following bounds for a random integer
+                    # are based on the maximum machine size
+                    # integer with the "i" datatype used in
+                    # genslip and HF.
+                    # See:
+                    # https://stackoverflow.com/questions/13795758/what-is-sys-maxint-in-python-3/13796364#13796364
+                    0,
+                    2 ** (struct.Struct("i").size * 8 - 1) - 1,
+                )
+                for field in dataclasses.fields(cls)
+            }
+        )
 
 
 @dataclasses.dataclass
