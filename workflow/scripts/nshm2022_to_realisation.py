@@ -161,13 +161,19 @@ def generate_realisation(
     shypo: Annotated[
         Optional[float],
         typer.Option(
-            help="The initial hypocentre strike coordinate (0 - 1).", min=0, max=1
+            help="The initial hypocentre strike coordinate (0 - 1)."
+            " If not supplied, draw shypo from a truncated normal distribution.",
+            min=0,
+            max=1,
         ),
     ] = None,
     dhypo: Annotated[
         Optional[float],
         typer.Option(
-            help="The initial hypocentre strike coordinate (0 - 1).", min=0, max=1
+            help="The initial hypocentre strike coordinate (0 - 1)."
+            " If not supplied, draw dhypo from a weibull distribution.",
+            min=0,
+            max=1,
         ),
     ] = None,
 ):
