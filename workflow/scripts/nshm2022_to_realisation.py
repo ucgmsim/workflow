@@ -143,15 +143,15 @@ def generate_realisation(
         Optional[str],
         typer.Option(
             help="The name of the fault to use as the initial fault for rupture propagation."
-            "If not specified, the fault with the highest probability of being the initial fault will be chosen.",
+            " If not specified, the fault with the highest probability of being the initial fault will be chosen.",
         ),
     ] = None,
     strategy: Annotated[
         SamplingStrategy,
         typer.Option(
             help="The strategy to use when sampling rupture propagation."
-            '"maximising" will choose the fault with the highest probability of being the initial fault.'
-            '"random" will choose a random fault.',
+            ' "maximising" will choose the fault with the highest probability of being the initial fault.'
+            ' "random" will choose a random fault.',
         ),
     ] = SamplingStrategy.random,
     jump_cutoff: Annotated[
