@@ -34,9 +34,9 @@ For More Help
 See the output of `nshm2022-to-realisation --help`.
 """
 
+from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Optional
-from enum import StrEnum
 
 import numpy as np
 import typer
