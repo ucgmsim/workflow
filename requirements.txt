@@ -7,7 +7,7 @@ jinja2
 networkx
 nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB.git
 numexpr
-numpy<2
+numpy
 pandas
 printree
 pyarrow
