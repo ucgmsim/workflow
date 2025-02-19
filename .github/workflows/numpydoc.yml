@@ -1,12 +1,6 @@
 name: Numpydoc Lint
 
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+on: pull_request
 
 jobs:
   numpydoc-lint:
@@ -24,7 +18,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.12'  # Adjust version as needed
+          python-version: "3.12" # Adjust version as needed
 
       - name: Install dependencies
         run: |
@@ -33,4 +27,4 @@ jobs:
 
       - name: Run Numpydoc Lint
         run: |
-          fdfind . source_modelling/ -E "__init__.py" -E ccldpy.py --extension py -x numpydoc lint
+          fdfind . workflow/ -E "__init__.py" --extension py -x numpydoc lint
