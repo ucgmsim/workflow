@@ -2,6 +2,10 @@
 
 Combine high-frequency and low-frequency simulation waveforms for each station into a broadband simulation file.
 
+Description
+-----------
+Combine high-frequency and low-frequency simulation waveforms for each station into a broadband simulation file.
+
 Inputs
 ------
 1. A realisation file containing:
@@ -28,6 +32,10 @@ running on your own computer, you need to configure a work directory
 Usage
 -----
 `bb-sim REALISATION_FFP STATION_FFP STATION_VS30_FFP LOW_FREQUENCY_WAVEFORM_DIRECTORY HIGH_FREQUENCY_WAVEFORM_FILE VELOCITY_MODEL_DIRECTORY OUTPUT_FFP`
+
+For More Help
+-------------
+See the output of `bb-sim --help`.
 """
 
 import functools
@@ -85,8 +93,8 @@ def bb_simulate_station(
     ----------
     lf : timeseries.LFSeis
         Low-frequency seismic data object.
-    hf : timeseries.HFSeis
-        High-frequency seismic data object.
+    hf_path : Path
+        Path to the high-frequency seismic data file.
     hf_padding : tuple[int, int]
         Padding for the high-frequency data (start, end).
     lf_padding : tuple[int, int]
@@ -95,14 +103,15 @@ def bb_simulate_station(
         Configuration parameters for broadband simulation.
     n2 : float
         Site amplification parameter.
-    work_directory : Path
-        Directory for temporary files.
     station_name : str
         Name of the seismic station.
-    station_vs : float
-        vs value of the station site.
-    station_vs30 : float
-        VS30 value for the station site.
+    station : pd.Series
+        Series containing station metadata including vs and vs30 values.
+
+    Returns
+    -------
+    np.ndarray
+        Simulated broadband acceleration data.
     """
     hf = h5py.File(hf_path)
     # we expected waveform files to have size n_components (3) * float size (4) * number of padded timesteps.

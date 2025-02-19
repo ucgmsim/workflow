@@ -248,6 +248,8 @@ class Seeds(RealisationConfiguration):
         ----------
         realisation_ffp : Path
             The realisation filepath to read from.
+        *args : Any
+            Ignored arguments.
 
         Returns
         -------

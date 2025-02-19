@@ -352,7 +352,7 @@ def stitch_srf_files(
         ----------
         tinit : float
             The initiation time for the jumping point on the parent SRF.
-        parent_coordinates: np.ndarray
+        parent_coordinates : np.ndarray
             The coordinates of the parent jumping location, WGS84+depth (jumping from here).
         child_coordinates : np.ndarray
             The coordinates of the child jumping location, WGS84+depth (jumping to here).

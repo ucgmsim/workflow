@@ -107,9 +107,9 @@ def log_call(
         (with it's return value if `include_result` is True).
     """
 
-    def decorator(f: Callable) -> Callable: # numpydoc ignore
+    def decorator(f: Callable) -> Callable: # numpydoc ignore=GL08
         @functools.wraps(f)
-        def wrapper(*args, **kwargs): # numpydoc ignore
+        def wrapper(*args, **kwargs): # numpydoc ignore=GL08
             nonlocal exclude_args
             signature = inspect.signature(f)
             function_id = str(uuid.uuid4())

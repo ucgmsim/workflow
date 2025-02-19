@@ -78,6 +78,8 @@ def hf_simulate_station(
     ----------
     hf_config : HFConfig
         Configuration object containing the parameters for the high-frequency simulation.
+    seeds : Seeds
+        Seeds object containing the seeds for the simulation.
     domain_parameters : DomainParameters
         Domain parameters such as simulation duration and other domain-specific settings.
     velocity_model : Path
@@ -229,9 +231,6 @@ def run_hf(
         Filepath where the HF output will be saved.
     hf_sim_path : Path, optional
         Path to the HF simulation binary.
-    velocity_model : Path, optional
-        Path to the 1D velocity model. Ignored if site-specific model
-        is set is set in the `HFConfig` of `realisation_ffp`.
     work_directory : Path, optional
         Directory for intermediate files. Must be writable.
 
