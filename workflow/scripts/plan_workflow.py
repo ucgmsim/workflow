@@ -130,12 +130,12 @@ class Stage:
     """The sample number of the realisation."""
 
     @property
-    def parent(self) -> Self:
+    def parent(self) -> Self: # numpydoc ignore=RT01
         """Stage: the parent stage of this stage."""
         return self.__class__(self.identifier, self.event, None)
 
     @property
-    def directory(self) -> Optional[PurePath]:
+    def directory(self) -> Optional[PurePath]: # numpydoc ignore=RT01
         """Optional[PurePath]: the directory for this stage."""
         if not self.event:
             return None
@@ -145,7 +145,7 @@ class Stage:
         return PurePath(directory)
 
     @property
-    def outputs(self) -> set[PurePath]:
+    def outputs(self) -> set[PurePath]: # numpydoc ignore=RT01
         """set[PurePath]: the outputs for this stage."""
         directory = self.directory
         if not directory:
@@ -153,7 +153,7 @@ class Stage:
         return {directory / output for output in stage_outputs(self.identifier)}
 
     @property
-    def inputs(self) -> set[PurePath]:
+    def inputs(self) -> set[PurePath]: # numpydoc ignore=RT01
         """set[PurePath]: the inputs for this stage."""
         directory = self.directory
         if not self.event or not directory:
@@ -169,11 +169,22 @@ class Stage:
             return set()
 
     def __hash__(self) -> int:
-        """Hash the stage identifier, event and sample number."""
+        """Hash the stage identifier, event and sample number.
+
+        Returns
+        -------
+        int
+            The hash of the stage.
+        """
         return hash((self.identifier, self.event, self.sample))
 
     def __str__(self) -> str:
-        """str: the string representation of the stage."""
+        """The string representation of the stage.
+
+        Returns
+        -------
+        str
+            The string representation of the stage."""
         _str = str(self.identifier)
         if self.event:
             _str += f"_{self.event}"
@@ -233,20 +244,19 @@ def stage_config_outputs(identifier: StageIdentifier) -> set[str]:
 def stage_outputs(
     identifier: StageIdentifier, include_config_outputs: bool = True
 ) -> set[PurePath]:
-    """Return a list of stage inputs for the stage.
+    """Return a set of stage outputs for the given stage identifier.
 
     Parameters
     ----------
-    stage : Stage
-        The stage to get inputs for.
-    root : Path
-        The root directory of the simulation.
-
+    identifier : StageIdentifier
+        The stage identifier to get outputs for.
+    include_config_outputs : bool, optional
+        Whether to include configuration outputs (default is True).
 
     Returns
     -------
-    set[Path]
-        A set of input paths required by the stage.
+    set[PurePath]
+        A set of output paths for the stage.
     """
     output_dictionary = {
         StageIdentifier.SRFGeneration: {
@@ -298,12 +308,15 @@ def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
 
     Parameters
     ----------
-    workflow_plan : nx.DiGraph
-        The current workflow paln.
     event : str
         The event to add.
     sample : Optional[int]
         The sample number (or None, if the original event).
+
+    Returns
+    -------
+    nx.DiGraph
+        The workflow plan with the added realisation.
     """
     requires_base = [
         StageIdentifier.SRFGeneration,
@@ -451,6 +464,8 @@ def create_abstract_workflow_plan(
 
     Parameters
     ----------
+    realisations : set[tuple[str, Optional[int]]]
+        The realisations to generate the workflow for.
     goals : Iterable[StageIdentifier]
         The goal stages for the workflow.
     excluding : Iterable[StageIdentifier]

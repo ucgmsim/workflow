@@ -1,3 +1,34 @@
+"""
+Check SRF File.
+
+Description
+-----------
+Check an SRF's contents for viability.
+
+Inputs
+------
+1. realisation_ffp : Path
+    The path to the realisation for the SRF.
+2. srf_ffp : Path
+    The path to the SRF file to check.
+
+Outputs
+-------
+None
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own computer using the `check-srf` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+
+Usage
+-----
+`check-srf [OPTIONS] REALISATION_FFP SRF_FILE_FFP`
+
+For More Help
+-------------
+See the output of `check-srf --help`.
+"""
+
 from pathlib import Path
 from typing import Annotated
 

@@ -1,3 +1,32 @@
+"""
+Generate a realisation from a GCMT solution.
+
+Description
+-----------
+This script generates a realisation from a GCMT solution by fetching the necessary data from the GeoNet and automated GCMT solutions, selecting the most likely nodal plane, and generating a rupture geometry using CCLDpy.
+
+Inputs
+------
+1. gcmt_event_id: The GCMT event ID to source the simulation for.
+2. defaults_version: Scientific defaults to use (determines simulation resolution among many other things).
+3. realisation_ffp: Path to output realisation.
+
+Outputs
+-------
+A realisation file containing source configurations, rupture propagation configurations, and metadata.
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own computer using the `gcmt-to-realisation` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+
+Usage
+-----
+`gcmt-to-realisation [OPTIONS] GCMT_EVENT_ID DEFAULTS_VERSION REALISATION_FFP`
+
+For More Help
+-------------
+See the output of `gcmt-to-realisation --help`.
+"""
 from pathlib import Path
 from typing import Annotated
 

@@ -1,3 +1,31 @@
+"""Automatically Simulate GCMT Solutions.
+
+Description
+-----------
+This script fetches the latest GCMT solutions and identifies new, large earthquakes within 30 km of New Zealand. It then sets up and runs simulations for these earthquakes using the Cylc workflow engine.
+
+Inputs
+------
+1. GCMT Solutions URL,
+2. Path to old GCMT Solutions.
+
+Outputs
+-------
+1. Updated GCMT Solutions file,
+2. Cylc workflow directory with input data for new simulations.
+
+Environment
+-----------
+This script is designed to be run in conjunction with a cron job on Hypocentre. It is not intended for researcher use.
+
+Usage
+-----
+`python gcmt_auto_simulate.py GCMT_SOLUTIONS_URL OLD_GCMT_SOLUTIONS_PATH`
+
+For More Help
+-------------
+See the output of `python gcmt_auto_simulate.py --help` for more details on the command-line arguments.
+"""
 import datetime
 import json
 import subprocess

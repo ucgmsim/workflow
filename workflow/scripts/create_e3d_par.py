@@ -154,6 +154,8 @@ def emod3d_outputs(metadata: RealisationMetadata, scratch_ffp: Path) -> dict[str
 
     Parameters
     ----------
+    metadata : RealisationMetadata
+        The realisation metadata.
     scratch_ffp : Path
         The root directory of all output files for the run.
 

@@ -33,7 +33,7 @@ See the output of `realisation-to-srf --help`.
 
 Visualisation
 -------------
-You can visualise the output of this stage using the SRF plotting tools in the [source modelling](https://github.com/ucgmsim/source_modelling/blob/plots/wiki/Plotting-Tools.md) repository. Many of the tools take realisations as optional arguments to enhance the plot output.
+You can visualise the output of this stage using the SRF plotting tools in the [source modelling](https://github.com/ucgmsim/visualization/blob/plots/wiki/Plotting-Tools.md) repository. Many of the tools take realisations as optional arguments to enhance the plot output.
 """
 
 import functools
@@ -75,7 +75,7 @@ def normalise_name(name: str) -> str:
     Parameters
     ----------
     name : str
-        The name to normalise
+        The name to normalise.
 
     Returns
     -------
@@ -92,17 +92,26 @@ def generate_fault_gsf(
     rake: float,
     gsf_output_directory: Path,
     subdivision_resolution: float,
-):
+) -> Path:
     """Write the fault geometry of a fault to a GSF file.
 
     Parameters
     ----------
-    fault : RealisationFault
-        The fault to write.
+    name : str
+        The name of the fault.
+    geometry : IsSource
+        The geometry of the fault.
+    rake : float
+        The rake of the fault.
     gsf_output_directory : Path
         The directory to output the GSF file to.
     subdivision_resolution : float
         The geometry resolution.
+
+    Returns
+    -------
+    Path
+        The path to the generated GSF file.
     """
     gsf_output_filepath = gsf_output_directory / f"{name}.gsf"
     gsf_df = pd.DataFrame(
@@ -145,14 +154,24 @@ def generate_fault_srf(
 
     Parameters
     ----------
-    fault : RealisationFault
+    name : str
+        The name of the fault.
+    fault : IsSource
         The fault to generate the SRF file for.
-    realisation : Realisation
-        The realisation the fault belongs to.
+    rake : float
+        The rake of the fault.
+    magnitude : float
+        The magnitude of the fault.
+    hypocentre_local_coordinates : npt.NDArray[np.float64]
+        The local coordinates of the hypocentre.
     output_directory : Path
         The output directory.
-    subdivision_resolution : float
-        The geometry resolution.
+    srf_config : SRFConfig
+        The SRF configuration.
+    seeds : Seeds
+        The seeds for random number generation.
+    genslip_path : Path
+        The path to the genslip binary.
     """
     gsf_output_directory = output_directory / "gsf"
 
@@ -229,7 +248,7 @@ def generate_fault_srf(
             raise
         logger.info(
             log_utils.structured_log(
-                "command compeleted", stderr=proc.stderr.decode("utf-8")
+                "command completed", stderr=proc.stderr.decode("utf-8")
             )
         )
 
@@ -298,10 +317,14 @@ def stitch_srf_files(
 
     Parameters
     ----------
-    realisation_obj : Realisation
-        The realisation containing the faults and rupture propagation order.
+    faults : dict[str, IsSource]
+        The faults and their geometries.
+    rupture_propagation_config : RupturePropagationConfig
+        The rupture propagation configuration.
     output_directory : Path
         The output directory containing fault SRF files.
+    output_name : str
+        The name of the output SRF file.
 
     Returns
     -------
@@ -443,12 +466,20 @@ def generate_fault_srfs_parallel(
 
     Parameters
     ----------
-    realisation : Realisation
-        The realisation to generate fault SRF files for.
+    faults : dict[str, IsSource]
+        The faults and their geometries.
+    rupture_propagation_config : RupturePropagationConfig
+        The rupture propagation configuration.
     output_directory : Path
         The directory to output the fault SRF files.
-    subdivision_resolution : float
-        The geometry resolution.
+    srf_config : SRFConfig
+        The SRF configuration.
+    seeds : Seeds
+        The seeds for random number generation.
+    velocity_model_1d : VelocityModel1D
+        The 1D velocity model.
+    genslip_path : Path
+        The path to the genslip binary.
     """
     # need to do this before multiprocessing because of race conditions
     gsf_directory = output_directory / "gsf"

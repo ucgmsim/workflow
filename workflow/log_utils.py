@@ -67,7 +67,7 @@ def structured_log(
     ----------
     message : str
         The message to log.
-    kwargs : Any
+    **kwargs : Any
         Keyword arguments to log in a structured logging format.
 
     Returns
@@ -107,9 +107,9 @@ def log_call(
         (with it's return value if `include_result` is True).
     """
 
-    def decorator(f: Callable) -> Callable:
+    def decorator(f: Callable) -> Callable: # numpydoc ignore
         @functools.wraps(f)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args, **kwargs): # numpydoc ignore
             nonlocal exclude_args
             signature = inspect.signature(f)
             function_id = str(uuid.uuid4())
@@ -161,7 +161,7 @@ def log_check_call(args: list[str], **kwargs: Any) -> str:
     ----------
     args : list[str]
         The command line arguments to execute.
-    kwargs : Any
+    **kwargs : Any
         Additional keyword arguments for `subprocess.check_output`.
 
     Returns

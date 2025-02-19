@@ -1,3 +1,30 @@
+"""Copy Domain Parameters.
+
+Description
+-----------
+Copy domain parameters between two realisations to enable the reuse of median event velocity models for subsequent realisations.
+
+Inputs
+------
+1. A source realisation file containing domain parameters,
+2. A target realisation file to copy the domain parameters to.
+
+Outputs
+-------
+The target realisation file updated with the domain parameters from the source realisation file.
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own computer using the `copy-velocity-model-parameters` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+
+Usage
+-----
+`copy-velocity-model-parameters [OPTIONS] FROM_REALISATION_FFP TO_REALISATION_FFP`
+
+For More Help
+-------------
+See the output of `copy-domain --help`.
+"""
 from pathlib import Path
 from typing import Annotated
 
