@@ -34,8 +34,9 @@ For More Help
 See the output of `nshm2022-to-realisation --help`.
 """
 
+from enum import StrEnum
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 import numpy as np
 import typer
@@ -44,9 +45,14 @@ from nshmdb import nshmdb
 from qcore.uncertainties import distributions, mag_scaling
 from source_modelling import rupture_propagation
 from source_modelling.sources import Fault
-from workflow import realisations
 from workflow.defaults import DefaultsVersion
 from workflow.log_utils import log_call
+from workflow.realisations import (
+    RealisationMetadata,
+    RupturePropagationConfig,
+    Seeds,
+    SourceConfig,
+)
 
 app = typer.Typer()
 
@@ -104,18 +110,20 @@ def default_magnitude_estimation(
     }
 
 
+class SamplingStrategy(StrEnum):
+    """Rupture propagation strategy to employ."""
+
+    maximising = "maximising"
+    random = "random"
+
+
 @app.command(
     help="Generate realisation stub files from ruptures in the NSHM 2022 database."
 )
 @log_call()
 def generate_realisation(
-    nshm_db_file: Annotated[
-        Path,
-        typer.Argument(
-            help="The NSHM sqlite database containing rupture information and fault geometry.",
-            readable=True,
-            exists=True,
-        ),
+    nshmdb_path: Annotated[
+        Path, typer.Argument(help="Path to NSHMDB.", exists=True, dir_okay=False)
     ],
     rupture_id: Annotated[
         int,
@@ -131,56 +139,111 @@ def generate_realisation(
         DefaultsVersion,
         typer.Argument(help="Scientific default parameters version to use"),
     ],
+    initial_fault: Annotated[
+        Optional[str],
+        typer.Option(
+            help="The name of the fault to use as the initial fault for rupture propagation."
+            " If not specified, the initial fault will be drawn proportionally to its likelihood of rupture.",
+        ),
+    ] = None,
+    strategy: Annotated[
+        SamplingStrategy,
+        typer.Option(
+            help="The strategy to use when sampling rupture propagation."
+            ' "maximising" will choose the maximally likely rupture propagation tree.'
+            ' "random" will choose a random rupture propagation tree.',
+        ),
+    ] = SamplingStrategy.random,
+    jump_cutoff: Annotated[
+        float,
+        typer.Option(help="The maximum jump distance between faults in km.", min=0),
+    ] = 15,
+    shypo: Annotated[
+        Optional[float],
+        typer.Option(
+            help="The initial hypocentre strike coordinate (0 - 1)."
+            " If not supplied, draw shypo from a truncated normal distribution.",
+            min=0,
+            max=1,
+        ),
+    ] = None,
+    dhypo: Annotated[
+        Optional[float],
+        typer.Option(
+            help="The initial hypocentre strike coordinate (0 - 1)."
+            " If not supplied, draw dhypo from a weibull distribution.",
+            min=0,
+            max=1,
+        ),
+    ] = None,
 ):
     """Generate realisation stub files from ruptures in the NSHM 2022 database.
 
-    This function initializes a connection to the NSHM database, retrieves the faults and fault information for
-    the given rupture ID, estimates the most likely rupture propagation, and creates configurations and metadata
-    for the realisation. The resulting realisation is then written to the specified file path.
+    This function initializes a connection to the NSHM database, retrieves
+    the faults and fault information for the given rupture ID, estimates the
+    most likely rupture propagation, and creates configurations and metadata
+    for the realisation. The resulting realisation is then written to the
+    specified file path.
 
     Parameters
     ----------
     nshm_db_file : Path
         The NSHM sqlite database containing rupture information and fault geometry.
     rupture_id : int
-        The ID of the rupture to generate the realisation stub for. Find this using the NSHM Rupture Explorer.
+        The ID of the rupture to generate the realisation stub for. Find
+        this using the NSHM Rupture Explorer.
     realisation_ffp : Path
         Location to write out the realisation.
     defaults_version : DefaultsVersion
         Scientific default parameters version to use.
     """
 
-    db = nshmdb.NSHMDB(nshm_db_file)
+    metadata = RealisationMetadata(
+        name=f"Rupture {rupture_id}",
+        version="1",
+        tag="nshm",
+        defaults_version=defaults_version,
+    )
+    metadata.write_to_realisation(realisation_ffp)
+    db = nshmdb.NSHMDB(nshmdb_path)
+
     faults = db.get_rupture_faults(rupture_id)
     faults_info = db.get_rupture_fault_info(rupture_id)
-    seeds = realisations.Seeds.read_from_realisation_or_defaults(realisation_ffp)
+    seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
     np.random.seed(seed=seeds.nshm_to_realisation_seed)
-    source_config = realisations.SourceConfig(faults)
+    source_config = SourceConfig(faults)
 
     rakes = {
         fault_name: fault_info.rake for fault_name, fault_info in faults_info.items()
     }
     magnitudes = default_magnitude_estimation(faults, rakes)
-    mfds_rates = db.most_likely_fault(rupture_id, magnitudes)
-    mfds_probabilities = np.array(mfds_rates.values())
-    if np.allclose(mfds_probabilities, 0):
-        mfds_probabilities = np.ones_like(mfds_probabilities)
-    mfds_probabilities /= mfds_probabilities.sum()
-    initial_fault = np.random.choice(list(mfds_rates), p=mfds_probabilities)
-
-    rupture_causality_tree = (
-        rupture_propagation.estimate_most_likely_rupture_propagation(
-            faults, initial_fault
+    if not initial_fault:
+        mfds_rates = db.most_likely_fault(rupture_id, magnitudes)
+        mfds_probabilities = np.array(list(mfds_rates.values()))
+        if np.allclose(mfds_probabilities, 0):
+            mfds_probabilities = np.ones_like(mfds_probabilities)
+        mfds_probabilities /= mfds_probabilities.sum()
+        initial_fault = np.random.choice(list(mfds_rates), p=mfds_probabilities)
+    elif initial_fault not in faults:
+        print(
+            f"Initial fault '{initial_fault}' not found in rupture. Options are {', '.join(list(faults))}"
         )
+        raise typer.Exit(code=1)
+
+    rupture_causality_tree = rupture_propagation.sample_rupture_propagation(
+        faults,
+        initial_source=initial_fault,
+        strategy=strategy,
+        jump_impossibility_limit_distance=jump_cutoff * 1000,
     )
 
     hypocentre = np.array(
         [
-            distributions.truncated_normal(1 / 2, 1 / 4),
-            distributions.truncated_weibull(1),
+            shypo or distributions.truncated_normal(1 / 2, 1 / 4),
+            dhypo or distributions.truncated_weibull(1),
         ]
     )
-    rupture_propagation_config = realisations.RupturePropagationConfig(
+    rupture_propagation_config = RupturePropagationConfig(
         magnitudes=magnitudes,
         rupture_causality_tree=rupture_causality_tree,
         jump_points=rupture_propagation.jump_points_from_rupture_tree(
@@ -189,12 +252,6 @@ def generate_realisation(
         rakes=rakes,
         hypocentre=hypocentre,
     )
-    metadata = realisations.RealisationMetadata(
-        name=f"Rupture {rupture_id}",
-        version="1",
-        tag="nshm",
-        defaults_version=defaults_version,
-    )
     realisation_ffp.parent.mkdir(parents=True, exist_ok=True)
-    for section in [metadata, source_config, rupture_propagation_config]:
+    for section in [source_config, rupture_propagation_config]:
         section.write_to_realisation(realisation_ffp)

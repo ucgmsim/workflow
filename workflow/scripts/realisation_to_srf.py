@@ -255,11 +255,13 @@ def concatenate_csr_arrays(csr_arrays: list[csr_array]) -> csr_array:
     """
     max_columns = max(arr.shape[1] for arr in csr_arrays)
     padded_arrays = [
-        sp.sparse.hstack(
-            [arr, sp.sparse.csr_array((arr.shape[0], max_columns - arr.shape[1]))]
+        (
+            sp.sparse.hstack(
+                [arr, sp.sparse.csr_array((arr.shape[0], max_columns - arr.shape[1]))]
+            )
+            if arr.shape[1] < max_columns
+            else arr
         )
-        if arr.shape[1] < max_columns
-        else arr
         for arr in csr_arrays
     ]
     return sp.sparse.vstack(padded_arrays)
@@ -317,8 +319,10 @@ def stitch_srf_files(
 
     srf_file_map: dict[str, srf.SrfFile] = {}
 
-    def compute_rupture_delay(tinit: float, parent_coordinates: np.ndarray, child_coordinates: np.ndarray) -> float:
-        """ Compute the rupture jump delay between the parent SRF and child SRF.
+    def compute_rupture_delay(
+        tinit: float, parent_coordinates: np.ndarray, child_coordinates: np.ndarray
+    ) -> float:
+        """Compute the rupture jump delay between the parent SRF and child SRF.
 
         delay = T_p + d / s
         where T_p is the initial rupture time of the closest point on
@@ -339,14 +343,17 @@ def stitch_srf_files(
         float
             The delay for the child SRF.
         """
-        jump_distance_km = coordinates.distance_between_wgs_depth_coordinates(
-            parent_coordinates, child_coordinates
-        ) / 1000
+        jump_distance_km = (
+            coordinates.distance_between_wgs_depth_coordinates(
+                parent_coordinates, child_coordinates
+            )
+            / 1000
+        )
         # TODO: Add exponential random variable here to perturb the jump delay.
-        return tinit + jump_distance_km / 3.5 
+        return tinit + jump_distance_km / 3.5
 
     def process_fault(fault_name: str) -> None:
-        """ Delay fault SRF according to rupture delay from parents + propagation speed across the gap between faults.
+        """Delay fault SRF according to rupture delay from parents + propagation speed across the gap between faults.
 
         Parameters
         ----------
@@ -354,7 +361,9 @@ def stitch_srf_files(
             The fault to process.
         """
         fault = faults[fault_name]
-        parent_fault_name = rupture_propagation_config.rupture_causality_tree.get(fault_name)
+        parent_fault_name = rupture_propagation_config.rupture_causality_tree.get(
+            fault_name
+        )
         fault_srf_path = output_directory / "srf" / f"{normalise_name(fault_name)}.srf"
         fault_srf = srf.read_srf(fault_srf_path)
 
@@ -369,8 +378,10 @@ def stitch_srf_files(
             parent_srf = srf_file_map[parent_fault_name]
             parent_fault = faults[parent_fault_name]
 
-            parent_coordinates = parent_fault.fault_coordinates_to_wgs_depth_coordinates(
-                jump_point.from_point
+            parent_coordinates = (
+                parent_fault.fault_coordinates_to_wgs_depth_coordinates(
+                    jump_point.from_point
+                )
             )
             child_coordinates = fault.fault_coordinates_to_wgs_depth_coordinates(
                 jump_point.to_point
@@ -379,13 +390,16 @@ def stitch_srf_files(
             jump_index = int(
                 np.argmin(
                     coordinates.distance_between_wgs_depth_coordinates(
-                        parent_srf.points[["lat", "lon", "dep"]].to_numpy() * np.array([1, 1, 1000]),
+                        parent_srf.points[["lat", "lon", "dep"]].to_numpy()
+                        * np.array([1, 1, 1000]),
                         parent_coordinates,
                     )
                 )
             )
             tinit = parent_srf.points["tinit"].iloc[jump_index]
-            time_delay = compute_rupture_delay(tinit, parent_coordinates, child_coordinates)
+            time_delay = compute_rupture_delay(
+                tinit, parent_coordinates, child_coordinates
+            )
 
             logger = log_utils.get_logger(__name__)
             fault_srf.points["tinit"] += time_delay
@@ -394,10 +408,9 @@ def stitch_srf_files(
                     "computed delay",
                     fault_name=fault_name,
                     delay=time_delay,
-                    srf_min=fault_srf.points['tinit'].min()
+                    srf_min=fault_srf.points["tinit"].min(),
                 )
             )
-
 
         srf_file_map[fault_name] = fault_srf
 
@@ -411,15 +424,27 @@ def stitch_srf_files(
         header=pd.concat([fault_srf.header for fault_srf in srf_file_map.values()]),
         points=pd.concat([fault_srf.points for fault_srf in srf_file_map.values()]),
         slipt1_array=concatenate_slip_values(
-            fault_srf.slipt1_array if fault_srf.slipt1_array is not None else csr_array((len(fault_srf.points), 1))
+            (
+                fault_srf.slipt1_array
+                if fault_srf.slipt1_array is not None
+                else csr_array((len(fault_srf.points), 1))
+            )
             for fault_srf in srf_file_map.values()
         ),
         slipt2_array=concatenate_slip_values(
-            fault_srf.slipt2_array if fault_srf.slipt2_array is not None else csr_array((len(fault_srf.points), 1))
+            (
+                fault_srf.slipt2_array
+                if fault_srf.slipt2_array is not None
+                else csr_array((len(fault_srf.points), 1))
+            )
             for fault_srf in srf_file_map.values()
         ),
         slipt3_array=concatenate_slip_values(
-            fault_srf.slipt3_array if fault_srf.slipt3_array is not None else csr_array((len(fault_srf.points), 1))
+            (
+                fault_srf.slipt3_array
+                if fault_srf.slipt3_array is not None
+                else csr_array((len(fault_srf.points), 1))
+            )
             for fault_srf in srf_file_map.values()
         ),
     )
