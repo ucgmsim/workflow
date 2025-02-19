@@ -343,9 +343,7 @@ bb:
   fmin: 0.25
   site_amp_version: "2014"
 im:
-  ims: ["PGA", "PGV", "CAV", "AI", "Ds575", "Ds595", "MMI", "pSA"]
-  components: ["000", "090", "ver", "geom", "rotd50", "rotd100"]
-  units: "g"
+  ims: ["PGA", "PGV", "CAV", "AI", "Ds575", "Ds595", "pSA", "FAS"]
   valid_periods:
     [
       0.01,

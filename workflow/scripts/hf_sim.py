@@ -168,7 +168,10 @@ def hf_simulate_station(
         epicentre_distance = np.fromstring(output.stderr, dtype="f4", sep="\n")
         logger.info(
             log_utils.structured_log(
-                "hf succeeded", station=name, epicentre_distance=epicentre_distance
+                "hf succeeded",
+                station=name,
+                epicentre_distance=epicentre_distance,
+                stderr=output.stderr,
             )
         )
 
