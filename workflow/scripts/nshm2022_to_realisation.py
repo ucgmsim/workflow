@@ -41,6 +41,7 @@ import numpy as np
 import typer
 
 from nshmdb import nshmdb
+from qcore import cli
 from qcore.uncertainties import distributions, mag_scaling
 from source_modelling import rupture_propagation
 from source_modelling.sources import Fault
@@ -104,33 +105,13 @@ def default_magnitude_estimation(
     }
 
 
-@app.command(
-    help="Generate realisation stub files from ruptures in the NSHM 2022 database."
-)
+@cli.from_docstring(app)
 @log_call()
 def generate_realisation(
-    nshm_db_file: Annotated[
-        Path,
-        typer.Argument(
-            help="The NSHM sqlite database containing rupture information and fault geometry.",
-            readable=True,
-            exists=True,
-        ),
-    ],
-    rupture_id: Annotated[
-        int,
-        typer.Argument(
-            help="The ID of the rupture to generate the realisation stub for (find this using the NSHM Rupture Explorer)."
-        ),
-    ],
-    realisation_ffp: Annotated[
-        Path,
-        typer.Argument(help="Location to write out the realisation.", writable=True),
-    ],
-    defaults_version: Annotated[
-        DefaultsVersion,
-        typer.Argument(help="Scientific default parameters version to use"),
-    ],
+    nshm_db_file: Annotated[Path, typer.Argument(readable=True, exists=True)],
+    rupture_id: Annotated[int, typer.Argument()],
+    realisation_ffp: Annotated[Path, typer.Argument(writable=True)],
+    defaults_version: Annotated[DefaultsVersion, typer.Argument()],
 ):
     """Generate realisation stub files from ruptures in the NSHM 2022 database.
 
@@ -149,7 +130,6 @@ def generate_realisation(
     defaults_version : DefaultsVersion
         Scientific default parameters version to use.
     """
-
     db = nshmdb.NSHMDB(nshm_db_file)
     faults = db.get_rupture_faults(rupture_id)
     faults_info = db.get_rupture_fault_info(rupture_id)

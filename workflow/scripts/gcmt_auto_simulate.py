@@ -12,7 +12,7 @@ import shapely
 import typer
 from shapely import Polygon
 
-from qcore import coordinates, data
+from qcore import cli, coordinates, data
 
 app = typer.Typer()
 
@@ -44,14 +44,10 @@ def get_nz_outline_polygon() -> Polygon:
     return shapely.union(south_island, north_island)
 
 
-@app.command(
-    help="Automatically simulate GCMT solutions that are new, large, and within 30 km of New Zealand."
-)
+@cli.from_docstring(app)
 def gcmt_auto_simulate(
-    gcmt_solutions_url: Annotated[str, typer.Argument(help="GCMT Solutions URL.")],
-    old_gcmt_solutions_path: Annotated[
-        Path, typer.Argument(help="Path to old GCMT Solutions.")
-    ],
+    gcmt_solutions_url: Annotated[str, typer.Argument()],
+    old_gcmt_solutions_path: Annotated[Path, typer.Argument()],
 ):
     """Automatically simulate GCMT solutions that are new, large, and within 30 km of New Zealand.
 

@@ -39,6 +39,7 @@ from typing import Annotated, Optional
 import numpy as np
 import typer
 
+from qcore import cli
 from qcore.uncertainties import distributions, mag_scaling
 from source_modelling import rupture_propagation
 from source_modelling.sources import Fault
@@ -126,24 +127,19 @@ def rake_parser(rake_value: str) -> dict[str, float]:
     return rakes
 
 
-@app.command(help="Generate a like rupture propagation for a given set of sources.")
+@cli.from_docstring(app)
 def generate_rupture_propagation(
-    realisation_ffp: Annotated[
-        Path, typer.Argument(help="The path to the realisation.")
-    ],
-    initial_fault: Annotated[str, typer.Argument(help="The initial rupture fault.")],
+    realisation_ffp: Annotated[Path, typer.Argument()],
+    initial_fault: Annotated[str, typer.Argument()],
     rakes: Annotated[
         dict[str, float],
-        typer.Argument(
-            help="Fault rakes in key-value list format (e.g. Acton=110,Nevis=-110.0). Use '_' instead of spaces.",
-            parser=rake_parser,
-        ),
+        typer.Argument(parser=rake_parser),
     ],
     shypo: Annotated[
-        Optional[float], typer.Option(help="Hypocentre s-coordinates", min=0, max=1)
+        Optional[float], typer.Option(min=0, max=1)
     ] = None,
     dhypo: Annotated[
-        Optional[float], typer.Option(help="Hypocentre d-coordinates", min=0, max=1)
+        Optional[float], typer.Option(min=0, max=1)
     ] = None,
 ):
     """Generate a likely rupture propagation for a given set of sources.
@@ -151,11 +147,15 @@ def generate_rupture_propagation(
     Parameters
     ----------
     realisation_ffp : Path
-        The realisation with defined sources.
+        The path to the realisation.
     initial_fault : str
-        The initial fault.
+        The initial rupture fault.
     rakes : dict[str, float]
-        A dictionary mapping fault names to fault rake values.
+        Fault rakes in key-value list format (e.g. Acton=110, Nevis=-110.0). Use '_' instead of spaces when invoking from CLI.
+    shypo : float, optional
+        Hypocentre s-coordinates.
+    dhypo : float, optional
+        Hypocentre d-coordinates.
     """
     seeds = realisations.Seeds.read_from_realisation_or_defaults(realisation_ffp)
     source_config = realisations.SourceConfig.read_from_realisation(realisation_ffp)

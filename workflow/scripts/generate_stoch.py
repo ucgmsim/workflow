@@ -30,27 +30,20 @@ from typing import Annotated
 
 import typer
 
+from qcore import cli
 from workflow import log_utils
 from workflow.realisations import HFConfig, RealisationMetadata, SourceConfig
 
 app = typer.Typer()
 
 
-@app.command(help="Generate a stoch file from an SRF file.")
+@cli.from_docstring(app)
 @log_utils.log_call()
 def generate_stoch(
-    realisation_ffp: Annotated[
-        Path, typer.Argument(help="Path to realisation", exists=True, dir_okay=False)
-    ],
-    srf_ffp: Annotated[
-        Path, typer.Argument(help="Path to SRF.", exists=True, dir_okay=False)
-    ],
-    stoch_ffp: Annotated[
-        Path, typer.Argument(help="Output Stoch filepath.", dir_okay=False)
-    ],
-    srf2stoch_path: Annotated[
-        Path, typer.Option(exists=True, help="Path to srf2stoch binary")
-    ] = Path("/EMOD3D/tools/srf2stoch"),
+    realisation_ffp: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    srf_ffp: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    stoch_ffp: Annotated[Path, typer.Argument(dir_okay=False)],
+    srf2stoch_path: Annotated[Path, typer.Option(exists=True)] = Path("/EMOD3D/tools/srf2stoch"),
 ):
     """Generate a stoch file from an SRF file.
 

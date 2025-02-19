@@ -52,7 +52,7 @@ import scipy as sp
 import typer
 from scipy.sparse import csr_array
 
-from qcore import coordinates, grid, gsf
+from qcore import cli, coordinates, grid, gsf
 from source_modelling import rupture_propagation, srf
 from source_modelling.sources import IsSource
 from workflow import log_utils, utils
@@ -343,7 +343,7 @@ def stitch_srf_files(
             parent_coordinates, child_coordinates
         ) / 1000
         # TODO: Add exponential random variable here to perturb the jump delay.
-        return tinit + jump_distance_km / 3.5 
+        return tinit + jump_distance_km / 3.5
 
     def process_fault(fault_name: str) -> None:
         """ Delay fault SRF according to rupture delay from parents + propagation speed across the gap between faults.
@@ -491,36 +491,13 @@ def generate_fault_srfs_parallel(
         )
 
 
-@app.command(help="Generate an SRF file from a given realisation specification")
+@cli.from_docstring(app)
 @log_call()
 def generate_srf(
-    realisation_ffp: Annotated[
-        Path,
-        typer.Argument(
-            exists=True,
-            readable=True,
-            help="The filepath of the YAML file containing the realisation data.",
-            dir_okay=False,
-        ),
-    ],
-    output_srf_filepath: Annotated[
-        Path,
-        typer.Argument(
-            writable=True, help="The filepath for the final SRF file.", dir_okay=False
-        ),
-    ],
-    work_directory: Annotated[
-        Path,
-        typer.Option(
-            help="Path to output intermediate geometry and SRF files",
-            exists=True,
-            file_okay=False,
-        ),
-    ] = Path("/out"),
-    genslip_path: Annotated[
-        Path,
-        typer.Option(help="Path to genslip binary.", readable=True, dir_okay=False),
-    ] = Path("/EMOD3D/tools/genslip_v5.4.2"),
+    realisation_ffp: Annotated[Path, typer.Argument(exists=True, readable=True, dir_okay=False)],
+    output_srf_filepath: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
+    work_directory: Annotated[Path, typer.Option(exists=True, file_okay=False)] = Path("/out"),
+    genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path("/EMOD3D/tools/genslip_v5.4.2"),
 ):
     """Generate an SRF file from a given realisation specification.
 
@@ -537,8 +514,6 @@ def generate_srf(
         The filepath where the final SRF file will be saved.
     work_directory : Path, optional
         Path to output intermediate geometry and SRF files.
-    velocity_model : Path, optional
-        Path to the genslip velocity model.
     genslip_path : Path, optional
         Path to the genslip binary.
     """

@@ -42,7 +42,7 @@ import pandas as pd
 import scipy as sp
 import typer
 
-from qcore import siteamp_models, timeseries
+from qcore import cli, siteamp_models, timeseries
 from workflow import log_utils, utils
 from workflow.realisations import (
     BroadbandParameters,
@@ -167,48 +167,15 @@ def bb_simulate_station(
     return np.array(bb_acc).T.astype(np.float32)
 
 
-@app.command(
-    help="Combine low frequency and high frequency waveforms into broadband waveforms"
-)
+@cli.from_docstring(app)
 @log_utils.log_call()
 def combine_hf_and_lf(
-    realisation_ffp: Annotated[
-        Path,
-        typer.Argument(help="Path to realisation file", dir_okay=False, exists=True),
-    ],
-    station_vs30_ffp: Annotated[
-        Path,
-        typer.Argument(
-            help="Station VS30 reference values.", dir_okay=False, exists=True
-        ),
-    ],
-    low_frequency_waveform_directory: Annotated[
-        Path,
-        typer.Argument(
-            help="Path to low frequency waveforms",
-            file_okay=False,
-            exists=True,
-        ),
-    ],
-    high_frequency_waveform_file: Annotated[
-        Path,
-        typer.Argument(
-            help="Path to high frequency station waveform file",
-            exists=True,
-        ),
-    ],
-    velocity_model_directory: Annotated[
-        Path,
-        typer.Argument(
-            help="Path to the velocity model directory", file_okay=False, exists=True
-        ),
-    ],
-    output_ffp: Annotated[
-        Path,
-        typer.Argument(
-            help="Path to output broadband file.", dir_okay=False, writable=True
-        ),
-    ],
+    realisation_ffp: Annotated[Path, typer.Argument(dir_okay=False, exists=True)],
+    station_vs30_ffp: Annotated[Path, typer.Argument(dir_okay=False, exists=True)],
+    low_frequency_waveform_directory: Annotated[Path, typer.Argument(file_okay=False, exists=True)],
+    high_frequency_waveform_file: Annotated[Path, typer.Argument(exists=True)],
+    velocity_model_directory: Annotated[Path, typer.Argument(file_okay=False, exists=True)],
+    output_ffp: Annotated[Path, typer.Argument(dir_okay=False, writable=True)],
 ):
     """Combine low-frequency and high-frequency seismic waveforms.
 
@@ -216,8 +183,6 @@ def combine_hf_and_lf(
     ----------
     realisation_ffp : Path
         Path to the realisation file containing parameters for the simulation.
-    station_ffp : Path
-        Path to the station list file containing station metadata.
     station_vs30_ffp : Path
         Path to the file containing VS30 reference values for stations.
     low_frequency_waveform_directory : Path
@@ -228,10 +193,6 @@ def combine_hf_and_lf(
         Directory containing velocity model files.
     output_ffp : Path
         Path to the output file where the combined broadband waveforms will be saved.
-
-    See Also
-    --------
-    - [Broadband file format](https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation#FileFormatsUsedInGroundMotionSimulation-LF/HF/BBbinaryformat)
     """
     # load data stores
     lf = timeseries.LFSeis(low_frequency_waveform_directory)

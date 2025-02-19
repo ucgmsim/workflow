@@ -41,7 +41,7 @@ import xarray as xr
 
 from IM import im_reader, ims
 from IM.im_calculation import IM
-from qcore import coordinates
+from qcore import cli, coordinates
 from workflow import utils
 from workflow.realisations import (
     BroadbandParameters,
@@ -54,37 +54,14 @@ from workflow.realisations import (
 app = typer.Typer()
 
 
-@app.command(help="Calculate instensity measures for simulation data.")
+@cli.from_docstring(app)
 def calculate_instensity_measures(
-    realisation_ffp: Annotated[
-        Path,
-        typer.Argument(
-            help="Realisation filepath", exists=True, dir_okay=False, writable=True
-        ),
-    ],
-    broadband_simulation_ffp: Annotated[
-        Path,
-        typer.Argument(help="Broadband simulation file.", exists=True, dir_okay=False),
-    ],
-    output_path: Annotated[
-        Path,
-        typer.Argument(
-            help="Output path for IM calculation summary statistics.",
-            dir_okay=False,
-            writable=True,
-        ),
-    ],
-    simulated_stations: Annotated[
-        bool, typer.Option(help="If passed, calculate for simulated stations.")
-    ] = True,
-    psa_rotd_maximum_memory_allocation: Annotated[
-        Optional[float],
-        typer.Option(
-            help="Maximum amount of memory allocated for rotated PSA calculation station buffer, in gigabytes.",
-            min=0,
-        ),
-    ] = None,
-):
+    realisation_ffp: Annotated[Path, typer.Argument(exists=True, dir_okay=False, writable=True)],
+    broadband_simulation_ffp: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    output_path: Annotated[Path, typer.Argument(dir_okay=False, writable=True)],
+    simulated_stations: Annotated[bool, typer.Option()] = True,
+    psa_rotd_maximum_memory_allocation: Annotated[Optional[float], typer.Option(min=0)] = None,
+) -> None:
     """Calculate intensity measures for simulation data.
 
     Parameters
@@ -95,6 +72,10 @@ def calculate_instensity_measures(
         Path to the broadband simulation waveforms.
     output_path : Path
         Output directory for IM calc summary statistics.
+    simulated_stations : bool, default True
+        If passed, calculate for simulated stations.
+    psa_rotd_maximum_memory_allocation : Optional[float]
+        Maximum amount of memory allocated for rotated PSA calculation station buffer, in gigabytes.
     """
     ne.set_num_threads(utils.get_available_cores())
 

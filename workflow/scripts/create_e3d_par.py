@@ -34,6 +34,7 @@ from typing import Annotated
 import numpy as np
 import typer
 
+from qcore import cli
 from workflow.realisations import (
     DomainParameters,
     EMOD3DParameters,
@@ -224,66 +225,18 @@ def format_as_emod3d_value(value: int | float | str | Path) -> str:
         return str(value)
 
 
-@app.command(help="Create EMOD3D parameter file from provided inputs.")
+@cli.from_docstring(app)
 def create_e3d_par(
-    realisation_ffp: Annotated[
-        Path,
-        typer.Argument(
-            help="Path to realisation JSON", exists=True, readable=True, dir_okay=False
-        ),
-    ],
-    srf_file_ffp: Annotated[
-        Path,
-        typer.Argument(help="SRF filepath", exists=True, readable=True, dir_okay=False),
-    ],
-    velocity_model_ffp: Annotated[
-        Path,
-        typer.Argument(
-            help="Velocity model filepath", exists=True, readable=True, file_okay=False
-        ),
-    ],
-    stations_ffp: Annotated[
-        Path,
-        typer.Argument(
-            help="Path to station files", exists=True, readable=True, file_okay=False
-        ),
-    ],
-    grid_ffp: Annotated[
-        Path,
-        typer.Argument(
-            help="Path to grid coordinate directory",
-            exists=True,
-            readable=True,
-            file_okay=False,
-        ),
-    ],
-    output_ffp: Annotated[
-        Path,
-        typer.Argument(help="Output path", writable=True, file_okay=False),
-    ],
-    scratch_ffp: Annotated[
-        Path,
-        typer.Option(
-            help="Scratch filepath for intermediate output.",
-            writable=True,
-            file_okay=False,
-        ),
-    ] = Path("/out"),
-    defaults_version: Annotated[
-        str, typer.Option(help="The version of the EMOD3D defaults to use.")
-    ] = "22.2.2.1",
-    emod3d_path: Annotated[
-        Path,
-        typer.Option(
-            help="The path to the EMOD3D binary.",
-            exists=True,
-            readable=True,
-            dir_okay=False,
-        ),
-    ] = Path("/EMOD3D/tools/emod3d-mpi_v3.0.8"),
-    emod3d_version: Annotated[
-        str, typer.Option(help="The version of the EMOD3D binary to use.")
-    ] = "3.0.8",
+    realisation_ffp: Annotated[Path, typer.Argument(exists=True, readable=True, dir_okay=False)],
+    srf_file_ffp: Annotated[Path, typer.Argument(exists=True, readable=True, dir_okay=False)],
+    velocity_model_ffp: Annotated[Path, typer.Argument(exists=True, readable=True, file_okay=False)],
+    stations_ffp: Annotated[Path, typer.Argument(exists=True, readable=True, file_okay=False)],
+    grid_ffp: Annotated[Path, typer.Argument(exists=True, readable=True, file_okay=False)],
+    output_ffp: Annotated[Path, typer.Argument(writable=True, file_okay=False)],
+    scratch_ffp: Annotated[Path, typer.Option(writable=True, file_okay=False)] = Path("/out"),
+    defaults_version: Annotated[str, typer.Option()] = "22.2.2.1",
+    emod3d_path: Annotated[Path, typer.Option(exists=True, readable=True, dir_okay=False)] = Path("/EMOD3D/tools/emod3d-mpi_v3.0.8"),
+    emod3d_version: Annotated[str, typer.Option()] = "3.0.8",
 ):
     """Create EMOD3D parameter file from provided inputs.
 

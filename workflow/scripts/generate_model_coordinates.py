@@ -31,27 +31,21 @@ from typing import Annotated
 
 import typer
 
+from qcore import cli
 from workflow import log_utils
 from workflow.realisations import DomainParameters
 
 app = typer.Typer()
 
 
-@app.command(help="Generate model coordinate files for EMOD3D from a realisation file")
+@cli.from_docstring(app)
 @log_utils.log_call()
 def generate_model_coordinates(
     realisation_ffp: Annotated[
-        Path,
-        typer.Argument(
-            help="Path to realisation JSON file", exists=True, readable=True
-        ),
+        Path, typer.Argument(exists=True, readable=True)
     ],
     output_ffp: Annotated[
-        Path,
-        typer.Argument(
-            help="Path to directory to output model coordinates",
-            writable=True,
-        ),
+        Path, typer.Argument(writable=True)
     ],
 ) -> None:
     """
@@ -72,7 +66,7 @@ def generate_model_coordinates(
     Returns
     -------
     None
-        This function does not return a value. It writes two files to the specified output directoy:
+        This function does not return a value. It writes two files to the specified output directory:
         - `grid_file` containing the grid dimensions and resolution.
         - `model_params` containing the model origin coordinates, shifts, corners, and dimensions.
     """

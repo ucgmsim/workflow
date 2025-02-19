@@ -18,6 +18,7 @@ import tqdm
 import typer
 from pyvis.network import Network
 
+from qcore import cli
 from workflow import realisations
 from workflow.defaults import DefaultsVersion
 
@@ -640,124 +641,49 @@ def build_filetree(root_path: PurePath, files: set[PurePath]) -> dict[str, Any]:
     return filetree
 
 
-@app.command(
-    help="Plan and generate a Cylc workflow file for a number of realisations."
-)
+@cli.from_docstring(app)
 def plan_workflow(
-    realisation_ids: Annotated[
-        list[str],
-        typer.Argument(
-            help="List of realisations to generate workflows for. Realisations have the format event:realisation_count, such as Darfield:4."
-        ),
-    ],
-    flow_file: Annotated[
-        Path,
-        typer.Argument(
-            help="Path to output flow file (e.g. ~/cylc-src/my-workflow/flow.cylc)",
-            writable=True,
-            dir_okay=False,
-        ),
-    ],
-    goal: Annotated[
-        list[StageIdentifier],
-        typer.Option(
-            help="List of workflow outputs to generate",
-            default_factory=lambda: [],
-            rich_help_panel="Planning Workflows",
-        ),
-    ],
-    group_goal: Annotated[
-        list[GroupIdentifier],
-        typer.Option(
-            help="List of group goals to generate",
-            default_factory=lambda: [],
-            rich_help_panel="Planning Workflows",
-        ),
-    ],
-    excluding: Annotated[
-        list[StageIdentifier],
-        typer.Option(
-            help="List of stages to exclude",
-            default_factory=lambda: [],
-            rich_help_panel="Planning Workflows",
-        ),
-    ],
-    excluding_group: Annotated[
-        list[GroupIdentifier],
-        typer.Option(
-            help="List of stage groups to exclude",
-            default_factory=lambda: [],
-            rich_help_panel="Planning Workflows",
-        ),
-    ],
-    archive: Annotated[
-        list[StageIdentifier],
-        typer.Option(
-            help="Add stage outputs to the archive tarball.",
-            default_factory=lambda: [
-                StageIdentifier.Broadband,
-                StageIdentifier.IntensityMeasureCalculation,
-            ],
-            rich_help_panel="Archiving",
-        ),
-    ],
-    visualise: Annotated[
-        bool,
-        typer.Option(
-            help="Visualise the planned workflow as a graph",
-            rich_help_panel="Visualising Workflows",
-        ),
-    ] = False,
-    show_required_files: Annotated[
-        bool,
-        typer.Option(
-            help="Print the expected directory tree at the start of the simulation.",
-            rich_help_panel="Visualising Workflows",
-        ),
-    ] = True,
-    target_host: Annotated[
-        WorkflowTarget,
-        typer.Option(
-            help="Select the target host where the workflow will be run",
-            rich_help_panel="Planning Workflows",
-        ),
-    ] = WorkflowTarget.NeSI,
-    source: Annotated[
-        Optional[Source],
-        typer.Option(
-            help="If given, set the source of the realisation. For NSHM and GCMT, the realisation id corresponds to the rupture id and GCMT PublicID respectively.",
-            rich_help_panel="Sources",
-        ),
-    ] = None,
-    defaults_version: Annotated[
-        Optional[DefaultsVersion],
-        typer.Option(
-            help="The simulation defaults to apply for all realisations. Required if source is specified.",
-            rich_help_panel="Sources",
-        ),
-    ] = None,
+    realisation_ids: Annotated[list[str], typer.Argument()],
+    flow_file: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
+    goal: Annotated[list[StageIdentifier], typer.Option(default_factory=lambda: [], rich_help_panel="Planning Workflows")],
+    group_goal: Annotated[list[GroupIdentifier], typer.Option(default_factory=lambda: [], rich_help_panel="Planning Workflows")],
+    excluding: Annotated[list[StageIdentifier], typer.Option(default_factory=lambda: [], rich_help_panel="Planning Workflows")],
+    excluding_group: Annotated[list[GroupIdentifier], typer.Option(default_factory=lambda: [], rich_help_panel="Planning Workflows")],
+    archive: Annotated[list[StageIdentifier], typer.Option(default_factory=lambda: [StageIdentifier.Broadband, StageIdentifier.IntensityMeasureCalculation], rich_help_panel="Archiving")],
+    visualise: Annotated[bool, typer.Option(rich_help_panel="Visualising Workflows")] = False,
+    show_required_files: Annotated[bool, typer.Option(rich_help_panel="Visualising Workflows")] = True,
+    target_host: Annotated[WorkflowTarget, typer.Option(rich_help_panel="Planning Workflows")] = WorkflowTarget.NeSI,
+    source: Annotated[Optional[Source], typer.Option(rich_help_panel="Sources")] = None,
+    defaults_version: Annotated[Optional[DefaultsVersion], typer.Option(rich_help_panel="Sources")] = None,
 ):
     """Plan and generate a Cylc workflow file for a number of realisations.
 
     Parameters
     ----------
-    realisations : list[str]
-        The list of realisations to generate the workflow for.
+    realisation_ids : list[str]
+        List of realisations to generate workflows for. Realisations have the format event:realisation_count, such as Darfield:4.
     flow_file : Path
-        The output flow file path to write the Cylc workflow to.
+        Path to output flow file (e.g. ~/cylc-src/my-workflow/flow.cylc).
     goal : list[StageIdentifier]
-        A list of workflow stages to mark as goals. These stages are
-        define the endpoints for the workflow.
+        List of workflow outputs to generate.
     group_goal : list[GroupIdentifier]
-        A list of workflow groups to target. A workflow group is just
-        an alias for a set of workflow stages. Equivalent to adding
-        each group member to `goal`.
+        List of group goals to generate.
     excluding : list[StageIdentifier]
-        A list of workflow stages to exclude from the flows.
-    group_goal : list[GroupIdentifier]
-        A list of workflow groups to exclude. A workflow group is just
-        an alias for a set of workflow stages. Equivalent to adding
-        each group member to `excluding`.
+        List of stages to exclude.
+    excluding_group : list[GroupIdentifier]
+        List of stage groups to exclude.
+    archive : list[StageIdentifier]
+        Add stage outputs to the archive tarball.
+    visualise : bool
+        Visualise the planned workflow as a graph.
+    show_required_files : bool
+        Print the expected directory tree at the start of the simulation.
+    target_host : WorkflowTarget
+        Select the target host where the workflow will be run.
+    source : Optional[Source]
+        If given, set the source of the realisation. For NSHM and GCMT, the realisation id corresponds to the rupture id and GCMT PublicID respectively.
+    defaults_version : Optional[DefaultsVersion]
+        The simulation defaults to apply for all realisations. Required if source is specified.
     """
     realisations = set.union(
         *[parse_realisation(realisation_id) for realisation_id in realisation_ids]

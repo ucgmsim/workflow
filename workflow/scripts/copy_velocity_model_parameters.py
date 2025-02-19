@@ -3,21 +3,18 @@ from typing import Annotated
 
 import typer
 
+from qcore import cli
 from workflow import log_utils
 from workflow.realisations import DomainParameters, VelocityModelParameters
 
 app = typer.Typer()
 
 
-@app.command(help="Copy domain parameters between realisations.")
+@cli.from_docstring(app)
 @log_utils.log_call()
 def copy_domain(
-    from_realisation_ffp: Annotated[
-        Path, typer.Argument(help="Realisation to copy domain parameters from.")
-    ],
-    to_realisation_ffp: Annotated[
-        Path, typer.Argument(help="Realisation to copy domain parameters to.")
-    ],
+    from_realisation_ffp: Annotated[Path, typer.Argument()],
+    to_realisation_ffp: Annotated[Path, typer.Argument()],
 ) -> None:
     """Copy domain parameters between two realisations.
 
@@ -27,9 +24,9 @@ def copy_domain(
     Parameters
     ----------
     from_realisation_ffp : Path
-        The realisation to copy parameters from.
+        The realisation to copy domain parameters from.
     to_realisation_ffp : Path
-        The realisation to copy parameters to.
+        The realisation to copy domain parameters to.
     """
     from_realisation_domain_parameters = DomainParameters.read_from_realisation(
         from_realisation_ffp

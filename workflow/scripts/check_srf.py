@@ -4,6 +4,7 @@ from typing import Annotated
 import numpy as np
 import typer
 
+from qcore import cli
 from qcore.uncertainties import mag_scaling
 from source_modelling import srf
 from workflow import log_utils
@@ -17,13 +18,11 @@ from workflow.realisations import (
 app = typer.Typer()
 
 
-@app.command(help="Check an SRF's output for viability.")
+@cli.from_docstring(app)
 @log_utils.log_call()
 def check_srf(
-    realisation_ffp: Annotated[
-        Path, typer.Argument(help="The path to the realisation for the SRF.")
-    ],
-    srf_ffp: Annotated[Path, typer.Argument(help="The path to the SRF file to check.")],
+    realisation_ffp: Annotated[Path, typer.Argument()],
+    srf_ffp: Annotated[Path, typer.Argument()],
 ):
     """Check an SRF's contents for viability.
 
@@ -32,12 +31,12 @@ def check_srf(
     realisation_ffp : Path
         The path to the realisation for the SRF.
     srf_ffp : Path
-        The path to the SRF.
+        The path to the SRF file to check.
 
     Raises
     ------
     typer.Exit
-        If any of the checks fail.typer.Exit
+        If any of the checks fail.
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     velocity_model = VelocityModel1D.read_from_realisation_or_defaults(

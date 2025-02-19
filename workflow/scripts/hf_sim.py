@@ -44,6 +44,7 @@ import numpy as np
 import pandas as pd
 import typer
 
+from qcore import cli
 from workflow import log_utils, utils
 from workflow.realisations import (
     DomainParameters,
@@ -183,29 +184,27 @@ def hf_simulate_station(
         return epicentre_distance[0]
 
 
-@app.command(
-    help="Run the HF (High-Frequency) simulation and generate the HF output file."
-)
+@cli.from_docstring(app)
 @log_utils.log_call()
 def run_hf(
-    realisation_ffp: Annotated[Path, typer.Argument(help="Path to realisation file.")],
+    realisation_ffp: Annotated[Path, typer.Argument()],
     stoch_ffp: Annotated[
         Path,
-        typer.Argument(help="Input stoch file.", exists=True),
+        typer.Argument(exists=True),
     ],
     station_file: Annotated[
-        Path, typer.Argument(help="Location of station file.", exists=True)
+        Path, typer.Argument(exists=True)
     ],
     out_file: Annotated[
-        Path, typer.Argument(help="Filepath for HF output.", file_okay=False)
+        Path, typer.Argument(file_okay=False)
     ],
-    hf_sim_path: Annotated[Path, typer.Option(help="Path to HF sim binary")] = Path(
+    hf_sim_path: Annotated[Path, typer.Option()] = Path(
         "/EMOD3D/tools/hb_high_binmod_v6.0.3"
     ),
     work_directory: Annotated[
         Path,
         typer.Option(
-            help="Path to work directory.", exists=True, writable=True, file_okay=False
+            exists=True, writable=True, file_okay=False
         ),
     ] = Path("/out"),
 ):
