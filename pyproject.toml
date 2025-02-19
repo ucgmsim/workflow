@@ -4,9 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "workflow"
-authors = [
-    {name = "QuakeCoRE" },
-]
+authors = [{ name = "QuakeCoRE" }]
 description = "Next generation workflow powered by cylc."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -39,30 +37,30 @@ import-realisation = "workflow.scripts.import_realisation:app"
 workflow = "workflow"
 
 [tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
+dependencies = { file = ["requirements.txt"] }
 
 [tool.ruff.lint]
 extend-select = [
-  # isort imports
-  "I",
-  # Use r'\s+' rather than '\s+'
-  "W605",
-  # All the naming errors, like using camel case for function names.
-  "N",
-  # Missing docstrings in classes, methods, and functions
-  "D101",
-  "D102",
-  "D103",
-  "D105",
-  "D107",
-  # Use f-string instead of a format call
-  "UP032",
-  # Standard library import is deprecated
-  "UP035",
-  # Missing function argument type-annotation
-  "ANN001",
-  # Using except without specifying an exception type to catch
-  "BLE001"
+    # isort imports
+    "I",
+    # Use r'\s+' rather than '\s+'
+    "W605",
+    # All the naming errors, like using camel case for function names.
+    "N",
+    # Missing docstrings in classes, methods, and functions
+    "D101",
+    "D102",
+    "D103",
+    "D105",
+    "D107",
+    # Use f-string instead of a format call
+    "UP032",
+    # Standard library import is deprecated
+    "UP035",
+    # Missing function argument type-annotation
+    "ANN001",
+    # Using except without specifying an exception type to catch
+    "BLE001",
 ]
 ignore = ["D104"]
 
@@ -78,7 +76,8 @@ known-first-party = [
     "empirical",
     "nshmdb",
     "IM",
-    "mera"
+    "mera",
+    "velocity_modelling",
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -87,4 +86,29 @@ known-first-party = [
 # Ignore docstring errors in tests folder
 "tests/**.py" = ["D"]
 
+[tool.coverage.run]
+omit = ["workflow/scripts/*.py"]
 
+[tool.numpydoc_validation]
+checks = [
+    "GL05",
+    "GL08",
+    "GL10",
+    "PR01",
+    "PR02",
+    "PR03",
+    "PR04",
+    "PR05",
+    "PR06",
+    "PR07",
+    "RT01",
+    "RT02",
+    "RT03",
+    "RT04",
+    "YD01",
+]
+# remember to use single quotes for regex in TOML
+exclude = [ # don't report on objects that match any of these regex
+    '\.undocumented_method$',
+    '\.__repr__$',
+]

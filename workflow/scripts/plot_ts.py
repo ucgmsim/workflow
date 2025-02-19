@@ -34,11 +34,11 @@ import pygmt
 import pyvista as pv
 import tqdm
 import typer
-from velocity_modelling.bounding_box import BoundingBox
 
 from pygmt_helper import plotting
 from qcore import cli, coordinates
 from qcore.xyts import XYTSFile
+from velocity_modelling.bounding_box import BoundingBox
 
 app = typer.Typer()
 

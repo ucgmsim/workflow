@@ -10,10 +10,10 @@ for a description of realisations and the schemas.
 import numpy as np
 import pandas as pd
 from schema import And, Literal, Optional, Or, Schema, Use
-from velocity_modelling.bounding_box import BoundingBox
 
 from IM import im_calculation
 from source_modelling import rupture_propagation, sources
+from velocity_modelling.bounding_box import BoundingBox
 from workflow.defaults import DefaultsVersion
 
 # NOTE: These functions seem silly and short, however there is a good

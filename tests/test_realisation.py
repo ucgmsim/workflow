@@ -9,10 +9,10 @@ import numpy as np
 import pandas as pd
 import pytest
 import schema
-from velocity_modelling import bounding_box
 
 from IM import im_calculation
 from source_modelling import rupture_propagation
+from velocity_modelling import bounding_box
 from workflow import defaults, realisations
 
 

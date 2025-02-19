@@ -37,14 +37,14 @@ import pandas as pd
 import shapely
 import typer
 from shapely import Polygon
-from velocity_modelling import bounding_box
-from velocity_modelling.bounding_box import BoundingBox
 
 from empirical.util import z_model_calculations
 from empirical.util.classdef import GMM, TectType
 from qcore import cli, coordinates, data
 from qcore.uncertainties import mag_scaling
 from source_modelling import sources
+from velocity_modelling import bounding_box
+from velocity_modelling.bounding_box import BoundingBox
 from workflow import log_utils
 from workflow.realisations import (
     DomainParameters,
