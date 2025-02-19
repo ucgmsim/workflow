@@ -40,7 +40,6 @@ from shapely import Polygon
 from velocity_modelling import bounding_box
 from velocity_modelling.bounding_box import BoundingBox
 
-from empirical.util import openquake_wrapper_vectorized as openquake
 from empirical.util import z_model_calculations
 from empirical.util.classdef import GMM, TectType
 from qcore import cli, coordinates, data
@@ -149,7 +148,8 @@ def estimate_simulation_duration(
             "rake": [avg_rake],
         }
     )
-
+    # import here rather than at the module level because openquake is slow to import
+    from empirical.util import openquake_wrapper_vectorized as openquake
     ds = np.exp(
         openquake.oq_run(GMM.AS_16, TectType.ACTIVE_SHALLOW, oq_dataframe, "Ds595")[
             "Ds595_mean"
