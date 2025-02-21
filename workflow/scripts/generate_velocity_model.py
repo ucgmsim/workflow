@@ -40,6 +40,8 @@ from typing import Annotated, Optional
 
 import typer
 
+from qcore import cli
+from workflow import log_utils
 from workflow.realisations import (
     DomainParameters,
     RealisationMetadata,
@@ -121,45 +123,14 @@ def run_nzvm(
     )
 
 
-@app.command(help="Generate a velocity model for a seismic realisation using NZVM.")
+@cli.from_docstring(app)
+@log_utils.log_call()
 def generate_velocity_model(
-    realisation_ffp: Annotated[
-        Path,
-        typer.Argument(
-            help="Path to realisation JSON file.",
-            readable=True,
-            exists=True,
-            dir_okay=False,
-        ),
-    ],
-    velocity_model_output: Annotated[
-        Path,
-        typer.Argument(
-            help="Path to output velocity model directory.",
-            writable=True,
-            file_okay=False,
-            exists=False,
-        ),
-    ],
-    velocity_model_bin_path: Annotated[
-        Path, typer.Option(help="Path to NZVM binary.", exists=True, readable=True)
-    ] = Path("/Velocity-Model/NZVM"),
-    work_directory: Annotated[
-        Path,
-        typer.Option(
-            help="Directory to intermediate output files to.",
-            exists=False,
-            writable=True,
-            file_okay=False,
-        ),
-    ] = Path("/out"),
-    num_threads: Annotated[
-        Optional[int],
-        typer.Option(
-            help="Number of threads to use for velocity model generation (omit for inferred thread count).",
-            min=1,
-        ),
-    ] = None,
+    realisation_ffp: Annotated[Path, typer.Argument(readable=True, exists=True, dir_okay=False)],
+    velocity_model_output: Annotated[Path, typer.Argument(writable=True, file_okay=False, exists=False)],
+    velocity_model_bin_path: Annotated[Path, typer.Option(exists=True, readable=True)] = Path("/Velocity-Model/NZVM"),
+    work_directory: Annotated[Path, typer.Option(exists=False, writable=True, file_okay=False)] = Path("/out"),
+    num_threads: Annotated[Optional[int], typer.Option(min=1)] = None,
 ) -> None:
     """
     Generate a velocity model for a seismic realisation using NZVM.

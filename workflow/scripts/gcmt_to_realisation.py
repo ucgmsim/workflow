@@ -1,3 +1,32 @@
+"""
+Generate a realisation from a GCMT solution.
+
+Description
+-----------
+This script generates a realisation from a GCMT solution by fetching the necessary data from the GeoNet and automated GCMT solutions, selecting the most likely nodal plane, and generating a rupture geometry using CCLDpy.
+
+Inputs
+------
+1. gcmt_event_id: The GCMT event ID to source the simulation for.
+2. defaults_version: Scientific defaults to use (determines simulation resolution among many other things).
+3. realisation_ffp: Path to output realisation.
+
+Outputs
+-------
+A realisation file containing source configurations, rupture propagation configurations, and metadata.
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own computer using the `gcmt-to-realisation` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+
+Usage
+-----
+`gcmt-to-realisation [OPTIONS] GCMT_EVENT_ID DEFAULTS_VERSION REALISATION_FFP`
+
+For More Help
+-------------
+See the output of `gcmt-to-realisation --help`.
+"""
 from pathlib import Path
 from typing import Annotated
 
@@ -6,6 +35,7 @@ import pandas as pd
 import requests
 import typer
 
+from qcore import cli
 from source_modelling import ccldpy, community_fault_model, sources
 from source_modelling.community_fault_model import NodalPlane
 from workflow.defaults import DefaultsVersion
@@ -21,34 +51,22 @@ NAN_PUBLIC_ID = "9999999"
 app = typer.Typer()
 
 
-@app.command(help="Generate a realisation from a GCMT event.")
+@cli.from_docstring(app)
 def gcmt_to_realisation(
-    gcmt_event_id: Annotated[
-        str, typer.Argument(help="The GCMT event id to source the simulation for.")
-    ],
-    defaults_version: Annotated[
-        DefaultsVersion,
-        typer.Argument(
-            help="Scientific defaults to use (determines simulation resolution among many other things)."
-        ),
-    ],
-    realisation_ffp: Annotated[
-        Path,
-        typer.Argument(
-            help="Path to output realisation.", writable=True, dir_okay=False
-        ),
-    ],
+    gcmt_event_id: Annotated[str, typer.Argument()],
+    defaults_version: Annotated[DefaultsVersion, typer.Argument()],
+    realisation_ffp: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
 ):
     """Generate a realisation from a GCMT solution.
 
     Parameters
     ----------
     gcmt_event_id : str
-        The GCMT event ID.
+        The GCMT event ID to source the simulation for.
     defaults_version : DefaultsVersion
-        The defaults version to use.
+        Scientific defaults to use (determines simulation resolution among many other things).
     realisation_ffp : Path
-        The realisation filepath to output to.
+        Path to output realisation.
     """
     gcmt_solutions = pd.read_csv(MOMENT_TENSOR_SOLUTION_URL)
     automated_gcmt_solutions = requests.get(AUTOMATED_TENSOR_URL).json()

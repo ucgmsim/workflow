@@ -1,9 +1,38 @@
+"""Check Domain Script.
+
+Description
+-----------
+This script checks the viability of an SRF's contents against a given domain and velocity model.
+
+Inputs
+------
+1. A realisation file containing domain parameters,
+2. An SRF file,
+3. A velocity model.
+
+Outputs
+-------
+No direct outputs. Logs errors and warnings if the SRF is outside the domain boundary or if the velocity model size does not match the expected size.
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own computer using the `check-domain` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+
+Usage
+-----
+`check-domain [OPTIONS] REALISATION_FFP SRF_FILE_FFP VELOCITY_MODEL_FFP`
+
+For More Help
+-------------
+See the output of `check-domain --help`.
+"""
 from pathlib import Path
 from typing import Annotated
 
 import shapely
 import typer
 
+from qcore import cli
 from source_modelling import srf
 from workflow import log_utils
 from workflow.realisations import DomainParameters
@@ -11,25 +40,23 @@ from workflow.realisations import DomainParameters
 app = typer.Typer()
 
 
-@app.command(help="Check an SRF's output for viability.")
+@cli.from_docstring(app)
 @log_utils.log_call()
 def check_domain(
-    realisation_ffp: Annotated[
-        Path, typer.Argument(help="The path to the realisation.")
-    ],
-    srf_ffp: Annotated[Path, typer.Argument(help="The path to the SRF file to check.")],
-    velocity_model: Annotated[
-        Path, typer.Argument(help="The path to the velocity model.")
-    ],
+    realisation_ffp: Annotated[Path, typer.Argument()],
+    srf_ffp: Annotated[Path, typer.Argument()],
+    velocity_model: Annotated[Path, typer.Argument()],
 ):
     """Check an SRF's contents for viability.
 
     Parameters
     ----------
     realisation_ffp : Path
-        The path to the realisation for the SRF.
+        The path to the realisation.
     srf_ffp : Path
-        The path to the SRF.
+        The path to the SRF file to check.
+    velocity_model : Path
+        The path to the velocity model.
 
     Raises
     ------

@@ -2,14 +2,17 @@
 # these tests fail, you should update the wiki if necesary to ensure
 # it stays consistent with the codebase.
 import json
+import struct
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 import schema
-from velocity_modelling import bounding_box
 
+from IM import im_calculation
 from source_modelling import rupture_propagation
+from velocity_modelling import bounding_box
 from workflow import defaults, realisations
 
 
@@ -88,10 +91,8 @@ def test_srf_config_example(tmp_path: Path):
     )
     srf_config = realisations.SRFConfig(
         genslip_dt=1.0,
-        genslip_seed=1,
         genslip_version="5.4.2",
         resolution=0.1,
-        srfgen_seed=1,
     )
 
     realisation_ffp = tmp_path / "realisation.json"
@@ -113,10 +114,8 @@ def test_srf_config_example(tmp_path: Path):
             },
             "srf": {
                 "genslip_dt": 1.0,
-                "genslip_seed": 1,
                 "resolution": 0.1,
                 "genslip_version": "5.4.2",
-                "srfgen_seed": 1,
             },
         }
 
@@ -229,7 +228,7 @@ def test_velocity_model(tmp_path: Path):
         resolution=0.1,
         vs30=300.0,
         s_wave_velocity=3500.0,
-        pgv_interpolants=np.ones(shape=(2, 2), dtype=np.float32),
+        rrup_interpolants=np.ones(shape=(2, 2), dtype=np.float32),
     )
     realisation_ffp = tmp_path / "realisation.json"
     velocity_model.write_to_realisation(realisation_ffp)
@@ -244,7 +243,7 @@ def test_velocity_model(tmp_path: Path):
                 "resolution": 0.1,
                 "vs30": 300.0,
                 "s_wave_velocity": 3500.0,
-                "pgv_interpolants": [[1, 1], [1, 1]],
+                "rrup_interpolants": [[1, 1], [1, 1]],
             }
         }
 
@@ -384,6 +383,68 @@ def test_broadband_parameters(tmp_path: Path):
     )
 
 
+def test_seeds():
+    seeds = realisations.Seeds.random_seeds()
+    assert all(
+        0 <= seed <= 2 ** (struct.Struct("i").size * 8 - 1) - 1
+        for seed in seeds.to_dict().values()
+    )
+
+
+def test_velocity_model_1d(tmp_path: Path):
+    velocity_model_1d = realisations.VelocityModel1D(
+        model=pd.DataFrame(
+            {
+                "thickness": [0.1, 10.0, 20.0],
+                "Vp": [1500.0, 2000.0, 2500.0],
+                "Vs": [800.0, 1000.0, 1200.0],
+                "Qp": [1500.0, 2000.0, 2500.0],
+                "Qs": [800.0, 1000.0, 1200.0],
+                "rho": [1800.0, 2000.0, 2200.0],
+            }
+        )
+    )
+    realisation_ffp = tmp_path / "realisation.json"
+    velocity_model_1d.write_to_realisation(realisation_ffp)
+    with open(realisation_ffp, "r") as realisation_handle:
+        assert json.load(realisation_handle) == {
+            "velocity_model_1d": {
+                "model": [
+                    {"thickness": 0.1, "Vp": 1500.0, "Vs": 800.0, "Qp": 1500.0, "Qs": 800.0, "rho": 1800.0},
+                    {"thickness": 10.0, "Vp": 2000.0, "Vs": 1000.0, "Qp": 2000.0, "Qs": 1000.0, "rho": 2000.0},
+                    {"thickness": 20.0, "Vp": 2500.0, "Vs": 1200.0, "Qp": 2500.0, "Qs": 1200.0, "rho": 2200.0},
+                ]
+            }
+        }
+    assert (
+        realisations.VelocityModel1D.read_from_realisation(realisation_ffp).to_dict()
+        == velocity_model_1d.to_dict()
+    )
+
+
+def test_intensity_measure_calculation_parameters(tmp_path: Path):
+    im_calc_params = realisations.IntensityMeasureCalculationParameters(
+        ims=[im_calculation.IM("PGA"), im_calculation.IM("PGV")],
+        valid_periods=np.array([0.1, 0.2, 0.3]),
+        fas_frequencies=np.array([0.5, 1.0, 2.0]),
+    )
+    realisation_ffp = tmp_path / "realisation.json"
+    im_calc_params.write_to_realisation(realisation_ffp)
+    with open(realisation_ffp, "r") as realisation_handle:
+        assert json.load(realisation_handle) == {
+            "im": {
+                "ims": ["PGA", "PGV"],
+                "valid_periods": [0.1, 0.2, 0.3],
+                "fas_frequencies": [0.5, 1.0, 2.0],
+            }
+        }
+    assert (
+        realisations.IntensityMeasureCalculationParameters.read_from_realisation(
+            realisation_ffp
+        ).to_dict()
+        == im_calc_params.to_dict()
+    )
+
 @pytest.mark.parametrize(
     "realisation_config",
     [
@@ -392,6 +453,8 @@ def test_broadband_parameters(tmp_path: Path):
         realisations.SRFConfig,
         realisations.VelocityModelParameters,
         realisations.BroadbandParameters,
+        realisations.VelocityModel1D,
+        realisations.IntensityMeasureCalculationParameters
     ],
 )
 @pytest.mark.parametrize("defaults_version", list(defaults.DefaultsVersion))

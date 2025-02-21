@@ -34,11 +34,11 @@ import pygmt
 import pyvista as pv
 import tqdm
 import typer
-from velocity_modelling.bounding_box import BoundingBox
 
 from pygmt_helper import plotting
-from qcore import coordinates
+from qcore import cli, coordinates
 from qcore.xyts import XYTSFile
+from velocity_modelling.bounding_box import BoundingBox
 
 app = typer.Typer()
 
@@ -91,19 +91,10 @@ def plot_towns(box: BoundingBox, fig: pygmt.Figure) -> None:
             fig.text(text=town_name, x=lon, y=lat, justify=justify, offset="j0.35")
 
 
-@app.command(help="Plot a low-frequency simulation output as an MP4.")
+@cli.from_docstring(app)
 def animate_low_frequency(
-    xyts_ffp: Annotated[
-        Path,
-        typer.Argument(
-            help="Path to a merged XYTS file (see merge-ts --help)",
-            exists=True,
-            dir_okay=False,
-        ),
-    ],
-    output_mp4: Annotated[
-        Path, typer.Argument(help="Path to output mp4", writable=True, dir_okay=False)
-    ],
+    xyts_ffp: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    output_mp4: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
 ) -> None:
     """Render low-frequency output as a video.
 

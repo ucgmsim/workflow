@@ -37,15 +37,14 @@ import pandas as pd
 import shapely
 import typer
 from shapely import Polygon
-from velocity_modelling import bounding_box
-from velocity_modelling.bounding_box import BoundingBox
 
-from empirical.util import openquake_wrapper_vectorized as openquake
 from empirical.util import z_model_calculations
 from empirical.util.classdef import GMM, TectType
-from qcore import coordinates, data
+from qcore import cli, coordinates, data
 from qcore.uncertainties import mag_scaling
 from source_modelling import sources
+from velocity_modelling import bounding_box
+from velocity_modelling.bounding_box import BoundingBox
 from workflow import log_utils
 from workflow.realisations import (
     DomainParameters,
@@ -149,7 +148,8 @@ def estimate_simulation_duration(
             "rake": [avg_rake],
         }
     )
-
+    # import here rather than at the module level because openquake is slow to import
+    from empirical.util import openquake_wrapper_vectorized as openquake
     ds = np.exp(
         openquake.oq_run(GMM.AS_16, TectType.ACTIVE_SHALLOW, oq_dataframe, "Ds595")[
             "Ds595_mean"
@@ -208,15 +208,10 @@ def total_magnitude(magnitudes: npt.NDArray[np.float64]) -> float:
     return mag_scaling.mom2mag(np.sum(mag_scaling.mag2mom(magnitudes)))
 
 
-@app.command(help="Generate velocity model parameters for a given realisation file")
+@cli.from_docstring(app)
 @log_utils.log_call()
 def generate_velocity_model_parameters(
-    realisation_ffp: Annotated[
-        Path,
-        typer.Argument(
-            help="The path to the realisation to generate VM parameters for."
-        ),
-    ],
+    realisation_ffp: Annotated[Path, typer.Argument()],
 ):
     """Generate velocity model parameters for a given realisation file.
 

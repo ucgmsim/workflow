@@ -44,6 +44,7 @@ import numpy as np
 import pandas as pd
 import typer
 
+from qcore import cli
 from workflow import log_utils, utils
 from workflow.realisations import (
     DomainParameters,
@@ -77,6 +78,8 @@ def hf_simulate_station(
     ----------
     hf_config : HFConfig
         Configuration object containing the parameters for the high-frequency simulation.
+    seeds : Seeds
+        Seeds object containing the seeds for the simulation.
     domain_parameters : DomainParameters
         Domain parameters such as simulation duration and other domain-specific settings.
     velocity_model : Path
@@ -183,29 +186,27 @@ def hf_simulate_station(
         return epicentre_distance[0]
 
 
-@app.command(
-    help="Run the HF (High-Frequency) simulation and generate the HF output file."
-)
+@cli.from_docstring(app)
 @log_utils.log_call()
 def run_hf(
-    realisation_ffp: Annotated[Path, typer.Argument(help="Path to realisation file.")],
+    realisation_ffp: Annotated[Path, typer.Argument()],
     stoch_ffp: Annotated[
         Path,
-        typer.Argument(help="Input stoch file.", exists=True),
+        typer.Argument(exists=True),
     ],
     station_file: Annotated[
-        Path, typer.Argument(help="Location of station file.", exists=True)
+        Path, typer.Argument(exists=True)
     ],
     out_file: Annotated[
-        Path, typer.Argument(help="Filepath for HF output.", file_okay=False)
+        Path, typer.Argument(file_okay=False)
     ],
-    hf_sim_path: Annotated[Path, typer.Option(help="Path to HF sim binary")] = Path(
+    hf_sim_path: Annotated[Path, typer.Option()] = Path(
         "/EMOD3D/tools/hb_high_binmod_v6.0.3"
     ),
     work_directory: Annotated[
         Path,
         typer.Option(
-            help="Path to work directory.", exists=True, writable=True, file_okay=False
+            exists=True, writable=True, file_okay=False
         ),
     ] = Path("/out"),
 ):
@@ -230,9 +231,6 @@ def run_hf(
         Filepath where the HF output will be saved.
     hf_sim_path : Path, optional
         Path to the HF simulation binary.
-    velocity_model : Path, optional
-        Path to the 1D velocity model. Ignored if site-specific model
-        is set is set in the `HFConfig` of `realisation_ffp`.
     work_directory : Path, optional
         Directory for intermediate files. Must be writable.
 

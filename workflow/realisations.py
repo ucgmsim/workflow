@@ -20,12 +20,12 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 from schema import Schema
-from velocity_modelling.bounding_box import BoundingBox
 
 from IM import im_calculation
 from source_modelling import sources
 from source_modelling.rupture_propagation import JumpPair
 from source_modelling.sources import IsSource
+from velocity_modelling.bounding_box import BoundingBox
 from workflow import defaults, schemas
 from workflow.defaults import DefaultsVersion
 
@@ -162,6 +162,8 @@ class RealisationConfiguration(ABC):
 
         Parameters
         ----------
+        realisation_ffp : Path
+                    The realisation filepath to read from.
         defaults_version : DefaultsVersion
             The default parameter version to load with.
 
@@ -235,22 +237,32 @@ class Seeds(RealisationConfiguration):
     def read_from_realisation_or_defaults(
         cls, realisation_ffp: Path, *args
     ) -> Self:  # *args is to maintain compat with superclass (remove this and see the error in mypy).
-        """Read configuration from realisation, or read from defaults and write to realisation.
+        """Read seeds configuration from a realisation file or generate random seeds if not present.
 
+        This method attempts to read the seeds configuration from the specified
+        realisation file. If the configuration is not present or the file is not found,
+        it generates a new seeds configuration with random seeds and writes it to the
+        realisation file.
+
+        Parameters
+        ----------
+        realisation_ffp : Path
+            The realisation filepath to read from.
+        *args : Any
+            Ignored arguments.
 
         Returns
         -------
-        RealisationConfiguration
-            The configuration loaded from the realisation filepath, or the
-            defaults if the realisation does not contain the configuration
-            key. The configuration schema is looked up from `cls._config_key`
-            and the key within the config is specified `cls._schema`.
+        Seeds
+            The seeds configuration loaded from the realisation filepath, or a new
+            configuration with random seeds if the realisation does not contain the
+            configuration key.
 
         Raises
         ------
         RealisationParseError
-            If the key in `cls._config_key` is not present in
-            the realisation or scientific defaults configuration.
+            If the key in `cls._config_key` is not present in the realisation or
+            scientific defaults configuration.
         """
         try:
             return cls.read_from_realisation(realisation_ffp)
@@ -423,17 +435,17 @@ class DomainParameters(RealisationConfiguration):
     """The resolution of the domain in time (in seconds)."""
 
     @property
-    def nx(self) -> int:
+    def nx(self) -> int: # numpydoc ignore=RT01
         """int: The number of x coordinate positions in the discretised domain."""
         return int(np.round(self.domain.extent_x / self.resolution))
 
     @property
-    def ny(self) -> int:
+    def ny(self) -> int:  # numpydoc ignore=RT01
         """int: The number of y coordinate positions in the discretised domain."""
         return int(np.round(self.domain.extent_y / self.resolution))
 
     @property
-    def nz(self) -> int:
+    def nz(self) -> int:  # numpydoc ignore=RT01
         """int: The number of z coordinate positions in the discretised domain."""
         return int(np.round(self.depth / self.resolution))
 

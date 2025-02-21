@@ -1,23 +1,47 @@
+"""Copy Domain Parameters.
+
+Description
+-----------
+Copy domain parameters between two realisations to enable the reuse of median event velocity models for subsequent realisations.
+
+Inputs
+------
+1. A source realisation file containing domain parameters,
+2. A target realisation file to copy the domain parameters to.
+
+Outputs
+-------
+The target realisation file updated with the domain parameters from the source realisation file.
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own computer using the `copy-velocity-model-parameters` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+
+Usage
+-----
+`copy-velocity-model-parameters [OPTIONS] FROM_REALISATION_FFP TO_REALISATION_FFP`
+
+For More Help
+-------------
+See the output of `copy-domain --help`.
+"""
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
+from qcore import cli
 from workflow import log_utils
 from workflow.realisations import DomainParameters, VelocityModelParameters
 
 app = typer.Typer()
 
 
-@app.command(help="Copy domain parameters between realisations.")
+@cli.from_docstring(app)
 @log_utils.log_call()
 def copy_domain(
-    from_realisation_ffp: Annotated[
-        Path, typer.Argument(help="Realisation to copy domain parameters from.")
-    ],
-    to_realisation_ffp: Annotated[
-        Path, typer.Argument(help="Realisation to copy domain parameters to.")
-    ],
+    from_realisation_ffp: Annotated[Path, typer.Argument()],
+    to_realisation_ffp: Annotated[Path, typer.Argument()],
 ) -> None:
     """Copy domain parameters between two realisations.
 
@@ -27,9 +51,9 @@ def copy_domain(
     Parameters
     ----------
     from_realisation_ffp : Path
-        The realisation to copy parameters from.
+        The realisation to copy domain parameters from.
     to_realisation_ffp : Path
-        The realisation to copy parameters to.
+        The realisation to copy domain parameters to.
     """
     from_realisation_domain_parameters = DomainParameters.read_from_realisation(
         from_realisation_ffp

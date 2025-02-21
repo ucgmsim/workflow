@@ -1,3 +1,31 @@
+"""Automatically Simulate GCMT Solutions.
+
+Description
+-----------
+This script fetches the latest GCMT solutions and identifies new, large earthquakes within 30 km of New Zealand. It then sets up and runs simulations for these earthquakes using the Cylc workflow engine.
+
+Inputs
+------
+1. GCMT Solutions URL,
+2. Path to old GCMT Solutions.
+
+Outputs
+-------
+1. Updated GCMT Solutions file,
+2. Cylc workflow directory with input data for new simulations.
+
+Environment
+-----------
+This script is designed to be run in conjunction with a cron job on Hypocentre. It is not intended for researcher use.
+
+Usage
+-----
+`python gcmt_auto_simulate.py GCMT_SOLUTIONS_URL OLD_GCMT_SOLUTIONS_PATH`
+
+For More Help
+-------------
+See the output of `python gcmt_auto_simulate.py --help` for more details on the command-line arguments.
+"""
 import datetime
 import json
 import subprocess
@@ -12,7 +40,7 @@ import shapely
 import typer
 from shapely import Polygon
 
-from qcore import coordinates, data
+from qcore import cli, coordinates, data
 
 app = typer.Typer()
 
@@ -44,14 +72,10 @@ def get_nz_outline_polygon() -> Polygon:
     return shapely.union(south_island, north_island)
 
 
-@app.command(
-    help="Automatically simulate GCMT solutions that are new, large, and within 30 km of New Zealand."
-)
+@cli.from_docstring(app)
 def gcmt_auto_simulate(
-    gcmt_solutions_url: Annotated[str, typer.Argument(help="GCMT Solutions URL.")],
-    old_gcmt_solutions_path: Annotated[
-        Path, typer.Argument(help="Path to old GCMT Solutions.")
-    ],
+    gcmt_solutions_url: Annotated[str, typer.Argument()],
+    old_gcmt_solutions_path: Annotated[Path, typer.Argument()],
 ):
     """Automatically simulate GCMT solutions that are new, large, and within 30 km of New Zealand.
 

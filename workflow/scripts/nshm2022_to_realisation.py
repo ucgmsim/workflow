@@ -42,6 +42,7 @@ import numpy as np
 import typer
 
 from nshmdb import nshmdb
+from qcore import cli
 from qcore.uncertainties import distributions, mag_scaling
 from source_modelling import rupture_propagation
 from source_modelling.sources import Fault
@@ -117,52 +118,39 @@ class SamplingStrategy(StrEnum):
     random = "random"
 
 
-@app.command(
-    help="Generate realisation stub files from ruptures in the NSHM 2022 database."
-)
+@cli.from_docstring(app)
 @log_call()
 def generate_realisation(
     nshmdb_path: Annotated[
-        Path, typer.Argument(help="Path to NSHMDB.", exists=True, dir_okay=False)
+        Path, typer.Argument(exists=True, dir_okay=False)
     ],
     rupture_id: Annotated[
         int,
-        typer.Argument(
-            help="The ID of the rupture to generate the realisation stub for (find this using the NSHM Rupture Explorer)."
-        ),
+        typer.Argument()
     ],
     realisation_ffp: Annotated[
         Path,
-        typer.Argument(help="Location to write out the realisation.", writable=True),
+        typer.Argument(writable=True),
     ],
     defaults_version: Annotated[
         DefaultsVersion,
-        typer.Argument(help="Scientific default parameters version to use"),
+        typer.Argument(),
     ],
     initial_fault: Annotated[
         Optional[str],
-        typer.Option(
-            help="The name of the fault to use as the initial fault for rupture propagation."
-            " If not specified, the initial fault will be drawn proportionally to its likelihood of rupture.",
-        ),
+        typer.Option(),
     ] = None,
     strategy: Annotated[
         SamplingStrategy,
-        typer.Option(
-            help="The strategy to use when sampling rupture propagation."
-            ' "maximising" will choose the maximally likely rupture propagation tree.'
-            ' "random" will choose a random rupture propagation tree.',
-        ),
+        typer.Option(),
     ] = SamplingStrategy.random,
     jump_cutoff: Annotated[
         float,
-        typer.Option(help="The maximum jump distance between faults in km.", min=0),
+        typer.Option(min=0),
     ] = 15,
     shypo: Annotated[
         Optional[float],
         typer.Option(
-            help="The initial hypocentre strike coordinate (0 - 1)."
-            " If not supplied, draw shypo from a truncated normal distribution.",
             min=0,
             max=1,
         ),
@@ -170,8 +158,6 @@ def generate_realisation(
     dhypo: Annotated[
         Optional[float],
         typer.Option(
-            help="The initial hypocentre strike coordinate (0 - 1)."
-            " If not supplied, draw dhypo from a weibull distribution.",
             min=0,
             max=1,
         ),
@@ -187,15 +173,30 @@ def generate_realisation(
 
     Parameters
     ----------
-    nshm_db_file : Path
-        The NSHM sqlite database containing rupture information and fault geometry.
+    nshmdb_path : Path
+        Path to NSHMDB.
     rupture_id : int
-        The ID of the rupture to generate the realisation stub for. Find
-        this using the NSHM Rupture Explorer.
+        The ID of the rupture to generate the realisation stub for (find this using the NSHM Rupture Explorer).
     realisation_ffp : Path
         Location to write out the realisation.
     defaults_version : DefaultsVersion
         Scientific default parameters version to use.
+    initial_fault : Optional[str], optional
+        The name of the fault to use as the initial fault for rupture
+        propagation. If not specified, the initial fault will be drawn
+        proportionally to its likelihood of rupture.
+    strategy : SamplingStrategy, optional
+        The strategy to use when sampling rupture propagation. "maximising" will
+        choose the maximally likely rupture propagation tree. "random" will
+        choose a random rupture propagation tree.
+    jump_cutoff : float, optional
+        The maximum jump distance between faults in km.
+    shypo : Optional[float], optional
+        The initial hypocentre strike coordinate (0 - 1). If not supplied, draw
+        shypo from a truncated normal distribution.
+    dhypo : Optional[float], optional
+        The initial hypocentre strike coordinate (0 - 1). If not supplied, draw
+        dhypo from a weibull distribution.
     """
 
     metadata = RealisationMetadata(

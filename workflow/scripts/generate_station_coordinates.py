@@ -35,47 +35,33 @@ import numpy as np
 import pandas as pd
 import typer
 
+from qcore import cli
 from workflow import log_utils
 from workflow.realisations import DomainParameters
 
 app = typer.Typer()
 
 
-@app.command(help="Generate station gridpoint coordinates from a list of stations.")
+@cli.from_docstring(app)
 @log_utils.log_call()
 def generate_fd_files(
-    realisations_ffp: Annotated[
-        Path, typer.Argument(help="Path to realisation json file.", readable=True)
-    ],
-    output_path: Annotated[
-        Path,
-        typer.Argument(
-            help="Output path for station files", file_okay=False, writable=True
-        ),
-    ],
-    keep_dup_station: Annotated[
-        bool,
-        typer.Option(help="Keep stations whose gridpoint coordinates are identical"),
-    ] = True,
-    stat_file: Annotated[
-        Path,
-        typer.Option(
-            help="The location of the station files.", readable=True, exists=True
-        ),
-    ] = Path("/input/stations.ll"),
+    realisations_ffp: Annotated[Path, typer.Argument(readable=True)],
+    output_path: Annotated[Path, typer.Argument(file_okay=False, writable=True)],
+    keep_dup_station: Annotated[bool, typer.Option()] = True,
+    stat_file: Annotated[Path, typer.Option(readable=True, exists=True)] = Path("/input/stations.ll"),
 ) -> None:
     """Generate station coordinate files.
 
     Parameters
     ----------
     realisations_ffp : Path
-        Path to realisation file.
+        Path to realisation json file.
     output_path : Path
-        Output directory for station coordinate and latitude longitude files.
+        Output path for station files.
     keep_dup_station : bool
-        If True, keep stations whose gridpoint coordinates are identical.
+        Keep stations whose gridpoint coordinates are identical.
     stat_file : Path
-        If True, keep stations whose gridpoint coordinates are identical.
+        The location of the station files.
     """
     output_path.mkdir(exist_ok=True)
     domain_parameters = DomainParameters.read_from_realisation(realisations_ffp)

@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import typer
 
+from qcore import cli
 from source_modelling.sources import Fault, Plane
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import (
@@ -18,12 +19,11 @@ from workflow.realisations import (
 app = typer.Typer()
 
 
-@app.command(help="Convert a legacy realisation into the modern JSON format.")
+@cli.from_docstring(app)
 def convert_realisation(
     old_realisation_path: Annotated[
         Path,
         typer.Argument(
-            help="Path to the old realisation CSV.",
             exists=True,
             readable=True,
             dir_okay=False,
@@ -32,12 +32,12 @@ def convert_realisation(
     realisation_path: Annotated[
         Path,
         typer.Argument(
-            help="Path to output converted realisation.", writable=True, dir_okay=False
+            writable=True, dir_okay=False
         ),
     ],
     defaults_version: Annotated[
         DefaultsVersion,
-        typer.Argument(help="Defaults version to use for the new realisation."),
+        typer.Argument(),
     ],
 ) -> None:
     """Convert a realisation from the old CSV format to the new JSON format.
@@ -45,11 +45,11 @@ def convert_realisation(
     Parameters
     ----------
     old_realisation_path : Path
-        Path to the realisation CSV.
+        Path to the old realisation CSV.
     realisation_path : Path
-        Output path for the new JSON fomat.
-    defaults_version :
-        Defaults version to use.
+        Path to output converted realisation.
+    defaults_version : DefaultsVersion
+        Defaults version to use for the new realisation.
     """
     old_realisation = pd.read_csv(old_realisation_path).iloc[0]
     name = old_realisation["name"]
