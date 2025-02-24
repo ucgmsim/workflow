@@ -23,6 +23,7 @@ schema
 scipy
 shapely
 source_modelling @ git+https://github.com/ucgmsim/source_modelling.git
+structlog
 tables
 tqdm
 typer

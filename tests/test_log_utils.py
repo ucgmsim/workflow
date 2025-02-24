@@ -177,7 +177,7 @@ def test_repeated_logs():
     )
 
 
-def _thread_worker(logger_name):
+def _thread_worker(logger_name: str):
     logger = log_utils.get_logger(logger_name)
     logger.info("Threaded log message")
 
