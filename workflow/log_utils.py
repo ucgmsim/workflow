@@ -23,17 +23,24 @@ Examples
 
 import functools
 import inspect
-import logging
-import os
 import subprocess
 import traceback
 import uuid
 from collections.abc import Callable, Iterable
 from typing import Any, Optional
+import structlog
+
+# Configure structlog
+structlog.configure(
+    processors=[
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.JSONRenderer(),
+    ]
+)
 
 
-def get_logger(name: str) -> logging.Logger:
-    """Get a formatted logger with `name`.
+def get_logger(name: str) -> structlog.BoundLogger:
+    """Get a formatted logger with name.
 
     Parameters
     ----------
@@ -42,44 +49,10 @@ def get_logger(name: str) -> logging.Logger:
 
     Returns
     -------
-    logging.Logger
+    structlog.BoundLogger
         The logger with name `name`.
     """
-    logger = logging.getLogger(name)
-    logger.setLevel(os.environ.get("LOG_LEVEL", logging.INFO))
-    handler = logging.StreamHandler()
-    handler.setFormatter(
-        logging.Formatter(
-            "%(asctime)s\t%(levelname)s\t%(name)s\t%(threadName)s\t%(message)s"
-        )
-    )
-    logger.addHandler(handler)
-    return logger
-
-
-def structured_log(
-    message: str,
-    **kwargs: Any,
-) -> str:
-    """Format a log message in a structured logging format.
-
-    Parameters
-    ----------
-    message : str
-        The message to log.
-    **kwargs : Any
-        Keyword arguments to log in a structured logging format.
-
-    Returns
-    -------
-    str
-        A message in a structured log format
-    """
-    log_kwargs = {key: str(value) for key, value in kwargs.items()}
-    structured_log_data = "\t".join(
-        f"{key}={value}" for key, value in log_kwargs.items()
-    )
-    return f"{message}\t{structured_log_data}"
+    return structlog.get_logger(name)
 
 
 def log_call(
@@ -104,49 +77,39 @@ def log_call(
     Callable
         A decorator that logs it's wrapped function's arguments every
         time the function is called, and logs once it has completed
-        (with it's return value if `include_result` is True).
+        (with it's return value if include_result is True).
     """
 
-    def decorator(f: Callable) -> Callable: # numpydoc ignore=GL08
+    def decorator(f: Callable) -> Callable:
         @functools.wraps(f)
-        def wrapper(*args, **kwargs): # numpydoc ignore=GL08
+        def wrapper(*args, **kwargs):
             nonlocal exclude_args
             signature = inspect.signature(f)
             function_id = str(uuid.uuid4())
-            exclude_args = exclude_args or set()
+            exclude_args = set(exclude_args or [])
             name = f.__globals__["__name__"]
-            logger = get_logger(name)
+            logger = get_logger(name).bind(
+                function=action_name or f.__name__, id=function_id
+            )
+
             unified_arguments = {
                 parameter: arg
                 for parameter, arg in zip(signature.parameters, args)
                 if parameter not in exclude_args
             } | {key: value for key, value in kwargs.items() if key not in exclude_args}
-            name = action_name or f.__name__
-            logger.info(
-                structured_log(
-                    "called", function=name, id=function_id, **unified_arguments
-                )
-            )
+
+            logger.info("called", **unified_arguments)
             try:
                 result = f(*args, **kwargs)
-            except:
-                logger.error(
-                    structured_log(
-                        "failed",
-                        function=name,
-                        id=function_id,
-                        error=traceback.format_exc(),
-                    )
-                )
+            except Exception:
+                logger.error("failed", error=traceback.format_exc())
                 raise
-            if include_result and result:
-                logger.info(
-                    structured_log(
-                        "completed", function=name, id=function_id, result=result
-                    )
-                )
+
+            if include_result:
+                logger.info("completed", result=result)
             else:
-                logger.info(structured_log("completed", function=name, id=function_id))
+                logger.info("completed")
+
             return result
 
         return wrapper
@@ -176,26 +139,18 @@ def log_check_call(args: list[str], **kwargs: Any) -> str:
     """
     cmd_uuid = str(uuid.uuid4())
     name = inspect.currentframe().f_back.f_globals["__name__"]
-    logger = logging.getLogger(name)
-    logger.info(
-        structured_log("executing", command=args[0], args=args[1:], id=cmd_uuid)
-    )
+    logger = get_logger(name).bind(command=args[0], id=cmd_uuid)
+
+    logger.info("executing", args=args[1:])
     try:
         kwargs["stderr"] = subprocess.PIPE
         output = subprocess.check_output(args, **kwargs).decode("utf-8")
-        logger.info(
-            structured_log("completed", command=args[0], stdout=output, id=cmd_uuid)
-        )
+        logger.info("completed", stdout=output)
     except subprocess.CalledProcessError as e:
         logger.error(
-            structured_log(
-                "failed",
-                command=args[0],
-                id=cmd_uuid,
-                code=e.returncode,
-                stdout=e.output.decode("utf-8"),
-                stderr=e.stderr.decode("utf-8"),
-            )
+            "failed",
+            code=e.returncode,
+            stdout=e.output.decode("utf-8"),
+            stderr=e.stderr.decode("utf-8"),
         )
         raise
-    return output
