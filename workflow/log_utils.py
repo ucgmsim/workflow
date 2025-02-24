@@ -28,6 +28,7 @@ import traceback
 import uuid
 from collections.abc import Callable, Iterable
 from typing import Any, Optional
+
 import structlog
 
 # Configure structlog
