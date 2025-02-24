@@ -1,16 +1,13 @@
-import logging
-import re
+import concurrent.futures
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
 import pytest
+import structlog.testing
 
 from workflow import log_utils
-
-
-def test_structured_log():
-    assert log_utils.structured_log("test", a=1, b=2, c=3) == "test\ta=1\tb=2\tc=3"
 
 
 @log_utils.log_call()
@@ -18,22 +15,23 @@ def foo(a: int, b: int):
     return a + b
 
 
-def test_basic_log(caplog: pytest.LogCaptureFixture):
-    caplog.set_level(logging.INFO)
+def test_basic_log():
+    log_capture = structlog.testing.LogCapture()
+    structlog.configure(processors=[log_capture])
+
     _ = foo(1, 2)
 
-    assert len(caplog.messages) == 2
+    assert len(log_capture.entries) == 2
+    call_log = log_capture.entries[0]
+    assert call_log["event"] == "called"
+    assert call_log["function"] == "foo"
+    assert call_log["a"] == 1
+    assert call_log["b"] == 2
 
-    call_log = caplog.messages[0]
-    assert re.match(
-        "called\tfunction=foo\tid=.*\ta=1\tb=2",
-        call_log,
-    )
-    return_log = caplog.messages[1]
-    assert re.match(
-        "completed\tfunction=foo\tid=.*\tresult=3",
-        return_log,
-    )
+    return_log = log_capture.entries[1]
+    assert return_log["event"] == "completed"
+    assert return_log["function"] == "foo"
+    assert return_log["result"] == 3
 
 
 @log_utils.log_call(exclude_args={"b"})
@@ -41,22 +39,23 @@ def foo_less_b(a: int, b: int):
     return a + b
 
 
-def test_excluded_log(caplog: pytest.LogCaptureFixture):
-    caplog.set_level(logging.INFO)
+def test_excluded_log():
+    log_capture = structlog.testing.LogCapture()
+    structlog.configure(processors=[log_capture])
 
     _ = foo_less_b(1, 2)
 
-    assert len(caplog.messages) == 2
-    call_log = caplog.messages[0]
-    assert re.match(
-        "called\tfunction=foo_less_b\tid=.*\ta=1",
-        call_log,
-    )
-    return_log = caplog.messages[1]
-    assert re.match(
-        "completed\tfunction=foo_less_b\tid=.*\tresult=3",
-        return_log,
-    )
+    assert len(log_capture.entries) == 2
+    call_log = log_capture.entries[0]
+    assert call_log["event"] == "called"
+    assert call_log["function"] == "foo_less_b"
+    assert call_log["a"] == 1
+    assert "b" not in call_log
+
+    return_log = log_capture.entries[1]
+    assert return_log["event"] == "completed"
+    assert return_log["function"] == "foo_less_b"
+    assert return_log["result"] == 3
 
 
 @log_utils.log_call(action_name="FOOBAR")
@@ -64,21 +63,21 @@ def bar(a: Any):
     pass
 
 
-def test_renamed_bar(caplog: pytest.LogCaptureFixture):
-    caplog.set_level(logging.INFO)
+def test_renamed_bar():
+    log_capture = structlog.testing.LogCapture()
+    structlog.configure(processors=[log_capture])
+
     bar(1)
 
-    assert len(caplog.messages) == 2
-    call_log = caplog.messages[0]
-    assert re.match(
-        "called\tfunction=FOOBAR\tid=.*\ta=1",
-        call_log,
-    )
-    return_log = caplog.messages[1]
-    assert re.match(
-        "completed\tfunction=FOOBAR\tid=.*",
-        return_log,
-    )
+    assert len(log_capture.entries) == 2
+    call_log = log_capture.entries[0]
+    assert call_log["event"] == "called"
+    assert call_log["function"] == "FOOBAR"
+    assert call_log["a"] == 1
+
+    return_log = log_capture.entries[1]
+    assert return_log["event"] == "completed"
+    assert return_log["function"] == "FOOBAR"
 
 
 @log_utils.log_call(include_result=False)
@@ -86,21 +85,22 @@ def baz(a: Any):
     return 1
 
 
-def test_no_result(caplog: pytest.LogCaptureFixture):
-    caplog.set_level(logging.INFO)
+def test_no_result():
+    log_capture = structlog.testing.LogCapture()
+    structlog.configure(processors=[log_capture])
+
     baz(1)
 
-    assert len(caplog.messages) == 2
-    call_log = caplog.messages[0]
-    assert re.match(
-        "called\tfunction=baz\tid=.*\ta=1",
-        call_log,
-    )
-    return_log = caplog.messages[1]
-    assert re.match(
-        "completed\tfunction=baz\tid=.*",
-        return_log,
-    )
+    assert len(log_capture.entries) == 2
+    call_log = log_capture.entries[0]
+    assert call_log["event"] == "called"
+    assert call_log["function"] == "baz"
+    assert call_log["a"] == 1
+
+    return_log = log_capture.entries[1]
+    assert return_log["event"] == "completed"
+    assert return_log["function"] == "baz"
+    assert "result" not in return_log
 
 
 @log_utils.log_call()
@@ -108,41 +108,92 @@ def failing_function():
     raise ValueError("This function should fail!")
 
 
-def test_failing_function(caplog: pytest.LogCaptureFixture):
-    caplog.set_level(logging.INFO)
+def test_failing_function():
+    log_capture = structlog.testing.LogCapture()
+    structlog.configure(processors=[log_capture])
+
     with pytest.raises(ValueError):
         failing_function()
 
-    assert len(caplog.messages) == 2
-    return_log = caplog.messages[1]
-    assert re.match(
-        "failed\tfunction=failing_function\tid=.*\terror=Traceback.*", return_log
-    )
+    assert len(log_capture.entries) == 2
+    return_log = log_capture.entries[1]
+    assert return_log["event"] == "failed"
+    assert return_log["function"] == "failing_function"
+    assert "error" in return_log
 
 
-def test_successful_check_call_log(caplog: pytest.LogCaptureFixture, tmp_path: Path):
-    caplog.set_level(logging.INFO)
+def test_successful_check_call_log(tmp_path: Path):
+    log_capture = structlog.testing.LogCapture()
+    structlog.configure(processors=[log_capture])
+
     test_file = tmp_path / "test.txt"
     test_file.touch()
     log_utils.log_check_call(["ls", str(tmp_path)])
 
-    assert len(caplog.messages) == 2
-    execution_message = caplog.messages[0]
-    assert re.match("executing\tcommand=ls\targs=\\['.*'\\]\tid=.*", execution_message)
-    completion_message = caplog.messages[1]
-    assert re.match(
-        "completed\tcommand=ls\tstdout=test.txt\n\tid=.*", completion_message
-    )
+    assert len(log_capture.entries) == 2
+    execution_message = log_capture.entries[0]
+    assert execution_message["event"] == "executing"
+    assert execution_message["command"] == "ls"
+
+    completion_message = log_capture.entries[1]
+    assert completion_message["event"] == "completed"
+    assert "stdout" in completion_message and "test.txt" in completion_message["stdout"]
 
 
-def test_failing_check_call_log(caplog: pytest.LogCaptureFixture):
-    caplog.set_level(logging.INFO)
+def test_failing_check_call_log():
+    log_capture = structlog.testing.LogCapture()
+    structlog.configure(processors=[log_capture])
+
     with pytest.raises(subprocess.CalledProcessError):
         log_utils.log_check_call(["ls", "/bad-path"])
 
-    assert len(caplog.messages) == 2
-    completion_message = caplog.messages[1]
-    assert re.match(
-        "failed\tcommand=ls\tid=.*\tcode=2\tstdout=\tstderr=ls: cannot access '/bad-path': No such file or directory",
-        completion_message,
+    assert len(log_capture.entries) == 2
+    completion_message = log_capture.entries[1]
+    assert completion_message["event"] == "failed"
+    assert completion_message["command"] == "ls"
+    assert (
+        "stderr" in completion_message and "/bad-path" in completion_message["stderr"]
+    )
+
+
+def test_repeated_logs():
+    log_capture = structlog.testing.LogCapture()
+    structlog.configure(processors=[log_capture])
+
+    logger_name = "test_repeated"
+    for _ in range(3):
+        log_utils.get_logger(logger_name)
+
+    logger = log_utils.get_logger(logger_name)
+    logger.info("Test message for repeated logs")
+
+    assert (
+        sum(
+            1
+            for log in log_capture.entries
+            if log["event"] == "Test message for repeated logs"
+        )
+        == 1
+    )
+
+
+def _thread_worker(logger_name: str):
+    logger = log_utils.get_logger(logger_name)
+    logger.info("Threaded log message")
+
+
+def test_thread_safety():
+    log_capture = structlog.testing.LogCapture()
+    structlog.configure(processors=[log_capture])
+
+    logger_name = "test_thread"
+    num_threads = 20
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        executor.map(_thread_worker, [logger_name] * num_threads)
+
+    time.sleep(0.1)
+
+    assert (
+        sum(1 for log in log_capture.entries if log["event"] == "Threaded log message")
+        == num_threads
     )
