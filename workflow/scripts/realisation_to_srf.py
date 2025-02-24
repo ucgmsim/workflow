@@ -114,7 +114,7 @@ def generate_fault_gsf(
         The path to the generated GSF file.
     """
     gsf_output_filepath = gsf_output_directory / f"{name}.gsf"
-    gsf_df = gsf.source_to_gsf_dataframe(geometry, subdivision_resolution)
+    gsf_df = gsf.source_to_gsf_dataframe(geometry, subdivision_resolution / 1000)
     gsf_df["loc_rake"] = rake
     gsf.write_gsf(gsf_df, gsf_output_filepath)
     return gsf_output_filepath
