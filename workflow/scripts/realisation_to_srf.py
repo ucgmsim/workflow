@@ -53,7 +53,7 @@ import typer
 from scipy.sparse import csr_array
 
 from qcore import cli, coordinates, grid, gsf
-from source_modelling import rupture_propagation, srf
+from source_modelling import rupture_propagation, srf, gsf
 from source_modelling.sources import IsSource
 from workflow import log_utils, utils
 from workflow.log_utils import log_call
@@ -114,28 +114,9 @@ def generate_fault_gsf(
         The path to the generated GSF file.
     """
     gsf_output_filepath = gsf_output_directory / f"{name}.gsf"
-    gsf_df = pd.DataFrame(
-        [
-            {
-                "strike": plane.strike,
-                "dip": plane.dip,
-                "length": plane.length,
-                "width": plane.width,
-                "rake": rake,
-                "meshgrid": grid.coordinate_patchgrid(
-                    plane.corners[0],
-                    plane.corners[1],
-                    plane.corners[-1],
-                    subdivision_resolution * 1000,
-                ),
-            }
-            for plane in geometry.planes
-        ]
-    )
-    gsf.write_fault_to_gsf_file(
-        gsf_output_filepath, gsf_df, subdivision_resolution * 1000
-    )
-
+    gsf_df = gsf.source_to_gsf_dataframe(geometry, subdivision_resolution)
+    gsf_df["loc_rake"] = rake
+    gsf.write_gsf(gsf_df, gsf_output_filepath)
     return gsf_output_filepath
 
 
@@ -183,16 +164,9 @@ def generate_fault_srf(
         srf_config.resolution,
     )
 
-    nx = sum(
-        grid.gridpoint_count_in_length(plane.length_m, srf_config.resolution * 1000) - 1
-        for plane in fault.planes
-    )
-    ny = (
-        grid.gridpoint_count_in_length(
-            fault.planes[0].width_m, srf_config.resolution * 1000
-        )
-        - 1
-    )
+    nx = sum(round(fault.length / srf_config.resolution) for plane in fault.planes)
+    ny = round(fault.planes[0].width / srf_config.resolution)
+
     genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
         hypocentre_local_coordinates - np.array([1 / 2, 0])
     )
@@ -550,10 +524,16 @@ def generate_fault_srfs_parallel(
 @cli.from_docstring(app)
 @log_call()
 def generate_srf(
-    realisation_ffp: Annotated[Path, typer.Argument(exists=True, readable=True, dir_okay=False)],
+    realisation_ffp: Annotated[
+        Path, typer.Argument(exists=True, readable=True, dir_okay=False)
+    ],
     output_srf_filepath: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
-    work_directory: Annotated[Path, typer.Option(exists=True, file_okay=False)] = Path("/out"),
-    genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path("/EMOD3D/tools/genslip_v5.4.2"),
+    work_directory: Annotated[Path, typer.Option(exists=True, file_okay=False)] = Path(
+        "/out"
+    ),
+    genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
+        "/EMOD3D/tools/genslip_v5.4.2"
+    ),
 ):
     """Generate an SRF file from a given realisation specification.
 
