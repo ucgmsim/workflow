@@ -52,8 +52,8 @@ import scipy as sp
 import typer
 from scipy.sparse import csr_array
 
-from qcore import cli, coordinates, grid, gsf
-from source_modelling import rupture_propagation, srf, gsf
+from qcore import cli, coordinates
+from source_modelling import gsf, rupture_propagation, srf
 from source_modelling.sources import IsSource
 from workflow import log_utils, utils
 from workflow.log_utils import log_call
