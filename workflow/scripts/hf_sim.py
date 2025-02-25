@@ -176,14 +176,14 @@ def hf_simulate_station(
 
 
 def to_hdf5_value(value: Any):
-    if isinstance(value, float | int | str | bytes):
-        return value
+    if isinstance(value, bool):
+        return int(value)
     elif isinstance(value, list):
         return [to_hdf5_value(v) for v in value]
-    elif isinstance(value, bool):
-        return int(v)
     elif value is None:
         return 0
+    elif isinstance(value, float | int | str | bytes):
+        return value
     elif hasattr(value, "__repr__"):
         return repr(value)
     raise TypeError(
