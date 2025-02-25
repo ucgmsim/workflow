@@ -287,7 +287,7 @@ def run_hf(
             "time": time,
             "component": ["x", "y", "z"],
         },
-        attrs=hf_config.to_dict()
+        attrs={k: v for k, v in hf_config.to_dict() if v is not None}
         | {
             "hf_tstart": 0.0,
             "duration": nt * hf_config.dt,
