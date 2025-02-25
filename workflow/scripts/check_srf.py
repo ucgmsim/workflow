@@ -74,9 +74,7 @@ def check_srf(
         realisation_ffp, metadata.defaults_version
     ).model
     velocity_model["mu"] = velocity_model["Vs"] ** 2 * velocity_model["rho"] * 1e10
-    velocity_model["depth"] = (
-        velocity_model["thickness"].cumsum() - velocity_model["thickness"]
-    )
+    velocity_model["depth"] = velocity_model["thickness"].cumsum()
 
     srf_file = srf.read_srf(srf_ffp)
     indices = np.minimum(
@@ -88,6 +86,44 @@ def check_srf(
         (srf_file.points["area"].values * srf_file.points["slip"].values * mu).sum()
     )
     logger = log_utils.get_logger("__name__")
+
+    if srf_file.points.isnull().values.any():
+        logger.error("SRF contains NaN values")
+        raise typer.Exit(code=1)
+
+    if (srf_file.points["dep"] < 0).any():
+        logger.error(
+            "Negative SRF depth detected", min_depth=srf_file.points["depth"].min()
+        )
+        raise typer.Exit(code=1)
+
+    if not np.isclose(srf_file.points["tinit"].min(), 0):
+        logger.warning(
+            "SRF does not begin at zero (this may not be an error depending on SRF setup)",
+            tinit=srf_file.points["tinit"].min(),
+        )
+        raise typer.Exit(code=1)
+
+    if (srf_file.points["lat"].abs() > 90).any():
+        logger.error(
+            "SRF Latitude values out of bounds",
+            lat_range=(srf_file.points["lat"].min(), srf_file.points["lat"].max()),
+        )
+        raise typer.Exit(code=1)
+
+    if (srf_file.points["lon"].abs() > 180).any():
+        logger.error(
+            "SRF Longitude values out of bounds",
+            lat_range=(srf_file.points["lon"].min(), srf_file.points["lon"].max()),
+        )
+        raise typer.Exit(code=1)
+
+    try:
+        _ = srf_file.planes
+    except ValueError:
+        logger.error("SRF geometry is broken.")
+        raise typer.Exit(code=1)
+
     try:
         rupture_prop_config = RupturePropagationConfig.read_from_realisation(
             realisation_ffp
@@ -105,22 +141,10 @@ def check_srf(
                 realisation_magnitude=magnitude,
             )
             raise typer.Exit(code=1)
+        logger.info("SRF Magnitude", expected=magnitude, actual=srf_magnitude)
     except RealisationParseError:
         pass
 
     if srf_magnitude >= 11:
         logger.error("Implausible SRF magnitude", srf_magnitude=magnitude)
-        raise typer.Exit(code=1)
-
-    if (srf_file.points["dep"] < 0).any():
-        logger.error(
-            "Negative SRF depth detected", min_depth=srf_file.points["depth"].min()
-        )
-        raise typer.Exit(code=1)
-
-    if not np.isclose(srf_file.points["tinit"].min(), 0):
-        logger.warning(
-            "SRF does not begin at zero (this may not be an error depending on SRF setup)",
-            tinit=srf_file.points["tinit"].min(),
-        )
         raise typer.Exit(code=1)
