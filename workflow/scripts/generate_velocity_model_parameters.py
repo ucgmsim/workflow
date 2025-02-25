@@ -84,7 +84,6 @@ def get_nz_outline_polygon() -> Polygon:
     return shapely.union(south_island, north_island)
 
 
-
 def estimate_simulation_duration(
     bounding_box: BoundingBox,
     magnitude: float,
@@ -150,6 +149,7 @@ def estimate_simulation_duration(
     )
     # import here rather than at the module level because openquake is slow to import
     from empirical.util import openquake_wrapper_vectorized as openquake
+
     ds = np.exp(
         openquake.oq_run(GMM.AS_16, TectType.ACTIVE_SHALLOW, oq_dataframe, "Ds595")[
             "Ds595_mean"
@@ -250,11 +250,15 @@ def generate_velocity_model_parameters(
     rupture_magnitude = total_magnitude(np.array(list(magnitudes.values())))
 
     rrups = {
-        fault_name: np.interp(magnitudes[fault_name], velocity_model_parameters.rrup_interpolants[:, 0], velocity_model_parameters.rrup_interpolants[:, 1])
+        fault_name: np.interp(
+            magnitudes[fault_name],
+            velocity_model_parameters.rrup_interpolants[:, 0],
+            velocity_model_parameters.rrup_interpolants[:, 1],
+        )
         for fault_name, fault in source_config.source_geometries.items()
     }
     logger = log_utils.get_logger(__name__)
-    logger.debug(log_utils.structured_log("computed rrups", rrups=rrups))
+    logger.debug("computed rrups", rrups=rrups)
 
     initial_fault = source_config.source_geometries[rupture_propagation.initial_fault]
     max_depth = get_max_depth(

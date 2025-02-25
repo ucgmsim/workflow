@@ -100,37 +100,27 @@ def check_srf(
         )
         if not np.isclose(srf_magnitude, magnitude, atol=5e-3):
             logger.error(
-                log_utils.structured_log(
-                    "Mismatch SRF magnitude",
-                    srf_magnitude=srf_magnitude,
-                    realisation_magnitude=magnitude,
-                )
+                "Mismatch SRF magnitude",
+                srf_magnitude=srf_magnitude,
+                realisation_magnitude=magnitude,
             )
             raise typer.Exit(code=1)
     except RealisationParseError:
         pass
 
     if srf_magnitude >= 11:
-        logger.error(
-            log_utils.structured_log(
-                "Implausible SRF magnitude", srf_magnitude=magnitude
-            )
-        )
+        logger.error("Implausible SRF magnitude", srf_magnitude=magnitude)
         raise typer.Exit(code=1)
 
     if (srf_file.points["dep"] < 0).any():
         logger.error(
-            log_utils.structured_log(
-                "Negative SRF depth detected", min_depth=srf_file.points["depth"].min()
-            )
+            "Negative SRF depth detected", min_depth=srf_file.points["depth"].min()
         )
         raise typer.Exit(code=1)
 
     if not np.isclose(srf_file.points["tinit"].min(), 0):
         logger.warning(
-            log_utils.structured_log(
-                "SRF does not begin at zero (this may not be an error depending on SRF setup)",
-                tinit=srf_file.points["tinit"].min(),
-            )
+            "SRF does not begin at zero (this may not be an error depending on SRF setup)",
+            tinit=srf_file.points["tinit"].min(),
         )
         raise typer.Exit(code=1)

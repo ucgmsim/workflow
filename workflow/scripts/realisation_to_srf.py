@@ -229,28 +229,20 @@ def generate_fault_srf(
     srf_file_path = output_directory / "srf" / (name + ".srf")
     with open(srf_file_path, "w", encoding="utf-8") as srf_file_handle:
         logger = log_utils.get_logger(__name__)
-        logger.info(
-            log_utils.structured_log("executing command", cmd=" ".join(genslip_cmd))
-        )
+        logger.info("executing command", cmd=" ".join(genslip_cmd))
         try:
             proc = subprocess.run(
                 genslip_cmd, stdout=srf_file_handle, stderr=subprocess.PIPE, check=True
             )
         except subprocess.CalledProcessError as e:
             logger.error(
-                log_utils.structured_log(
-                    "failed",
-                    exception=e.output.decode("utf-8"),
-                    code=e.returncode,
-                    stderr=e.stderr.decode("utf-8"),
-                )
+                "failed",
+                exception=e.output.decode("utf-8"),
+                code=e.returncode,
+                stderr=e.stderr.decode("utf-8"),
             )
             raise
-        logger.info(
-            log_utils.structured_log(
-                "command completed", stderr=proc.stderr.decode("utf-8")
-            )
-        )
+        logger.info("command completed", stderr=proc.stderr.decode("utf-8"))
 
 
 def concatenate_csr_arrays(csr_arrays: list[csr_array]) -> csr_array:
@@ -427,12 +419,10 @@ def stitch_srf_files(
             logger = log_utils.get_logger(__name__)
             fault_srf.points["tinit"] += time_delay
             logger.info(
-                log_utils.structured_log(
-                    "computed delay",
-                    fault_name=fault_name,
-                    delay=time_delay,
-                    srf_min=fault_srf.points["tinit"].min(),
-                )
+                "computed delay",
+                fault_name=fault_name,
+                delay=time_delay,
+                srf_min=fault_srf.points["tinit"].min(),
             )
 
         srf_file_map[fault_name] = fault_srf
@@ -550,10 +540,16 @@ def generate_fault_srfs_parallel(
 @cli.from_docstring(app)
 @log_call()
 def generate_srf(
-    realisation_ffp: Annotated[Path, typer.Argument(exists=True, readable=True, dir_okay=False)],
+    realisation_ffp: Annotated[
+        Path, typer.Argument(exists=True, readable=True, dir_okay=False)
+    ],
     output_srf_filepath: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
-    work_directory: Annotated[Path, typer.Option(exists=True, file_okay=False)] = Path("/out"),
-    genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path("/EMOD3D/tools/genslip_v5.4.2"),
+    work_directory: Annotated[Path, typer.Option(exists=True, file_okay=False)] = Path(
+        "/out"
+    ),
+    genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
+        "/EMOD3D/tools/genslip_v5.4.2"
+    ),
 ):
     """Generate an SRF file from a given realisation specification.
 
