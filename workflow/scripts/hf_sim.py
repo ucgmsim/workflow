@@ -175,6 +175,22 @@ def hf_simulate_station(
         return epicentre_distance[0]
 
 
+def to_hdf5_value(value: Any):
+    if isinstance(value, float | int | str | bytes):
+        return value
+    elif isinstance(value, list):
+        return [to_hdf5_value(v) for v in value]
+    elif isinstance(value, bool):
+        return int(v)
+    elif value is None:
+        return 0
+    elif hasattr(value, "__repr__"):
+        return repr(value)
+    raise TypeError(
+        f"Cannot convert object of type {type(value)} to HDF5 attribute datatype."
+    )
+
+
 @cli.from_docstring(app)
 @log_utils.log_call()
 def run_hf(
@@ -286,7 +302,7 @@ def run_hf(
             "time": time,
             "component": ["x", "y", "z"],
         },
-        attrs={k: v for k, v in hf_config.to_dict().items() if v is not None}
+        attrs={k: to_hdf5_value(v) for k, v in hf_config.to_dict().items()}
         | {
             "hf_tstart": 0.0,
             "duration": nt * hf_config.dt,
