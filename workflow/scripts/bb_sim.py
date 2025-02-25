@@ -43,8 +43,6 @@ import multiprocessing
 from pathlib import Path
 from typing import Annotated
 
-import h5py
-import h5py
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -115,14 +113,14 @@ def bb_simulate_station(
     np.ndarray
         Simulated broadband acceleration data.
     """
-    hf = h5py.File(hf_path)
+    hf_ds = xr.open_dataset(hf_path, engine="h5netcdf")
     # we expected waveform files to have size n_components (3) * float size (4) * number of padded timesteps.
     station_vs = station["vs"]
     station_vs30 = station["vs30"]
     lf_acc = np.copy(lf.acc(station_name, dt=broadband_config.dt))
     hf_acc = sp.signal.resample(
-        np.array(hf["waveforms"][int(station["waveform_index"])]),
-        int(round(hf.attrs["duration"] / broadband_config.dt)),
+        hf_ds.sel(station=station_name).values,
+        int(round(hf_ds.attrs["duration"] / broadband_config.dt)),
     )
     logger = log_utils.get_logger(__name__)
 
@@ -207,7 +205,7 @@ def combine_hf_and_lf(
     """
     # load data stores
     lf = timeseries.LFSeis(low_frequency_waveform_directory)
-    hf = h5py.File(high_frequency_waveform_file, mode="r")
+    hf_ds = xr.open_dataset(high_frequency_waveform_file, engine="h5netcdf")
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     broadband_config = BroadbandParameters.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
@@ -218,16 +216,16 @@ def combine_hf_and_lf(
     # Similar code to account for an end time difference is also present
     # allowing for HF and LF to have separate start times and durations
 
-    bb_start_sec = min(lf.start_sec, hf.attrs["t_sec"])
-    lf_start_sec_offset = max(lf.start_sec - hf.attrs["t_sec"], 0)
-    hf_start_sec_offset = max(hf.attrs["t_sec"] - lf.start_sec, 0)
+    bb_start_sec = min(lf.start_sec, hf_ds.attrs["t_sec"])
+    lf_start_sec_offset = max(lf.start_sec - hf_ds.attrs["t_sec"], 0)
+    hf_start_sec_offset = max(hf_ds.attrs["t_sec"] - lf.start_sec, 0)
     lf_start_padding = int(round(lf_start_sec_offset / broadband_config.dt))
     hf_start_padding = int(round(hf_start_sec_offset / broadband_config.dt))
 
     lf_end_padding = int(
         round(
             max(
-                hf.attrs["duration"]
+                hf_ds.attrs["duration"]
                 + hf_start_sec_offset
                 - (lf.duration + lf_start_sec_offset),
                 0,
@@ -240,7 +238,7 @@ def combine_hf_and_lf(
             max(
                 lf.duration
                 + lf_start_sec_offset
-                - (hf.attrs["duration"] + hf_start_sec_offset),
+                - (hf_ds.attrs["duration"] + hf_start_sec_offset),
                 0,
             )
             / broadband_config.dt
@@ -250,7 +248,7 @@ def combine_hf_and_lf(
     if (
         lf_start_padding + round(lf.duration / broadband_config.dt) + lf_end_padding
         != hf_start_padding
-        + round(hf.attrs["duration"] / broadband_config.dt)
+        + round(hf_ds.attrs["duration"] / broadband_config.dt)
         + hf_end_padding
     ):
         raise ValueError("HF and LF padded timesteps do not align.")
@@ -271,9 +269,9 @@ def combine_hf_and_lf(
         * 1000.0
     )
 
-    stations = pd.read_hdf(high_frequency_waveform_file, key="stations").set_index(
-        "name"
-    )
+    stations = hf_ds[
+        ["longitude", "latitude", "vs", "epicentre_distance"]
+    ].to_dataframe()
     stations["waveform_index"] = np.arange(len(stations))
     # ensure that LF and HF agree on station list, sometimes LF can drop a station or two
     stations = stations.loc[lf.stations["name"]]
@@ -305,29 +303,28 @@ def combine_hf_and_lf(
             dtype=np.float32,
         )
 
-    with h5py.File(output_ffp, "w") as output_h5py:
-        header_data = {
+    ds = xr.Dataset(
+        {
+            "waveforms": (("station", "time", "component"), waveforms_raw),
+            "latitude": ("station", stations["latitude"]),
+            "longitude": ("station", stations["longitude"]),
+            "vs": ("station", stations["vs"]),
+            "hf_epicentre": ("station", stations["epicentre_distance"]),
+            "x": ("station", lf.stations.x),
+            "y": ("station", lf.stations.y),
+            "z": ("station", lf.stations.z),
+            "lf_vs_ref": ("station", lfvs30refs),
+            "waveform_index": ("station", np.arange(len(stations))),
+        },
+        coords={
+            "station": stations.index.values,
+            "time": np.arange(bb_nt) * broadband_config.dt,
+            "component": ["090", "000", "ver"],
+        },
+        attrs={
             "nt": bb_nt,
             "duration": bb_nt * broadband_config.dt,
             "start": bb_start_sec,
-        }
-        output_h5py.attrs.update(header_data)
-        waveforms_dset = output_h5py.create_dataset(
-            "waveforms",
-            data=waveforms_raw,
-            shape=(len(stations), bb_nt, 3),
-            dtype=np.float32,
-            compression="gzip",
-        )
-        waveforms_dset.dims[0].label = "90"
-        waveforms_dset.dims[1].label = "0"
-        waveforms_dset.dims[2].label = "vertical"
-
-    stations["name"] = stations.index
-    # The waveform index referred to the waveform index in HF, we want to update this to refer to the index in broadband!
-    stations["waveform_index"] = np.arange(len(stations))
-    stations["x"] = lf.stations.x
-    stations["y"] = lf.stations.y
-    stations["z"] = lf.stations.z
-    stations["lf_vs_ref"] = lfvs30refs
-    stations.to_hdf(output_ffp, key="stations", mode="a")
+        },
+    )
+    ds.to_netcdf(output_ffp, engine="h5netcdf")
