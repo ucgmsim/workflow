@@ -175,7 +175,29 @@ def hf_simulate_station(
         return epicentre_distance[0]
 
 
-def to_hdf5_value(value: Any):
+def to_hdf5_value(value: Any) -> int | list[Any] | float | str | bytes:
+    """Converts a Python value to a type suitable for storing as an HDF5 attribute.
+
+    This function handles basic Python types like booleans, lists, None, floats,
+    integers, strings, and bytes.  It also attempts to convert objects with a
+    `__repr__` method to their string representation.  If the value cannot be
+    converted, a TypeError is raised.
+
+    Parameters
+    ----------
+    value : any
+        The Python value to convert.
+
+    Returns
+    -------
+    int or list or float or str or bytes
+        The converted value, which will be an HDF5 attribute compatible dataype.
+
+    Raises
+    ------
+    TypeError
+        If the value cannot be converted to a suitable HDF5 type.
+    """
     if isinstance(value, bool):
         return int(value)
     elif isinstance(value, list):
