@@ -148,7 +148,6 @@ def hf_simulate_station(
         try:
             hf_sim_input_str = "\n".join(str(line) for line in hf_sim_input)
 
-            print("---\n" + hf_sim_input_str + "\n---")
             logger.info("running hf", station=name, input=hf_sim_input_str)
             output = subprocess.run(
                 str(hf_sim_path),
