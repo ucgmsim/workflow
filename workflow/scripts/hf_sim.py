@@ -39,10 +39,10 @@ import tempfile
 from pathlib import Path
 from typing import Annotated
 
-import h5py
 import numpy as np
 import pandas as pd
 import typer
+import xarray as xr
 
 from qcore import cli
 from workflow import log_utils, utils
@@ -263,30 +263,36 @@ def run_hf(
     stations["vs"] = vs
 
     nt = int(domain_parameters.duration / hf_config.dt)
-    with h5py.File(out_file, "w") as output_h5py:
-        attributes = hf_config.to_dict() | {
+
+    waveforms = []
+    for i, station in stations.iterrows():
+        station_file_path = work_directory / f"{station['name']}.hf"
+        with open(station_file_path, mode="rb") as station_file_data:
+            waveform = np.fromfile(station_file_data, dtype=np.float32).reshape((nt, 3))
+            waveforms.append(waveform)
+    waveforms = np.stack(waveforms)
+
+    time = np.arange(nt) * hf_config.dt
+
+    ds = xr.Dataset(
+        {
+            "waveforms": (("station", "time", "component"), waveforms),
+            "longitude": ("station", stations["longitude"].values),
+            "latitude": ("station", stations["latitude"].values),
+            "vs": ("station", stations["vs"].values),
+            "epicentre_distance": ("station", stations["epicentre_distance"].values),
+        },
+        coords={
+            "station": stations["name"].values,
+            "time": time,
+            "component": ["x", "y", "z"],
+        },
+        attrs=hf_config.to_dict()
+        | {
             "hf_tstart": 0.0,
             "duration": nt * hf_config.dt,
             "stoch_ffp": stoch_ffp.name,
-        }
-        # H5Py cannot store regular Python bools, and requires converting them too booleans
-        attributes = {
-            key: np.bool_(value) if isinstance(value, bool) else value
-            for key, value in attributes.items()
-            if value is not None
-        }
+        },
+    )
 
-        output_h5py.attrs.update(attributes)
-
-        waveforms_dset = output_h5py.create_dataset(
-            "waveforms", shape=(len(stations), nt, 3), dtype=np.float32
-        )
-        for i, station in stations.iterrows():
-            station_file_path = work_directory / f"{station['name']}.hf"
-            with open(station_file_path, mode="rb") as station_file_data:
-                waveform = np.fromfile(station_file_data, dtype=np.float32).reshape(
-                    (nt, 3)
-                )
-                waveforms_dset[i] = waveform
-
-    stations.to_hdf(out_file, key="stations", mode="a")
+    ds.to_netcdf(out_file, engine="h5netcdf")
