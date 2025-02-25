@@ -149,11 +149,7 @@ def hf_simulate_station(
             hf_sim_input_str = "\n".join(str(line) for line in hf_sim_input)
 
             print("---\n" + hf_sim_input_str + "\n---")
-            logger.info(
-                log_utils.structured_log(
-                    "running hf", station=name, input=hf_sim_input_str
-                )
-            )
+            logger.info("running hf", station=name, input=hf_sim_input_str)
             output = subprocess.run(
                 str(hf_sim_path),
                 input=hf_sim_input_str,
@@ -162,20 +158,14 @@ def hf_simulate_station(
                 stderr=subprocess.PIPE,
             )
         except subprocess.CalledProcessError as e:
-            logger.error(
-                log_utils.structured_log(
-                    "hf failed", station=name, stdout=e.stdout, stderr=e.stderr
-                )
-            )
+            logger.error("hf failed", station=name, stdout=e.stdout, stderr=e.stderr)
             raise
         epicentre_distance = np.fromstring(output.stderr, dtype="f4", sep="\n")
         logger.info(
-            log_utils.structured_log(
-                "hf succeeded",
-                station=name,
-                epicentre_distance=epicentre_distance,
-                stderr=output.stderr,
-            )
+            "hf succeeded",
+            station=name,
+            epicentre_distance=epicentre_distance,
+            stderr=output.stderr,
         )
 
         if epicentre_distance.size != 1:
@@ -194,20 +184,14 @@ def run_hf(
         Path,
         typer.Argument(exists=True),
     ],
-    station_file: Annotated[
-        Path, typer.Argument(exists=True)
-    ],
-    out_file: Annotated[
-        Path, typer.Argument(file_okay=False)
-    ],
+    station_file: Annotated[Path, typer.Argument(exists=True)],
+    out_file: Annotated[Path, typer.Argument(file_okay=False)],
     hf_sim_path: Annotated[Path, typer.Option()] = Path(
         "/EMOD3D/tools/hb_high_binmod_v6.0.3"
     ),
     work_directory: Annotated[
         Path,
-        typer.Option(
-            exists=True, writable=True, file_okay=False
-        ),
+        typer.Option(exists=True, writable=True, file_okay=False),
     ] = Path("/out"),
 ):
     """Run the HF (High-Frequency) simulation and generate the HF output file.

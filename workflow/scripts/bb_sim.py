@@ -125,14 +125,10 @@ def bb_simulate_station(
     logger = log_utils.get_logger(__name__)
 
     if np.isnan(lf_acc).any():
-        logger.error(
-            log_utils.structured_log("Station LF had NaN waveform", station=station)
-        )
+        logger.error("Station LF had NaN waveform", station=station)
         raise ValueError(f"Station {station_name} had NaN waveform")
     if np.isnan(hf_acc).any():
-        logger.error(
-            log_utils.structured_log("Station HF had NaN waveform", station=station)
-        )
+        logger.error("Station HF had NaN waveform", station=station)
         raise ValueError(f"Station {station_name} had NaN waveform")
 
     pga = np.max(np.abs(hf_acc), axis=0) / 981.0
@@ -181,9 +177,13 @@ def bb_simulate_station(
 def combine_hf_and_lf(
     realisation_ffp: Annotated[Path, typer.Argument(dir_okay=False, exists=True)],
     station_vs30_ffp: Annotated[Path, typer.Argument(dir_okay=False, exists=True)],
-    low_frequency_waveform_directory: Annotated[Path, typer.Argument(file_okay=False, exists=True)],
+    low_frequency_waveform_directory: Annotated[
+        Path, typer.Argument(file_okay=False, exists=True)
+    ],
     high_frequency_waveform_file: Annotated[Path, typer.Argument(exists=True)],
-    velocity_model_directory: Annotated[Path, typer.Argument(file_okay=False, exists=True)],
+    velocity_model_directory: Annotated[
+        Path, typer.Argument(file_okay=False, exists=True)
+    ],
     output_ffp: Annotated[Path, typer.Argument(dir_okay=False, writable=True)],
 ):
     """Combine low-frequency and high-frequency seismic waveforms.

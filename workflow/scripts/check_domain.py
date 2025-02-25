@@ -26,6 +26,7 @@ For More Help
 -------------
 See the output of `check-domain --help`.
 """
+
 from pathlib import Path
 from typing import Annotated
 
@@ -76,10 +77,8 @@ def check_domain(
     hausdorf_distance = shapely.hausdorff_distance(srf_geometry, domain.domain.polygon)
     if hausdorf_distance < 1000:
         logger.warning(
-            log_utils.structured_log(
-                "SRF geometry is close the edge of the domain. This could indicate a patch outside the domain, but may not be an error in its own right.",
-                closest_distance=hausdorf_distance,
-            ),
+            "SRF geometry is close the edge of the domain. This could indicate a patch outside the domain, but may not be an error in its own right.",
+            closest_distance=hausdorf_distance,
         )
         raise typer.Exit(code=1)
 
@@ -95,9 +94,7 @@ def check_domain(
         ]
     ):
         logger.error(
-            log_utils.structured_log(
-                "The expected velocity model size does not match the computed velocity model size",
-                expected_size=velocity_model_estimated_size,
-            ),
+            "The expected velocity model size does not match the computed velocity model size",
+            expected_size=velocity_model_estimated_size,
         )
         raise typer.Exit(code=1)

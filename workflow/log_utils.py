@@ -1,8 +1,8 @@
 r"""Structured Logging Utilities for `logging`.
 
-This module support for different structured-logging formats (JSON and
+This module supports different structured-logging formats (JSON and
 text) and decorators for logging function calls and command
-executions. The logging functions can capture and structure log
+executions. The logging functions capture and structure log
 messages along with additional contextual information such as function
 arguments, execution status, and timestamps.
 
@@ -13,12 +13,12 @@ Examples
 >>> def foo(a, b):
 >>>     return a + b
 >>> foo(1, 2)
-2024-09-18 22:00:51.498268+00:00	INFO	example	MainThread	called	 function=foo	id=...	a=1	b=2
-2024-09-18 22:00:51.498268+00:00	INFO	example	MainThread	completed	 function=foo	id=...	result=3
+{"timestamp": "2025-02-25T22:00:51.498268Z", "level": "info", "logger": "example", "thread": "MainThread", "event": "called", "function": "foo", "id": "...", "a": 1, "b": 2}
+{"timestamp": "2025-02-25T22:00:51.498268Z", "level": "info", "logger": "example", "thread": "MainThread", "event": "completed", "function": "foo", "id": "...", "result": 3}
 3
 >>> logger = get_logger('example')
->>> logger.info(structured_log('hello world', counter=1))
-2024-09-18 22:00:51.498268+00:00	INFO	example	MainThread	hello world	 counter=1
+>>> logger.info('hello world', counter=1)
+{"timestamp": "2025-02-25T22:00:51.498268Z", "level": "info", "logger": "example", "thread": "MainThread", "event": "hello world", "counter": 1}
 """
 
 import functools
