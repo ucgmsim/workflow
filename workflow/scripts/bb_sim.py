@@ -44,11 +44,13 @@ from pathlib import Path
 from typing import Annotated
 
 import h5py
+import h5py
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import scipy as sp
 import typer
+import xarray as xr
 
 from qcore import cli, siteamp_models, timeseries
 from workflow import log_utils, utils
