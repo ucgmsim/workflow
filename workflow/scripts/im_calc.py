@@ -31,7 +31,6 @@ import functools
 from pathlib import Path
 from typing import Annotated, Optional
 
-import h5py
 import numexpr as ne
 import numpy as np
 import pandas as pd
@@ -55,12 +54,18 @@ app = typer.Typer()
 
 
 @cli.from_docstring(app)
-def calculate_instensity_measures(
-    realisation_ffp: Annotated[Path, typer.Argument(exists=True, dir_okay=False, writable=True)],
-    broadband_simulation_ffp: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+def calculate_intensity_measures(
+    realisation_ffp: Annotated[
+        Path, typer.Argument(exists=True, dir_okay=False, writable=True)
+    ],
+    broadband_simulation_ffp: Annotated[
+        Path, typer.Argument(exists=True, dir_okay=False)
+    ],
     output_path: Annotated[Path, typer.Argument(dir_okay=False, writable=True)],
     simulated_stations: Annotated[bool, typer.Option()] = True,
-    psa_rotd_maximum_memory_allocation: Annotated[Optional[float], typer.Option(min=0)] = None,
+    psa_rotd_maximum_memory_allocation: Annotated[
+        Optional[float], typer.Option(min=0)
+    ] = None,
 ) -> None:
     """Calculate intensity measures for simulation data.
 
@@ -88,11 +93,10 @@ def calculate_instensity_measures(
     )
     source_geometries = SourceConfig.read_from_realisation(realisation_ffp)
     rup_prop_config = RupturePropagationConfig.read_from_realisation(realisation_ffp)
+    bb_ds = xr.open_dataset(broadband_simulation_ffp, engine="h5netcdf")
+    waveforms = bb_ds["waveforms"].values
 
-    with h5py.File(broadband_simulation_ffp, mode="r") as broadband_file:
-        waveforms = np.array(broadband_file["waveforms"]).astype(np.float32)
-
-    stations = pd.read_hdf(broadband_simulation_ffp, key="stations")
+    stations = bb_ds[["x", "y", "z", "lf_vs_ref", "epicentre_distance"]].to_dataframe()
 
     if not simulated_stations:
         stations = stations.filter(regex=r"^\w{4}$", axis=0)
@@ -122,9 +126,11 @@ def calculate_instensity_measures(
                 intensity_measure_parameters.valid_periods, dtype=np.float32
             ),
             dt=broadband_parameters.dt,
-            psa_rotd_maximum_memory_allocation=psa_rotd_maximum_memory_allocation * 1e9
-            if psa_rotd_maximum_memory_allocation
-            else None,
+            psa_rotd_maximum_memory_allocation=(
+                psa_rotd_maximum_memory_allocation * 1e9
+                if psa_rotd_maximum_memory_allocation
+                else None
+            ),
             cores=utils.get_available_cores(),
         ),
         IM.FAS: functools.partial(
