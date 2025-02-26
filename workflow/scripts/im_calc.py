@@ -94,13 +94,13 @@ def calculate_intensity_measures(
     source_geometries = SourceConfig.read_from_realisation(realisation_ffp)
     rup_prop_config = RupturePropagationConfig.read_from_realisation(realisation_ffp)
     bb_ds = xr.open_dataset(broadband_simulation_ffp, engine="h5netcdf")
-    waveforms = bb_ds["waveforms"].values
 
     stations = bb_ds[["x", "y", "z", "lf_vs_ref", "epicentre_distance"]].to_dataframe()
 
     if not simulated_stations:
         stations = stations.filter(regex=r"^\w{4}$", axis=0)
-        waveforms = waveforms[stations["waveform_index"]]
+
+    waveforms = bb_ds.sel(station=stations.index)["waveforms"].values
 
     intensity_measures = intensity_measure_parameters.ims
     nyquist_frequency = 1 / (2 * broadband_parameters.dt)
@@ -194,7 +194,7 @@ def calculate_intensity_measures(
         list(set(im_reader.IM_METADATA) & set(stations.columns))
     ]
 
-    dataset = xr.Dataset(coords={"station": station_metadata.index})
+    dataset = xr.Dataset(coords={"station": station_metadata.index}, attrs=bb_ds.attrs)
 
     # Add each column of the DataFrame as a coordinate
     for column in station_metadata.columns:

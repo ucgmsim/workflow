@@ -314,14 +314,14 @@ def combine_hf_and_lf(
             "y": ("station", lf.stations.y),
             "z": ("station", lf.stations.z),
             "lf_vs_ref": ("station", lfvs30refs),
-            "waveform_index": ("station", np.arange(len(stations))),
         },
         coords={
             "station": stations.index.values,
             "time": np.arange(bb_nt) * broadband_config.dt,
             "component": ["090", "000", "ver"],
         },
-        attrs={
+        attrs=hf_ds.attrs
+        | {
             "nt": bb_nt,
             "duration": bb_nt * broadband_config.dt,
             "start": bb_start_sec,
