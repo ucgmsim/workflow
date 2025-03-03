@@ -111,6 +111,42 @@ def default_magnitude_estimation(
     }
 
 
+def find_fault_and_hypocentre(
+    faults: dict[str, Fault], lat_hypo: float, lon_hypo: float
+) -> tuple[str, np.ndarray]:
+    """Find the fault and fault-local hypocentre coordinates corresponding to a hypocentre in lat, lon coordinates.
+
+    Parameters
+    ----------
+    faults : dict[str, Fault]
+        The faults in the rupture.
+    lat_hypo : float
+        The hypocentre latitude.
+    lon_hypo : float
+        The hypocentre longitude.
+
+    Returns
+    -------
+    tuple[str, np.ndarray]
+        The name of the fault and the hypocentre coordinates on the fault.
+
+    Raises
+    ------
+    ValueError
+        If the hypocentre is not on any fault.
+    """
+    hypocentre_wgs = np.array([lat_hypo, lon_hypo])
+    for fault_name, fault in faults.items():
+        try:
+            hypocentre = fault.wgs_depth_coordinates_to_fault_coordinates(
+                hypocentre_wgs
+            )
+            return fault_name, hypocentre
+        except ValueError:
+            continue
+    raise ValueError("Hypocentre not on any fault.")
+
+
 class SamplingStrategy(StrEnum):
     """Rupture propagation strategy to employ."""
 
@@ -121,13 +157,8 @@ class SamplingStrategy(StrEnum):
 @cli.from_docstring(app)
 @log_call()
 def generate_realisation(
-    nshmdb_path: Annotated[
-        Path, typer.Argument(exists=True, dir_okay=False)
-    ],
-    rupture_id: Annotated[
-        int,
-        typer.Argument()
-    ],
+    nshmdb_path: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    rupture_id: Annotated[int, typer.Argument()],
     realisation_ffp: Annotated[
         Path,
         typer.Argument(writable=True),
@@ -160,6 +191,20 @@ def generate_realisation(
         typer.Option(
             min=0,
             max=1,
+        ),
+    ] = None,
+    lat_hypo: Annotated[
+        Optional[float],
+        typer.Option(
+            min=-90,
+            max=90,
+        ),
+    ] = None,
+    lon_hypo: Annotated[
+        Optional[float],
+        typer.Option(
+            min=-180,
+            max=180,
         ),
     ] = None,
 ):
@@ -197,6 +242,14 @@ def generate_realisation(
     dhypo : Optional[float], optional
         The initial hypocentre strike coordinate (0 - 1). If not supplied, draw
         dhypo from a weibull distribution.
+    lat_hypo : Optional[float], optional
+        The initial hypocentre latitude (degrees). Will cause an error
+        if latitude and longitude are both not supplied, or specify a
+        point not on the rupture geometry. Incompatible with shypo, dhypo and initial fault.
+    lon_hypo : Optional[float], optional
+        The initial hypocentre longitude (degrees). Will cause an error
+        if latitude and longitude are both not supplied, or specify a
+        point not on the rupture geometry. Incompatible with shypo, dhypo and initial fault.
     """
 
     metadata = RealisationMetadata(
@@ -237,13 +290,29 @@ def generate_realisation(
         strategy=strategy,
         jump_impossibility_limit_distance=jump_cutoff * 1000,
     )
+    # Check a compatible combination of hypocentre parameters is supplied.
+    if (lat_hypo is None) != (lon_hypo is None):
+        print("Both latitude and longitude must be supplied.")
+        raise typer.Exit(code=1)
+    if lat_hypo is not None and (
+        dhypo is not None or shypo is not None or initial_fault
+    ):
+        print("Latitude and longitude are incompatible with shypo and dhypo.")
+        raise typer.Exit(code=1)
 
-    hypocentre = np.array(
-        [
-            shypo or distributions.truncated_normal(1 / 2, 1 / 4),
-            dhypo or distributions.truncated_weibull(1),
-        ]
-    )
+    if lat_hypo is not None and lon_hypo is not None:
+        initial_fault, hypocentre = find_fault_and_hypocentre(
+            faults, lat_hypo, lon_hypo
+        )
+    else:
+        hypocentre = np.array(
+            [
+                shypo
+                if shypo is not None
+                else distributions.truncated_normal(1 / 2, 1 / 4),
+                dhypo if dhypo is not None else distributions.truncated_weibull(1),
+            ]
+        )
     rupture_propagation_config = RupturePropagationConfig(
         magnitudes=magnitudes,
         rupture_causality_tree=rupture_causality_tree,
