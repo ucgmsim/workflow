@@ -442,6 +442,65 @@ def stitch_srf_files(
     return output_srf_path
 
 
+def generate_fault_srfs(
+    faults: dict[str, IsSource],
+    rupture_propagation_config: RupturePropagationConfig,
+    output_directory: Path,
+    srf_config: SRFConfig,
+    seeds: Seeds,
+    velocity_model_1d: VelocityModel1D,
+    genslip_path: Path,
+):
+    """Generate fault SRF files.
+
+    Parameters
+    ----------
+    faults : dict[str, IsSource]
+        The faults and their geometries.
+    rupture_propagation_config : RupturePropagationConfig
+        The rupture propagation configuration.
+    output_directory : Path
+        The directory to output the fault SRF files.
+    srf_config : SRFConfig
+        The SRF configuration.
+    seeds : Seeds
+        The seeds for random number generation.
+    velocity_model_1d : VelocityModel1D
+        The 1D velocity model.
+    genslip_path : Path
+        The path to the genslip binary.
+    """
+    # need to do this before multiprocessing because of race conditions
+    gsf_directory = output_directory / "gsf"
+    gsf_directory.mkdir(exist_ok=True)
+    srf_directory = output_directory / "srf"
+    srf_directory.mkdir(exist_ok=True)
+    velocity_model_1d.write_velocity_model(output_directory / "velocity_model")
+
+    magnitudes = rupture_propagation_config.magnitudes
+    rakes = rupture_propagation_config.rakes
+    hypocentres = {
+        fault_name: jump_point.to_point
+        for fault_name, jump_point in rupture_propagation_config.jump_points.items()
+    }
+    hypocentres[rupture_propagation_config.initial_fault] = (
+        rupture_propagation_config.hypocentre
+    )
+
+    for fault_name in faults:
+        generate_fault_srf(
+            normalise_name(fault_name),
+            faults[fault_name],
+            rakes[fault_name],
+            magnitudes[fault_name],
+            hypocentres[fault_name],
+            output_directory,
+            srf_config,
+            seeds,
+            genslip_path,
+        )
+
+
 def generate_fault_srfs_parallel(
     faults: dict[str, IsSource],
     rupture_propagation_config: RupturePropagationConfig,
@@ -524,6 +583,7 @@ def generate_srf(
     genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
         "/EMOD3D/tools/genslip_v5.4.2"
     ),
+    single_threaded: Annotated[bool, typer.Option()] = False,
 ):
     """Generate an SRF file from a given realisation specification.
 
@@ -556,15 +616,26 @@ def generate_srf(
     )
     source_config = SourceConfig.read_from_realisation(realisation_ffp)
 
-    generate_fault_srfs_parallel(
-        source_config.source_geometries,
-        rupture_propagation,
-        work_directory,
-        srf_config,
-        seeds,
-        velocity_model,
-        genslip_path,
-    )
+    if single_threaded:
+        generate_fault_srfs(
+            source_config.source_geometries,
+            rupture_propagation,
+            work_directory,
+            srf_config,
+            seeds,
+            velocity_model,
+            genslip_path,
+        )
+    else:
+        generate_fault_srfs_parallel(
+            source_config.source_geometries,
+            rupture_propagation,
+            work_directory,
+            srf_config,
+            seeds,
+            velocity_model,
+            genslip_path,
+        )
     srf_name = normalise_name(metadata.name)
     stitch_srf_files(
         source_config.source_geometries,
