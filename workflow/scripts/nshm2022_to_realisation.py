@@ -251,6 +251,15 @@ def generate_realisation(
         if latitude and longitude are both not supplied, or specify a
         point not on the rupture geometry. Incompatible with shypo, dhypo and initial fault.
     """
+    # Check a compatible combination of hypocentre parameters is supplied.
+    if (lat_hypo is None) != (lon_hypo is None):
+        print("Both latitude and longitude must be supplied.")
+        raise typer.Exit(code=1)
+    if lat_hypo is not None and (
+        dhypo is not None or shypo is not None or initial_fault
+    ):
+        print("Latitude and longitude are incompatible with shypo and dhypo.")
+        raise typer.Exit(code=1)
 
     metadata = RealisationMetadata(
         name=f"Rupture {rupture_id}",
@@ -290,15 +299,6 @@ def generate_realisation(
         strategy=strategy,
         jump_impossibility_limit_distance=jump_cutoff * 1000,
     )
-    # Check a compatible combination of hypocentre parameters is supplied.
-    if (lat_hypo is None) != (lon_hypo is None):
-        print("Both latitude and longitude must be supplied.")
-        raise typer.Exit(code=1)
-    if lat_hypo is not None and (
-        dhypo is not None or shypo is not None or initial_fault
-    ):
-        print("Latitude and longitude are incompatible with shypo and dhypo.")
-        raise typer.Exit(code=1)
 
     if lat_hypo is not None and lon_hypo is not None:
         initial_fault, hypocentre = find_fault_and_hypocentre(
