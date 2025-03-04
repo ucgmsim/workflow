@@ -44,7 +44,7 @@ import typer
 from nshmdb import nshmdb
 from qcore import cli
 from qcore.uncertainties import distributions, mag_scaling
-from source_modelling import rupture_propagation
+from source_modelling import rupture_propagation, sources
 from source_modelling.sources import Fault
 from workflow.defaults import DefaultsVersion
 from workflow.log_utils import log_call
@@ -53,6 +53,7 @@ from workflow.realisations import (
     RupturePropagationConfig,
     Seeds,
     SourceConfig,
+    SRFConfig,
 )
 
 app = typer.Typer()
@@ -267,10 +268,18 @@ def generate_realisation(
         tag="nshm",
         defaults_version=defaults_version,
     )
+
     metadata.write_to_realisation(realisation_ffp)
+    srf_config = SRFConfig.read_from_realisation_or_defaults(
+        realisation_ffp, defaults_version
+    )
     db = nshmdb.NSHMDB(nshmdb_path)
 
     faults = db.get_rupture_faults(rupture_id)
+    faults = {
+        fault.name: sources.simplify_fault(fault, srf_config.resolution)
+        for fault in faults
+    }
     faults_info = db.get_rupture_fault_info(rupture_id)
     seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
     np.random.seed(seed=seeds.nshm_to_realisation_seed)
