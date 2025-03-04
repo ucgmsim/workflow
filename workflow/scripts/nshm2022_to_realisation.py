@@ -261,7 +261,11 @@ def generate_realisation(
     ):
         print("Latitude and longitude are incompatible with shypo and dhypo.")
         raise typer.Exit(code=1)
-
+    if initial_fault and initial_fault not in faults:
+        print(
+            f"Initial fault '{initial_fault}' not found in rupture. Options are {', '.join(list(faults))}"
+        )
+        raise typer.Exit(code=1)
     metadata = RealisationMetadata(
         name=f"Rupture {rupture_id}",
         version="1",
@@ -289,31 +293,11 @@ def generate_realisation(
         fault_name: fault_info.rake for fault_name, fault_info in faults_info.items()
     }
     magnitudes = default_magnitude_estimation(faults, rakes)
-    if not initial_fault:
-        mfds_rates = db.most_likely_fault(rupture_id, magnitudes)
-        mfds_probabilities = np.array(list(mfds_rates.values()))
-        if np.allclose(mfds_probabilities, 0):
-            mfds_probabilities = np.ones_like(mfds_probabilities)
-        mfds_probabilities /= mfds_probabilities.sum()
-        initial_fault = np.random.choice(list(mfds_rates), p=mfds_probabilities)
-    elif initial_fault not in faults:
-        print(
-            f"Initial fault '{initial_fault}' not found in rupture. Options are {', '.join(list(faults))}"
-        )
-        raise typer.Exit(code=1)
-
-    rupture_causality_tree = rupture_propagation.sample_rupture_propagation(
-        faults,
-        initial_source=initial_fault,
-        strategy=strategy,
-        jump_impossibility_limit_distance=jump_cutoff * 1000,
-    )
-
     if lat_hypo is not None and lon_hypo is not None:
         initial_fault, hypocentre = find_fault_and_hypocentre(
             faults, lat_hypo, lon_hypo
         )
-    else:
+    elif initial_fault:
         hypocentre = np.array(
             [
                 shypo
@@ -322,6 +306,29 @@ def generate_realisation(
                 dhypo if dhypo is not None else distributions.truncated_weibull(1),
             ]
         )
+    else:
+        mfds_rates = db.most_likely_fault(rupture_id, magnitudes)
+        mfds_probabilities = np.array(list(mfds_rates.values()))
+        if np.allclose(mfds_probabilities, 0):
+            mfds_probabilities = np.ones_like(mfds_probabilities)
+        mfds_probabilities /= mfds_probabilities.sum()
+        initial_fault = np.random.choice(list(mfds_rates), p=mfds_probabilities)
+        hypocentre = np.array(
+            [
+                shypo
+                if shypo is not None
+                else distributions.truncated_normal(1 / 2, 1 / 4),
+                dhypo if dhypo is not None else distributions.truncated_weibull(1),
+            ]
+        )
+
+    rupture_causality_tree = rupture_propagation.sample_rupture_propagation(
+        faults,
+        initial_source=initial_fault,
+        strategy=strategy,
+        jump_impossibility_limit_distance=jump_cutoff * 1000,
+    )
+
     rupture_propagation_config = RupturePropagationConfig(
         magnitudes=magnitudes,
         rupture_causality_tree=rupture_causality_tree,
