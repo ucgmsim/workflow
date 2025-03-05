@@ -281,7 +281,7 @@ def generate_realisation(
 
     faults = db.get_rupture_faults(rupture_id)
     faults = {
-        fault_name: sources.simplify_fault(fault, srf_config.resolution * 2)
+        fault_name: sources.simplify_fault(fault, srf_config.resolution)
         for fault_name, fault in faults.items()
     }
     faults_info = db.get_rupture_fault_info(rupture_id)
