@@ -164,7 +164,7 @@ def generate_fault_srf(
         srf_config.resolution,
     )
 
-    nx = sum(round(fault.length / srf_config.resolution) for plane in fault.planes)
+    nx = sum(round(plane.length / srf_config.resolution) for plane in fault.planes)
     ny = round(fault.planes[0].width / srf_config.resolution)
 
     genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
