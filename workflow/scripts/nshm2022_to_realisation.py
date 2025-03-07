@@ -39,6 +39,7 @@ from pathlib import Path
 from typing import Annotated, Optional
 
 import numpy as np
+import pandas as pd
 import scipy as sp
 import typer
 
