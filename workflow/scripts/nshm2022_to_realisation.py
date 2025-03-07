@@ -103,8 +103,9 @@ def shear_area(fault: Fault, velocity_model: pd.DataFrame) -> float:
     float
             The shear area of the fault.
     """
-    depths = velocity_model["thickness"].cumsum() - velocity_model["thickness"]
+    depths = velocity_model["thickness"].cumsum()
     mu_nodes = velocity_model["Vs"] ** 2 * velocity_model["rho"]
+
     min_depth = fault.bounds[:, 2].min() / 1000
     max_depth = fault.bounds[:, 2].max() / 1000
     return (
