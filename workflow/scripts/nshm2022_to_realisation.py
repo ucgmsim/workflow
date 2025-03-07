@@ -150,7 +150,7 @@ def default_magnitude_estimation(
     moments = {}
     for fault_name, fault in faults.items():
         moments[fault_name] = mag_scaling.mom2mag(
-            (shear_area[fault_name] / total_shear_area) * estimated_moment
+            (shear_areas[fault_name] / total_shear_area) * estimated_moment
         )
     return moments
 
