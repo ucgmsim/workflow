@@ -334,7 +334,7 @@ def generate_realisation(
         fault_name: fault_info.rake for fault_name, fault_info in faults_info.items()
     }
     avg_rake = np.mean(list(rakes.values()))
-    magnitudes = default_magnitude_estimation(faults, velocity_model, avg_rake)
+    magnitudes = default_magnitude_estimation(faults, velocity_model.model, avg_rake)
     if lat_hypo is not None and lon_hypo is not None:
         initial_fault, hypocentre = find_fault_and_hypocentre(
             faults, lat_hypo, lon_hypo
