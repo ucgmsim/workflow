@@ -110,7 +110,12 @@ def shear_area(fault: Fault, velocity_model: pd.DataFrame) -> float:
     return (
         fault.width
         * sp.integrate.quad(
-            lambda z: np.interp(z, depths, mu_nodes), min_depth, max_depth
+            lambda z: np.interp(z, depths, mu_nodes),
+            min_depth,
+            max_depth,
+            # The `points` argument is used to inform the integrator of the depths at which the piece-wise velocity model changes.
+            # These allow quad to handle the singularities in the velocity model.
+            points=depths,
         )[0]
     )
 
