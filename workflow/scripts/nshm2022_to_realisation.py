@@ -136,9 +136,9 @@ def default_magnitude_estimation(
     ----------
     faults : dict
         A dictionary where the keys are fault names and the values are `Fault` objects containing information about each fault.
-    velocity_model: pd.DataFrame
+    velocity_model : pd.DataFrame
         The 1D velocity model to use to compute rigidity-weighted areas.
-    avg_rake: float
+    avg_rake : float
         The average rake angle of the rupture.
 
     Returns
