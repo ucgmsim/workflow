@@ -30,7 +30,6 @@ See the output of `python gcmt_auto_simulate.py --help` for more details on the 
 import datetime
 import json
 import subprocess
-from importlib import resources
 from pathlib import Path
 from typing import Annotated
 
