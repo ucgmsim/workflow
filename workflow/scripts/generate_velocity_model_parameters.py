@@ -26,7 +26,6 @@ For More Help
 See the output of `generate-velocity-model-parameters --help` or `workflow.scripts.generate_velocity_model_parameters`.
 """
 
-from importlib import resources
 from pathlib import Path
 from typing import Annotated
 
