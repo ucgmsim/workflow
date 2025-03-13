@@ -26,7 +26,6 @@ For More Help
 See the output of `generate-velocity-model-parameters --help` or `workflow.scripts.generate_velocity_model_parameters`.
 """
 
-from importlib import resources
 from pathlib import Path
 from typing import Annotated
 
@@ -40,7 +39,7 @@ from shapely import Polygon
 
 from empirical.util import z_model_calculations
 from empirical.util.classdef import GMM, TectType
-from qcore import cli, coordinates, data
+from qcore import cli, coordinates, gmt
 from qcore.uncertainties import mag_scaling
 from source_modelling import sources
 from velocity_modelling import bounding_box
@@ -65,7 +64,7 @@ def get_nz_outline_polygon() -> Polygon:
     Polygon
         The outline polygon of New Zealand.
     """
-    coastline_path = resources.files(data) / "Paths" / "coastline" / "NZ.gmt"
+    coastline_path = gmt.GMT_DATA.fetch("data/Paths/coastline/NZ.gmt")
 
     gpd_df = gpd.read_file(coastline_path)
     island_polygons = [
@@ -271,9 +270,9 @@ def generate_velocity_model_parameters(
 
     # Get bounding box
 
-    # This polygon includes all the faults corners + a 1km buffer (which must be in the simulation domain).
+    # This polygon includes all the faults corners + a 2km buffer (which must be in the simulation domain).
     fault_buffer_polygons = [
-        shapely.buffer(fault.geometry, 1000)
+        shapely.buffer(fault.geometry, 2000)
         for fault in source_config.source_geometries.values()
     ]
 

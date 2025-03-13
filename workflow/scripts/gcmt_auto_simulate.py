@@ -26,10 +26,10 @@ For More Help
 -------------
 See the output of `python gcmt_auto_simulate.py --help` for more details on the command-line arguments.
 """
+
 import datetime
 import json
 import subprocess
-from importlib import resources
 from pathlib import Path
 from typing import Annotated
 
@@ -40,7 +40,7 @@ import shapely
 import typer
 from shapely import Polygon
 
-from qcore import cli, coordinates, data
+from qcore import cli, coordinates, gmt
 
 app = typer.Typer()
 
@@ -53,7 +53,7 @@ def get_nz_outline_polygon() -> Polygon:
     Polygon
         The outline polygon of New Zealand.
     """
-    coastline_path = resources.files(data) / "Paths" / "coastline" / "NZ.gmt"
+    coastline_path = gmt.GMT_DATA.fetch("data/Paths/coastline/NZ.gmt")
 
     gpd_df = gpd.read_file(coastline_path)
     island_polygons = [
