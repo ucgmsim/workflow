@@ -40,7 +40,7 @@ from shapely import Polygon
 
 from empirical.util import z_model_calculations
 from empirical.util.classdef import GMM, TectType
-from qcore import cli, coordinates, data
+from qcore import cli, coordinates, gmt
 from qcore.uncertainties import mag_scaling
 from source_modelling import sources
 from velocity_modelling import bounding_box
@@ -65,7 +65,7 @@ def get_nz_outline_polygon() -> Polygon:
     Polygon
         The outline polygon of New Zealand.
     """
-    coastline_path = resources.files(data) / "Paths" / "coastline" / "NZ.gmt"
+    coastline_path = gmt.GMT_DATA.fetch("data/Paths/coastline/NZ.gmt")
 
     gpd_df = gpd.read_file(coastline_path)
     island_polygons = [
