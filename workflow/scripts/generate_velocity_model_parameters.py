@@ -271,9 +271,9 @@ def generate_velocity_model_parameters(
 
     # Get bounding box
 
-    # This polygon includes all the faults corners + a 1km buffer (which must be in the simulation domain).
+    # This polygon includes all the faults corners + a 2km buffer (which must be in the simulation domain).
     fault_buffer_polygons = [
-        shapely.buffer(fault.geometry, 1000)
+        shapely.buffer(fault.geometry, 2000)
         for fault in source_config.source_geometries.values()
     ]
 
