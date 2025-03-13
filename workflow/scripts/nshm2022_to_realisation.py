@@ -39,6 +39,7 @@ from pathlib import Path
 from typing import Annotated, Optional
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import scipy as sp
 import typer
@@ -103,12 +104,14 @@ def rigidity_weighted_area(fault: Fault, velocity_model: pd.DataFrame) -> float:
     float
             The rigidity-weighted area of the fault.
     """
-    depths = velocity_model["thickness"].cumsum()
-    mu_nodes = velocity_model["Vs"] ** 2 * velocity_model["rho"]
+    depths: npt.NDArray[np.float64] = velocity_model["thickness"].cumsum()
+    mu_nodes: npt.NDArray[np.float64] = (
+        velocity_model["Vs"] ** 2 * velocity_model["rho"]
+    )
 
-    min_depth = fault.bounds[:, 2].min() / 1000
-    max_depth = fault.bounds[:, 2].max() / 1000
-    return (
+    min_depth: np.float64 = fault.bounds[:, 2].min() / 1000
+    max_depth: np.float64 = fault.bounds[:, 2].max() / 1000
+    return float(
         fault.area()
         / (max_depth - min_depth)
         * sp.integrate.quad(
@@ -133,8 +136,10 @@ def default_magnitude_estimation(
     ----------
     faults : dict
         A dictionary where the keys are fault names and the values are `Fault` objects containing information about each fault.
-    rakes : dict
-        A dictionary where the keys are fault names and the values are rake angles (in degrees) for each fault.
+    velocity_model: pd.DataFrame
+        The 1D velocity model to use to compute rigidity-weighted areas.
+    avg_rake: float
+        The average rake angle of the rupture.
 
     Returns
     -------
@@ -149,17 +154,19 @@ def default_magnitude_estimation(
         for fault_name, fault in faults.items()
     }
     total_shear_area = sum(shear_areas.values())
-    moments = {}
+    moments: dict[str, float] = {}
     for fault_name, fault in faults.items():
-        moments[fault_name] = mag_scaling.mom2mag(
-            (shear_areas[fault_name] / total_shear_area) * estimated_moment
+        moments[fault_name] = float(
+            mag_scaling.mom2mag(
+                (shear_areas[fault_name] / total_shear_area) * estimated_moment
+            )
         )
     return moments
 
 
 def find_fault_and_hypocentre(
     faults: dict[str, Fault], lat_hypo: float, lon_hypo: float
-) -> tuple[str, np.ndarray]:
+) -> tuple[str, npt.NDArray[np.float64]]:
     """Find the fault and fault-local hypocentre coordinates corresponding to a hypocentre in lat, lon coordinates.
 
     Parameters
@@ -184,8 +191,8 @@ def find_fault_and_hypocentre(
     hypocentre_wgs = np.array([lat_hypo, lon_hypo])
     for fault_name, fault in faults.items():
         try:
-            hypocentre = fault.wgs_depth_coordinates_to_fault_coordinates(
-                hypocentre_wgs
+            hypocentre: npt.NDArray[np.float64] = (
+                fault.wgs_depth_coordinates_to_fault_coordinates(hypocentre_wgs)
             )
             return fault_name, hypocentre
         except ValueError:
@@ -374,8 +381,8 @@ def generate_realisation(
     rupture_causality_tree = rupture_propagation.sample_rupture_propagation(
         faults,
         initial_source=initial_fault,
-        strategy=strategy,
-        jump_impossibility_limit_distance=jump_cutoff * 1000,
+        strategy=str(strategy),
+        jump_impossibility_limit_distance=round(jump_cutoff * 1000),
     )
 
     rupture_propagation_config = RupturePropagationConfig(
