@@ -602,6 +602,8 @@ def generate_srf(
         Path to output intermediate geometry and SRF files.
     genslip_path : Path, optional
         Path to the genslip binary.
+    single_threaded : bool, optional
+        If True, generate each segment SRF on a single thread.
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     srf_config = SRFConfig.read_from_realisation_or_defaults(
