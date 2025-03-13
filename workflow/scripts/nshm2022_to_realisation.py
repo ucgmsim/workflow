@@ -88,20 +88,20 @@ def a_to_mw_leonard(area: float, rake: float) -> float:
     return mag_scaling.a_to_mw_leonard(area, 4, 3.99, rake)
 
 
-def shear_area(fault: Fault, velocity_model: pd.DataFrame) -> float:
-    """Calculate the shear area of a fault.
+def rigidity_weighted_area(fault: Fault, velocity_model: pd.DataFrame) -> float:
+    """Calculate the rigidity-weighted area of a fault.
 
     Parameters
     ----------
     fault : Fault
-            The fault to calculate the shear area for.
+            The fault to calculate the rigidity-weighted area for.
     velocity_model : pd.DataFrame
             The 1D velocity model.
 
     Returns
     -------
     float
-            The shear area of the fault.
+            The rigidity-weighted area of the fault.
     """
     depths = velocity_model["thickness"].cumsum()
     mu_nodes = velocity_model["Vs"] ** 2 * velocity_model["rho"]
@@ -109,7 +109,8 @@ def shear_area(fault: Fault, velocity_model: pd.DataFrame) -> float:
     min_depth = fault.bounds[:, 2].min() / 1000
     max_depth = fault.bounds[:, 2].max() / 1000
     return (
-        fault.width
+        fault.area()
+        / (max_depth - min_depth)
         * sp.integrate.quad(
             lambda z: np.interp(z, depths, mu_nodes),
             min_depth,
@@ -144,7 +145,7 @@ def default_magnitude_estimation(
     estimated_mw = a_to_mw_leonard(total_area, avg_rake)
     estimated_moment = mag_scaling.mag2mom(estimated_mw)
     shear_areas = {
-        fault_name: shear_area(fault, velocity_model)
+        fault_name: rigidity_weighted_area(fault, velocity_model)
         for fault_name, fault in faults.items()
     }
     total_shear_area = sum(shear_areas.values())
