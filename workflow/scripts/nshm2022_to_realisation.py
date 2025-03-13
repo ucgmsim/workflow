@@ -313,11 +313,7 @@ def generate_realisation(
     ):
         print("Latitude and longitude are incompatible with shypo and dhypo.")
         raise typer.Exit(code=1)
-    if initial_fault and initial_fault not in faults:
-        print(
-            f"Initial fault '{initial_fault}' not found in rupture. Options are {', '.join(list(faults))}"
-        )
-        raise typer.Exit(code=1)
+
     metadata = RealisationMetadata(
         name=f"Rupture {rupture_id}",
         version="1",
@@ -333,12 +329,17 @@ def generate_realisation(
         realisation_ffp, defaults_version
     )
     db = nshmdb.NSHMDB(nshmdb_path)
-
     faults = db.get_rupture_faults(rupture_id)
     faults = {
         fault_name: sources.simplify_fault(fault, srf_config.resolution)
         for fault_name, fault in faults.items()
     }
+
+    if initial_fault and initial_fault not in faults:
+        print(
+            f"Initial fault '{initial_fault}' not found in rupture. Options are {', '.join(list(faults))}"
+        )
+        raise typer.Exit(code=1)
     faults_info = db.get_rupture_fault_info(rupture_id)
     seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
     np.random.seed(seed=seeds.nshm_to_realisation_seed)
