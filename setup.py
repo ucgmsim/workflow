@@ -3,8 +3,8 @@ from setuptools import Extension, setup
 
 extensions = [
     Extension(
-        "merge_ts.merge_ts_loop",
-        ["merge_ts/merge_ts_loop.pyx"],
+        "workflow.scripts.merge_ts_loop",
+        ["workflow/scripts/merge_ts_loop.pyx"],
     ),
 ]
 
