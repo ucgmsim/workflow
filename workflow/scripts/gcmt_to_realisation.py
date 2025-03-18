@@ -55,8 +55,12 @@ app = typer.Typer()
 
 
 class SamplingStrategy(StrEnum):
+    """Sampling strategy for hypocentre location."""
+
     AVERAGE = auto()
+    """Average of the distribution."""
     RANDOM = auto()
+    """Random sample from the distribution."""
 
 
 @cli.from_docstring(app)
