@@ -28,6 +28,7 @@ For More Help
 See the output of `gcmt-to-realisation --help`.
 """
 
+from enum import StrEnum, auto
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -53,14 +54,19 @@ NAN_PUBLIC_ID = "9999999"
 app = typer.Typer()
 
 
+class SamplingStrategy(StrEnum):
+    AVERAGE = auto()
+    RANDOM = auto()
+
+
 @cli.from_docstring(app)
 def gcmt_to_realisation(
     gcmt_event_id: Annotated[str, typer.Argument()],
     defaults_version: Annotated[DefaultsVersion, typer.Argument()],
     realisation_ffp: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
     hypocentre_strategy: Annotated[
-        cli.SamplingStrategy, typer.Option()
-    ] = cli.SamplingStrategy.RANDOM,
+        SamplingStrategy, typer.Option()
+    ] = SamplingStrategy.RANDOM,
     shypo: Annotated[Optional[float], typer.Option(min=0, max=1)] = None,
     dhypo: Annotated[Optional[float], typer.Option(min=0, max=1)] = None,
     lat_hypo: Annotated[
@@ -71,6 +77,9 @@ def gcmt_to_realisation(
         Optional[float],
         typer.Option(min=-180, max=180),
     ] = None,
+    scaling_relation: Annotated[
+        mag_scaling.MagnitudeScalingRelations, typer.Option(case_sensitive=False)
+    ] = mag_scaling.MagnitudeScalingRelations.LEONARD2014,
 ):
     """Generate a realisation from a GCMT solution.
 
@@ -92,7 +101,6 @@ def gcmt_to_realisation(
         The latitude coordinate of the hypocentre. Conflicts with shypo and dhypo.
     lat_hypo : float, optional
         The latitude coordinate of the hypocentre. Conflicts with shypo and dhypo.
-
     """
     if (shypo is not None or dhypo is not None) and (
         lat_hypo is not None or lon_hypo is not None
@@ -139,8 +147,9 @@ def gcmt_to_realisation(
         model, np.array([latitude, longitude]), nodal_plane_1, nodal_plane_2
     )
     rake = selected_nodal_plane.rake
-    length = mag_scaling.mw_to_l_leonard(magnitude, rake)
-    width = mag_scaling.mw_to_w_leonard(magnitude, rake)
+    length, width = mag_scaling.mw_to_lw_scaling_relation(
+        magnitude, scaling_relation, rake
+    )
     centroid = np.array([latitude, longitude, centroid_depth])
     plane = sources.Plane.from_centroid_strike_dip(
         centroid,
@@ -155,12 +164,12 @@ def gcmt_to_realisation(
     else:
         default_shypo = (
             1 / 2
-            if hypocentre_strategy == cli.SamplingStrategy.AVERAGE
+            if hypocentre_strategy == SamplingStrategy.AVERAGE
             else distributions.truncated_normal(1 / 2, 1 / 4)
         )
         default_dhypo = (
             distributions.truncated_weibull_expected_value(1)
-            if hypocentre_strategy == cli.SamplingStrategy.AVERAGE
+            if hypocentre_strategy == SamplingStrategy.AVERAGE
             else distributions.truncated_weibull(1)
         )
         hypocentre = np.array([shypo or default_shypo, dhypo or default_dhypo])
