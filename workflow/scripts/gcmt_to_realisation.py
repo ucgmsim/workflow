@@ -66,7 +66,7 @@ def gcmt_to_realisation(
     realisation_ffp: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
     hypocentre_strategy: Annotated[
         SamplingStrategy, typer.Option()
-    ] = SamplingStrategy.RANDOM,
+    ] = SamplingStrategy.AVERAGE,
     shypo: Annotated[Optional[float], typer.Option(min=0, max=1)] = None,
     dhypo: Annotated[Optional[float], typer.Option(min=0, max=1)] = None,
     lat_hypo: Annotated[
