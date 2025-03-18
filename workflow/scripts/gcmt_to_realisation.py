@@ -103,8 +103,10 @@ def gcmt_to_realisation(
         The initial hypocentre strike coordinate (0 - 1). Distribution is truncated Weibull.
     lat_hypo : float, optional
         The latitude coordinate of the hypocentre. Conflicts with shypo and dhypo.
-    lat_hypo : float, optional
+    lon_hypo : float, optional
         The latitude coordinate of the hypocentre. Conflicts with shypo and dhypo.
+    scaling_relation : mag_scaling.MagnitudeScalingRelations
+        The magnitude scaling relation to use.
     """
     if (shypo is not None or dhypo is not None) and (
         lat_hypo is not None or lon_hypo is not None
