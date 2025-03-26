@@ -6,12 +6,12 @@ the [Realisations page](https://github.com/ucgmsim/workflow/wiki/Realisations), 
 for a description of realisations and the schemas.
 """
 
-
 import numpy as np
 import pandas as pd
 from schema import And, Literal, Optional, Or, Schema, Use
 
 from IM import im_calculation
+from IM.ims import Callable
 from source_modelling import rupture_propagation, sources
 from velocity_modelling.bounding_box import BoundingBox
 from workflow.defaults import DefaultsVersion
@@ -69,6 +69,13 @@ def is_valid_local_coordinate(coordinate: float) -> bool:  # noqa: D103 # numpyd
 
 def is_valid_bearing(bearing: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
     return 0 <= bearing <= 360
+
+
+def between(low: float, high: float) -> Callable[[float], bool]:  # noqa: D103 # numpydoc ignore=GL08
+    def wrapper(x: float) -> bool:
+        return low <= x <= high
+
+    return wrapper
 
 
 def is_correct_corner_shape(corners: np.ndarray) -> bool:
@@ -297,6 +304,21 @@ SRF_SCHEMA = Schema(
         Literal("resolution", description="Subdivision resolution."): And(
             float, is_positive
         ),
+        Literal(
+            "rvfrac", description="The rupture velocity factor for the SRF generation."
+        ): And(float, between(0, 1)),
+        Literal(
+            "side_taper", description="The side taper for the SRF generation."
+        ): And(float, between(0, 1)),
+        Literal(
+            "bot_taper", description="The bottom taper for the SRF generation."
+        ): And(float, between(0, 1)),
+        Literal("top_taper", description="The top taper for the SRF generation."): And(
+            float, between(0, 1)
+        ),
+        Literal(
+            "alpha_rough", description="The geometry roughness for the SRF generation."
+        ): And(float, is_non_negative),
     }
 )
 

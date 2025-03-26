@@ -181,24 +181,25 @@ def generate_fault_srf(
         f"mag={magnitude}",
         f"nstk={nx}",
         f"ndip={ny}",
+        # number of slip realisations, always 1.
         "ns=1",
+        # number of hypocentre realisations, always 1.
         "nh=1",
         f"seed={seeds.genslip_seed}",
         f"velfile={velocity_model_path}",
         f"shypo={genslip_hypocentre_coords[0]}",
         f"dhypo={genslip_hypocentre_coords[1]}",
-        f"dt={srf_config.genslip_dt}",
+        # Always include plane header
         "plane_header=1",
+        # Always use version 1.0
         "srf_version=1.0",
+        # Never delay segment slip
         "seg_delay={0}",
+        # Never apply per-segment rupture velocity (requires segment delay)
         "rvfac_seg=-1",
+        # Never apply delay zone (requires segment delay)
         "gwid=-1",
-        "side_taper=0.02",
-        "bot_taper=0.02",
-        "top_taper=0.0",
-        "rup_delay=0",
-        "alpha_rough=0.0",
-    ]
+    ] + [f"{key}={value}" for key, value in srf_config.genslip_parameters().items()]
 
     srf_file_path = output_directory / "srf" / (name + ".srf")
     with open(srf_file_path, "w", encoding="utf-8") as srf_file_handle:

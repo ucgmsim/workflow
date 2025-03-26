@@ -93,7 +93,21 @@ def test_srf_config_example(tmp_path: Path):
         genslip_dt=1.0,
         genslip_version="5.4.2",
         resolution=0.1,
+        rvfrac=0.5,
+        side_taper=0.5,
+        bot_taper=0.5,
+        top_taper=0.5,
+        alpha_rough=0.5,
     )
+
+    assert srf_config.genslip_parameters == {
+        "dt": 1.0,
+        "rvfrac": 0.5,
+        "side_taper": 0.5,
+        "bot_taper": 0.5,
+        "top_taper": 0.5,
+        "alpha_rough": 0.5,
+    }
 
     realisation_ffp = tmp_path / "realisation.json"
     domain_parameters.write_to_realisation(realisation_ffp)
@@ -116,6 +130,11 @@ def test_srf_config_example(tmp_path: Path):
                 "genslip_dt": 1.0,
                 "resolution": 0.1,
                 "genslip_version": "5.4.2",
+                "rvfrac": 0.5,
+                "side_taper": 0.5,
+                "bot_taper": 0.5,
+                "top_taper": 0.5,
+                "alpha_rough": 0.5,
             },
         }
 
@@ -410,9 +429,30 @@ def test_velocity_model_1d(tmp_path: Path):
         assert json.load(realisation_handle) == {
             "velocity_model_1d": {
                 "model": [
-                    {"thickness": 0.1, "Vp": 1500.0, "Vs": 800.0, "Qp": 1500.0, "Qs": 800.0, "rho": 1800.0},
-                    {"thickness": 10.0, "Vp": 2000.0, "Vs": 1000.0, "Qp": 2000.0, "Qs": 1000.0, "rho": 2000.0},
-                    {"thickness": 20.0, "Vp": 2500.0, "Vs": 1200.0, "Qp": 2500.0, "Qs": 1200.0, "rho": 2200.0},
+                    {
+                        "thickness": 0.1,
+                        "Vp": 1500.0,
+                        "Vs": 800.0,
+                        "Qp": 1500.0,
+                        "Qs": 800.0,
+                        "rho": 1800.0,
+                    },
+                    {
+                        "thickness": 10.0,
+                        "Vp": 2000.0,
+                        "Vs": 1000.0,
+                        "Qp": 2000.0,
+                        "Qs": 1000.0,
+                        "rho": 2000.0,
+                    },
+                    {
+                        "thickness": 20.0,
+                        "Vp": 2500.0,
+                        "Vs": 1200.0,
+                        "Qp": 2500.0,
+                        "Qs": 1200.0,
+                        "rho": 2200.0,
+                    },
                 ]
             }
         }
@@ -445,6 +485,7 @@ def test_intensity_measure_calculation_parameters(tmp_path: Path):
         == im_calc_params.to_dict()
     )
 
+
 @pytest.mark.parametrize(
     "realisation_config",
     [
@@ -454,7 +495,7 @@ def test_intensity_measure_calculation_parameters(tmp_path: Path):
         realisations.VelocityModelParameters,
         realisations.BroadbandParameters,
         realisations.VelocityModel1D,
-        realisations.IntensityMeasureCalculationParameters
+        realisations.IntensityMeasureCalculationParameters,
     ],
 )
 @pytest.mark.parametrize("defaults_version", list(defaults.DefaultsVersion))

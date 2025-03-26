@@ -352,8 +352,34 @@ class SRFConfig(RealisationConfiguration):
 
     genslip_version: str
     """The version of genslip to use (currently supports "5.4.2")."""
+
     resolution: float
     """The resolution of the SRF geometry"""
+
+    rvfrac: float
+    """The rupture velocity factor for the SRF generation."""
+
+    side_taper: float
+    """The side taper for the SRF generation."""
+
+    bot_taper: float
+    """The bottom taper for the SRF generation."""
+
+    top_taper: float
+    """The top taper for the SRF generation."""
+
+    alpha_rough: float
+    """The geometry roughness for the SRF generation."""
+
+    @property
+    def genslip_parameters(self) -> dict[str, Any]:  # numpydoc ignore=RT01
+        """dict: Return config parameters that can be directly passed to genslip."""
+        params = self.to_dict()
+        unused_params = ["genslip_dt", "genslip_version", "resolution"]
+        params["dt"] = self.genslip_dt
+        for param in unused_params:
+            del params[param]
+        return params
 
 
 @dataclasses.dataclass
@@ -435,7 +461,7 @@ class DomainParameters(RealisationConfiguration):
     """The resolution of the domain in time (in seconds)."""
 
     @property
-    def nx(self) -> int: # numpydoc ignore=RT01
+    def nx(self) -> int:  # numpydoc ignore=RT01
         """int: The number of x coordinate positions in the discretised domain."""
         return int(np.round(self.domain.extent_x / self.resolution))
 

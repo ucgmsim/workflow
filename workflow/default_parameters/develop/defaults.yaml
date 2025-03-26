@@ -106,6 +106,11 @@ srf:
   resolution: 0.4
   genslip_dt: 0.05
   genslip_version: 5.4.2
+  rvfrac: 0.8
+  side_taper: 0.02
+  bot_taper: 0.02
+  top_taper: 0.0
+  alpha_rough: 0.0
 velocity_model:
   min_vs: 0.5
   resolution: 0.4
