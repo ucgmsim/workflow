@@ -269,7 +269,9 @@ def estimate_rrup(
         )
 
     return sp.optimize.minimize_scalar(
-        lambda rrup: np.abs(pgv_from_rrup(rrup) - pgv_target), bounds=(0, 1000)
+        lambda rrup: np.abs(pgv_from_rrup(rrup) - pgv_target),
+        bounds=(0, 1000),
+        method="bounded",
     ).x
 
 
