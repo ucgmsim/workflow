@@ -213,7 +213,8 @@ def estimate_rrup(
     magnitude: float, rake: float, dip: float, pgv_target: float
 ) -> float:
     """
-    Estimate the distance from the rupture to the closest point on the fault.
+    Estimate the rupture radius such that stations at this radius will
+    experience the target PGV.
 
     Parameters
     ----------
@@ -221,11 +222,23 @@ def estimate_rrup(
             The magnitude of the rupture.
     rake : float
             The rake angle of the rupture.
+    dip : float
+            The dip angle of the rupture.
+    pgv_target : float
+            The target PGV value (cm/s).
 
     Returns
     -------
     float
-            The estimated distance from the rupture to the closest point on the fault.
+            The estimated rupture radius (in km).
+
+    Examples
+    --------
+    >>> # Estimate the rupture radius for a 7.5 magnitude earthquake
+    >>> # with a rake of 90 degrees, a dip of 45 degrees, and a target
+    >>> # PGV of 10 cm/s.
+    >>> estimate_rrup(7.5, 90, 45, 10)
+    60.86630588572306
     """
     # import here rather than at the module level because openquake is slow to import
     from empirical.util import openquake_wrapper_vectorized as openquake
