@@ -489,7 +489,7 @@ class VelocityModelParameters(RealisationConfiguration):
     s_wave_velocity: float
     """The s-wave velocity."""
     pgv_interpolants: npt.NDArray[np.float32]
-    """PGV interpolation nodes between rupture magnitude and RRup target values."""
+    """Target PGV values at specific magnitudes, used to estimate domain size."""
 
     def to_dict(self) -> dict:
         """
