@@ -244,7 +244,7 @@ def estimate_rrup(
     from empirical.util import openquake_wrapper_vectorized as openquake
 
     @log_utils.log_call()
-    def pgv_from_rrup(rrup: float) -> float:
+    def pgv_from_rrup(rrup: float) -> float:  # numpydoc ignore=GL08
         vs30 = 500  # default Vs30 value
         return np.exp(
             openquake.oq_run(
