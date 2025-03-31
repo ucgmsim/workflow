@@ -33,6 +33,7 @@ import geopandas as gpd
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import scipy as sp
 import shapely
 import typer
 from shapely import Polygon
@@ -207,6 +208,58 @@ def total_magnitude(magnitudes: npt.NDArray[np.float64]) -> float:
     return mag_scaling.mom2mag(np.sum(mag_scaling.mag2mom(magnitudes)))
 
 
+@log_utils.log_call()
+def estimate_rrup(
+    magnitude: float, rake: float, dip: float, pgv_target: float
+) -> float:
+    """
+    Estimate the distance from the rupture to the closest point on the fault.
+
+    Parameters
+    ----------
+    magnitude : float
+            The magnitude of the rupture.
+    rake : float
+            The rake angle of the rupture.
+
+    Returns
+    -------
+    float
+            The estimated distance from the rupture to the closest point on the fault.
+    """
+    # import here rather than at the module level because openquake is slow to import
+    from empirical.util import openquake_wrapper_vectorized as openquake
+
+    @log_utils.log_call()
+    def pgv_from_rrup(rrup: float) -> float:
+        vs30 = 500  # default Vs30 value
+        return np.exp(
+            openquake.oq_run(
+                GMM.CY_14,
+                TectType.ACTIVE_SHALLOW,
+                pd.DataFrame(
+                    {
+                        "mag": [magnitude],
+                        "rake": [rake],
+                        "vs30": [vs30],
+                        "vs30measured": [False],
+                        "dip": [dip],
+                        "z1pt0": [z_model_calculations.chiou_young_08_calc_z1p0(vs30)],
+                        "ztor": [0],
+                        "rrup": [rrup],
+                        "rjb": [rrup],
+                        "rx": [rrup],
+                    }
+                ),
+                "PGV",
+            )["PGV_mean"].iloc[0]
+        )
+
+    return sp.optimize.minimize_scalar(
+        lambda rrup: np.abs(pgv_from_rrup(rrup) - pgv_target), bounds=(0, 1000)
+    ).x
+
+
 @cli.from_docstring(app)
 @log_utils.log_call()
 def generate_velocity_model_parameters(
@@ -245,14 +298,20 @@ def generate_velocity_model_parameters(
         realisation_ffp
     )
     magnitudes = rupture_propagation.magnitudes
+    rakes = rupture_propagation.rakes
 
     rupture_magnitude = total_magnitude(np.array(list(magnitudes.values())))
 
     rrups = {
-        fault_name: np.interp(
+        fault_name: estimate_rrup(
             magnitudes[fault_name],
-            velocity_model_parameters.rrup_interpolants[:, 0],
-            velocity_model_parameters.rrup_interpolants[:, 1],
+            rakes[fault_name],
+            np.mean([plane.dip for plane in fault.planes]),
+            np.interp(
+                magnitudes[fault_name],
+                velocity_model_parameters.pgv_interpolants[:, 0],
+                velocity_model_parameters.pgv_interpolants[:, 1],
+            ),
         )
         for fault_name, fault in source_config.source_geometries.items()
     }
