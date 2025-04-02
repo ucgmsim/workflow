@@ -265,13 +265,13 @@ def estimate_rrup(
     Parameters
     ----------
     magnitude : float
-            The magnitude of the rupture.
+        The magnitude of the rupture.
     rake : float
-            The rake angle of the rupture.
+        The rake angle of the rupture.
     dip : float
-            The dip angle of the rupture.
+        The dip angle of the rupture.
     pgv_target : float
-            The target PGV value (cm/s).
+        The target PGV value (cm/s).
 
     Returns
     -------
@@ -286,9 +286,6 @@ def estimate_rrup(
     >>> estimate_rrup(7.5, 90, 45, 10)
     60.86630588572306
     """
-    # import here rather than at the module level because openquake is slow to import
-    from empirical.util import openquake_wrapper_vectorized as openquake
-
     return sp.optimize.minimize_scalar(
         lambda rrup: np.abs(pgv_from_rrup(magnitude, rake, dip, rrup) - pgv_target),
         bounds=(0, 1000),
@@ -302,21 +299,27 @@ def find_rrup_bounding_polygon(
     rake: float,
     pgv_target: float,
 ) -> Polygon:
-    """Find the bounding polygon for the rrup distances of all faults in the realisation.
+    """Find the bounding polygon for the rrup distance of a fault.
 
     The bounding polygon is computed by estimating rrup from the PGV
-    targets from the realisation, and then applying an rrup-width buffer to the
-    fault geometries.
+    target, and then applying an rrup-width buffer to the fault
+    geometries.
 
     Parameters
     ----------
-    realisation_ffp : Path
-            The path to the realisation file.
+    fault : sources.IsSource
+        The fault geometry.
+    magnitude : float
+        The magnitude of the rupture.
+    rake : float
+        The rake angle of the rupture.
+    pgv_target : float
+        The target PGV value (cm/s).
 
     Returns
     -------
     Polygon
-            The bounding polygons over the rrup distances of all faults in the realisation.
+        The bounding polygon over the rrup distance of the fault in the realisation.
     """
 
     rrup = estimate_rrup(
