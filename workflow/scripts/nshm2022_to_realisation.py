@@ -41,7 +41,6 @@ from typing import Annotated, Optional
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import scipy as sp
 import typer
 
 from nshmdb import nshmdb
@@ -89,42 +88,6 @@ def a_to_mw_leonard(area: float, rake: float) -> float:
     return mag_scaling.a_to_mw_leonard(area, 4, 3.99, rake)
 
 
-def rigidity_weighted_area(fault: Fault, velocity_model: pd.DataFrame) -> float:
-    """Calculate the rigidity-weighted area of a fault.
-
-    Parameters
-    ----------
-    fault : Fault
-            The fault to calculate the rigidity-weighted area for.
-    velocity_model : pd.DataFrame
-            The 1D velocity model.
-
-    Returns
-    -------
-    float
-            The rigidity-weighted area of the fault.
-    """
-    depths: npt.NDArray[np.float64] = velocity_model["thickness"].cumsum()
-    mu_nodes: npt.NDArray[np.float64] = (
-        velocity_model["Vs"] ** 2 * velocity_model["rho"]
-    )
-
-    min_depth: np.float64 = fault.bounds[:, 2].min() / 1000
-    max_depth: np.float64 = fault.bounds[:, 2].max() / 1000
-    return float(
-        fault.area()
-        / (max_depth - min_depth)
-        * sp.integrate.quad(
-            lambda z: np.interp(z, depths, mu_nodes),
-            min_depth,
-            max_depth,
-            # The `points` argument is used to inform the integrator of the depths at which the piece-wise velocity model changes.
-            # These allow quad to handle the singularities in the velocity model.
-            points=depths,
-        )[0]
-    )
-
-
 def default_magnitude_estimation(
     faults: dict[str, Fault],
     velocity_model: pd.DataFrame,
@@ -149,17 +112,11 @@ def default_magnitude_estimation(
     total_area = sum(fault.area() for fault in faults.values())
     estimated_mw = a_to_mw_leonard(total_area, avg_rake)
     estimated_moment = mag_scaling.mag2mom(estimated_mw)
-    shear_areas = {
-        fault_name: rigidity_weighted_area(fault, velocity_model)
-        for fault_name, fault in faults.items()
-    }
-    total_shear_area = sum(shear_areas.values())
+
     moments: dict[str, float] = {}
     for fault_name, fault in faults.items():
         moments[fault_name] = float(
-            mag_scaling.mom2mag(
-                (shear_areas[fault_name] / total_shear_area) * estimated_moment
-            )
+            mag_scaling.mom2mag((fault.area() / total_area) * estimated_moment)
         )
     return moments
 
