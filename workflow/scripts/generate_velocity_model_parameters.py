@@ -33,6 +33,7 @@ import geopandas as gpd
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import scipy as sp
 import shapely
 import typer
 from shapely import Polygon
@@ -207,6 +208,198 @@ def total_magnitude(magnitudes: npt.NDArray[np.float64]) -> float:
     return mag_scaling.mom2mag(np.sum(mag_scaling.mag2mom(magnitudes)))
 
 
+def pgv_from_rrup(magnitude: float, rake: float, dip: float, rrup: float) -> float:
+    """
+    Compute the peak ground velocity (PGV) at a given distance from a rupture.
+
+    Parameters
+    ----------
+    magnitude : float
+            The magnitude of the rupture.
+    rake : float
+            The rake angle of the rupture.
+    dip : float
+            The dip angle of the rupture.
+    rrup : float
+            The distance from the rupture (in km).
+
+    Returns
+    -------
+    float
+            The peak ground velocity (cm/s) at the given distance from the rupture.
+    """
+    from empirical.util import openquake_wrapper_vectorized as openquake
+
+    vs30 = 500  # default Vs30 value
+    return np.exp(
+        openquake.oq_run(
+            GMM.CY_14,
+            TectType.ACTIVE_SHALLOW,
+            pd.DataFrame(
+                {
+                    "mag": [magnitude],
+                    "rake": [rake],
+                    "vs30": [vs30],
+                    "vs30measured": [False],
+                    "dip": [dip],
+                    "z1pt0": [z_model_calculations.chiou_young_08_calc_z1p0(vs30)],
+                    "ztor": [0],
+                    "rrup": [rrup],
+                    "rjb": [rrup],
+                    "rx": [rrup],
+                }
+            ),
+            "PGV",
+        )["PGV_mean"].iloc[0]
+    )
+
+
+@log_utils.log_call()
+def estimate_rrup(
+    magnitude: float, rake: float, dip: float, pgv_target: float
+) -> float:
+    """
+    Estimate the rupture radius such that stations at this radius will
+    experience the target PGV.
+
+    Parameters
+    ----------
+    magnitude : float
+        The magnitude of the rupture.
+    rake : float
+        The rake angle of the rupture.
+    dip : float
+        The dip angle of the rupture.
+    pgv_target : float
+        The target PGV value (cm/s).
+
+    Returns
+    -------
+    float
+            The estimated rupture radius (in km).
+
+    Examples
+    --------
+    >>> # Estimate the rupture radius for a 7.5 magnitude earthquake
+    >>> # with a rake of 90 degrees, a dip of 45 degrees, and a target
+    >>> # PGV of 10 cm/s.
+    >>> estimate_rrup(7.5, 90, 45, 10)
+    60.86630588572306
+    """
+    return sp.optimize.minimize_scalar(
+        lambda rrup: np.abs(pgv_from_rrup(magnitude, rake, dip, rrup) - pgv_target),
+        bounds=(0, 1000),
+        method="bounded",
+    ).x
+
+
+def find_rrup_bounding_polygon(
+    fault: sources.IsSource,
+    magnitude: float,
+    rake: float,
+    pgv_target: float,
+) -> Polygon:
+    """Find the bounding polygon for the rrup distance of a fault.
+
+    The bounding polygon is computed by estimating rrup from the PGV
+    target, and then applying an rrup-width buffer to the fault
+    geometries.
+
+    Parameters
+    ----------
+    fault : sources.IsSource
+        The fault geometry.
+    magnitude : float
+        The magnitude of the rupture.
+    rake : float
+        The rake angle of the rupture.
+    pgv_target : float
+        The target PGV value (cm/s).
+
+    Returns
+    -------
+    Polygon
+        The bounding polygon over the rrup distance of the fault in the realisation.
+    """
+
+    rrup = estimate_rrup(
+        magnitude,
+        rake,
+        np.mean([plane.dip for plane in fault.planes]),
+        pgv_target,
+    )
+    logger = log_utils.get_logger(__name__)
+    logger.debug("computed rrup", rrups=rrup)
+
+    return shapely.buffer(fault.geometry, rrup * 1000)
+
+
+def dict_zip(*dicts: list[dict], strict: bool = True) -> dict:
+    """
+    Takes the product of one or more dictionaries.
+
+    Parameters
+    ----------
+    *dicts : list of dict
+        Variable number of dictionaries.
+    strict : bool, default False
+        If True, raise an error if the keys in `dicts` are not all the same.
+
+    Returns
+    -------
+    dict
+        A dictionary where each value is a tuple of the corresponding values from the input dictionaries.
+
+    Raises
+    ------
+    ValueError
+        If strict is True and the keys in the dictionaries are not all the same.
+    """
+    if not dicts:
+        return {}
+
+    keys = set(dicts[0].keys())
+    for dict in dicts[1:]:
+        keys = keys.intersection(dict.keys())
+
+    if strict and len(keys) != len(dicts[0]):
+        raise ValueError("Keys in dictionaries are not all the same.")
+    result = {key: tuple(d[key] for d in dicts) for key in list(keys)}
+
+    return result
+
+
+def pgv_target(
+    rupture_propagation_config: RupturePropagationConfig,
+    velocity_model_parameters: VelocityModelParameters,
+) -> float:
+    """Compute the PGV target for the realisation.
+
+    Parameters
+    ----------
+    rupture_propagation_config : RupturePropagationConfig
+        The rupture propagation configuration containing magnitudes.
+    velocity_model_parameters : VelocityModelParameters
+        The velocity model parameters containing PGV interpolants.
+
+    Returns
+    -------
+    float
+        The PGV target for the realisation.
+    """
+    total_magnitude = mag_scaling.mom2mag(
+        sum(
+            mag_scaling.mag2mom(magnitude)
+            for magnitude in rupture_propagation_config.magnitudes.values()
+        )
+    )
+    return np.interp(
+        total_magnitude,
+        velocity_model_parameters.pgv_interpolants[:, 0],
+        velocity_model_parameters.pgv_interpolants[:, 1],
+    )
+
+
 @cli.from_docstring(app)
 @log_utils.log_call()
 def generate_velocity_model_parameters(
@@ -245,19 +438,8 @@ def generate_velocity_model_parameters(
         realisation_ffp
     )
     magnitudes = rupture_propagation.magnitudes
-
     rupture_magnitude = total_magnitude(np.array(list(magnitudes.values())))
-
-    rrups = {
-        fault_name: np.interp(
-            magnitudes[fault_name],
-            velocity_model_parameters.rrup_interpolants[:, 0],
-            velocity_model_parameters.rrup_interpolants[:, 1],
-        )
-        for fault_name, fault in source_config.source_geometries.items()
-    }
-    logger = log_utils.get_logger(__name__)
-    logger.debug("computed rrups", rrups=rrups)
+    realisation_pgv_target = pgv_target(rupture_propagation, velocity_model_parameters)
 
     initial_fault = source_config.source_geometries[rupture_propagation.initial_fault]
     max_depth = get_max_depth(
@@ -268,20 +450,21 @@ def generate_velocity_model_parameters(
         / 1000,
     )
 
-    # Get bounding box
-
     # This polygon includes all the faults corners + a 2km buffer (which must be in the simulation domain).
     fault_buffer_polygons = [
         shapely.buffer(fault.geometry, 2000)
         for fault in source_config.source_geometries.values()
     ]
-
     # This polygon includes all areas within rrup distance of any
     # corner in the source geometries.
     # These may be in the domain where they are over land.
     rrup_bounding_polygons = [
-        shapely.buffer(fault.geometry, rrups[fault_name] * 1000)
-        for fault_name, fault in source_config.source_geometries.items()
+        find_rrup_bounding_polygon(*args, pgv_target=realisation_pgv_target)
+        for args in dict_zip(
+            source_config.source_geometries,
+            magnitudes,
+            rupture_propagation.rakes,
+        ).values()
     ]
 
     # The domain is the minimum area bounding box containing all of
