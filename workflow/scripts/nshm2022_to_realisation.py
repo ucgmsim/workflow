@@ -113,10 +113,14 @@ def default_magnitude_estimation(
     estimated_mw = a_to_mw_leonard(total_area, avg_rake)
     estimated_moment = mag_scaling.mag2mom(estimated_mw)
 
+    fault_scaling_area = sum(fault.area() ** (3 / 2) for fault in faults.values())
+
     moments: dict[str, float] = {}
     for fault_name, fault in faults.items():
         moments[fault_name] = float(
-            mag_scaling.mom2mag((fault.area() / total_area) * estimated_moment)
+            mag_scaling.mom2mag(
+                ((fault.area() ** (3 / 2)) / fault_scaling_area) * estimated_moment
+            )
         )
     return moments
 
