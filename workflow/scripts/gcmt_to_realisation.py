@@ -27,8 +27,10 @@ For More Help
 -------------
 See the output of `gcmt-to-realisation --help`.
 """
+
+from enum import StrEnum, auto
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 import numpy as np
 import pandas as pd
@@ -36,7 +38,8 @@ import requests
 import typer
 
 from qcore import cli
-from source_modelling import ccldpy, community_fault_model, sources
+from qcore.uncertainties import distributions, mag_scaling
+from source_modelling import community_fault_model, sources
 from source_modelling.community_fault_model import NodalPlane
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import (
@@ -51,11 +54,36 @@ NAN_PUBLIC_ID = "9999999"
 app = typer.Typer()
 
 
+class SamplingStrategy(StrEnum):
+    """Sampling strategy for hypocentre location."""
+
+    AVERAGE = auto()
+    """Average of the distribution."""
+    RANDOM = auto()
+    """Random sample from the distribution."""
+
+
 @cli.from_docstring(app)
 def gcmt_to_realisation(
     gcmt_event_id: Annotated[str, typer.Argument()],
     defaults_version: Annotated[DefaultsVersion, typer.Argument()],
     realisation_ffp: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
+    hypocentre_strategy: Annotated[
+        SamplingStrategy, typer.Option()
+    ] = SamplingStrategy.AVERAGE,
+    shypo: Annotated[Optional[float], typer.Option(min=0, max=1)] = None,
+    dhypo: Annotated[Optional[float], typer.Option(min=0, max=1)] = None,
+    lat_hypo: Annotated[
+        Optional[float],
+        typer.Option(min=-90, max=90),
+    ] = None,
+    lon_hypo: Annotated[
+        Optional[float],
+        typer.Option(min=-180, max=180),
+    ] = None,
+    scaling_relation: Annotated[
+        mag_scaling.MagnitudeScalingRelations, typer.Option(case_sensitive=False)
+    ] = mag_scaling.MagnitudeScalingRelations.LEONARD2014,
 ):
     """Generate a realisation from a GCMT solution.
 
@@ -67,7 +95,26 @@ def gcmt_to_realisation(
         Scientific defaults to use (determines simulation resolution among many other things).
     realisation_ffp : Path
         Path to output realisation.
+    hypocentre_strategy : SamplingStrategy
+        Sampling strategy for the hypocentre strike coordinate.
+    shypo : float, optional
+        The initial hypocentre strike coordinate (0 - 1). Distribution is truncated normal with mean 0.5 and standard deviation 0.25.
+    dhypo : float, optional
+        The initial hypocentre strike coordinate (0 - 1). Distribution is truncated Weibull.
+    lat_hypo : float, optional
+        The latitude coordinate of the hypocentre. Conflicts with shypo and dhypo.
+    lon_hypo : float, optional
+        The latitude coordinate of the hypocentre. Conflicts with shypo and dhypo.
+    scaling_relation : mag_scaling.MagnitudeScalingRelations
+        The magnitude scaling relation to use.
     """
+    if (shypo is not None or dhypo is not None) and (
+        lat_hypo is not None or lon_hypo is not None
+    ):
+        raise typer.BadParameter(
+            "The options shypo and dhypo are mutually exclusive with lat_hypo and lon_hypo."
+        )
+
     gcmt_solutions = pd.read_csv(MOMENT_TENSOR_SOLUTION_URL)
     automated_gcmt_solutions = requests.get(AUTOMATED_TENSOR_URL).json()
 
@@ -96,66 +143,42 @@ def gcmt_to_realisation(
         nodal_plane_1 = NodalPlane(**solution["nodalPlanes"][0])
         nodal_plane_2 = NodalPlane(**solution["nodalPlanes"][1])
     else:
-        raise typer.Abort(
-            f"GCMT event ID {gcmt_event_id} not found in either the published GCMT solutions or automated solutions."
+        raise typer.BadParameter(
+            f"GCMT event ID {gcmt_event_id} not found in either the published GCMT solutions or automated solutions.",
+            param_hint="GCMT_EVENT_ID",
         )
 
     model = community_fault_model.get_community_fault_model()
     selected_nodal_plane = community_fault_model.most_likely_nodal_plane(
         model, np.array([latitude, longitude]), nodal_plane_1, nodal_plane_2
     )
-
-    # Get a likely rupture using CCLDpy
-    _, ccld_selected_rupture = ccldpy.simulate_rupture_surface(
-        1,
-        "crustal",
-        "other",
-        latitude,
-        longitude,
-        centroid_depth,
-        magnitude,
-        "A",
-        [334, 333, 333, 111, 111, 111, 0],
+    rake = selected_nodal_plane.rake
+    length, width = mag_scaling.mw_to_lw_scaling_relation(
+        magnitude, scaling_relation, rake
+    )
+    centroid = np.array([latitude, longitude, centroid_depth])
+    plane = sources.Plane.from_centroid_strike_dip(
+        centroid,
+        selected_nodal_plane.dip,
+        length,
+        width,
         strike=selected_nodal_plane.strike,
-        dip=selected_nodal_plane.dip,
-        rake=selected_nodal_plane.rake,
     )
-    ccld_selected_rupture = ccld_selected_rupture.iloc[0]
-    corners = np.array(
-        [
-            [
-                ccld_selected_rupture["ULC Latitude"],
-                ccld_selected_rupture["ULC Longitude"],
-                ccld_selected_rupture["ULC Depth (km)"] * 1000,
-            ],
-            [
-                ccld_selected_rupture["URC Latitude"],
-                ccld_selected_rupture["URC Longitude"],
-                ccld_selected_rupture["URC Depth (km)"] * 1000,
-            ],
-            [
-                ccld_selected_rupture["LRC Latitude"],
-                ccld_selected_rupture["LRC Longitude"],
-                ccld_selected_rupture["LRC Depth (km)"] * 1000,
-            ],
-            [
-                ccld_selected_rupture["LLC Latitude"],
-                ccld_selected_rupture["LLC Longitude"],
-                ccld_selected_rupture["LLC Depth (km)"] * 1000,
-            ],
-        ]
-    )
-    plane = sources.Plane.from_corners(corners)
-    rake = ccld_selected_rupture["Rake"]
-    magnitude = ccld_selected_rupture["Magnitude"]
-    hypocentre = plane.wgs_depth_coordinates_to_fault_coordinates(
-        np.array(
-            [
-                ccld_selected_rupture["Hypocenter Latitude"],
-                ccld_selected_rupture["Hypocenter Longitude"],
-            ]
+    if lat_hypo is not None and lon_hypo is not None:
+        hypocentre_global = np.array([lat_hypo, lon_hypo])
+        hypocentre = plane.wgs_depth_coordinates_to_fault_coordinates(hypocentre_global)
+    else:
+        default_shypo = (
+            1 / 2
+            if hypocentre_strategy == SamplingStrategy.AVERAGE
+            else distributions.truncated_normal(1 / 2, 1 / 4)
         )
-    )
+        default_dhypo = (
+            distributions.truncated_weibull_expected_value(1)
+            if hypocentre_strategy == SamplingStrategy.AVERAGE
+            else distributions.truncated_weibull(1)
+        )
+        hypocentre = np.array([shypo or default_shypo, dhypo or default_dhypo])
 
     source_config = SourceConfig(
         source_geometries={gcmt_event_id: sources.Fault([plane])}

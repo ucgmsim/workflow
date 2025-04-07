@@ -48,7 +48,9 @@ def generate_fd_files(
     realisations_ffp: Annotated[Path, typer.Argument(readable=True)],
     output_path: Annotated[Path, typer.Argument(file_okay=False, writable=True)],
     keep_dup_station: Annotated[bool, typer.Option()] = True,
-    stat_file: Annotated[Path, typer.Option(readable=True, exists=True)] = Path("/input/stations.ll"),
+    stat_file: Annotated[Path, typer.Option(readable=True, exists=True)] = Path(
+        "/input/stations.ll"
+    ),
 ) -> None:
     """Generate station coordinate files.
 
@@ -99,6 +101,9 @@ def generate_fd_files(
     max_x = domain_parameters.domain.extent_x // domain_parameters.resolution
     max_y = domain_parameters.domain.extent_y // domain_parameters.resolution
     stations = stations[(stations["x"] < max_x) & (stations["y"] < max_y)]
+
+    if len(stations) == 0:
+        raise ValueError("No stations in domain.")
 
     # create grid point file
     with open(gp_out, "w", encoding="utf-8") as gpf:

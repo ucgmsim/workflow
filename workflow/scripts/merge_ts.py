@@ -32,15 +32,17 @@ from typing import Annotated
 
 import typer
 
-from merge_ts import merge_ts_loop
-from qcore import xyts
+from qcore import cli, xyts
+from workflow.scripts import merge_ts_loop
+
+app = typer.Typer()
 
 
+@cli.from_docstring(app)
 def merge_ts(
     component_xyts_directory: Annotated[
         Path,
         typer.Argument(
-            help="The input xyts directory containing files to merge",
             dir_okay=True,
             file_okay=False,
             exists=True,
@@ -49,13 +51,21 @@ def merge_ts(
     ],
     output: Annotated[
         Path,
-        typer.Argument(help="The output xyts file", dir_okay=False, writable=True),
+        typer.Argument(dir_okay=False, writable=True),
     ],
-    glob_pattern: Annotated[
-        str, typer.Option(help="Set a custom glob pattern for merging the xyts files")
-    ] = "*xyts-*.e3d",
-):
-    """Merge XYTS files."""
+    glob_pattern: Annotated[str, typer.Option()] = "*xyts-*.e3d",
+) -> None:
+    """Merge XYTS files.
+
+    Parameters
+    ----------
+    component_xyts_directory : Path
+        The input xyts directory containing files to merge.
+    output : Path
+        The output xyts file.
+    glob_pattern : str, optional
+        Set a custom glob pattern for merging the xyts files, by default "*xyts-*.e3d".
+    """
     component_xyts_files = sorted(
         [
             xyts.XYTSFile(
@@ -71,18 +81,22 @@ def merge_ts(
 
     xyts_proc_header_size = 72
 
-    xyts_file_descriptors = []
+    xyts_file_descriptors: list[int] = []
     for xyts_file in component_xyts_files:
         xyts_file_descriptor = os.open(xyts_file.xyts_path, os.O_RDONLY)
         # Skip the header for each file descriptor
-        os.lseek(xyts_file_descriptor, xyts_proc_header_size, os.SEEK_SET)
+        head_skip = os.lseek(xyts_file_descriptor, xyts_proc_header_size, os.SEEK_SET)
+        if head_skip != xyts_proc_header_size:
+            raise ValueError(
+                f"Failed to skip header for {xyts_file.xyts_path} at {head_skip}"
+            )
         xyts_file_descriptors.append(xyts_file_descriptor)
 
     # If output doesn't exist when we os.open it, we'll get an error.
     output.touch()
     merged_fd = os.open(output, os.O_WRONLY)
 
-    xyts_header = (
+    xyts_header: bytes = (
         top_left.x0.tobytes()
         + top_left.y0.tobytes()
         + top_left.z0.tobytes()
@@ -99,7 +113,13 @@ def merge_ts(
         + top_left.mlat.tobytes()
         + top_left.mlon.tobytes()
     )
-    os.write(merged_fd, xyts_header)
+
+    written = os.write(merged_fd, xyts_header)
+    if written != len(xyts_header):
+        raise ValueError(
+            f"Failed to write header for {output} at {written} bytes written"
+        )
+
     merge_ts_loop.merge_fds(
         merged_fd,
         xyts_file_descriptors,
@@ -114,13 +134,3 @@ def merge_ts(
         os.close(xyts_file_descriptor)
 
     os.close(merged_fd)
-
-
-# The following function is here to define an entrypoint for the setup.py file.
-def main():
-    """Entrypoint to main script."""
-    typer.run(merge_ts)
-
-
-if __name__ == "__main__":
-    main()
