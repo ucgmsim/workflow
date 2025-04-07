@@ -117,7 +117,10 @@ def bb_simulate_station(
     # we expected waveform files to have size n_components (3) * float size (4) * number of padded timesteps.
     station_vs = station["vs"]
     station_vs30 = station["vs30"]
-    lf_acc = np.copy(lf.acc(station_name, dt=broadband_config.dt))
+    lf_acc = sp.signal.resample(
+        lf["waveforms"].sel(station=station_name).values,
+        int(round(lf.attrs["duration"] / broadband_config.dt)),
+    )
     hf_acc = sp.signal.resample(
         hf_ds.sel(station=station_name).values,
         int(round(hf_ds.attrs["duration"] / broadband_config.dt)),
@@ -177,7 +180,7 @@ def bb_simulate_station(
 def combine_hf_and_lf(
     realisation_ffp: Annotated[Path, typer.Argument(dir_okay=False, exists=True)],
     station_vs30_ffp: Annotated[Path, typer.Argument(dir_okay=False, exists=True)],
-    low_frequency_waveform_directory: Annotated[
+    low_frequency_waveform_file: Annotated[
         Path, typer.Argument(file_okay=False, exists=True)
     ],
     high_frequency_waveform_file: Annotated[Path, typer.Argument(exists=True)],
@@ -194,8 +197,8 @@ def combine_hf_and_lf(
         Path to the realisation file containing parameters for the simulation.
     station_vs30_ffp : Path
         Path to the file containing VS30 reference values for stations.
-    low_frequency_waveform_directory : Path
-        Directory containing low-frequency waveform data files.
+    low_frequency_waveform_file : Path
+        File containing low-frequency waveform data.
     high_frequency_waveform_file : Path
         File containing high-frequency waveform data.
     velocity_model_directory : Path
@@ -204,7 +207,7 @@ def combine_hf_and_lf(
         Path to the output file where the combined broadband waveforms will be saved.
     """
     # load data stores
-    lf = timeseries.LFSeis(low_frequency_waveform_directory)
+    lf = xr.open_dataset(low_frequency_waveform_file, engine="h5netcdf")
     hf_ds = xr.open_dataset(high_frequency_waveform_file, engine="h5netcdf")
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     broadband_config = BroadbandParameters.read_from_realisation_or_defaults(
@@ -216,9 +219,9 @@ def combine_hf_and_lf(
     # Similar code to account for an end time difference is also present
     # allowing for HF and LF to have separate start times and durations
 
-    bb_start_sec = min(lf.start_sec, hf_ds.attrs["t_sec"])
-    lf_start_sec_offset = max(lf.start_sec - hf_ds.attrs["t_sec"], 0)
-    hf_start_sec_offset = max(hf_ds.attrs["t_sec"] - lf.start_sec, 0)
+    bb_start_sec = min(lf.attrs["start_sec"], hf_ds.attrs["t_sec"])
+    lf_start_sec_offset = max(lf.attrs["start_sec"] - hf_ds.attrs["t_sec"], 0)
+    hf_start_sec_offset = max(hf_ds.attrs["t_sec"] - lf.attrs["start_sec"], 0)
     lf_start_padding = int(round(lf_start_sec_offset / broadband_config.dt))
     hf_start_padding = int(round(hf_start_sec_offset / broadband_config.dt))
 
@@ -227,7 +230,7 @@ def combine_hf_and_lf(
             max(
                 hf_ds.attrs["duration"]
                 + hf_start_sec_offset
-                - (lf.duration + lf_start_sec_offset),
+                - (lf.attrs["duration"] + lf_start_sec_offset),
                 0,
             )
             / broadband_config.dt
@@ -236,7 +239,7 @@ def combine_hf_and_lf(
     hf_end_padding = int(
         round(
             max(
-                lf.duration
+                lf.attrs["duration"]
                 + lf_start_sec_offset
                 - (hf_ds.attrs["duration"] + hf_start_sec_offset),
                 0,
@@ -246,7 +249,9 @@ def combine_hf_and_lf(
     )
 
     if (
-        lf_start_padding + round(lf.duration / broadband_config.dt) + lf_end_padding
+        lf_start_padding
+        + round(lf.attrs["duration"] / broadband_config.dt)
+        + lf_end_padding
         != hf_start_padding
         + round(hf_ds.attrs["duration"] / broadband_config.dt)
         + hf_end_padding
@@ -255,7 +260,9 @@ def combine_hf_and_lf(
     lf_padding = (lf_start_padding, lf_end_padding)
     hf_padding = (hf_start_padding, hf_end_padding)
     bb_nt = int(
-        lf_start_padding + round(lf.duration / broadband_config.dt) + lf_end_padding
+        lf_start_padding
+        + round(lf.attrs["duration"] / broadband_config.dt)
+        + lf_end_padding
     )
     n2 = siteamp_models.nt2n(bb_nt)
 
@@ -265,7 +272,7 @@ def combine_hf_and_lf(
             dtype="<f4",
             shape=(domain_parameters.ny, domain_parameters.nz, domain_parameters.nx),
             mode="r",
-        )[lf.stations.y, 0, lf.stations.x]
+        )[lf.coords["y"], 0, lf.coords["x"]]
         * 1000.0
     )
 
@@ -274,7 +281,7 @@ def combine_hf_and_lf(
     ].to_dataframe()
     stations["waveform_index"] = np.arange(len(stations))
     # ensure that LF and HF agree on station list, sometimes LF can drop a station or two
-    stations = stations.loc[lf.stations["name"]]
+    stations = stations.loc[lf.coords["station"]]
 
     station_vs30 = pd.read_csv(
         station_vs30_ffp,
@@ -310,9 +317,8 @@ def combine_hf_and_lf(
             "longitude": ("station", stations["longitude"]),
             "vs": ("station", stations["vs"]),
             "hf_epicentre": ("station", stations["epicentre_distance"]),
-            "x": ("station", lf.stations.x),
-            "y": ("station", lf.stations.y),
-            "z": ("station", lf.stations.z),
+            "x": ("station", lf.coords["x"]),
+            "y": ("station", lf.coords["y"]),
             "lf_vs_ref": ("station", lfvs30refs),
         },
         coords={
