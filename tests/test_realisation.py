@@ -228,7 +228,7 @@ def test_velocity_model(tmp_path: Path):
         resolution=0.1,
         vs30=300.0,
         s_wave_velocity=3500.0,
-        rrup_interpolants=np.ones(shape=(2, 2), dtype=np.float32),
+        pgv_interpolants=np.ones(shape=(2, 2), dtype=np.float32),
     )
     realisation_ffp = tmp_path / "realisation.json"
     velocity_model.write_to_realisation(realisation_ffp)
@@ -243,7 +243,7 @@ def test_velocity_model(tmp_path: Path):
                 "resolution": 0.1,
                 "vs30": 300.0,
                 "s_wave_velocity": 3500.0,
-                "rrup_interpolants": [[1, 1], [1, 1]],
+                "pgv_interpolants": [[1, 1], [1, 1]],
             }
         }
 
@@ -410,9 +410,30 @@ def test_velocity_model_1d(tmp_path: Path):
         assert json.load(realisation_handle) == {
             "velocity_model_1d": {
                 "model": [
-                    {"thickness": 0.1, "Vp": 1500.0, "Vs": 800.0, "Qp": 1500.0, "Qs": 800.0, "rho": 1800.0},
-                    {"thickness": 10.0, "Vp": 2000.0, "Vs": 1000.0, "Qp": 2000.0, "Qs": 1000.0, "rho": 2000.0},
-                    {"thickness": 20.0, "Vp": 2500.0, "Vs": 1200.0, "Qp": 2500.0, "Qs": 1200.0, "rho": 2200.0},
+                    {
+                        "thickness": 0.1,
+                        "Vp": 1500.0,
+                        "Vs": 800.0,
+                        "Qp": 1500.0,
+                        "Qs": 800.0,
+                        "rho": 1800.0,
+                    },
+                    {
+                        "thickness": 10.0,
+                        "Vp": 2000.0,
+                        "Vs": 1000.0,
+                        "Qp": 2000.0,
+                        "Qs": 1000.0,
+                        "rho": 2000.0,
+                    },
+                    {
+                        "thickness": 20.0,
+                        "Vp": 2500.0,
+                        "Vs": 1200.0,
+                        "Qp": 2500.0,
+                        "Qs": 1200.0,
+                        "rho": 2200.0,
+                    },
                 ]
             }
         }
@@ -445,6 +466,7 @@ def test_intensity_measure_calculation_parameters(tmp_path: Path):
         == im_calc_params.to_dict()
     )
 
+
 @pytest.mark.parametrize(
     "realisation_config",
     [
@@ -454,7 +476,7 @@ def test_intensity_measure_calculation_parameters(tmp_path: Path):
         realisations.VelocityModelParameters,
         realisations.BroadbandParameters,
         realisations.VelocityModel1D,
-        realisations.IntensityMeasureCalculationParameters
+        realisations.IntensityMeasureCalculationParameters,
     ],
 )
 @pytest.mark.parametrize("defaults_version", list(defaults.DefaultsVersion))

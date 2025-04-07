@@ -435,7 +435,7 @@ class DomainParameters(RealisationConfiguration):
     """The resolution of the domain in time (in seconds)."""
 
     @property
-    def nx(self) -> int: # numpydoc ignore=RT01
+    def nx(self) -> int:  # numpydoc ignore=RT01
         """int: The number of x coordinate positions in the discretised domain."""
         return int(np.round(self.domain.extent_x / self.resolution))
 
@@ -488,8 +488,8 @@ class VelocityModelParameters(RealisationConfiguration):
     """The reference vs30 value for duration estimation."""
     s_wave_velocity: float
     """The s-wave velocity."""
-    rrup_interpolants: npt.NDArray[np.float32]
-    """RRup interpolation nodes between rupture magnitude and RRup target values."""
+    pgv_interpolants: npt.NDArray[np.float32]
+    """Target PGV values at specific magnitudes, used to estimate domain size."""
 
     def to_dict(self) -> dict:
         """
@@ -501,7 +501,7 @@ class VelocityModelParameters(RealisationConfiguration):
             Dictionary representation of the object.
         """
         _dict = dataclasses.asdict(self)
-        _dict["rrup_interpolants"] = _dict["rrup_interpolants"].tolist()
+        _dict["pgv_interpolants"] = _dict["pgv_interpolants"].tolist()
         return _dict
 
 
