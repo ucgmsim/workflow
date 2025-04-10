@@ -84,6 +84,7 @@ def get_nz_outline_polygon() -> Polygon:
     return shapely.union(south_island, north_island)
 
 
+@log_utils.log_call(exclude_args=["faults"])
 def estimate_simulation_duration(
     bounding_box: BoundingBox,
     magnitude: float,
@@ -136,8 +137,8 @@ def estimate_simulation_duration(
     )
 
     s_wave_arrival_time = (largest_distance * 1000) / s_wave_velocity
-
     avg_rake = np.mean(rakes)
+
     oq_dataframe = pd.DataFrame.from_dict(
         {
             "vs30": [vs30],
@@ -154,6 +155,19 @@ def estimate_simulation_duration(
         openquake.oq_run(GMM.AS_16, TectType.ACTIVE_SHALLOW, oq_dataframe, "Ds595")[
             "Ds595_mean"
         ].iloc[0]
+    )
+
+    log_utils.get_logger(__name__).debug(
+        "Computing simulation duration with parameters",
+        vs30=vs30,
+        largest_distance=largest_distance,
+        s_wave_velocity=s_wave_velocity,
+        s_wave_arrival_time=s_wave_arrival_time,
+        ds_multiplier=ds_multiplier,
+        magnitude=magnitude,
+        rakes=rakes,
+        ds=ds,
+        avg_rake=avg_rake,
     )
 
     return s_wave_arrival_time + ds_multiplier * ds
