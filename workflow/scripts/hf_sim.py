@@ -39,10 +39,11 @@ import tempfile
 from pathlib import Path
 from typing import Annotated
 
-import h5py
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import typer
+import xarray as xr
 
 from qcore import cli
 from workflow import log_utils, utils
@@ -176,6 +177,72 @@ def hf_simulate_station(
         return epicentre_distance[0]
 
 
+def create_xarray_dataset(
+    time: npt.NDArray[np.float32],
+    waveforms: npt.NDArray[np.float32],
+    stations_df: pd.DataFrame,
+) -> xr.Dataset:
+    """Load high-frequency waveforms as an xarray dataset.
+
+    Parameters
+    ----------
+    time : npt.NDArray[np.float32]
+        Time coordinates for the waveforms.
+    waveforms : npt.NDArray[np.float32]
+        Waveform data for each station and component.
+    stations_df : pd.DataFrame
+        DataFrame containing station information, including global and domain coordinates.
+
+    Returns
+    -------
+    xr.Dataset
+        High-frequency waveform data as xarray dataset
+    """
+
+    # Create component coordinates
+    components = ["x", "y", "z"]
+
+    # Create dataset
+    ds = xr.Dataset(
+        data_vars={
+            "waveforms": (["station", "time", "component"], waveforms),
+            "vs": ("station", stations_df["vs"].values),
+        },
+        coords={
+            "station": stations_df.index,
+            "time": time,
+            "component": components,
+            "x": (
+                "station",
+                stations_df["x"].values
+                if "x" in stations_df.columns
+                else np.zeros(len(stations_df)),
+            ),
+            "y": (
+                "station",
+                stations_df["y"].values
+                if "y" in stations_df.columns
+                else np.zeros(len(stations_df)),
+            ),
+            "lat": (
+                "station",
+                stations_df["lat"].values
+                if "lat" in stations_df.columns
+                else np.zeros(len(stations_df)),
+            ),
+            "lon": (
+                "station",
+                stations_df["lon"].values
+                if "lon" in stations_df.columns
+                else np.zeros(len(stations_df)),
+            ),
+            "waveform_index": ("station", stations_df["waveform_index"].values),
+        },
+    )
+
+    return ds
+
+
 @cli.from_docstring(app)
 @log_utils.log_call()
 def run_hf(
@@ -263,30 +330,35 @@ def run_hf(
     stations["vs"] = vs
 
     nt = int(domain_parameters.duration / hf_config.dt)
-    with h5py.File(out_file, "w") as output_h5py:
-        attributes = hf_config.to_dict() | {
-            "hf_tstart": 0.0,
-            "duration": nt * hf_config.dt,
-            "stoch_ffp": stoch_ffp.name,
-        }
-        # H5Py cannot store regular Python bools, and requires converting them too booleans
-        attributes = {
-            key: np.bool_(value) if isinstance(value, bool) else value
-            for key, value in attributes.items()
-            if value is not None
-        }
 
-        output_h5py.attrs.update(attributes)
+    dt = hf_config.dt  # Calculate dt from duration and number of samples
+    time_coords = np.arange(0, nt, dtype=np.float32) * dt
 
-        waveforms_dset = output_h5py.create_dataset(
-            "waveforms", shape=(len(stations), nt, 3), dtype=np.float32
-        )
-        for i, station in stations.iterrows():
-            station_file_path = work_directory / f"{station['name']}.hf"
-            with open(station_file_path, mode="rb") as station_file_data:
-                waveform = np.fromfile(station_file_data, dtype=np.float32).reshape(
-                    (nt, 3)
-                )
-                waveforms_dset[i] = waveform
-
-    stations.to_hdf(out_file, key="stations", mode="a")
+    waveforms = np.zeros((len(stations), nt, 3), dtype=np.float32)
+    for i, station in stations.iterrows():
+        station_file_path = work_directory / f"{station['name']}.hf"
+        with open(station_file_path, mode="rb") as station_file_data:
+            waveform = np.fromfile(station_file_data, dtype=np.float32).reshape((nt, 3))
+            waveforms[i] = waveform
+    attributes = hf_config.to_dict() | {
+        "hf_tstart": 0.0,
+        "duration": nt * hf_config.dt,
+        "stoch_ffp": stoch_ffp.name,
+    }
+    # H5Py cannot store regular Python bools, and requires converting them too booleans
+    attributes = {
+        key: np.bool_(value) if isinstance(value, bool) else value
+        for key, value in attributes.items()
+        if value is not None
+    }
+    ds = create_xarray_dataset(
+        time=time_coords,
+        waveforms=waveforms,
+        stations_df=stations,
+    )
+    ds.attrs.update(attributes)
+    ds.to_netcdf(
+        out_file,
+        mode="w",
+        engine="h5netcdf",
+    )
