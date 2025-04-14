@@ -28,9 +28,10 @@ For More Help
 See the output of `gcmt-to-realisation --help`.
 """
 
+from collections.abc import Callable
 from enum import StrEnum, auto
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated, Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -39,7 +40,7 @@ import typer
 
 from qcore import cli
 from qcore.uncertainties import distributions, mag_scaling
-from source_modelling import community_fault_model, sources
+from source_modelling import community_fault_model, magnitude_scaling, sources
 from source_modelling.community_fault_model import NodalPlane
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import (
@@ -63,6 +64,17 @@ class SamplingStrategy(StrEnum):
     """Random sample from the distribution."""
 
 
+class NodalPlaneChoice(StrEnum):
+    """Index for the nodal plane."""
+
+    PLANE_1 = auto()
+    """First nodal plane."""
+    PLANE_2 = auto()
+    """Second nodal plane."""
+    MOST_LIKELY = auto()
+    """Most likely nodal plane based on the community fault model."""
+
+
 @cli.from_docstring(app)
 def gcmt_to_realisation(
     gcmt_event_id: Annotated[str, typer.Argument()],
@@ -82,8 +94,11 @@ def gcmt_to_realisation(
         typer.Option(min=-180, max=180),
     ] = None,
     scaling_relation: Annotated[
-        mag_scaling.MagnitudeScalingRelations, typer.Option(case_sensitive=False)
-    ] = mag_scaling.MagnitudeScalingRelations.LEONARD2014,
+        magnitude_scaling.ScalingRelation, typer.Option(case_sensitive=False)
+    ] = magnitude_scaling.ScalingRelation.LEONARD2014,
+    nodal_plane: Annotated[
+        NodalPlaneChoice, typer.Option()
+    ] = NodalPlaneChoice.MOST_LIKELY,
 ):
     """Generate a realisation from a GCMT solution.
 
@@ -105,8 +120,15 @@ def gcmt_to_realisation(
         The latitude coordinate of the hypocentre. Conflicts with shypo and dhypo.
     lon_hypo : float, optional
         The latitude coordinate of the hypocentre. Conflicts with shypo and dhypo.
-    scaling_relation : mag_scaling.MagnitudeScalingRelations
-        The magnitude scaling relation to use.
+    scaling_relation : magnitude_scaling.ScalingRelation or callable, optional
+        Either the name of the magnitude scaling relation from source
+        modelling to use, or a callable function that takes a
+        magnitude and returns a tuple `(length, width)`. Used for custom
+        scaling relations.
+    nodal_plane : NodalPlaneChoice
+        The nodal plane to use. Most likely will use the community fault model to
+        choose a nodal plane that agrees with the tectonic fabric.
+        Defaults to `MOST_LIKELY`.
     """
     if (shypo is not None or dhypo is not None) and (
         lat_hypo is not None or lon_hypo is not None
@@ -149,13 +171,26 @@ def gcmt_to_realisation(
         )
 
     model = community_fault_model.get_community_fault_model()
-    selected_nodal_plane = community_fault_model.most_likely_nodal_plane(
-        model, np.array([latitude, longitude]), nodal_plane_1, nodal_plane_2
-    )
+
+    match nodal_plane:
+        case NodalPlaneChoice.PLANE_1:
+            selected_nodal_plane = nodal_plane_1
+        case NodalPlaneChoice.PLANE_2:
+            selected_nodal_plane = nodal_plane_2
+        case NodalPlaneChoice.MOST_LIKELY:
+            selected_nodal_plane = community_fault_model.most_likely_nodal_plane(
+                model, np.array([latitude, longitude]), nodal_plane_1, nodal_plane_2
+            )
+
     rake = selected_nodal_plane.rake
-    length, width = mag_scaling.mw_to_lw_scaling_relation(
-        magnitude, scaling_relation, rake
-    )
+
+    if isinstance(scaling_relation, str):
+        length, width = magnitude_scaling.magnitude_to_length_width(
+            scaling_relation, magnitude, rake
+        )
+    elif isinstance(scaling_relation, Callable):
+        length, width = scaling_relation(magnitude)
+
     centroid = np.array([latitude, longitude, centroid_depth])
     plane = sources.Plane.from_centroid_strike_dip(
         centroid,
