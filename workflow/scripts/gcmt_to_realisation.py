@@ -56,6 +56,17 @@ NAN_PUBLIC_ID = "9999999"
 app = typer.Typer()
 
 
+class NodalPlaneChoice(StrEnum):
+    """Nodal plane choice for GCMT solutions."""
+
+    PLANE_1 = auto()
+    """First nodal plane."""
+    PLANE_2 = auto()
+    """Second nodal plane."""
+    MOST_LIKELY = auto()
+    """The most likely nodal plane estimated from the community fault model."""
+
+
 class SamplingStrategy(StrEnum):
     """Sampling strategy for hypocentre location."""
 
@@ -63,17 +74,31 @@ class SamplingStrategy(StrEnum):
     """Average of the distribution."""
     RANDOM = auto()
     """Random sample from the distribution."""
+    CENTROID = auto()
+    """Use the solution centroid."""
 
 
-class NodalPlaneChoice(StrEnum):
-    """Index for the nodal plane."""
+def adjust_plane_above_ground(plane: sources.Plane) -> sources.Plane:
+    """Shift a plane along it's dip direction so that the top edge is at ground-level.
 
-    PLANE_1 = auto()
-    """First nodal plane."""
-    PLANE_2 = auto()
-    """Second nodal plane."""
-    MOST_LIKELY = auto()
-    """Most likely nodal plane based on the community fault model."""
+    Parameters
+    ----------
+    plane : sources.Plane
+        The plane to shift.
+
+    Returns
+    -------
+    sources.Plane
+        The shifted plane. The plane is shifted along its dip
+        direction so that the top edge is at ground-level.
+    """
+
+    overhang = -plane.bounds[:, 2].min()
+    length = overhang / np.sin(np.radians(plane.dip))
+    dip_direction = plane.bounds[-1] - plane.bounds[0]
+    dip_direction /= np.linalg.norm(dip_direction)
+    dip_direction *= length
+    return sources.Plane(plane.bounds + dip_direction)
 
 
 @cli.from_docstring(app)
@@ -83,7 +108,7 @@ def gcmt_to_realisation(
     realisation_ffp: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
     hypocentre_strategy: Annotated[
         SamplingStrategy, typer.Option()
-    ] = SamplingStrategy.AVERAGE,
+    ] = SamplingStrategy.CENTROID,
     shypo: Annotated[Optional[float], typer.Option(min=0, max=1)] = None,
     dhypo: Annotated[Optional[float], typer.Option(min=0, max=1)] = None,
     lat_hypo: Annotated[
@@ -203,24 +228,34 @@ def gcmt_to_realisation(
     if plane.bounds[:, 2].min() < 0:
         warnings.warn(
             f"Scaling relationship produced a plane with negative depth ({plane.bounds[:, 2].min()/1000:.2f}km)."
-            " Shifting the plane down to correct. This will affect the centroid depth!"
+            " Shifting the plane down to correct. This will affect the in-plane hypocentre coordinates!"
         )
-        plane.bounds[:, 2] -= plane.bounds[:, 2].min()
+        plane = adjust_plane_above_ground(plane)
+
     if lat_hypo is not None and lon_hypo is not None:
-        hypocentre_global = np.array([lat_hypo, lon_hypo])
-        hypocentre = plane.wgs_depth_coordinates_to_fault_coordinates(hypocentre_global)
+        hypocentre = plane.wgs_depth_coordinates_to_fault_coordinates(
+            np.array([lat_hypo, lon_hypo])
+        )
+    elif shypo is not None and dhypo is not None:
+        hypocentre = np.array([shypo, dhypo])
+    elif hypocentre_strategy == SamplingStrategy.AVERAGE:
+        hypocentre = np.array(
+            [
+                1 / 2,
+                distributions.truncated_weibull_expected_value(1),
+            ]
+        )
+    elif hypocentre_strategy == SamplingStrategy.RANDOM:
+        hypocentre = np.array(
+            [
+                distributions.truncated_normal(1 / 2, 1 / 4),
+                distributions.truncated_weibull(1),
+            ]
+        )
     else:
-        default_shypo = (
-            1 / 2
-            if hypocentre_strategy == SamplingStrategy.AVERAGE
-            else distributions.truncated_normal(1 / 2, 1 / 4)
+        hypocentre = plane.wgs_depth_coordinates_to_fault_coordinates(
+            centroid * np.array([1, 1, 1000])
         )
-        default_dhypo = (
-            distributions.truncated_weibull_expected_value(1)
-            if hypocentre_strategy == SamplingStrategy.AVERAGE
-            else distributions.truncated_weibull(1)
-        )
-        hypocentre = np.array([shypo or default_shypo, dhypo or default_dhypo])
 
     source_config = SourceConfig(
         source_geometries={gcmt_event_id: sources.Fault([plane])}
