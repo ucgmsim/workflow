@@ -28,10 +28,11 @@ For More Help
 See the output of `gcmt-to-realisation --help`.
 """
 
+import warnings
 from collections.abc import Callable
 from enum import StrEnum, auto
 from pathlib import Path
-from typing import Annotated, Any, Optional
+from typing import Annotated, Optional
 
 import numpy as np
 import pandas as pd
@@ -39,7 +40,7 @@ import requests
 import typer
 
 from qcore import cli
-from qcore.uncertainties import distributions, mag_scaling
+from qcore.uncertainties import distributions
 from source_modelling import community_fault_model, magnitude_scaling, sources
 from source_modelling.community_fault_model import NodalPlane
 from workflow.defaults import DefaultsVersion
@@ -199,6 +200,12 @@ def gcmt_to_realisation(
         width,
         strike=selected_nodal_plane.strike,
     )
+    if plane.bounds[:, 2].min() < 0:
+        warnings.warn(
+            f"Scaling relationship produced a plane with negative depth ({plane.bounds[:, 2].min()/1000:.2f}km)."
+            " Shifting the plane down to correct. This will affect the centroid depth!"
+        )
+        plane.bounds[:, 2] -= plane.bounds[:, 2].min()
     if lat_hypo is not None and lon_hypo is not None:
         hypocentre_global = np.array([lat_hypo, lon_hypo])
         hypocentre = plane.wgs_depth_coordinates_to_fault_coordinates(hypocentre_global)
