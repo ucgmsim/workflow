@@ -210,7 +210,7 @@ def gcmt_to_realisation(
 
     rake = selected_nodal_plane.rake
 
-    if isinstance(scaling_relation, str):
+    if isinstance(scaling_relation, str | magnitude_scaling.ScalingRelation):
         length, width = magnitude_scaling.magnitude_to_length_width(
             scaling_relation, magnitude, rake
         )
