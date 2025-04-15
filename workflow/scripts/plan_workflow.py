@@ -52,7 +52,6 @@ class StageIdentifier(StrEnum):
     LowFrequency = "emod3d"
     Broadband = "bb_sim"
     IntensityMeasureCalculation = "im_calc"
-    PlotTimeslices = "plot_ts"
     MergeTimeslices = "merge_ts"
     NSHMToRealisation = "nshm_to_realisation"
 
@@ -130,12 +129,12 @@ class Stage:
     """The sample number of the realisation."""
 
     @property
-    def parent(self) -> Self: # numpydoc ignore=RT01
+    def parent(self) -> Self:  # numpydoc ignore=RT01
         """Stage: the parent stage of this stage."""
         return self.__class__(self.identifier, self.event, None)
 
     @property
-    def directory(self) -> Optional[PurePath]: # numpydoc ignore=RT01
+    def directory(self) -> Optional[PurePath]:  # numpydoc ignore=RT01
         """Optional[PurePath]: the directory for this stage."""
         if not self.event:
             return None
@@ -145,7 +144,7 @@ class Stage:
         return PurePath(directory)
 
     @property
-    def outputs(self) -> set[PurePath]: # numpydoc ignore=RT01
+    def outputs(self) -> set[PurePath]:  # numpydoc ignore=RT01
         """set[PurePath]: the outputs for this stage."""
         directory = self.directory
         if not directory:
@@ -153,7 +152,7 @@ class Stage:
         return {directory / output for output in stage_outputs(self.identifier)}
 
     @property
-    def inputs(self) -> set[PurePath]: # numpydoc ignore=RT01
+    def inputs(self) -> set[PurePath]:  # numpydoc ignore=RT01
         """set[PurePath]: the inputs for this stage."""
         directory = self.directory
         if not self.event or not directory:
@@ -289,7 +288,6 @@ def stage_outputs(
         StageIdentifier.IntensityMeasureCalculation: {
             PurePath("intensity_measures.parquet")
         },
-        StageIdentifier.PlotTimeslices: {PurePath("animation.mp4")},
         StageIdentifier.MergeTimeslices: {PurePath("LF") / "OutBin" / "output.e3d"},
     }
     file_outputs = output_dictionary.get(identifier, set())
@@ -388,9 +386,6 @@ def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
             ],
             Stage(StageIdentifier.Broadband, event, sample): [
                 Stage(StageIdentifier.IntensityMeasureCalculation, event, sample)
-            ],
-            Stage(StageIdentifier.MergeTimeslices, event, sample): [
-                Stage(StageIdentifier.PlotTimeslices, event, sample)
             ],
         },
         create_using=nx.DiGraph,
@@ -660,16 +655,45 @@ def build_filetree(root_path: PurePath, files: set[PurePath]) -> dict[str, Any]:
 def plan_workflow(
     realisation_ids: Annotated[list[str], typer.Argument()],
     flow_file: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
-    goal: Annotated[list[StageIdentifier], typer.Option(default_factory=lambda: [], rich_help_panel="Planning Workflows")],
-    group_goal: Annotated[list[GroupIdentifier], typer.Option(default_factory=lambda: [], rich_help_panel="Planning Workflows")],
-    excluding: Annotated[list[StageIdentifier], typer.Option(default_factory=lambda: [], rich_help_panel="Planning Workflows")],
-    excluding_group: Annotated[list[GroupIdentifier], typer.Option(default_factory=lambda: [], rich_help_panel="Planning Workflows")],
-    archive: Annotated[list[StageIdentifier], typer.Option(default_factory=lambda: [StageIdentifier.Broadband, StageIdentifier.IntensityMeasureCalculation], rich_help_panel="Archiving")],
-    visualise: Annotated[bool, typer.Option(rich_help_panel="Visualising Workflows")] = False,
-    show_required_files: Annotated[bool, typer.Option(rich_help_panel="Visualising Workflows")] = True,
-    target_host: Annotated[WorkflowTarget, typer.Option(rich_help_panel="Planning Workflows")] = WorkflowTarget.NeSI,
+    goal: Annotated[
+        list[StageIdentifier],
+        typer.Option(default_factory=lambda: [], rich_help_panel="Planning Workflows"),
+    ],
+    group_goal: Annotated[
+        list[GroupIdentifier],
+        typer.Option(default_factory=lambda: [], rich_help_panel="Planning Workflows"),
+    ],
+    excluding: Annotated[
+        list[StageIdentifier],
+        typer.Option(default_factory=lambda: [], rich_help_panel="Planning Workflows"),
+    ],
+    excluding_group: Annotated[
+        list[GroupIdentifier],
+        typer.Option(default_factory=lambda: [], rich_help_panel="Planning Workflows"),
+    ],
+    archive: Annotated[
+        list[StageIdentifier],
+        typer.Option(
+            default_factory=lambda: [
+                StageIdentifier.Broadband,
+                StageIdentifier.IntensityMeasureCalculation,
+            ],
+            rich_help_panel="Archiving",
+        ),
+    ],
+    visualise: Annotated[
+        bool, typer.Option(rich_help_panel="Visualising Workflows")
+    ] = False,
+    show_required_files: Annotated[
+        bool, typer.Option(rich_help_panel="Visualising Workflows")
+    ] = True,
+    target_host: Annotated[
+        WorkflowTarget, typer.Option(rich_help_panel="Planning Workflows")
+    ] = WorkflowTarget.NeSI,
     source: Annotated[Optional[Source], typer.Option(rich_help_panel="Sources")] = None,
-    defaults_version: Annotated[Optional[DefaultsVersion], typer.Option(rich_help_panel="Sources")] = None,
+    defaults_version: Annotated[
+        Optional[DefaultsVersion], typer.Option(rich_help_panel="Sources")
+    ] = None,
 ):
     """Plan and generate a Cylc workflow file for a number of realisations.
 

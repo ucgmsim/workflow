@@ -21,7 +21,6 @@ from workflow.scripts import (
     import_realisation,
     nshm2022_to_realisation,
     plan_workflow,
-    plot_ts,
     realisation_to_srf,
 )
 
@@ -46,7 +45,6 @@ from workflow.scripts import (
         import_realisation,
         nshm2022_to_realisation,
         plan_workflow,
-        plot_ts,
         realisation_to_srf,
     ],
 )
