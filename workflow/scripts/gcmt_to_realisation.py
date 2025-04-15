@@ -78,29 +78,6 @@ class SamplingStrategy(StrEnum):
     """Use the solution centroid."""
 
 
-def adjust_plane_above_ground(plane: sources.Plane) -> sources.Plane:
-    """Shift a plane along it's dip direction so that the top edge is at ground-level.
-
-    Parameters
-    ----------
-    plane : sources.Plane
-        The plane to shift.
-
-    Returns
-    -------
-    sources.Plane
-        The shifted plane. The plane is shifted along its dip
-        direction so that the top edge is at ground-level.
-    """
-
-    overhang = -plane.bounds[:, 2].min()
-    length = overhang / np.sin(np.radians(plane.dip))
-    dip_direction = plane.bounds[-1] - plane.bounds[0]
-    dip_direction /= np.linalg.norm(dip_direction)
-    dip_direction *= length
-    return sources.Plane(plane.bounds + dip_direction)
-
-
 @cli.from_docstring(app)
 def gcmt_to_realisation(
     gcmt_event_id: Annotated[str, typer.Argument()],
@@ -225,12 +202,13 @@ def gcmt_to_realisation(
         width,
         strike=selected_nodal_plane.strike,
     )
+
     if plane.bounds[:, 2].min() < 0:
         warnings.warn(
             f"Scaling relationship produced a plane with negative depth ({plane.bounds[:, 2].min()/1000:.2f}km)."
-            " Shifting the plane down to correct. This will affect the in-plane hypocentre coordinates!"
+            " Shifting the plane down to correct."
         )
-        plane = adjust_plane_above_ground(plane)
+        plane.bounds[:, 2] -= plane.bounds[:, 2].min()
 
     if lat_hypo is not None and lon_hypo is not None:
         hypocentre = plane.wgs_depth_coordinates_to_fault_coordinates(
@@ -253,9 +231,7 @@ def gcmt_to_realisation(
             ]
         )
     else:
-        hypocentre = plane.wgs_depth_coordinates_to_fault_coordinates(
-            centroid * np.array([1, 1, 1000])
-        )
+        hypocentre = np.array([1 / 2, 1 / 2])
 
     source_config = SourceConfig(
         source_geometries={gcmt_event_id: sources.Fault([plane])}
