@@ -95,12 +95,12 @@ class RealisationConfiguration(ABC):
         return dataclasses.asdict(self)
 
     @classmethod
-    def read_from_realisation(cls, realisation_ffp: Path) -> Self:
+    def read_from_realisation(cls, realisation_ffp: Path | str) -> Self:
         """Read configuration from a realisation file.
 
         Parameters
         ----------
-        realisation_ffp : Path
+        realisation_ffp : Path-like
             The filepath to read from.
 
         Returns
@@ -117,6 +117,7 @@ class RealisationConfiguration(ABC):
             If the key in `cls._config_key` is not present in
             the realisation filepath.
         """
+        realisation_ffp = Path(realisation_ffp)
         with open(realisation_ffp, "r", encoding="utf-8") as realisation_file_handle:
             realisation_config = json.load(realisation_file_handle)
             if cls._config_key not in realisation_config:
@@ -156,13 +157,13 @@ class RealisationConfiguration(ABC):
 
     @classmethod
     def read_from_realisation_or_defaults(
-        cls, realisation_ffp: Path, defaults_version: DefaultsVersion
+        cls, realisation_ffp: Path | str, defaults_version: DefaultsVersion
     ) -> Self:
         """Read configuration from realisation, or read from defaults and write to realisation.
 
         Parameters
         ----------
-        realisation_ffp : Path
+        realisation_ffp : Path-like
                     The realisation filepath to read from.
         defaults_version : DefaultsVersion
             The default parameter version to load with.
@@ -181,6 +182,7 @@ class RealisationConfiguration(ABC):
             If the key in `cls._config_key` is not present in
             the realisation or scientific defaults configuration.
         """
+        realisation_ffp = Path(realisation_ffp)
         try:
             return cls.read_from_realisation(realisation_ffp)
         except (RealisationParseError, FileNotFoundError):
@@ -188,7 +190,9 @@ class RealisationConfiguration(ABC):
             default_config.write_to_realisation(realisation_ffp)
             return default_config
 
-    def write_to_realisation(self, realisation_ffp: Path, update: bool = True) -> None:
+    def write_to_realisation(
+        self, realisation_ffp: Path | str, update: bool = True
+    ) -> None:
         """Write a configuration to a realisation file.
 
         The default behaviour will update the realisation and replace just
@@ -198,12 +202,13 @@ class RealisationConfiguration(ABC):
 
         Parameters
         ----------
-        realisation_ffp : Path
+        realisation_ffp : Path-like
             The realisation filepath to write to.
         update : bool
             If True, then the realisation is updated, rather than
             replaced. Default is True.
         """
+        realisation_ffp = Path(realisation_ffp)
         realisation_configuration = {}
         if realisation_ffp.exists() and update:
             with open(
