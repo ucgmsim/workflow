@@ -45,7 +45,7 @@ from qcore.uncertainties import mag_scaling
 from source_modelling import sources
 from velocity_modelling import bounding_box
 from velocity_modelling.bounding_box import BoundingBox
-from workflow import log_utils
+from workflow import log_utils, realisations
 from workflow.realisations import (
     DomainParameters,
     RealisationMetadata,
@@ -494,3 +494,4 @@ def generate_velocity_model_parameters(
         dt=velocity_model_parameters.dt,
     )
     domain_parameters.write_to_realisation(realisation_ffp)
+    realisations.append_log_entry(realisation_ffp)

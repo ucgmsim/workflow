@@ -46,6 +46,7 @@ from qcore import cli
 from qcore.uncertainties import distributions, mag_scaling
 from source_modelling import rupture_propagation
 from source_modelling.sources import Fault
+from workflow import realisations
 from workflow.defaults import DefaultsVersion
 from workflow.log_utils import log_call
 from workflow.realisations import (
@@ -121,13 +122,8 @@ class SamplingStrategy(StrEnum):
 @cli.from_docstring(app)
 @log_call()
 def generate_realisation(
-    nshmdb_path: Annotated[
-        Path, typer.Argument(exists=True, dir_okay=False)
-    ],
-    rupture_id: Annotated[
-        int,
-        typer.Argument()
-    ],
+    nshmdb_path: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    rupture_id: Annotated[int, typer.Argument()],
     realisation_ffp: Annotated[
         Path,
         typer.Argument(writable=True),
@@ -256,3 +252,4 @@ def generate_realisation(
     realisation_ffp.parent.mkdir(parents=True, exist_ok=True)
     for section in [source_config, rupture_propagation_config]:
         section.write_to_realisation(realisation_ffp)
+    realisations.append_log_entry(realisation_ffp)

@@ -42,7 +42,7 @@ import xarray as xr
 from IM import im_reader, ims
 from IM.im_calculation import IM
 from qcore import cli, coordinates
-from workflow import utils
+from workflow import realisations, utils
 from workflow.realisations import (
     BroadbandParameters,
     IntensityMeasureCalculationParameters,
@@ -225,3 +225,4 @@ def calculate_instensity_measures(
         dataset[im_name] = result
 
     im_reader.write_intensity_measures(dataset, output_path)
+    realisations.append_log_entry(realisation_ffp)

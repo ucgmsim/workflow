@@ -41,7 +41,7 @@ from typing import Annotated, Optional
 import typer
 
 from qcore import cli
-from workflow import log_utils
+from workflow import log_utils, realisations
 from workflow.realisations import (
     DomainParameters,
     RealisationMetadata,
@@ -126,10 +126,18 @@ def run_nzvm(
 @cli.from_docstring(app)
 @log_utils.log_call()
 def generate_velocity_model(
-    realisation_ffp: Annotated[Path, typer.Argument(readable=True, exists=True, dir_okay=False)],
-    velocity_model_output: Annotated[Path, typer.Argument(writable=True, file_okay=False, exists=False)],
-    velocity_model_bin_path: Annotated[Path, typer.Option(exists=True, readable=True)] = Path("/Velocity-Model/NZVM"),
-    work_directory: Annotated[Path, typer.Option(exists=False, writable=True, file_okay=False)] = Path("/out"),
+    realisation_ffp: Annotated[
+        Path, typer.Argument(readable=True, exists=True, dir_okay=False)
+    ],
+    velocity_model_output: Annotated[
+        Path, typer.Argument(writable=True, file_okay=False, exists=False)
+    ],
+    velocity_model_bin_path: Annotated[
+        Path, typer.Option(exists=True, readable=True)
+    ] = Path("/Velocity-Model/NZVM"),
+    work_directory: Annotated[
+        Path, typer.Option(exists=False, writable=True, file_okay=False)
+    ] = Path("/out"),
     num_threads: Annotated[Optional[int], typer.Option(min=1)] = None,
 ) -> None:
     """
@@ -177,3 +185,4 @@ def generate_velocity_model(
     shutil.copytree(
         velocity_model_intermediate_path / "Velocity_Model", velocity_model_output
     )
+    realisations.append_log_entry(realisation_ffp)

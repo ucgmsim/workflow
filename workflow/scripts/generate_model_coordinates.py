@@ -32,7 +32,7 @@ from typing import Annotated
 import typer
 
 from qcore import cli
-from workflow import log_utils
+from workflow import log_utils, realisations
 from workflow.realisations import DomainParameters
 
 app = typer.Typer()
@@ -41,12 +41,8 @@ app = typer.Typer()
 @cli.from_docstring(app)
 @log_utils.log_call()
 def generate_model_coordinates(
-    realisation_ffp: Annotated[
-        Path, typer.Argument(exists=True, readable=True)
-    ],
-    output_ffp: Annotated[
-        Path, typer.Argument(writable=True)
-    ],
+    realisation_ffp: Annotated[Path, typer.Argument(exists=True, readable=True)],
+    output_ffp: Annotated[Path, typer.Argument(writable=True)],
 ) -> None:
     """
     Generate model coordinate files for EMOD3D from a realisation JSON file.
@@ -121,3 +117,4 @@ def generate_model_coordinates(
             ]
         )
     )
+    realisations.append_log_entry(realisation_ffp)

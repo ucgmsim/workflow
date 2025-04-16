@@ -36,7 +36,7 @@ import pandas as pd
 import typer
 
 from qcore import cli
-from workflow import log_utils
+from workflow import log_utils, realisations
 from workflow.realisations import DomainParameters
 
 app = typer.Typer()
@@ -139,3 +139,4 @@ def generate_fd_files(
             ),
             axis=1,
         )
+    realisations.append_log_entry(realisation_ffp)

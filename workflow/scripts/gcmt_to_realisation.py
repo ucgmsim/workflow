@@ -41,6 +41,7 @@ from qcore import cli
 from qcore.uncertainties import distributions, mag_scaling
 from source_modelling import community_fault_model, sources
 from source_modelling.community_fault_model import NodalPlane
+from workflow import realisations
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import (
     RealisationMetadata,
@@ -198,3 +199,4 @@ def gcmt_to_realisation(
     metadata.write_to_realisation(realisation_ffp)
     source_config.write_to_realisation(realisation_ffp)
     rupture_config.write_to_realisation(realisation_ffp)
+    realisations.append_log_entry(realisation_ffp)

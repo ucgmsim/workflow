@@ -35,6 +35,7 @@ import numpy as np
 import typer
 
 from qcore import cli
+from workflow import realisations
 from workflow.realisations import (
     DomainParameters,
     EMOD3DParameters,
@@ -229,15 +230,29 @@ def format_as_emod3d_value(value: int | float | str | Path) -> str:
 
 @cli.from_docstring(app)
 def create_e3d_par(
-    realisation_ffp: Annotated[Path, typer.Argument(exists=True, readable=True, dir_okay=False)],
-    srf_file_ffp: Annotated[Path, typer.Argument(exists=True, readable=True, dir_okay=False)],
-    velocity_model_ffp: Annotated[Path, typer.Argument(exists=True, readable=True, file_okay=False)],
-    stations_ffp: Annotated[Path, typer.Argument(exists=True, readable=True, file_okay=False)],
-    grid_ffp: Annotated[Path, typer.Argument(exists=True, readable=True, file_okay=False)],
+    realisation_ffp: Annotated[
+        Path, typer.Argument(exists=True, readable=True, dir_okay=False)
+    ],
+    srf_file_ffp: Annotated[
+        Path, typer.Argument(exists=True, readable=True, dir_okay=False)
+    ],
+    velocity_model_ffp: Annotated[
+        Path, typer.Argument(exists=True, readable=True, file_okay=False)
+    ],
+    stations_ffp: Annotated[
+        Path, typer.Argument(exists=True, readable=True, file_okay=False)
+    ],
+    grid_ffp: Annotated[
+        Path, typer.Argument(exists=True, readable=True, file_okay=False)
+    ],
     output_ffp: Annotated[Path, typer.Argument(writable=True, file_okay=False)],
-    scratch_ffp: Annotated[Path, typer.Option(writable=True, file_okay=False)] = Path("/out"),
+    scratch_ffp: Annotated[Path, typer.Option(writable=True, file_okay=False)] = Path(
+        "/out"
+    ),
     defaults_version: Annotated[str, typer.Option()] = "22.2.2.1",
-    emod3d_path: Annotated[Path, typer.Option(exists=True, readable=True, dir_okay=False)] = Path("/EMOD3D/tools/emod3d-mpi_v3.0.8"),
+    emod3d_path: Annotated[
+        Path, typer.Option(exists=True, readable=True, dir_okay=False)
+    ] = Path("/EMOD3D/tools/emod3d-mpi_v3.0.8"),
     emod3d_version: Annotated[str, typer.Option()] = "3.0.8",
 ):
     """Create EMOD3D parameter file from provided inputs.
@@ -297,3 +312,4 @@ def create_e3d_par(
             for key, value in e3d_par_values.items()
         )
     )
+    realisations.append_log_entry(realisation_ffp)
