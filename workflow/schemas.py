@@ -601,3 +601,33 @@ INTENSITY_MEASURE_CALCUATION_PARAMETERS = Schema(
         ),
     }
 )
+
+
+LOG_ENTRY_SCHEMA = Schema(
+    {
+        Literal(
+            "utility",
+            description="The name of the utility that produced this log entry.",
+        ): str,
+        Literal("version", description="The version of the utility."): str,
+        Literal(
+            "timestamp",
+            description="The timestamp of when the utility was run.",
+        ): str,
+        Optional(
+            Literal(
+                "args",
+                description="The arguments the utility was executed with.",
+            )
+        ): [str],
+    }
+)
+
+LOG_TRAIL_SCHEMA = Schema(
+    {
+        Literal(
+            "log",
+            description="The utilities executed on this realisation.",
+        ): [LOG_ENTRY_SCHEMA],
+    }
+)
