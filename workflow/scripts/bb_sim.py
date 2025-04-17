@@ -286,14 +286,14 @@ def combine_hf_and_lf(
         )[lf_ds.y.values.astype(int), 0, lf_ds.x.values.astype(int)]
         * 1000.0
     )
-    station_file_v30 = pd.read_csv(
+    station_vs30_df = pd.read_csv(
         station_vs30_ffp, header=None, names=["name", "vs30"]
     ).set_index("name")
     hf_ds = hf_ds.assign(
         {
             "vs30": (
                 "station",
-                station_file_v30["vs30"].loc[hf_ds.station.values].values,
+                station_vs30_df["vs30"].loc[hf_ds.station.values].values,
             )
         },
     )
