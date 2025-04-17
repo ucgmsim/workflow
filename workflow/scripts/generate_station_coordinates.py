@@ -45,7 +45,7 @@ app = typer.Typer()
 @cli.from_docstring(app)
 @log_utils.log_call()
 def generate_fd_files(
-    realisations_ffp: Annotated[Path, typer.Argument(readable=True)],
+    realisation_ffp: Annotated[Path, typer.Argument(readable=True)],
     output_path: Annotated[Path, typer.Argument(file_okay=False, writable=True)],
     keep_dup_station: Annotated[bool, typer.Option()] = True,
     stat_file: Annotated[Path, typer.Option(readable=True, exists=True)] = Path(
@@ -56,7 +56,7 @@ def generate_fd_files(
 
     Parameters
     ----------
-    realisations_ffp : Path
+    realisation_ffp : Path
         Path to realisation json file.
     output_path : Path
         Output path for station files.
@@ -66,7 +66,7 @@ def generate_fd_files(
         The location of the station files.
     """
     output_path.mkdir(exist_ok=True)
-    domain_parameters = DomainParameters.read_from_realisation(realisations_ffp)
+    domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
 
     # where to save gridpoint and longlat station files
     gp_out = output_path / "stations.statcords"

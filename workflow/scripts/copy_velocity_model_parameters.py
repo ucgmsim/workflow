@@ -64,4 +64,4 @@ def copy_domain(
         VelocityModelParameters.read_from_realisation(from_realisation_ffp)
     )
     from_realisation_velocity_model_parameters.write_to_realisation(to_realisation_ffp)
-    realisations.append_log_entry(realisation_ffp)
+    realisations.append_log_entry(to_realisation_ffp)
