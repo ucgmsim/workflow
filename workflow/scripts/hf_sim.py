@@ -40,7 +40,6 @@ from pathlib import Path
 from typing import Annotated
 
 import numpy as np
-import numpy.typing as npt
 import pandas as pd
 import typer
 import xarray as xr
