@@ -57,9 +57,6 @@ from workflow.realisations import (
 
 app = typer.Typer()
 
-HEAD_STAT = 24
-FLOAT_SIZE = 4
-
 
 def hf_simulate_station(
     hf_config: HFConfig,
@@ -177,72 +174,6 @@ def hf_simulate_station(
         return epicentre_distance[0]
 
 
-def create_xarray_dataset(
-    time: npt.NDArray[np.float32],
-    waveforms: npt.NDArray[np.float32],
-    stations_df: pd.DataFrame,
-) -> xr.Dataset:
-    """Load high-frequency waveforms as an xarray dataset.
-
-    Parameters
-    ----------
-    time : npt.NDArray[np.float32]
-        Time coordinates for the waveforms.
-    waveforms : npt.NDArray[np.float32]
-        Waveform data for each station and component.
-    stations_df : pd.DataFrame
-        DataFrame containing station information, including global and domain coordinates.
-
-    Returns
-    -------
-    xr.Dataset
-        High-frequency waveform data as xarray dataset
-    """
-
-    # Create component coordinates
-    components = ["x", "y", "z"]
-
-    # Create dataset
-    ds = xr.Dataset(
-        data_vars={
-            "waveforms": (["station", "time", "component"], waveforms),
-            "vs": ("station", stations_df["vs"].values),
-        },
-        coords={
-            "station": stations_df.index,
-            "time": time,
-            "component": components,
-            "x": (
-                "station",
-                stations_df["x"].values
-                if "x" in stations_df.columns
-                else np.zeros(len(stations_df)),
-            ),
-            "y": (
-                "station",
-                stations_df["y"].values
-                if "y" in stations_df.columns
-                else np.zeros(len(stations_df)),
-            ),
-            "lat": (
-                "station",
-                stations_df["lat"].values
-                if "lat" in stations_df.columns
-                else np.zeros(len(stations_df)),
-            ),
-            "lon": (
-                "station",
-                stations_df["lon"].values
-                if "lon" in stations_df.columns
-                else np.zeros(len(stations_df)),
-            ),
-            "waveform_index": ("station", stations_df["waveform_index"].values),
-        },
-    )
-
-    return ds
-
-
 @cli.from_docstring(app)
 @log_utils.log_call()
 def run_hf(
@@ -345,17 +276,28 @@ def run_hf(
         "duration": nt * hf_config.dt,
         "stoch_ffp": stoch_ffp.name,
     }
-    # H5Py cannot store regular Python bools, and requires converting them too booleans
+    # H5Py cannot store regular Python bools, and requires converting them to booleans
     attributes = {
         key: np.bool_(value) if isinstance(value, bool) else value
         for key, value in attributes.items()
         if value is not None
     }
-    ds = create_xarray_dataset(
-        time=time_coords,
-        waveforms=waveforms,
-        stations_df=stations,
+    ds = xr.Dataset(
+        data_vars={
+            "waveforms": (["station", "time", "component"], waveforms),
+            "vs": ("station", stations["vs"].values),
+        },
+        coords={
+            "station": stations.index,
+            "time": time_coords,
+            "component": ["x", "y", "z"],
+            "x": ("station", stations["x"].values),
+            "y": ("station", stations["y"].values),
+            "lat": ("station", stations["lat"].values),
+            "lon": ("station", stations["lon"].values),
+        },
     )
+
     ds.attrs.update(attributes)
     ds.to_netcdf(
         out_file,
