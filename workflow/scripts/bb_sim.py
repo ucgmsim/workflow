@@ -43,7 +43,6 @@ import multiprocessing
 from pathlib import Path
 from typing import Annotated
 
-import h5py
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -131,7 +130,6 @@ def bb_simulate_station(
     hf_dt = hf_ds.attrs["dt"]
 
     if hf_dt != broadband_config.dt:
-        orig_len = hf_acc_raw.shape[0]
         target_len = int(round(hf_ds.attrs["duration"] / broadband_config.dt))
         hf_acc = sp.signal.resample(hf_acc_raw, target_len)
     else:
