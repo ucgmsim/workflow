@@ -276,7 +276,7 @@ def run_hf(
         "duration": nt * hf_config.dt,
         "stoch_ffp": stoch_ffp.name,
     }
-    # H5Py cannot store regular Python bools, and requires converting them to booleans
+    # xarray cannot store regular Python bools, and requires converting them to booleans
     attributes = {
         key: np.bool_(value) if isinstance(value, bool) else value
         for key, value in attributes.items()
