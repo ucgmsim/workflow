@@ -229,11 +229,8 @@ def combine_hf_and_lf(
     )
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
 
-    # Load the low-frequency data as xarray dataset
-    # Assume that it's already an xarray dataset in this directory
     lf_ds = xr.open_dataset(low_frequency_waveform_file)
 
-    # Load the high-frequency data as xarray dataset with VS30 values
     hf_ds = xr.open_dataset(high_frequency_waveform_file)
 
     # Get time information
@@ -350,7 +347,6 @@ def combine_hf_and_lf(
             "lat": ("station", lf_ds.lat.sel(station=common_stations).values),
             "lon": ("station", lf_ds.lon.sel(station=common_stations).values),
             "lf_vs_ref": ("station", lfvs30refs[station_indices]),
-            "waveform_index": ("station", np.arange(len(common_stations))),
         },
         attrs={
             "dt": broadband_config.dt,
