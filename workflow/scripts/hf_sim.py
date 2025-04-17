@@ -261,7 +261,7 @@ def run_hf(
 
     nt = int(domain_parameters.duration / hf_config.dt)
 
-    dt = hf_config.dt  # Calculate dt from duration and number of samples
+    dt = hf_config.dt
     time_coords = np.arange(0, nt, dtype=np.float32) * dt
 
     waveforms = np.zeros((len(stations), nt, 3), dtype=np.float32)
