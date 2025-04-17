@@ -847,6 +847,7 @@ class LogEntry:
     """The arguments passed to the utility."""
 
     def __post_init__(self) -> None:
+        """Post-initialisation of the log entry."""
         if isinstance(self.timestamp, str):
             self.timestamp = datetime.datetime.fromisoformat(self.timestamp)
 
@@ -858,8 +859,6 @@ class LogEntry:
         ----------
         utility : str
             The name of the utility.
-        version : str
-            The version of the utility.
         args : list[str]
             The arguments passed to the utility.
 
@@ -927,10 +926,6 @@ def append_log_entry(realisation_ffp: Path | str) -> None:
     ----------
     realisation_ffp : Path-like
         The realisation filepath to write to.
-    utility : str
-        The name of the utility.
-    args : list[str]
-        The arguments passed to the utility.
     """
     realisation_ffp = Path(realisation_ffp)
     utility = Path(sys.argv[0]).name
