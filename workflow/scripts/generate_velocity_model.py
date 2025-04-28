@@ -123,13 +123,13 @@ def run_nzvm(
     )
 
 
-def run_pynzvm(nzvm_config_ffp: Path) -> None:
-    """Run PyNZVM executable with specified configuration.
+def run_nzcvm(nzvm_config_ffp: Path) -> None:
+    """Run NZCVM executable with specified configuration.
 
     Parameters
     ----------
     nzvm_config_ffp : Path
-        Path to the NZVM configuration file.
+        Path to the NZVM-format configuration file.
     """
     from velocity_modelling.scripts import nzcvm
 
@@ -151,7 +151,7 @@ def generate_velocity_model(
     work_directory: Annotated[
         Path, typer.Option(exists=False, writable=True, file_okay=False)
     ] = Path("/out"),
-    use_pynzvm: Annotated[bool, typer.Option()] = False,
+    use_nzcvm: Annotated[bool, typer.Option()] = False,
     num_threads: Annotated[Optional[int], typer.Option(min=1)] = None,
 ) -> None:
     """
@@ -171,8 +171,8 @@ def generate_velocity_model(
         Path to the NZVM binary.
     work_directory : Path, optional
         Directory for intermediate output files.
-    use_pynzvm : bool, optional
-        If True, use the PyNZVM Python package instead of the NZVM binary. Default is False.
+    use_nzcvm : bool, optional
+        If True, use the Nzcvm Python package instead of the NZVM binary. Default is False.
     num_threads : int or None, optional
         Number of threads to use for velocity model generation. Use None for inferred thread count.
 
@@ -181,9 +181,9 @@ def generate_velocity_model(
     None
         The function does not return any value. It writes the generated velocity model to the specified output directory.
     """
-    if not use_pynzvm and not velocity_model_bin_path:
+    if not use_nzcvm and not velocity_model_bin_path:
         raise ValueError(
-            "If not using pynzvm, you must specify the path to the NZVM binary."
+            "If not using nzcvm, you must specify the path to the NZVM binary."
         )
 
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
@@ -202,8 +202,8 @@ def generate_velocity_model(
         velocity_model_intermediate_path,
         nzvm_config_path,
     )
-    if use_pynzvm:
-        run_pynzvm(nzvm_config_path)
+    if use_nzcvm:
+        run_nzcvm(nzvm_config_path)
     else:
         run_nzvm(velocity_model_bin_path, nzvm_config_path, num_threads)
     shutil.copytree(
