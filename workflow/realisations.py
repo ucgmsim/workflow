@@ -357,6 +357,58 @@ class SRFConfig(RealisationConfiguration):
 
 
 @dataclasses.dataclass
+class Rakes(RealisationConfiguration):
+    """Configuration for fault rakes."""
+
+    _config_key: ClassVar[str] = "rakes"
+    _schema: ClassVar[Schema] = schemas.RAKE_SCHEMA
+
+    rakes: dict[str, float]
+    """A map from faults to their rake angles."""
+
+    def __getitem__(self, key: str) -> float:
+        """Get the rake for a fault name.
+
+        Parameters
+        ----------
+        key : str
+            The fault rake to retrieve.
+
+        Returns
+        -------
+        float
+            The rake.
+        """
+        return self.rakes[key]
+
+
+@dataclasses.dataclass
+class Magnitudes(RealisationConfiguration):
+    """Configuration for fault magnitudes."""
+
+    _config_key: ClassVar[str] = "magnitudes"
+    _schema: ClassVar[Schema] = schemas.MAGNITUDE_SCHEMA
+
+    magnitudes: dict[str, float]
+    """A map from faults to their magnitudes."""
+
+    def __getitem__(self, key: str) -> float:
+        """Get the magnitude for a fault name.
+
+        Parameters
+        ----------
+        key : str
+            The fault magnitude to retrieve.
+
+        Returns
+        -------
+        float
+            The magnitude.
+        """
+        return self.magnitudes[key]
+
+
+@dataclasses.dataclass
 class RupturePropagationConfig(RealisationConfiguration):
     """Configuration for rupture propagation."""
 
@@ -367,10 +419,6 @@ class RupturePropagationConfig(RealisationConfiguration):
     """A dict where the keys are faults and the values the parent fault (i.e. if fault a triggers fault b then rupture_causality_tree[fault b] = fault a)."""
     jump_points: dict[str, JumpPair]
     """A map from faults to pairs of fault-local coordinates representing jump points. If the rupture jumps from fault a at point a to point b on fault b then jump_points[fault a] = JumpPoint(point b, point a)."""
-    rakes: dict[str, float]
-    """A map from faults to rakes."""
-    magnitudes: dict[str, float]
-    """A map from faults to the magnitude of the rupture for each fault."""
     hypocentre: npt.NDArray[np.float64]
     """The hypocentre of the fault."""
 

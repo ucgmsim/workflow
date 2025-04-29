@@ -58,6 +58,8 @@ from source_modelling.sources import IsSource
 from workflow import log_utils, utils
 from workflow.log_utils import log_call
 from workflow.realisations import (
+    Magnitudes,
+    Rakes,
     RealisationMetadata,
     RupturePropagationConfig,
     Seeds,
@@ -445,6 +447,8 @@ def stitch_srf_files(
 def generate_fault_srfs(
     faults: dict[str, IsSource],
     rupture_propagation_config: RupturePropagationConfig,
+    rakes: Rakes,
+    magnitudes: Magnitudes,
     output_directory: Path,
     srf_config: SRFConfig,
     seeds: Seeds,
@@ -459,6 +463,10 @@ def generate_fault_srfs(
         The faults and their geometries.
     rupture_propagation_config : RupturePropagationConfig
         The rupture propagation configuration.
+    rakes : Rakes
+        The rakes of the faults.
+    magnitudes : Magnitudes
+        The magnitudes of the faults.
     output_directory : Path
         The directory to output the fault SRF files.
     srf_config : SRFConfig
@@ -477,8 +485,6 @@ def generate_fault_srfs(
     srf_directory.mkdir(exist_ok=True)
     velocity_model_1d.write_velocity_model(output_directory / "velocity_model")
 
-    magnitudes = rupture_propagation_config.magnitudes
-    rakes = rupture_propagation_config.rakes
     hypocentres = {
         fault_name: jump_point.to_point
         for fault_name, jump_point in rupture_propagation_config.jump_points.items()
@@ -504,6 +510,8 @@ def generate_fault_srfs(
 def generate_fault_srfs_parallel(
     faults: dict[str, IsSource],
     rupture_propagation_config: RupturePropagationConfig,
+    rakes: Rakes,
+    magnitudes: Magnitudes,
     output_directory: Path,
     srf_config: SRFConfig,
     seeds: Seeds,
@@ -536,8 +544,6 @@ def generate_fault_srfs_parallel(
     srf_directory.mkdir(exist_ok=True)
     velocity_model_1d.write_velocity_model(output_directory / "velocity_model")
 
-    magnitudes = rupture_propagation_config.magnitudes
-    rakes = rupture_propagation_config.rakes
     hypocentres = {
         fault_name: jump_point.to_point
         for fault_name, jump_point in rupture_propagation_config.jump_points.items()
@@ -562,6 +568,8 @@ def generate_fault_srfs_parallel(
             functools.partial(
                 generate_fault_srf,
                 output_directory=output_directory,
+                rakes=rakes,
+                magnitudes=magnitudes,
                 srf_config=srf_config,
                 genslip_path=genslip_path,
                 seeds=seeds,
@@ -617,11 +625,14 @@ def generate_srf(
         realisation_ffp, metadata.defaults_version
     )
     source_config = SourceConfig.read_from_realisation(realisation_ffp)
-
+    rakes = Rakes.read_from_realisation(realisation_ffp)
+    magnitudes = Magnitudes.read_from_realisation(realisation_ffp)
     if single_threaded:
         generate_fault_srfs(
             source_config.source_geometries,
             rupture_propagation,
+            rakes,
+            magnitudes,
             work_directory,
             srf_config,
             seeds,
@@ -632,6 +643,8 @@ def generate_srf(
         generate_fault_srfs_parallel(
             source_config.source_geometries,
             rupture_propagation,
+            rakes,
+            magnitudes,
             work_directory,
             srf_config,
             seeds,

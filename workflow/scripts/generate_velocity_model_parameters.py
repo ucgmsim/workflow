@@ -48,6 +48,8 @@ from velocity_modelling.bounding_box import BoundingBox
 from workflow import log_utils
 from workflow.realisations import (
     DomainParameters,
+    Magnitudes,
+    Rakes,
     RealisationMetadata,
     RupturePropagationConfig,
     SourceConfig,
@@ -451,7 +453,8 @@ def generate_velocity_model_parameters(
     rupture_propagation = RupturePropagationConfig.read_from_realisation(
         realisation_ffp
     )
-    magnitudes = rupture_propagation.magnitudes
+
+    magnitudes = Magnitudes.read_from_realisation(realisation_ffp).magnitudes
     rupture_magnitude = total_magnitude(np.array(list(magnitudes.values())))
     realisation_pgv_target = pgv_target(rupture_propagation, velocity_model_parameters)
 
@@ -469,6 +472,7 @@ def generate_velocity_model_parameters(
         shapely.buffer(fault.geometry, 2000)
         for fault in source_config.source_geometries.values()
     ]
+    rakes = Rakes.read_from_realisation(realisation_ffp)
     # This polygon includes all areas within rrup distance of any
     # corner in the source geometries.
     # These may be in the domain where they are over land.
@@ -477,7 +481,7 @@ def generate_velocity_model_parameters(
         for args in dict_zip(
             source_config.source_geometries,
             magnitudes,
-            rupture_propagation.rakes,
+            rakes.rakes,
         ).values()
     ]
 
@@ -494,7 +498,7 @@ def generate_velocity_model_parameters(
         model_domain,
         rupture_magnitude,
         list(source_config.source_geometries.values()),
-        np.fromiter(rupture_propagation.rakes.values(), float),
+        np.fromiter(rakes.rakes.values(), float),
         velocity_model_parameters.ds_multiplier,
         velocity_model_parameters.vs30,
         velocity_model_parameters.s_wave_velocity,
