@@ -172,7 +172,7 @@ def generate_velocity_model(
     work_directory : Path, optional
         Directory for intermediate output files.
     use_nzcvm : bool, optional
-        If True, use the Nzcvm Python package instead of the NZVM binary. Default is False.
+        If True, use the NZCVM Python package instead of the NZVM binary. Default is False.
     num_threads : int or None, optional
         Number of threads to use for velocity model generation. Use None for inferred thread count.
 
