@@ -123,13 +123,35 @@ def run_nzvm(
     )
 
 
+def run_nzcvm(nzvm_config_ffp: Path) -> None:
+    """Run NZCVM executable with specified configuration.
+
+    Parameters
+    ----------
+    nzvm_config_ffp : Path
+        Path to the NZVM-format configuration file.
+    """
+    from velocity_modelling.scripts import nzcvm
+
+    nzcvm.generate_velocity_model(nzvm_config_ffp)
+
+
 @cli.from_docstring(app)
 @log_utils.log_call()
 def generate_velocity_model(
-    realisation_ffp: Annotated[Path, typer.Argument(readable=True, exists=True, dir_okay=False)],
-    velocity_model_output: Annotated[Path, typer.Argument(writable=True, file_okay=False, exists=False)],
-    velocity_model_bin_path: Annotated[Path, typer.Option(exists=True, readable=True)] = Path("/Velocity-Model/NZVM"),
-    work_directory: Annotated[Path, typer.Option(exists=False, writable=True, file_okay=False)] = Path("/out"),
+    realisation_ffp: Annotated[
+        Path, typer.Argument(readable=True, exists=True, dir_okay=False)
+    ],
+    velocity_model_output: Annotated[
+        Path, typer.Argument(writable=True, file_okay=False, exists=False)
+    ],
+    velocity_model_bin_path: Annotated[
+        Path | None, typer.Option(exists=True, readable=True)
+    ] = None,
+    work_directory: Annotated[
+        Path, typer.Option(exists=False, writable=True, file_okay=False)
+    ] = Path("/out"),
+    use_nzcvm: Annotated[bool, typer.Option()] = False,
     num_threads: Annotated[Optional[int], typer.Option(min=1)] = None,
 ) -> None:
     """
@@ -149,6 +171,8 @@ def generate_velocity_model(
         Path to the NZVM binary.
     work_directory : Path, optional
         Directory for intermediate output files.
+    use_nzcvm : bool, optional
+        If True, use the NZCVM Python package instead of the NZVM binary. Default is False.
     num_threads : int or None, optional
         Number of threads to use for velocity model generation. Use None for inferred thread count.
 
@@ -157,6 +181,11 @@ def generate_velocity_model(
     None
         The function does not return any value. It writes the generated velocity model to the specified output directory.
     """
+    if not use_nzcvm and not velocity_model_bin_path:
+        raise ValueError(
+            "If not using nzcvm, you must specify the path to the NZVM binary."
+        )
+
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     velocity_model_parameters = (
@@ -173,7 +202,10 @@ def generate_velocity_model(
         velocity_model_intermediate_path,
         nzvm_config_path,
     )
-    run_nzvm(velocity_model_bin_path, nzvm_config_path, num_threads)
+    if use_nzcvm:
+        run_nzcvm(nzvm_config_path)
+    else:
+        run_nzvm(velocity_model_bin_path, nzvm_config_path, num_threads)
     shutil.copytree(
         velocity_model_intermediate_path / "Velocity_Model", velocity_model_output
     )
