@@ -40,6 +40,7 @@ from qcore.uncertainties import mag_scaling
 from source_modelling import srf
 from workflow import log_utils
 from workflow.realisations import (
+    Magnitudes,
     RealisationMetadata,
     RealisationParseError,
     RupturePropagationConfig,
@@ -125,14 +126,9 @@ def check_srf(
         raise typer.Exit(code=1)
 
     try:
-        rupture_prop_config = RupturePropagationConfig.read_from_realisation(
-            realisation_ffp
-        )
+        magnitudes = Magnitudes.read_from_realisation(realisation_ffp)
         magnitude = mag_scaling.mom2mag(
-            sum(
-                mag_scaling.mag2mom(mag)
-                for mag in rupture_prop_config.magnitudes.values()
-            )
+            sum(mag_scaling.mag2mom(mag) for mag in magnitudes.magnitudes.values())
         )
         if not np.isclose(srf_magnitude, magnitude, atol=5e-3):
             logger.error(

@@ -386,7 +386,7 @@ def dict_zip(*dicts: list[dict], strict: bool = True) -> dict:
 
 
 def pgv_target(
-    rupture_propagation_config: RupturePropagationConfig,
+    magnitudes: list[float],
     velocity_model_parameters: VelocityModelParameters,
 ) -> float:
     """Compute the PGV target for the realisation.
@@ -404,10 +404,7 @@ def pgv_target(
         The PGV target for the realisation.
     """
     total_magnitude = mag_scaling.mom2mag(
-        sum(
-            mag_scaling.mag2mom(magnitude)
-            for magnitude in rupture_propagation_config.magnitudes.values()
-        )
+        sum(mag_scaling.mag2mom(magnitude) for magnitude in magnitudes)
     )
     return np.interp(
         total_magnitude,
@@ -456,7 +453,9 @@ def generate_velocity_model_parameters(
 
     magnitudes = Magnitudes.read_from_realisation(realisation_ffp).magnitudes
     rupture_magnitude = total_magnitude(np.array(list(magnitudes.values())))
-    realisation_pgv_target = pgv_target(rupture_propagation, velocity_model_parameters)
+    realisation_pgv_target = pgv_target(
+        list(magnitudes.values()), velocity_model_parameters
+    )
 
     initial_fault = source_config.source_geometries[rupture_propagation.initial_fault]
     max_depth = get_max_depth(
