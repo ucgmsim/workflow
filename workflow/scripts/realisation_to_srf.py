@@ -568,8 +568,6 @@ def generate_fault_srfs_parallel(
             functools.partial(
                 generate_fault_srf,
                 output_directory=output_directory,
-                rakes=rakes,
-                magnitudes=magnitudes,
                 srf_config=srf_config,
                 genslip_path=genslip_path,
                 seeds=seeds,
