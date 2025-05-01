@@ -40,7 +40,8 @@ import shapely
 import typer
 from shapely import Polygon
 
-from qcore import cli, coordinates, gmt
+from pygmt_helper import plotting
+from qcore import cli, coordinates
 
 app = typer.Typer()
 
@@ -53,7 +54,7 @@ def get_nz_outline_polygon() -> Polygon:
     Polygon
         The outline polygon of New Zealand.
     """
-    coastline_path = gmt.GMT_DATA.fetch("data/Paths/coastline/NZ.gmt")
+    coastline_path = plotting.GMT_DATA.fetch("data/Paths/coastline/NZ.gmt")
 
     gpd_df = gpd.read_file(coastline_path)
     island_polygons = [
