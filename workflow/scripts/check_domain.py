@@ -35,7 +35,7 @@ import typer
 
 from qcore import cli
 from source_modelling import srf
-from workflow import log_utils
+from workflow import log_utils, realisations
 from workflow.realisations import DomainParameters
 
 app = typer.Typer()
@@ -98,3 +98,5 @@ def check_domain(
             expected_size=velocity_model_estimated_size,
         )
         raise typer.Exit(code=1)
+
+    realisations.append_log_entry(realisation_ffp)

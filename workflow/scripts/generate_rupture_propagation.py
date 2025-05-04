@@ -135,12 +135,8 @@ def generate_rupture_propagation(
         dict[str, float],
         typer.Argument(parser=rake_parser),
     ],
-    shypo: Annotated[
-        Optional[float], typer.Option(min=0, max=1)
-    ] = None,
-    dhypo: Annotated[
-        Optional[float], typer.Option(min=0, max=1)
-    ] = None,
+    shypo: Annotated[Optional[float], typer.Option(min=0, max=1)] = None,
+    dhypo: Annotated[Optional[float], typer.Option(min=0, max=1)] = None,
 ):
     """Generate a likely rupture propagation for a given set of sources.
 
@@ -188,6 +184,7 @@ def generate_rupture_propagation(
     )
 
     rupture_propagation_config.write_to_realisation(realisation_ffp)
+    realisations.append_log_entry(realisation_ffp)
 
 
 if __name__ == "__main__":

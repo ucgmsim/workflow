@@ -9,9 +9,12 @@ module become an "everything" module.
 """
 
 import dataclasses
+import datetime
+import importlib
 import json
 import random
 import struct
+import sys
 from abc import ABC
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Optional, Self, Union
@@ -95,12 +98,12 @@ class RealisationConfiguration(ABC):
         return dataclasses.asdict(self)
 
     @classmethod
-    def read_from_realisation(cls, realisation_ffp: Path) -> Self:
+    def read_from_realisation(cls, realisation_ffp: Path | str) -> Self:
         """Read configuration from a realisation file.
 
         Parameters
         ----------
-        realisation_ffp : Path
+        realisation_ffp : Path-like
             The filepath to read from.
 
         Returns
@@ -117,6 +120,7 @@ class RealisationConfiguration(ABC):
             If the key in `cls._config_key` is not present in
             the realisation filepath.
         """
+        realisation_ffp = Path(realisation_ffp)
         with open(realisation_ffp, "r", encoding="utf-8") as realisation_file_handle:
             realisation_config = json.load(realisation_file_handle)
             if cls._config_key not in realisation_config:
@@ -156,13 +160,13 @@ class RealisationConfiguration(ABC):
 
     @classmethod
     def read_from_realisation_or_defaults(
-        cls, realisation_ffp: Path, defaults_version: DefaultsVersion
+        cls, realisation_ffp: Path | str, defaults_version: DefaultsVersion
     ) -> Self:
         """Read configuration from realisation, or read from defaults and write to realisation.
 
         Parameters
         ----------
-        realisation_ffp : Path
+        realisation_ffp : Path-like
                     The realisation filepath to read from.
         defaults_version : DefaultsVersion
             The default parameter version to load with.
@@ -181,6 +185,7 @@ class RealisationConfiguration(ABC):
             If the key in `cls._config_key` is not present in
             the realisation or scientific defaults configuration.
         """
+        realisation_ffp = Path(realisation_ffp)
         try:
             return cls.read_from_realisation(realisation_ffp)
         except (RealisationParseError, FileNotFoundError):
@@ -188,7 +193,9 @@ class RealisationConfiguration(ABC):
             default_config.write_to_realisation(realisation_ffp)
             return default_config
 
-    def write_to_realisation(self, realisation_ffp: Path, update: bool = True) -> None:
+    def write_to_realisation(
+        self, realisation_ffp: Path | str, update: bool = True
+    ) -> None:
         """Write a configuration to a realisation file.
 
         The default behaviour will update the realisation and replace just
@@ -198,12 +205,13 @@ class RealisationConfiguration(ABC):
 
         Parameters
         ----------
-        realisation_ffp : Path
+        realisation_ffp : Path-like
             The realisation filepath to write to.
         update : bool
             If True, then the realisation is updated, rather than
             replaced. Default is True.
         """
+        realisation_ffp = Path(realisation_ffp)
         realisation_configuration = {}
         if realisation_ffp.exists() and update:
             with open(
@@ -823,3 +831,111 @@ class IntensityMeasureCalculationParameters(RealisationConfiguration):
         _dict["valid_periods"] = self.valid_periods.tolist()
         _dict["fas_frequencies"] = self.fas_frequencies.tolist()
         return _dict
+
+
+@dataclasses.dataclass
+class LogEntry:
+    """Log entry for workflow utilities."""
+
+    utility: str
+    """The name of the utility."""
+    version: str
+    """The version of the utility."""
+    timestamp: datetime.datetime
+    """The timestamp of when the utility was run."""
+    args: list[str]
+    """The arguments passed to the utility."""
+
+    def __post_init__(self) -> None:
+        """Post-initialisation of the log entry."""
+        if isinstance(self.timestamp, str):
+            self.timestamp = datetime.datetime.fromisoformat(self.timestamp)
+
+    @classmethod
+    def from_utility(cls, utility: str, args: list[str]) -> Self:
+        """Create a log entry from a utility.
+
+        Parameters
+        ----------
+        utility : str
+            The name of the utility.
+        args : list[str]
+            The arguments passed to the utility.
+
+        Returns
+        -------
+        LogEntry
+            A log entry for the utility.
+        """
+        version = importlib.metadata.version(__package__)
+        return cls(
+            utility=utility,
+            version=version,
+            timestamp=datetime.datetime.now(),
+            args=args,
+        )
+
+
+@dataclasses.dataclass
+class LogTrail(RealisationConfiguration):
+    """Log of workflow utilities executed on this file."""
+
+    _config_key: ClassVar[str] = "log_trail"
+    _schema: ClassVar[Schema] = schemas.LOG_TRAIL_SCHEMA
+
+    log: list[LogEntry]
+
+    def __post_init__(self) -> None:
+        """Post-initialisation of the log trail."""
+        if self.log is None:
+            self.log = []
+        if self.log and not isinstance(self.log[0], LogEntry):
+            self.log = [LogEntry(**log_entry) for log_entry in self.log]
+
+    def log_entry(self, utility: str, args: list[str]) -> None:
+        """Add a log entry to the log trail.
+
+        Parameters
+        ----------
+        utility : str
+            The name of the utility.
+        args : list[str]
+            The arguments passed to the utility.
+        """
+        self.log.append(LogEntry.from_utility(utility, args))
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the object to a dictionary representation.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the object.
+        """
+        config_dict = dataclasses.asdict(self)
+        for entry in config_dict["log"]:
+            entry["timestamp"] = entry["timestamp"].isoformat()
+        return config_dict
+
+
+def append_log_entry(realisation_ffp: Path | str) -> None:
+    """Append a log entry to the realisation file.
+
+    Parameters
+    ----------
+    realisation_ffp : Path-like
+        The realisation filepath to write to.
+    """
+    realisation_ffp = Path(realisation_ffp)
+    utility = Path(sys.argv[0]).name
+    args = sys.argv[1:]
+    log_entry = LogEntry.from_utility(utility, args)
+
+    try:
+        log_trail = LogTrail.read_from_realisation(realisation_ffp)
+        log_trail.log_entry(utility, args)
+    except (RealisationParseError, FileNotFoundError):
+        log_trail = LogTrail(log=[log_entry])
+
+    log_trail.write_to_realisation(realisation_ffp)

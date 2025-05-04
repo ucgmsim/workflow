@@ -41,7 +41,7 @@ from typing import Annotated, Optional
 import typer
 
 from qcore import cli
-from workflow import log_utils
+from workflow import log_utils, realisations
 from workflow.realisations import (
     DomainParameters,
     RealisationMetadata,
@@ -209,3 +209,4 @@ def generate_velocity_model(
     shutil.copytree(
         velocity_model_intermediate_path / "Velocity_Model", velocity_model_output
     )
+    realisations.append_log_entry(realisation_ffp)

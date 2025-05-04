@@ -3,7 +3,9 @@
 # it stays consistent with the codebase.
 import json
 import struct
+from datetime import datetime
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 import pandas as pd
@@ -381,6 +383,125 @@ def test_broadband_parameters(tmp_path: Path):
         realisations.BroadbandParameters.read_from_realisation(test_realisation)
         == broadband_parameters
     )
+
+
+def test_logtrail_init_empty():
+    """Test LogTrail initialization with no log provided."""
+    trail = realisations.LogTrail([])
+    assert trail.log == []
+    assert trail._config_key == "log_trail"
+
+
+def test_logtrail_init_with_log_entries():
+    """Test LogTrail initialization with a list of LogEntry objects."""
+    entry1 = realisations.LogEntry(
+        utility="util1", args=["a"], version="1", timestamp=datetime.now()
+    )
+    entry2 = realisations.LogEntry(
+        utility="util2", args=["b", "c"], timestamp=datetime.now(), version="1"
+    )
+    trail = realisations.LogTrail(log=[entry1, entry2])
+    assert trail.log == [entry1, entry2]
+
+
+def test_logtrail_init_with_dicts_post_init():
+    """Test LogTrail post_init conversion of dicts to LogEntry objects."""
+    log_data = [
+        {
+            "utility": "util1",
+            "args": ["a"],
+            "version": "1",
+            "timestamp": datetime.now().isoformat(),
+        },
+        {
+            "utility": "util2",
+            "args": ["b"],
+            "version": "1",
+            "timestamp": datetime.now().isoformat(),
+        },
+    ]
+    # Pass raw list of dicts
+    trail = realisations.LogTrail(log=log_data)
+    assert len(trail.log) == 2
+    assert isinstance(trail.log[0], realisations.LogEntry)
+    assert isinstance(trail.log[1], realisations.LogEntry)
+    assert trail.log[0].utility == "util1"
+    assert trail.log[0].args == ["a"]
+    assert trail.log[1].utility == "util2"
+    assert trail.log[1].args == ["b"]
+
+
+def test_logtrail_log_entry_method():
+    """Test adding an entry using the log_entry method."""
+    trail = realisations.LogTrail([])
+    trail.log_entry("my_util", ["--flag", "value"])
+    assert len(trail.log) == 1
+    assert isinstance(trail.log[0], realisations.LogEntry)
+    assert trail.log[0].utility == "my_util"
+    assert trail.log[0].args == ["--flag", "value"]
+    assert isinstance(trail.log[0].timestamp, datetime)
+
+
+def test_logtrail_to_dict():
+    """Test converting LogTrail to a dictionary."""
+    ts = datetime.now()
+    entry1 = realisations.LogEntry(
+        utility="util1", args=["a"], version="1", timestamp=ts
+    )
+    entry2 = realisations.LogEntry(
+        utility="util2", args=["b", "c"], timestamp=ts, version="1"
+    )
+    trail = realisations.LogTrail(log=[entry1, entry2])
+    trail_dict = trail.to_dict()
+
+    assert isinstance(trail_dict, dict)
+    assert "log" in trail_dict
+    assert len(trail_dict["log"]) == 2
+    # Check if realisations.LogEntry objects were converted back to dicts with ISO timestamps
+    assert isinstance(trail_dict["log"][0], dict)
+    assert trail_dict["log"][0]["utility"] == "util1"
+    assert trail_dict["log"][0]["version"] == "1"
+    assert trail_dict["log"][0]["timestamp"] == ts.isoformat()
+    assert trail_dict["log"][0]["args"] == ["a"]
+    assert isinstance(
+        trail_dict["log"][0]["timestamp"], str
+    )  # Should be ISO format string
+    assert isinstance(trail_dict["log"][1], dict)
+    assert trail_dict["log"][1]["utility"] == "util2"
+    assert trail_dict["log"][1]["args"] == ["b", "c"]
+    assert trail_dict["log"][1]["version"] == "1"
+    assert trail_dict["log"][1]["timestamp"] == ts.isoformat()
+    assert isinstance(
+        trail_dict["log"][1]["timestamp"], str
+    )  # Should be ISO format string
+
+    datetime.fromisoformat(trail_dict["log"][0]["timestamp"])
+
+
+def test_append_log_entry_file_exists_no_key(
+    tmp_path: Path,
+):
+    """Test append_log_entry when file exists but lacks the 'log_trail' key."""
+    realisation_file = tmp_path / "test_realisation.json"
+    # Create a file with unrelated content
+    initial_content = {"other_key": "some_value"}
+    with open(realisation_file, "w") as f:
+        json.dump(initial_content, f)
+
+    # Mock realisations.LogEntry.from_utility for the creation case
+    with mock.patch("sys.argv", new=["script_name.py", "--flag", "value"]):
+        realisations.append_log_entry(realisation_file)
+
+    # Optionally: Check the file content (if not mocking write_to_realisation)
+    assert realisation_file.exists()
+    with open(realisation_file, "r") as f:
+        data = json.load(f)
+    assert "log_trail" in data
+    assert (
+        "other_key" in data
+    )  # Check if update worked (depends on write_to_realisation mock/impl)
+    assert len(data["log_trail"]["log"]) == 1
+    assert data["log_trail"]["log"][0]["utility"] == "script_name.py"
 
 
 def test_seeds():

@@ -25,13 +25,14 @@ For More Help
 -------------
 See the output of `copy-domain --help`.
 """
+
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from qcore import cli
-from workflow import log_utils
+from workflow import log_utils, realisations
 from workflow.realisations import DomainParameters, VelocityModelParameters
 
 app = typer.Typer()
@@ -63,3 +64,4 @@ def copy_domain(
         VelocityModelParameters.read_from_realisation(from_realisation_ffp)
     )
     from_realisation_velocity_model_parameters.write_to_realisation(to_realisation_ffp)
+    realisations.append_log_entry(to_realisation_ffp)

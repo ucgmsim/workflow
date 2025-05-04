@@ -45,7 +45,7 @@ import pandas as pd
 import typer
 
 from qcore import cli
-from workflow import log_utils, utils
+from workflow import log_utils, realisations, utils
 from workflow.realisations import (
     DomainParameters,
     HFConfig,
@@ -290,3 +290,4 @@ def run_hf(
                 waveforms_dset[i] = waveform
 
     stations.to_hdf(out_file, key="stations", mode="a")
+    realisations.append_log_entry(realisation_ffp)
