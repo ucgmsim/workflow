@@ -116,6 +116,11 @@ GROUP_GOALS = {
     },
 }
 
+CONTAINER_PATHS = {
+    WorkflowTarget.NeSI: Path("/nesi/nobackup/nesi00213/containers/runner_latest.sif"),
+    WorkflowTarget.Hypocentre: Path("/mnt/hypo_scratch/containers/runner_latest.sif"),
+}
+
 
 @dataclasses.dataclass
 class Stage:
@@ -694,6 +699,7 @@ def plan_workflow(
     defaults_version: Annotated[
         Optional[DefaultsVersion], typer.Option(rich_help_panel="Sources")
     ] = None,
+    container: Annotated[Optional[Path], typer.Option()] = None,
 ):
     """Plan and generate a Cylc workflow file for a number of realisations.
 
@@ -723,7 +729,10 @@ def plan_workflow(
         If given, set the source of the realisation. For NSHM and GCMT, the realisation id corresponds to the rupture id and GCMT PublicID respectively.
     defaults_version : Optional[DefaultsVersion]
         The simulation defaults to apply for all realisations. Required if source is specified.
+    container : Optional[Path]
+        The container to use for the workflow. If not specified, the default container for the target environment will be used.
     """
+    container = container or CONTAINER_PATHS[target_host]
     realisations = set.union(
         *[parse_realisation(realisation_id) for realisation_id in realisation_ids]
     )
@@ -758,6 +767,7 @@ def plan_workflow(
 
     template = env.get_template("flow.cylc")
     flow_template = template.render(
+        container=container,
         defaults_version=defaults_version,
         realisations=realisations,
         target_host=target_host,
