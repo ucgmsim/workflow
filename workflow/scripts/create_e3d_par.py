@@ -250,9 +250,9 @@ def create_e3d_par(
         "/out"
     ),
     defaults_version: Annotated[str, typer.Option()] = "22.2.2.1",
-    emod3d_path: Annotated[
-        Path, typer.Option(exists=True, readable=True, dir_okay=False)
-    ] = Path("/EMOD3D/tools/emod3d-mpi_v3.0.8"),
+    emod3d_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
+        "/EMOD3D/tools/emod3d-mpi_v3.0.8"
+    ),
     emod3d_version: Annotated[str, typer.Option()] = "3.0.8",
 ):
     """Create EMOD3D parameter file from provided inputs.
