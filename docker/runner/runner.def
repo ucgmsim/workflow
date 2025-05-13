@@ -17,7 +17,7 @@ From: ubuntu:latest
                       ghostscript \
                       git \
                       gmt \
-                      gmt \
+                      libgmt-dev \
                       gmt-dcw \
                       gmt-gshhg \
                       graphicsmagick \
