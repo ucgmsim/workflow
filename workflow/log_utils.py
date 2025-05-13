@@ -86,7 +86,7 @@ def log_call(
         @functools.wraps(f)
         def wrapper(
             *args: list[Any], **kwargs: dict[str, Any]
-        ) -> Callable:  # numpydoc ignore=GL08
+        ) -> Any:  # numpydoc ignore=GL08
             nonlocal exclude_args
             signature = inspect.signature(f)
             function_id = str(uuid.uuid4())
