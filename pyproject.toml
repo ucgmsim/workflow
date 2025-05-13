@@ -61,6 +61,13 @@ extend-select = [
     "UP035",
     # Missing function argument type-annotation
     "ANN001",
+    "ANN002",
+    "ANN003",
+    "ANN201",
+    "ANN202",
+    "ANN204",
+    "ANN205",
+    "ANN206",
     # Using except without specifying an exception type to catch
     "BLE001",
 ]

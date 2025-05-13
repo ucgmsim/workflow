@@ -243,7 +243,7 @@ class Seeds(RealisationConfiguration):
 
     @classmethod
     def read_from_realisation_or_defaults(
-        cls, realisation_ffp: Path, *args
+        cls, realisation_ffp: Path, *args: list[Any]
     ) -> Self:  # *args is to maintain compat with superclass (remove this and see the error in mypy).
         """Read seeds configuration from a realisation file or generate random seeds if not present.
 
@@ -256,7 +256,7 @@ class Seeds(RealisationConfiguration):
         ----------
         realisation_ffp : Path
             The realisation filepath to read from.
-        *args : Any
+        *args : list
             Ignored arguments.
 
         Returns
@@ -315,7 +315,7 @@ class SourceConfig(RealisationConfiguration):
     source_geometries: dict[str, IsSource]
     """Dictionary mapping source names to their definitions."""
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert the object to a dictionary representation.
 
@@ -522,7 +522,7 @@ class VelocityModel1D(RealisationConfiguration):
 
     model: pd.DataFrame
 
-    def write_velocity_model(self, velocity_model_path: Path):
+    def write_velocity_model(self, velocity_model_path: Path) -> None:
         """Write a 1D velocity model to the specified path.
 
         Parameters

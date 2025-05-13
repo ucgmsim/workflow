@@ -48,7 +48,7 @@ from workflow.scripts import (
         realisation_to_srf,
     ],
 )
-def test_invocation_of_script(script: Callable):
+def test_invocation_of_script(script: Callable) -> None:
     """Basic check that the scripts can be invoked."""
     runner = CliRunner()
     result = runner.invoke(script.app, ["--help"])

@@ -77,7 +77,7 @@ def get_nz_outline_polygon() -> Polygon:
 def gcmt_auto_simulate(
     gcmt_solutions_url: Annotated[str, typer.Argument()],
     old_gcmt_solutions_path: Annotated[Path, typer.Argument()],
-):
+) -> None:
     """Automatically simulate GCMT solutions that are new, large, and within 30 km of New Zealand.
 
     Parameters

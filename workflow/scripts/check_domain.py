@@ -47,7 +47,7 @@ def check_domain(
     realisation_ffp: Annotated[Path, typer.Argument()],
     srf_ffp: Annotated[Path, typer.Argument()],
     velocity_model: Annotated[Path, typer.Argument()],
-):
+) -> None:
     """Check an SRF's contents for viability.
 
     Parameters

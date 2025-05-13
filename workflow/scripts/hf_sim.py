@@ -193,7 +193,7 @@ def run_hf(
         Path,
         typer.Option(exists=True, writable=True, file_okay=False),
     ] = Path("/out"),
-):
+) -> None:
     """Run the HF (High-Frequency) simulation and generate the HF output file.
 
     This function performs the following steps:

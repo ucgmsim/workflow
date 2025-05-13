@@ -405,7 +405,7 @@ def pgv_target(
 @log_utils.log_call()
 def generate_velocity_model_parameters(
     realisation_ffp: Annotated[Path, typer.Argument()],
-):
+) -> None:
     """Generate velocity model parameters for a given realisation file.
 
     This function reads the source and rupture propagation information and computes:

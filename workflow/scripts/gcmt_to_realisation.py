@@ -103,7 +103,7 @@ def gcmt_to_realisation(
     nodal_plane: Annotated[
         NodalPlaneChoice, typer.Option()
     ] = NodalPlaneChoice.MOST_LIKELY,
-):
+) -> None:
     """Generate a realisation from a GCMT solution.
 
     Parameters
