@@ -424,7 +424,7 @@ def generate_fault_srf(
         "read_gsf=1",
         "write_gsf=0",
         f"infile={gsf_file_path}",
-        f"mag={params.magnitudes[name]}",
+        f"mag={params.magnitudes.magnitudes[name]}",
         f"nstk={nx}",
         f"ndip={ny}",
         "ns=1",
