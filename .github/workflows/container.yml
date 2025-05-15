@@ -16,11 +16,18 @@ jobs:
       CONTAINER_NAME: runner-${{ github.sha }}.sif
 
     steps:
+    - name: Set up SSH for deploy key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan github.com >> ~/.ssh/known_hosts
+
     - name: Clone private repo
       env:
          TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-         git clone https://x-access-token:${TOKEN}@github.com/ucgmsim/EMOD3D.git /tmp/EMOD3D
+         git clone git@github.com:ucgmsim/EMOD3D.git /tmp/EMOD3D
 
     - name: Checkout repository
       uses: actions/checkout@v3
