@@ -366,7 +366,9 @@ VELOCITY_MODEL_SCHEMA = Schema(
             "min_vs",
             description="The minimum velocity (km/s) produced in the velocity model.",
         ): And(float, is_positive),
-        Literal("version", "Velocity model version"): Or("2.02", "2.06", "2.07"),
+        Literal("version", "Velocity model version"): Or(
+            "2.02", "2.03", "2.06", "2.07"
+        ),
         Literal("topo_type", "Velocity model topology type"): str,
         Literal("dt", "Velocity model timestep resolution"): And(float, is_positive),
         Literal("ds_multiplier", "Velocity model ds multiplier"): And(
@@ -607,5 +609,35 @@ INTENSITY_MEASURE_CALCUATION_PARAMETERS = Schema(
         Literal("fas_frequencies", description="Fourier spectrum frequencies"): And(
             [And(float, is_positive)], Use(np.array)
         ),
+    }
+)
+
+
+LOG_ENTRY_SCHEMA = Schema(
+    {
+        Literal(
+            "utility",
+            description="The name of the utility that produced this log entry.",
+        ): str,
+        Literal("version", description="The version of the utility."): str,
+        Literal(
+            "timestamp",
+            description="The timestamp of when the utility was run.",
+        ): str,
+        Optional(
+            Literal(
+                "args",
+                description="The arguments the utility was executed with.",
+            )
+        ): [str],
+    }
+)
+
+LOG_TRAIL_SCHEMA = Schema(
+    {
+        Literal(
+            "log",
+            description="The utilities executed on this realisation.",
+        ): [LOG_ENTRY_SCHEMA],
     }
 )

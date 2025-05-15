@@ -11,12 +11,10 @@ numpy
 pandas
 printree
 pyarrow
-pygmt
-pygmt_helper @ git+https://github.com/ucgmsim/pygmt_helper.git
 pytest
 pyvis
-pyvista
 pyyaml
+pygmt_helper @ git+https://github.com/ucgmsim/pygmt_helper.git
 qcore @ git+https://github.com/ucgmsim/qcore.git
 requests
 schema

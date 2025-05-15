@@ -31,7 +31,7 @@ from typing import Annotated
 import typer
 
 from qcore import cli
-from workflow import log_utils
+from workflow import log_utils, realisations
 from workflow.realisations import HFConfig, RealisationMetadata, SourceConfig
 
 app = typer.Typer()
@@ -43,7 +43,9 @@ def generate_stoch(
     realisation_ffp: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
     srf_ffp: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
     stoch_ffp: Annotated[Path, typer.Argument(dir_okay=False)],
-    srf2stoch_path: Annotated[Path, typer.Option(exists=True)] = Path("/EMOD3D/tools/srf2stoch"),
+    srf2stoch_path: Annotated[Path, typer.Option(exists=True)] = Path(
+        "/EMOD3D/tools/srf2stoch"
+    ),
 ):
     """Generate a stoch file from an SRF file.
 
@@ -81,3 +83,4 @@ def generate_stoch(
             f"outfile={stoch_ffp}",
         ]
     )
+    realisations.append_log_entry(realisation_ffp)

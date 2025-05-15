@@ -51,7 +51,7 @@ import scipy as sp
 import typer
 
 from qcore import cli, siteamp_models, timeseries
-from workflow import log_utils, utils
+from workflow import log_utils, realisations, utils
 from workflow.realisations import (
     BroadbandParameters,
     DomainParameters,
@@ -329,3 +329,4 @@ def combine_hf_and_lf(
     stations["z"] = lf.stations.z
     stations["lf_vs_ref"] = lfvs30refs
     stations.to_hdf(output_ffp, key="stations", mode="a")
+    realisations.append_log_entry(realisation_ffp)

@@ -42,7 +42,7 @@ import xarray as xr
 from IM import im_reader, ims
 from IM.im_calculation import IM
 from qcore import cli, coordinates
-from workflow import utils
+from workflow import realisations, utils
 from workflow.realisations import (
     BroadbandParameters,
     IntensityMeasureCalculationParameters,
@@ -56,11 +56,20 @@ app = typer.Typer()
 
 @cli.from_docstring(app)
 def calculate_instensity_measures(
-    realisation_ffp: Annotated[Path, typer.Argument(exists=True, dir_okay=False, writable=True)],
-    broadband_simulation_ffp: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    realisation_ffp: Annotated[
+        Path, typer.Argument(exists=True, dir_okay=False, writable=True)
+    ],
+    broadband_simulation_ffp: Annotated[
+        Path, typer.Argument(exists=True, dir_okay=False)
+    ],
     output_path: Annotated[Path, typer.Argument(dir_okay=False, writable=True)],
     simulated_stations: Annotated[bool, typer.Option()] = True,
-    psa_rotd_maximum_memory_allocation: Annotated[Optional[float], typer.Option(min=0)] = None,
+    psa_rotd_maximum_memory_allocation: Annotated[
+        Optional[float], typer.Option(min=0)
+    ] = None,
+    ko_directory: Annotated[
+        Path | None, typer.Option(exists=True, file_okay=False)
+    ] = None,
 ) -> None:
     """Calculate intensity measures for simulation data.
 
@@ -76,6 +85,8 @@ def calculate_instensity_measures(
         If passed, calculate for simulated stations.
     psa_rotd_maximum_memory_allocation : Optional[float]
         Maximum amount of memory allocated for rotated PSA calculation station buffer, in gigabytes.
+    ko_directory : Path
+        Directory containing the KO matrix files for FAS calculation. Not required for other IMs.
     """
     ne.set_num_threads(utils.get_available_cores())
 
@@ -99,6 +110,12 @@ def calculate_instensity_measures(
         waveforms = waveforms[stations["waveform_index"]]
 
     intensity_measures = intensity_measure_parameters.ims
+
+    if IM.FAS in intensity_measures and not ko_directory:
+        raise ValueError(
+            "FAS calculation requires KO directory. Please provide a valid KO directory."
+        )
+
     nyquist_frequency = 1 / (2 * broadband_parameters.dt)
 
     im_function_map = {
@@ -133,6 +150,7 @@ def calculate_instensity_measures(
             freqs=intensity_measure_parameters.fas_frequencies[
                 intensity_measure_parameters.fas_frequencies <= nyquist_frequency
             ],
+            ko_directory=ko_directory,
             cores=utils.get_available_cores(),
         ),
     }
@@ -207,3 +225,4 @@ def calculate_instensity_measures(
         dataset[im_name] = result
 
     im_reader.write_intensity_measures(dataset, output_path)
+    realisations.append_log_entry(realisation_ffp)

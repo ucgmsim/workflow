@@ -48,6 +48,7 @@ from qcore import cli
 from qcore.uncertainties import distributions, mag_scaling
 from source_modelling import rupture_propagation, sources
 from source_modelling.sources import Fault
+from workflow import realisations
 from workflow.defaults import DefaultsVersion
 from workflow.log_utils import log_call
 from workflow.realisations import (
@@ -362,3 +363,4 @@ def generate_realisation(
     realisation_ffp.parent.mkdir(parents=True, exist_ok=True)
     for section in [source_config, rupture_propagation_config, rakes, magnitudes]:
         section.write_to_realisation(realisation_ffp)
+    realisations.append_log_entry(realisation_ffp)

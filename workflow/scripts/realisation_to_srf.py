@@ -55,7 +55,7 @@ from scipy.sparse import csr_array
 from qcore import cli, coordinates
 from source_modelling import gsf, rupture_propagation, srf
 from source_modelling.sources import IsSource
-from workflow import log_utils, utils
+from workflow import log_utils, realisations, utils
 from workflow.log_utils import log_call
 from workflow.realisations import (
     Magnitudes,
@@ -659,3 +659,4 @@ def generate_srf(
     srf_config.write_to_realisation(realisation_ffp)
 
     shutil.copyfile(work_directory / (srf_name + ".srf"), output_srf_filepath)
+    realisations.append_log_entry(realisation_ffp)

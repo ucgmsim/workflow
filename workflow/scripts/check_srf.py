@@ -38,7 +38,7 @@ import typer
 from qcore import cli
 from qcore.uncertainties import mag_scaling
 from source_modelling import srf
-from workflow import log_utils
+from workflow import log_utils, realisations
 from workflow.realisations import (
     Magnitudes,
     RealisationMetadata,
@@ -144,3 +144,4 @@ def check_srf(
     if srf_magnitude >= 11:
         logger.error("Implausible SRF magnitude", srf_magnitude=magnitude)
         raise typer.Exit(code=1)
+    realisations.append_log_entry(realisation_ffp)
