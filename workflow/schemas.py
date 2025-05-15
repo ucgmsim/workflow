@@ -318,20 +318,12 @@ DOMAIN_SCHEMA = Schema(
         ),
     }
 )
-RAKES_SCHEMA = Schema(
+
+RAKE_SCHEMA = Schema(
     {
         Literal("rakes", description="The fault rakes"): {
             str: And(float, _is_valid_degrees)
         },
-    }
-)
-
-MAGNITUDES_SCHEMA = Schema(
-    {
-        Literal(
-            "magnitudes",
-            description="The total moment magnitude for the rupture on this fault",
-        ): {str: And(float, _is_plausible_magnitude)},
     }
 )
 
@@ -340,17 +332,10 @@ MAGNITUDE_SCHEMA = Schema(
         Literal(
             "magnitudes",
             description="The total moment magnitude for the rupture on this fault",
-        ): {str: And(float, is_plausible_magnitude)},
+        ): {str: And(float, _is_plausible_magnitude)},
     }
 )
 
-RAKE_SCHEMA = Schema(
-    {
-        Literal("rakes", description="The fault rakes"): {
-            str: And(float, is_valid_degrees)
-        },
-    }
-)
 
 RUPTURE_PROPAGATION_SCHEMA = Schema(
     {
