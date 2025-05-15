@@ -427,7 +427,7 @@ class RupturePropagationConfig(RealisationConfiguration):
         return config_dict
 
     @property
-    def hypocentres(self) -> dict[str, npt.NDArray[np.float64]]:
+    def hypocentres(self) -> dict[str, npt.NDArray[np.float64]]:  # numpydoc ignore=GL08
         """dict from str to array: the hypocentres on each fault in the simulation."""
         hypocentres = {
             fault_name: jump_point.to_point
