@@ -16,6 +16,12 @@ jobs:
       CONTAINER_NAME: runner-${{ github.sha }}.sif
 
     steps:
+    - name: Clone private repo
+      env:
+         TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+         git clone https://x-access-token:${TOKEN}@github.com/ucgmsim/EMOD3D.git /tmp/EMOD3D
+
     - name: Checkout repository
       uses: actions/checkout@v3
 
@@ -28,7 +34,7 @@ jobs:
 
     - name: Build Apptainer container
       run: |
-        apptainer build $CONTAINER_NAME docker/runner/runner.def
+        apptainer build $CONTAINER_NAME docker/runner/runner_action.def
 
     - name: Run pytest inside container
       run: |
