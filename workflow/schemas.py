@@ -168,8 +168,8 @@ FAULT_LOCAL_COORDINATES_SCHEMA = Schema(
 )
 
 
-LAT_LON_SCHEMA = Schema(
-    And(
+LAT_LON_SCHEMA = And(
+    [
         {
             Literal("latitude", description="Latitude (in decimal degrees)"): And(
                 float, is_valid_latitude
@@ -177,34 +177,28 @@ LAT_LON_SCHEMA = Schema(
             Literal("longitude", description="Longitude (in decimal degrees)"): And(
                 float, is_valid_longitude
             ),
-        },
-        Use(lambda latlon: np.array([latlon["latitude"], latlon["longitude"]])),
+        }
+    ],
+    Use(
+        lambda latlon: np.array([[row["latitude"], row["longitude"]] for row in latlon])
     ),
 )
 
-LAT_LON_DEPTH_SCHEMA = Schema(
-    And(
-        {
-            Literal("latitude", description="Latitude (in decimal degrees)"): And(
-                float, is_valid_latitude
-            ),
-            Literal("longitude", description="Longitude (in decimal degrees)"): And(
-                float, is_valid_longitude
-            ),
-            Literal("depth", description="Depth (in metres)"): And(
-                float, is_non_negative
-            ),
-        },
-        Use(
-            lambda latlondepth: np.array(
-                [
-                    latlondepth["latitude"],
-                    latlondepth["longitude"],
-                    latlondepth["depth"],
-                ]
-            )
+POINT_COORD_SCHEMA = And(
+    {
+        Literal("latitude", description="Latitude (in decimal degrees)"): And(
+            float, is_valid_latitude
         ),
-    )
+        Literal("longitude", description="Longitude (in decimal degrees)"): And(
+            float, is_valid_longitude
+        ),
+        Literal("depth", description="Depth (in metres)"): And(float, is_non_negative),
+    },
+    Use(
+        lambda latlon: np.array(
+            [latlon["latitude"], latlon["longitude"], latlon["depth"]]
+        )
+    ),
 )
 
 POINT_SCHEMA = Schema(
@@ -216,7 +210,7 @@ POINT_SCHEMA = Schema(
             ): "point",
             Literal(
                 "coordinates", description="The coordinates of the point source"
-            ): LAT_LON_DEPTH_SCHEMA,
+            ): POINT_COORD_SCHEMA,
             Literal("length", description="The pseudo-length of the point source"): And(
                 float, is_positive
             ),
@@ -309,7 +303,7 @@ DOMAIN_SCHEMA = Schema(
             float, is_positive
         ),
         Literal("domain", description="The corners of the simulation domain."): And(
-            Use(corners_to_array), Use(BoundingBox.from_wgs84_coordinates)
+            LAT_LON_SCHEMA, Use(BoundingBox.from_wgs84_coordinates)
         ),
         Literal("depth", description="The depth of the model (in km)"): And(
             float, is_positive
