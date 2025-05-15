@@ -549,6 +549,14 @@ class VelocityModel1D(RealisationConfiguration):
 
 
 @dataclasses.dataclass
+class HFVelocityModel1D(VelocityModel1D):
+    """1D Velocity Model for SRF and HF."""
+
+    _config_key: ClassVar[str] = "hf_velocity_model_1d"
+    _schema: ClassVar[Schema] = schemas.VELOCITY_MODEL_1D_SCHEMA
+
+
+@dataclasses.dataclass
 class RealisationMetadata(RealisationConfiguration):
     """Metadata for describing a realisation."""
 
