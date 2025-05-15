@@ -399,9 +399,9 @@ def generate_fault_srf(
     ----------
     name : str
         The name of the fault.
-    params: SRFRealisationContext
+    params : SRFRealisationContext
         The SRF realisation context to use.
-    environment: SRFEnvironmentContext
+    environment : SRFEnvironmentContext
         The SRF environment context to use.
     """
     fault = params.source_config.source_geometries[name]
@@ -476,9 +476,9 @@ def generate_fault_srfs_parallel(
     ----------
     faults : dict[str, IsSource]
         The faults and their geometries.
-    params: SRFRealisationContext
+    params : SRFRealisationContext
         The SRF realisation context to use.
-    environment: SRFEnvironmentContext
+    environment : SRFEnvironmentContext
         The SRF environment context to use.
     """
     # need to do this before multiprocessing because of race conditions
