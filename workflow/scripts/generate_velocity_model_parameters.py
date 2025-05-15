@@ -36,25 +36,25 @@ import pandas as pd
 import scipy as sp
 import shapely
 import typer
-from pygmt_helper import plotting
 from shapely import Polygon
-from velocity_modelling import bounding_box
-from velocity_modelling.bounding_box import BoundingBox
 
 from empirical.util import z_model_calculations
 from empirical.util.classdef import GMM, TectType
+from pygmt_helper import plotting
 from qcore import cli, coordinates
 from qcore.uncertainties import mag_scaling
 from source_modelling import sources
+from velocity_modelling import bounding_box
+from velocity_modelling.bounding_box import BoundingBox
 from workflow import log_utils, realisations
 from workflow.realisations import (
     DomainParameters,
+    Magnitudes,
+    Rakes,
     RealisationMetadata,
     RupturePropagationConfig,
     SourceConfig,
     VelocityModelParameters,
-    Magnitudes,
-    Rakes,
 )
 
 app = typer.Typer()

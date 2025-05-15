@@ -43,7 +43,6 @@ from workflow.realisations import (
     Magnitudes,
     RealisationMetadata,
     RealisationParseError,
-    RupturePropagationConfig,
     VelocityModel1D,
 )
 

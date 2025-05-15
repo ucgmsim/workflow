@@ -11,10 +11,10 @@ from qcore import cli
 from source_modelling.sources import Fault, Plane
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import (
-    RealisationMetadata,
-    RupturePropagationConfig,
     Magnitudes,
     Rakes,
+    RealisationMetadata,
+    RupturePropagationConfig,
     SourceConfig,
 )
 

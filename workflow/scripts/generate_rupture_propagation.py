@@ -42,7 +42,6 @@ import typer
 from qcore import cli
 from qcore.uncertainties import distributions
 from source_modelling import rupture_propagation
-
 from workflow import realisations
 
 app = typer.Typer()
