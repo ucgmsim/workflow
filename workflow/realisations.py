@@ -243,7 +243,7 @@ class Seeds(RealisationConfiguration):
 
     @classmethod
     def read_from_realisation_or_defaults(
-        cls, realisation_ffp: Path, *args
+        cls, realisation_ffp: Path, *args: list[Any]
     ) -> Self:  # *args is to maintain compat with superclass (remove this and see the error in mypy).
         """Read seeds configuration from a realisation file or generate random seeds if not present.
 
@@ -365,6 +365,28 @@ class SRFConfig(RealisationConfiguration):
 
 
 @dataclasses.dataclass
+class Rakes(RealisationConfiguration):
+    """Fault rakes."""
+
+    _config_key: ClassVar[str] = "rakes"
+    _schema: ClassVar[Schema] = schemas.RAKES_SCHEMA
+
+    rakes: dict[str, float]
+    """A map from faults to rakes."""
+
+
+@dataclasses.dataclass
+class Magnitudes(RealisationConfiguration):
+    """Per-fault rupture magnitudes."""
+
+    _config_key: ClassVar[str] = "magnitudes"
+    _schema: ClassVar[Schema] = schemas.MAGNITUDES_SCHEMA
+
+    magnitudes: dict[str, float]
+    """A map from faults to the magnitude of the rupture for each fault."""
+
+
+@dataclasses.dataclass
 class RupturePropagationConfig(RealisationConfiguration):
     """Configuration for rupture propagation."""
 
@@ -375,10 +397,6 @@ class RupturePropagationConfig(RealisationConfiguration):
     """A dict where the keys are faults and the values the parent fault (i.e. if fault a triggers fault b then rupture_causality_tree[fault b] = fault a)."""
     jump_points: dict[str, JumpPair]
     """A map from faults to pairs of fault-local coordinates representing jump points. If the rupture jumps from fault a at point a to point b on fault b then jump_points[fault a] = JumpPoint(point b, point a)."""
-    rakes: dict[str, float]
-    """A map from faults to rakes."""
-    magnitudes: dict[str, float]
-    """A map from faults to the magnitude of the rupture for each fault."""
     hypocentre: npt.NDArray[np.float64]
     """The hypocentre of the fault."""
 
@@ -407,6 +425,17 @@ class RupturePropagationConfig(RealisationConfiguration):
             self.hypocentre, ["s", "d"]
         )
         return config_dict
+
+    @property
+    def hypocentres(self) -> dict[str, npt.NDArray[np.float64]]:
+        hypocentres = {
+            fault_name: jump_point.to_point
+            for fault_name, jump_point in self.jump_points.items()
+        }
+
+        hypocentres[self.initial_fault] = self.hypocentre
+
+        return hypocentres
 
     @property
     def initial_fault(self) -> str:

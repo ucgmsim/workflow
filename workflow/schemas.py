@@ -54,7 +54,9 @@ def is_valid_longitude(longitude: float) -> bool:  # noqa: D103 # numpydoc ignor
     return -180 <= longitude <= 180
 
 
-def is_plausible_magnitude(magnitude: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+def is_plausible_magnitude(
+    magnitude: float,
+) -> bool:  # noqa: D103 # numpydoc ignore=GL08
     return magnitude < 11
 
 
@@ -62,7 +64,9 @@ def is_valid_degrees(degrees: float) -> bool:  # noqa: D103 # numpydoc ignore=GL
     return -360 <= degrees <= 360
 
 
-def is_valid_local_coordinate(coordinate: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+def is_valid_local_coordinate(
+    coordinate: float,
+) -> bool:  # noqa: D103 # numpydoc ignore=GL08
     return 0 <= coordinate <= 1
 
 
@@ -318,6 +322,22 @@ DOMAIN_SCHEMA = Schema(
         ),
     }
 )
+RAKES_SCHEMA = Schema(
+    {
+        Literal("rakes", description="The fault rakes"): {
+            str: And(float, is_valid_degrees)
+        },
+    }
+)
+
+MAGNITUDE_SCHEMA = Schema(
+    {
+        Literal(
+            "magnitudes",
+            description="The total moment magnitude for the rupture on this fault",
+        ): {str: And(float, is_plausible_magnitude)},
+    }
+)
 
 RUPTURE_PROPAGATION_SCHEMA = Schema(
     {
@@ -325,10 +345,6 @@ RUPTURE_PROPAGATION_SCHEMA = Schema(
             "hypocentre",
             description="The hypocentre coordinates (or initial rupture point if not the initial fault)",
         ): FAULT_LOCAL_COORDINATES_SCHEMA,
-        Literal(
-            "magnitudes",
-            description="The total moment magnitude for the rupture on this fault",
-        ): {str: And(float, is_plausible_magnitude)},
         Literal("jump_points", description="The jump points for the rupture"): Or(
             {
                 str: And(
@@ -341,9 +357,6 @@ RUPTURE_PROPAGATION_SCHEMA = Schema(
             },
             {},
         ),
-        Literal("rakes", description="The fault rakes"): {
-            str: And(float, is_valid_degrees)
-        },
         Literal("rupture_causality_tree", description="The fault propagation tree"): {
             str: Or(str, None)
         },
