@@ -95,7 +95,7 @@ hf:
   fa_sig1: 0.0
   fa_sig2: 0.0
   rv_sig1: 0.1
-  path_dur: 1
+  path_dur: 11
   dpath_pert: 0.0
   stress_parameter_adjustment_tect_type: 1
   stress_parameter_adjustment_target_magnitude: null
@@ -111,7 +111,7 @@ velocity_model:
   resolution: 0.1
   ds_multiplier: 1.2
   dt: 0.005
-  version: "2.06"
+  version: "2.07"
   topo_type: "SQUASHED_TAPERED"
   vs30: 500.0
   s_wave_velocity: 3500.0
@@ -327,7 +327,7 @@ velocity_model_1d:
       Qp: 460.00
       Qs: 230.00
 bb:
-  flo: 0.5
+  flo: 1.0
   dt: 0.005
   fmidbot: 0.5
   fmin: 0.25
