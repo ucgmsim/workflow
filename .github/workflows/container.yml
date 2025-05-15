@@ -22,8 +22,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y apptainer fuse-overlayfs squashfs-tools python3-pip
-        python3 -m pip install rclone
+        sudo apt-get install -y singularity-container squashfuse e2fsprogs runc rclone
 
     - name: Build Apptainer container
       run: |
