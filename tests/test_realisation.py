@@ -268,8 +268,6 @@ def test_rupture_prop_config(tmp_path: Path):
                 from_point=np.array([0.25, 0.8]), to_point=np.array([0.5, 0.333])
             ),
         },
-        rakes={"A": 100.0, "B": 67.0, "C": 125.0},
-        magnitudes={"A": 6.5, "B": 6.7, "C": 6.9},
         hypocentre=np.array([0.0, 0.6]),
     )
 
@@ -289,8 +287,6 @@ def test_rupture_prop_config(tmp_path: Path):
                         "to_point": {"s": 0.5, "d": 0.333},
                     },
                 },
-                "rakes": {"A": 100.0, "B": 67.0, "C": 125.0},
-                "magnitudes": {"A": 6.5, "B": 6.7, "C": 6.9},
                 "hypocentre": {"s": 0.0, "d": 0.6},
             }
         }
@@ -302,9 +298,41 @@ def test_rupture_prop_config(tmp_path: Path):
     assert rupture_prop_config.jump_points["B"].to_point.tolist() == [0.0, 0.0]
     assert rupture_prop_config.jump_points["C"].from_point.tolist() == [0.25, 0.8]
     assert rupture_prop_config.jump_points["C"].to_point.tolist() == [0.5, 0.333]
-    assert rupture_prop_config.rakes == {"A": 100.0, "B": 67.0, "C": 125.0}
-    assert rupture_prop_config.magnitudes == {"A": 6.5, "B": 6.7, "C": 6.9}
     assert rupture_prop_config.hypocentre.tolist() == [0.0, 0.6]
+
+
+def test_magnitudes(tmp_path: Path):
+    magnitudes = realisations.Magnitudes(
+        magnitudes={"A": 6.5, "B": 6.7, "C": 6.9},
+    )
+
+    realisation_ffp = tmp_path / "realisation.json"
+    magnitudes.write_to_realisation(realisation_ffp)
+    with open(realisation_ffp, "r") as realisation_handle:
+        assert json.load(realisation_handle) == {
+            "magnitudes": {
+                "magnitudes": {"A": 6.5, "B": 6.7, "C": 6.9},
+            }
+        }
+    magnitudes = realisations.Magnitudes.read_from_realisation(realisation_ffp)
+    assert magnitudes.magnitudes == {"A": 6.5, "B": 6.7, "C": 6.9}
+
+
+def test_rakes(tmp_path: Path):
+    rakes = realisations.Rakes(
+        rakes={"A": 100.0, "B": 67.0, "C": 125.0},
+    )
+
+    realisation_ffp = tmp_path / "realisation.json"
+    rakes.write_to_realisation(realisation_ffp)
+    with open(realisation_ffp, "r") as realisation_handle:
+        assert json.load(realisation_handle) == {
+            "rakes": {
+                "rakes": {"A": 100.0, "B": 67.0, "C": 125.0},
+            }
+        }
+    rakes = realisations.Rakes.read_from_realisation(realisation_ffp)
+    assert rakes.rakes == {"A": 100.0, "B": 67.0, "C": 125.0}
 
 
 def test_rupture_prop_properties():
@@ -318,8 +346,6 @@ def test_rupture_prop_properties():
                 from_point=np.array([0.25, 0.8]), to_point=np.array([0.5, 0.333])
             ),
         },
-        rakes={"A": 100.0, "B": 67.0, "C": 125.0},
-        magnitudes={"A": 6.5, "B": 6.7, "C": 6.9},
         hypocentre=np.array([0.0, 0.6]),
     )
     assert rup_prop.initial_fault == "A"

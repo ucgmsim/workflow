@@ -330,7 +330,7 @@ RAKES_SCHEMA = Schema(
     }
 )
 
-MAGNITUDE_SCHEMA = Schema(
+MAGNITUDES_SCHEMA = Schema(
     {
         Literal(
             "magnitudes",
