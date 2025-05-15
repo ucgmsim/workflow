@@ -36,7 +36,7 @@ jobs:
       run: |
         sudo apt update
         sudo apt install -y squashfuse e2fsprogs runc rclone
-        wget https://github.com/apptainer/apptainer/releases/download/v1.4.0/apptainer_1.4.0_amd64.deb -O /tmp/apptainer_1.4.0_amd64.deb
+        wget --quiet https://github.com/apptainer/apptainer/releases/download/v1.4.0/apptainer_1.4.0_amd64.deb -O /tmp/apptainer_1.4.0_amd64.deb
         sudo apt install -y /tmp/apptainer_1.4.0_amd64.deb
 
     - name: Build Apptainer container
