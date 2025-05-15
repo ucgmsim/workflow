@@ -95,7 +95,7 @@ hf:
   fa_sig1: 0.0
   fa_sig2: 0.0
   rv_sig1: 0.1
-  path_dur: 1
+  path_dur: 11
   dpath_pert: 0.0
   stress_parameter_adjustment_tect_type: 1
   stress_parameter_adjustment_target_magnitude: null
