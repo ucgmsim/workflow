@@ -11,11 +11,12 @@ import numpy as np
 import pandas as pd
 import pytest
 import schema
-
 from IM import im_calculation
-from source_modelling import rupture_propagation
 from velocity_modelling import bounding_box
+
+from source_modelling import rupture_propagation
 from workflow import defaults, realisations
+from workflow.realisations import SourceConfig
 
 
 def test_bounding_box_example(tmp_path: Path):
@@ -612,6 +613,54 @@ def test_intensity_measure_calculation_parameters(tmp_path: Path):
         ).to_dict()
         == im_calc_params.to_dict()
     )
+
+
+def test_sources(tmp_path: Path):
+    realisation_ffp = tmp_path / "realisation.json"
+    source_json = {
+        "sources": {
+            "source_geometries": {
+                "2016p661400": {
+                    "type": "fault",
+                    "corners": [
+                        {
+                            "latitude": -36.86797068168705,
+                            "longitude": 179.27706552534542,
+                            "depth": 12615.079012268625,
+                        },
+                        {
+                            "latitude": -36.96567964889889,
+                            "longitude": 179.24208519658814,
+                            "depth": 12615.079012268625,
+                        },
+                        {
+                            "latitude": -36.94379957660565,
+                            "longitude": 179.1474674643655,
+                            "depth": 13384.920987731375,
+                        },
+                        {
+                            "latitude": -36.84610827130364,
+                            "longitude": 179.18256725416285,
+                            "depth": 13384.920987731375,
+                        },
+                    ],
+                }
+            }
+        }
+    }
+    realisation_ffp = tmp_path / "realisation_expected.json"
+    with open(realisation_ffp, "w") as f:
+        json.dump(source_json, f)
+
+    sources = SourceConfig.read_from_realisation(realisation_ffp)
+    realisation_generated_ffp = tmp_path / "realisation_generated.json"
+    sources.write_to_realisation(realisation_generated_ffp)
+
+    with (
+        open(realisation_ffp, "r") as f_old,
+        open(realisation_generated_ffp, "r") as f_new,
+    ):
+        assert json.load(f_old) == json.load(f_new)
 
 
 @pytest.mark.parametrize(
