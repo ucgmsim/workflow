@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - pegasus
   workflow_dispatch:
 
 jobs:
@@ -42,4 +43,4 @@ jobs:
 
     - name: Upload container to Dropbox
       run: |
-        rclone copy $CONTAINER_NAME dropbox:apptainer-containers/
+        rclone copy $CONTAINER_NAME dropbox:/QuakeCoRE/Containers
