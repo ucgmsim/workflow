@@ -351,8 +351,8 @@ def generate_realisation(
         strategy=str(strategy),
         jump_impossibility_limit_distance=round(jump_cutoff * 1000),
     )
-    rakes = Rakes(rakes=rakes)
-    magnitudes = Magnitudes(magnitudes=magnitudes)
+    magnitudes = Magnitudes(magnitudes)
+    rakes = Rakes(rakes)
     rupture_propagation_config = RupturePropagationConfig(
         rupture_causality_tree=rupture_causality_tree,
         jump_points=rupture_propagation.jump_points_from_rupture_tree(
@@ -361,6 +361,6 @@ def generate_realisation(
         hypocentre=hypocentre,
     )
     realisation_ffp.parent.mkdir(parents=True, exist_ok=True)
-    for section in [source_config, rupture_propagation_config, rakes, magnitudes]:
+    for section in [source_config, rupture_propagation_config, magnitudes, rakes]:
         section.write_to_realisation(realisation_ffp)
     realisations.append_log_entry(realisation_ffp)

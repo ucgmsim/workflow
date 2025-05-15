@@ -243,7 +243,7 @@ class Seeds(RealisationConfiguration):
 
     @classmethod
     def read_from_realisation_or_defaults(
-        cls, realisation_ffp: Path, *args
+        cls, realisation_ffp: Path, *args: list[Any]
     ) -> Self:  # *args is to maintain compat with superclass (remove this and see the error in mypy).
         """Read seeds configuration from a realisation file or generate random seeds if not present.
 
@@ -455,6 +455,18 @@ class RupturePropagationConfig(RealisationConfiguration):
             self.hypocentre, ["s", "d"]
         )
         return config_dict
+
+    @property
+    def hypocentres(self) -> dict[str, npt.NDArray[np.float64]]:  # numpydoc ignore=RT01
+        """Dict from str to array: the hypocentres on each fault in the simulation."""
+        hypocentres = {
+            fault_name: jump_point.to_point
+            for fault_name, jump_point in self.jump_points.items()
+        }
+
+        hypocentres[self.initial_fault] = self.hypocentre
+
+        return hypocentres
 
     @property
     def initial_fault(self) -> str:

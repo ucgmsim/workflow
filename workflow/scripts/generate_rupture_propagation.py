@@ -41,9 +41,8 @@ import numpy as np
 import typer
 
 from qcore import cli
-from qcore.uncertainties import distributions, mag_scaling
+from qcore.uncertainties import distributions
 from source_modelling import rupture_propagation
-from source_modelling.sources import Fault
 from workflow import realisations
 
 app = typer.Typer()
@@ -73,8 +72,6 @@ def generate_rupture_propagation(
         The path to the realisation.
     initial_fault : str
         The initial rupture fault.
-    rakes : dict[str, float]
-        Fault rakes in key-value list format (e.g. Acton=110, Nevis=-110.0). Use '_' instead of spaces when invoking from CLI.
     shypo : float, optional
         Hypocentre s-coordinates.
     dhypo : float, optional
