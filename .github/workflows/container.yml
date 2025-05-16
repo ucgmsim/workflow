@@ -24,7 +24,7 @@ jobs:
           type = dropbox
           client_id =
           client_secret =
-          token = "${secrets.RCLONE_CONFIG}"
+          token = "${{ secrets.RCLONE_CONFIG }}"
           EOF
 
     - name: Set up SSH for deploy key
