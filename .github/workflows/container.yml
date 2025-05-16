@@ -18,14 +18,14 @@ jobs:
     steps:
     - name: Configure rclone for Dropbox
       run: |
-          mkdir -p ~/.config/rclone
-          cat <<EOF > ~/.config/rclone/rclone.conf
-[dropbox]
-type = dropbox
-client_id =
-client_secret =
-token = $RCLONE_CONFIG
-EOF
+        mkdir -p ~/.config/rclone
+        cat <<EOF > ~/.config/rclone/rclone.conf
+        [dropbox]
+        type = dropbox
+        client_id =
+        client_secret =
+        token = ${{ secrets.RCLONE_CONFIG }}
+        EOF
 
     - name: Set up SSH for deploy key
       run: |
