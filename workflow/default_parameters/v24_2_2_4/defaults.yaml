@@ -533,7 +533,7 @@ hf_velocity_model_1d:
       Qp: 394.80
       Qs: 197.40
 bb:
-  flo: 0.5
+  flo: 0.25
   dt: 0.02
   fmidbot: 0.5
   fmin: 0.25

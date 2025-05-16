@@ -52,8 +52,14 @@ jobs:
 
     - name: Configure rclone for Dropbox
       run: |
-        mkdir -p ~/.config/rclone
-        echo "${{ secrets.RCLONE_CONFIG }}" > ~/.config/rclone/rclone.conf
+          mkdir -p ~/.config/rclone
+          cat <<EOF > ~/.config/rclone/rclone.conf
+          [dropbox]
+          type = dropbox
+          client_id =
+          client_secret =
+          token = '${ secrets.RCLONE_CONFIG }'
+          EOF
 
     - name: Upload container to Dropbox
       run: |
