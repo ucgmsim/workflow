@@ -49,7 +49,7 @@ from workflow import log_utils, realisations, utils
 from workflow.realisations import (
     DomainParameters,
     HFConfig,
-    HFVelocityModel1D,
+    VelocityModel1D,
     RealisationMetadata,
     Seeds,
 )
@@ -226,7 +226,7 @@ def run_hf(
     seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
-    velocity_model = HFVelocityModel1D.read_from_realisation_or_defaults(
+    velocity_model = VelocityModel1D.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
     hf_config = HFConfig.read_from_realisation_or_defaults(
