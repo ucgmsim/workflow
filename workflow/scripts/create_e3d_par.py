@@ -254,7 +254,7 @@ def create_e3d_par(
         "/EMOD3D/tools/emod3d-mpi_v3.0.8"
     ),
     emod3d_version: Annotated[str, typer.Option()] = "3.0.8",
-):
+) -> None:
     """Create EMOD3D parameter file from provided inputs.
 
     Parameters

@@ -130,7 +130,7 @@ def generate_fault_srf(
     srf_config: SRFConfig,
     seeds: Seeds,
     genslip_path: Path,
-):
+) -> None:
     """Generate an SRF file for a given fault.
 
     Parameters
@@ -450,7 +450,7 @@ def generate_fault_srfs_parallel(
     seeds: Seeds,
     velocity_model_1d: VelocityModel1D,
     genslip_path: Path,
-):
+) -> None:
     """Generate fault SRF files in parallel.
 
     Parameters
@@ -524,7 +524,7 @@ def generate_srf(
     genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
         "/EMOD3D/tools/genslip_v5.4.2"
     ),
-):
+) -> None:
     """Generate an SRF file from a given realisation specification.
 
     This function reads the realisation metadata and configurations from the specified YAML file. It then generates

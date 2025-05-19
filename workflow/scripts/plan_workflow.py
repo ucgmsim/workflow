@@ -708,7 +708,7 @@ def plan_workflow(
     ] = None,
     container: Annotated[Optional[Path], typer.Option()] = None,
     emod3d_path: Annotated[Optional[Path], typer.Option()] = None,
-):
+) -> None:
     """Plan and generate a Cylc workflow file for a number of realisations.
 
     Parameters
