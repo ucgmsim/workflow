@@ -49,9 +49,9 @@ from workflow import log_utils, realisations, utils
 from workflow.realisations import (
     DomainParameters,
     HFConfig,
-    VelocityModel1D,
     RealisationMetadata,
     Seeds,
+    VelocityModel1D,
 )
 
 app = typer.Typer()
