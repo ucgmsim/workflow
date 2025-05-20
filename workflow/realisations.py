@@ -244,9 +244,7 @@ class Seeds(RealisationConfiguration):
     @classmethod
     def read_from_realisation_or_defaults(
         cls, realisation_ffp: Path, *args: list[Any]
-    ) -> (
-        Self
-    ):  # *args is to maintain compat with superclass (remove this and see the error in mypy).
+    ) -> Self:  # *args is to maintain compat with superclass (remove this and see the error in mypy).
         """Read seeds configuration from a realisation file or generate random seeds if not present.
 
         This method attempts to read the seeds configuration from the specified
@@ -457,7 +455,10 @@ class DomainParameters(RealisationConfiguration):
     @property
     def nz(self) -> int:  # numpydoc ignore=RT01
         """int: The number of z coordinate positions in the discretised domain."""
-        return int(np.round(self.depth / self.resolution))
+        # The C NZVM code truncates (removes the decimal part) of the nz value,
+        # so we do the same for consistency. The C NZVM code does round the nx and ny
+        # values, so it is unclear why the nz value is treated differently.
+        return int(self.depth / self.resolution)
 
     def to_dict(self) -> dict:
         """
