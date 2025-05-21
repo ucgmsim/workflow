@@ -598,7 +598,6 @@ def test_intensity_measure_calculation_parameters(tmp_path: Path) -> None:
         realisations.BroadbandParameters,
         realisations.VelocityModel1D,
         realisations.IntensityMeasureCalculationParameters,
-        realisations.HFVelocityModel1D,
     ],
 )
 @pytest.mark.parametrize("defaults_version", list(defaults.DefaultsVersion))
