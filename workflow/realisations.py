@@ -445,19 +445,22 @@ class DomainParameters(RealisationConfiguration):
     @property
     def nx(self) -> int:  # numpydoc ignore=RT01
         """int: The number of x coordinate positions in the discretised domain."""
-        return int(np.round(self.domain.extent_x / self.resolution))
+        # The C NZVM code truncates (removes the decimal part) of the nx value,
+        # so we do the same for consistency
+        return int(self.domain.extent_x / self.resolution)
 
     @property
     def ny(self) -> int:  # numpydoc ignore=RT01
         """int: The number of y coordinate positions in the discretised domain."""
-        return int(np.round(self.domain.extent_y / self.resolution))
+        # The C NZVM code truncates (removes the decimal part) of the ny value,
+        # so we do the same for consistency
+        return int(self.domain.extent_y / self.resolution)
 
     @property
     def nz(self) -> int:  # numpydoc ignore=RT01
         """int: The number of z coordinate positions in the discretised domain."""
         # The C NZVM code truncates (removes the decimal part) of the nz value,
-        # so we do the same for consistency. The C NZVM code does round the nx and ny
-        # values, so it is unclear why the nz value is treated differently.
+        # so we do the same for consistency
         return int(self.depth / self.resolution)
 
     def to_dict(self) -> dict:
