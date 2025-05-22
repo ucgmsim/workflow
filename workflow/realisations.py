@@ -445,23 +445,26 @@ class DomainParameters(RealisationConfiguration):
     @property
     def nx(self) -> int:  # numpydoc ignore=RT01
         """int: The number of x coordinate positions in the discretised domain."""
-        # The C NZVM code truncates (removes the decimal part) of the nx value,
-        # so we do the same for consistency
-        return int(self.domain.extent_x / self.resolution)
+        # The C NZVM code always rounds 0.5 up to 1.0 but Python does not always
+        # round in the same way. So we manually replicate the C rounding behaviour
+        # here for consistency.
+        return int((self.domain.extent_x / self.resolution) + 0.5)
 
     @property
     def ny(self) -> int:  # numpydoc ignore=RT01
         """int: The number of y coordinate positions in the discretised domain."""
-        # The C NZVM code truncates (removes the decimal part) of the ny value,
-        # so we do the same for consistency
-        return int(self.domain.extent_y / self.resolution)
+        # The C NZVM code always rounds 0.5 up to 1.0 but Python does not always
+        # round in the same way. So we manually replicate the C rounding behaviour
+        # here for consistency.
+        return int((self.domain.extent_y / self.resolution) + 0.5)
 
     @property
     def nz(self) -> int:  # numpydoc ignore=RT01
         """int: The number of z coordinate positions in the discretised domain."""
-        # The C NZVM code truncates (removes the decimal part) of the nz value,
-        # so we do the same for consistency
-        return int(self.depth / self.resolution)
+        # The C NZVM code always rounds 0.5 up to 1.0 but Python does not always
+        # round in the same way. So we manually replicate the C rounding behaviour
+        # here for consistency.
+        return int((self.depth / self.resolution) + 0.5)
 
     def to_dict(self) -> dict:
         """
