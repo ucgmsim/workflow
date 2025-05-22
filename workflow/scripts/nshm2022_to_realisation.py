@@ -41,12 +41,14 @@ from typing import Annotated, Optional
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+
 import typer
+
 
 from nshmdb import nshmdb
 from qcore import cli
 from qcore.uncertainties import distributions, mag_scaling
-from source_modelling import rupture_propagation, sources
+from source_modelling import rupture_propagation, sources, moment
 from source_modelling.sources import Fault
 from workflow import realisations
 from workflow.defaults import DefaultsVersion
@@ -61,6 +63,7 @@ from workflow.realisations import (
     SRFConfig,
     VelocityModel1D,
 )
+from scipy.cluster.hierarchy import DisjointSet
 
 app = typer.Typer()
 
@@ -93,7 +96,7 @@ def a_to_mw_leonard(area: float, rake: float) -> float:
 
 def default_magnitude_estimation(
     faults: dict[str, Fault],
-    velocity_model: pd.DataFrame,
+    components: DisjointSet,
     avg_rake: float,
 ) -> dict[str, float]:
     """Estimate the magnitudes for a set of faults based on their areas and average rake.
@@ -102,8 +105,6 @@ def default_magnitude_estimation(
     ----------
     faults : dict
         A dictionary where the keys are fault names and the values are `Fault` objects containing information about each fault.
-    velocity_model : pd.DataFrame
-        The 1D velocity model to use to compute rigidity-weighted areas.
     avg_rake : float
         The average rake angle of the rupture.
 
@@ -115,17 +116,30 @@ def default_magnitude_estimation(
     total_area = sum(fault.area() for fault in faults.values())
     estimated_mw = a_to_mw_leonard(total_area, avg_rake)
     estimated_moment = mag_scaling.mag2mom(estimated_mw)
+    roots = {components[fault_name] for fault_name in faults}
+    component_areas = {
+        root: sum(faults[name].area() for name in components.subset(root))
+        for root in roots
+    }
+    total_component_area = sum(
+        component_area ** (3 / 2) for component_area in component_areas.values()
+    )
+    component_moments = {
+        root: (component_area ** (3 / 2) / total_component_area) * estimated_moment
+        for root, component_area in component_areas.items()
+    }
+    segment_moments = {}
 
-    fault_scaling_area = sum(fault.area() ** (3 / 2) for fault in faults.values())
-
-    moments: dict[str, float] = {}
     for fault_name, fault in faults.items():
-        moments[fault_name] = float(
-            mag_scaling.mom2mag(
-                ((fault.area() ** (3 / 2)) / fault_scaling_area) * estimated_moment
-            )
-        )
-    return moments
+        component = components[fault_name]
+        component_area = component_areas[component]
+        component_moment = component_moments[component]
+        segment_moments[fault_name] = (fault.area() / component_area) * component_moment
+
+    return {
+        fault_name: mag_scaling.mom2mag(fault_moment)
+        for fault_name, fault_moment in segment_moments.items()
+    }
 
 
 def find_fault_and_hypocentre(
@@ -224,6 +238,10 @@ def generate_realisation(
             max=180,
         ),
     ] = None,
+    separation_distance: Annotated[float, typer.Option()] = 5.0,
+    dip_delta: Annotated[float, typer.Option()] = 30.0,
+    strike_delta: Annotated[float | None, typer.Option()] = None,
+    min_connected_depth: Annotated[float, typer.Option()] = 5.0,
 ):
     """Generate realisation stub files from ruptures in the NSHM 2022 database.
 
@@ -286,9 +304,6 @@ def generate_realisation(
     )
 
     metadata.write_to_realisation(realisation_ffp)
-    velocity_model = VelocityModel1D.read_from_realisation_or_defaults(
-        realisation_ffp, defaults_version
-    )
     srf_config = SRFConfig.read_from_realisation_or_defaults(
         realisation_ffp, defaults_version
     )
@@ -313,9 +328,11 @@ def generate_realisation(
         fault_name: fault_info.rake for fault_name, fault_info in faults_info.items()
     }
     avg_rake = np.mean(list(rakes.values()))
-    magnitudes = default_magnitude_estimation(
-        faults, velocity_model.model, float(avg_rake)
+    components = moment.find_connected_faults(
+        faults, separation_distance, dip_delta, strike_delta, min_connected_depth
     )
+    print(components.subsets())
+    magnitudes = default_magnitude_estimation(faults, components, float(avg_rake))
     if lat_hypo is not None and lon_hypo is not None:
         initial_fault, hypocentre = find_fault_and_hypocentre(
             faults, lat_hypo, lon_hypo

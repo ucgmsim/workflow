@@ -8,7 +8,46 @@ authors = [{ name = "QuakeCoRE" }]
 description = "Next generation workflow powered by cylc."
 readme = "README.md"
 requires-python = ">=3.12"
-dynamic = ["version", "dependencies"]
+dynamic = ["version"]
+dependencies = [
+    "empirical @ git+https://github.com/ucgmsim/Empirical_Engine.git",
+    "fastparquet",
+    "geopandas",
+    "h5py",
+    "im_calculation @ git+https://github.com/ucgmsim/IM_calculation.git",
+    "jinja2",
+    "networkx",
+    "nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB.git",
+    "numexpr",
+    "numpy",
+    "pandas",
+    "printree",
+    "pyarrow",
+    "pyvis",
+    "pyyaml",
+    "pygmt_helper @ git+https://github.com/ucgmsim/pygmt_helper.git",
+    "qcore @ git+https://github.com/ucgmsim/qcore.git",
+    "requests",
+    "schema",
+    "scipy",
+    "shapely",
+    "source_modelling @ git+https://github.com/ucgmsim/source_modelling.git",
+    "structlog",
+    "tables",
+    "tqdm",
+    "typer",
+    "velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling.git",
+    "xarray[io]"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+]
+dev = [
+    "ruff",
+    "deptry"
+]
 
 [project.scripts]
 nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:app"
@@ -35,8 +74,8 @@ import-realisation = "workflow.scripts.import_realisation:app"
 [tool.setuptools.package-dir]
 workflow = "workflow"
 
-[tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt"] }
+
+
 
 [tool.setuptools_scm]
 
@@ -113,4 +152,9 @@ checks = [
 exclude = [ # don't report on objects that match any of these regex
     '\.undocumented_method$',
     '\.__repr__$',
+]
+
+[tool.uv]
+override-dependencies = [
+    "source_modelling @ git+https://github.com/ucgmsim/source_modelling.git@moment_component"
 ]
