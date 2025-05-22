@@ -74,13 +74,8 @@ def test_domain_parameters_properties() -> None:
         dt=0.005,
     )
 
-    # If DomainParameters were to round before converting to int, it would give
-    # nx = 1000 and ny = 1000. However, for consistency with the
-    # C NZVM code, the calculated values are simply truncated to int, giving
-    # nx = 999 and ny = 999. nz = 400 with and without rounding for these inputs.
-
-    assert domain_parameters.nx == 999
-    assert domain_parameters.ny == 999
+    assert domain_parameters.nx == 1000
+    assert domain_parameters.ny == 1000
     assert domain_parameters.nz == 400
 
 
