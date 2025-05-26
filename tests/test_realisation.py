@@ -73,6 +73,7 @@ def test_domain_parameters_properties() -> None:
         duration=60.0,
         dt=0.005,
     )
+
     assert domain_parameters.nx == 1000
     assert domain_parameters.ny == 1000
     assert domain_parameters.nz == 400

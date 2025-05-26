@@ -244,9 +244,7 @@ class Seeds(RealisationConfiguration):
     @classmethod
     def read_from_realisation_or_defaults(
         cls, realisation_ffp: Path, *args: list[Any]
-    ) -> (
-        Self
-    ):  # *args is to maintain compat with superclass (remove this and see the error in mypy).
+    ) -> Self:  # *args is to maintain compat with superclass (remove this and see the error in mypy).
         """Read seeds configuration from a realisation file or generate random seeds if not present.
 
         This method attempts to read the seeds configuration from the specified
@@ -447,17 +445,26 @@ class DomainParameters(RealisationConfiguration):
     @property
     def nx(self) -> int:  # numpydoc ignore=RT01
         """int: The number of x coordinate positions in the discretised domain."""
-        return int(np.round(self.domain.extent_x / self.resolution))
+        # The C NZVM code always rounds 0.5 up to 1.0 but Python does not always
+        # round in the same way. So we manually replicate the C rounding behaviour
+        # here for consistency.
+        return int((self.domain.extent_x / self.resolution) + 0.5)
 
     @property
     def ny(self) -> int:  # numpydoc ignore=RT01
         """int: The number of y coordinate positions in the discretised domain."""
-        return int(np.round(self.domain.extent_y / self.resolution))
+        # The C NZVM code always rounds 0.5 up to 1.0 but Python does not always
+        # round in the same way. So we manually replicate the C rounding behaviour
+        # here for consistency.
+        return int((self.domain.extent_y / self.resolution) + 0.5)
 
     @property
     def nz(self) -> int:  # numpydoc ignore=RT01
         """int: The number of z coordinate positions in the discretised domain."""
-        return int(np.round(self.depth / self.resolution))
+        # The C NZVM code always rounds 0.5 up to 1.0 but Python does not always
+        # round in the same way. So we manually replicate the C rounding behaviour
+        # here for consistency.
+        return int((self.depth / self.resolution) + 0.5)
 
     def to_dict(self) -> dict:
         """
