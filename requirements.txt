@@ -7,7 +7,7 @@ networkx
 nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB.git
 numexpr
 numpy
-oq_wrapper @ git+https://github.com/ucgmsim/Empirical_Engine.git#subdirectory=oq_wrapper
+oq_wrapper @ git+https://github.com/ucgmsim/Empirical_Engine.git#subdirectory=oq_wrapper.git
 pandas
 printree
 pyarrow
