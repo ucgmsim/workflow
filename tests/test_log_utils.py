@@ -11,11 +11,11 @@ from workflow import log_utils
 
 
 @log_utils.log_call()
-def foo(a: int, b: int):
+def foo(a: int, b: int) -> int:
     return a + b
 
 
-def test_basic_log():
+def test_basic_log() -> None:
     log_capture = structlog.testing.LogCapture()
     structlog.configure(processors=[log_capture])
 
@@ -35,11 +35,11 @@ def test_basic_log():
 
 
 @log_utils.log_call(exclude_args={"b"})
-def foo_less_b(a: int, b: int):
+def foo_less_b(a: int, b: int) -> int:
     return a + b
 
 
-def test_excluded_log():
+def test_excluded_log() -> None:
     log_capture = structlog.testing.LogCapture()
     structlog.configure(processors=[log_capture])
 
@@ -59,11 +59,11 @@ def test_excluded_log():
 
 
 @log_utils.log_call(action_name="FOOBAR")
-def bar(a: Any):
+def bar(a: Any) -> None:
     pass
 
 
-def test_renamed_bar():
+def test_renamed_bar() -> None:
     log_capture = structlog.testing.LogCapture()
     structlog.configure(processors=[log_capture])
 
@@ -81,11 +81,11 @@ def test_renamed_bar():
 
 
 @log_utils.log_call(include_result=False)
-def baz(a: Any):
+def baz(a: Any) -> int:
     return 1
 
 
-def test_no_result():
+def test_no_result() -> None:
     log_capture = structlog.testing.LogCapture()
     structlog.configure(processors=[log_capture])
 
@@ -104,11 +104,11 @@ def test_no_result():
 
 
 @log_utils.log_call()
-def failing_function():
+def failing_function() -> None:
     raise ValueError("This function should fail!")
 
 
-def test_failing_function():
+def test_failing_function() -> None:
     log_capture = structlog.testing.LogCapture()
     structlog.configure(processors=[log_capture])
 
@@ -122,7 +122,7 @@ def test_failing_function():
     assert "error" in return_log
 
 
-def test_successful_check_call_log(tmp_path: Path):
+def test_successful_check_call_log(tmp_path: Path) -> None:
     log_capture = structlog.testing.LogCapture()
     structlog.configure(processors=[log_capture])
 
@@ -140,7 +140,7 @@ def test_successful_check_call_log(tmp_path: Path):
     assert "stdout" in completion_message and "test.txt" in completion_message["stdout"]
 
 
-def test_failing_check_call_log():
+def test_failing_check_call_log() -> None:
     log_capture = structlog.testing.LogCapture()
     structlog.configure(processors=[log_capture])
 
@@ -156,7 +156,7 @@ def test_failing_check_call_log():
     )
 
 
-def test_repeated_logs():
+def test_repeated_logs() -> None:
     log_capture = structlog.testing.LogCapture()
     structlog.configure(processors=[log_capture])
 
@@ -177,12 +177,12 @@ def test_repeated_logs():
     )
 
 
-def _thread_worker(logger_name: str):
+def _thread_worker(logger_name: str) -> None:
     logger = log_utils.get_logger(logger_name)
     logger.info("Threaded log message")
 
 
-def test_thread_safety():
+def test_thread_safety() -> None:
     log_capture = structlog.testing.LogCapture()
     structlog.configure(processors=[log_capture])
 

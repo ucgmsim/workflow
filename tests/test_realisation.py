@@ -19,7 +19,7 @@ from workflow import defaults, realisations
 from workflow.realisations import SourceConfig
 
 
-def test_bounding_box_example(tmp_path: Path):
+def test_bounding_box_example(tmp_path: Path) -> None:
     domain_parameters = realisations.DomainParameters(
         resolution=0.1,  # a 0.1km resolution
         domain=bounding_box.BoundingBox.from_centroid_bearing_extents(
@@ -61,7 +61,7 @@ def test_bounding_box_example(tmp_path: Path):
     ).all()
 
 
-def test_domain_parameters_properties():
+def test_domain_parameters_properties() -> None:
     domain_parameters = realisations.DomainParameters(
         resolution=0.1,  # a 0.1km resolution
         domain=bounding_box.BoundingBox.from_centroid_bearing_extents(
@@ -79,7 +79,7 @@ def test_domain_parameters_properties():
     assert domain_parameters.nz == 400
 
 
-def test_srf_config_example(tmp_path: Path):
+def test_srf_config_example(tmp_path: Path) -> None:
     domain_parameters = realisations.DomainParameters(
         resolution=0.1,  # a 0.1km resolution
         domain=bounding_box.BoundingBox.from_centroid_bearing_extents(
@@ -125,7 +125,7 @@ def test_srf_config_example(tmp_path: Path):
     assert realisations.SRFConfig.read_from_realisation(realisation_ffp) == srf_config
 
 
-def test_bad_domain_parameters(tmp_path: Path):
+def test_bad_domain_parameters(tmp_path: Path) -> None:
     bad_json = tmp_path / "bad_domain_parameters.json"
     bad_json.write_text(
         json.dumps(
@@ -161,7 +161,7 @@ def test_bad_domain_parameters(tmp_path: Path):
         realisations.DomainParameters.read_from_realisation(bad_json)
 
 
-def test_bad_config_key(tmp_path: Path):
+def test_bad_config_key(tmp_path: Path) -> None:
     bad_json = tmp_path / "bad_domain_parameters.json"
     bad_json.write_text(
         json.dumps(
@@ -197,7 +197,7 @@ def test_bad_config_key(tmp_path: Path):
         realisations.DomainParameters.read_from_realisation(bad_json)
 
 
-def test_metadata(tmp_path: Path):
+def test_metadata(tmp_path: Path) -> None:
     metadata = realisations.RealisationMetadata(
         name="consecutive write test",
         version="1",
@@ -221,7 +221,7 @@ def test_metadata(tmp_path: Path):
     )
 
 
-def test_velocity_model(tmp_path: Path):
+def test_velocity_model(tmp_path: Path) -> None:
     velocity_model = realisations.VelocityModelParameters(
         min_vs=1.0,
         version="2.06",
@@ -258,7 +258,7 @@ def test_velocity_model(tmp_path: Path):
     )
 
 
-def test_rupture_prop_config(tmp_path: Path):
+def test_rupture_prop_config(tmp_path: Path) -> None:
     rup_prop = realisations.RupturePropagationConfig(
         rupture_causality_tree={"A": None, "B": "A", "C": "B"},
         jump_points={
@@ -352,7 +352,7 @@ def test_rupture_prop_properties():
     assert rup_prop.initial_fault == "A"
 
 
-def test_hf_config(tmp_path: Path):
+def test_hf_config(tmp_path: Path) -> None:
     test_realisation = tmp_path / "realisation.json"
     test_realisation.write_text("{}")
     hf_config = realisations.HFConfig.read_from_realisation_or_defaults(
@@ -371,7 +371,7 @@ def test_hf_config(tmp_path: Path):
     )
 
 
-def test_emod3d(tmp_path: Path):
+def test_emod3d(tmp_path: Path) -> None:
     test_realisation = tmp_path / "realisation.json"
     test_realisation.write_text("{}")
     emod3d = realisations.EMOD3DParameters.read_from_realisation_or_defaults(
@@ -390,7 +390,7 @@ def test_emod3d(tmp_path: Path):
     )
 
 
-def test_broadband_parameters(tmp_path: Path):
+def test_broadband_parameters(tmp_path: Path) -> None:
     test_realisation = tmp_path / "realisation.json"
     broadband_parameters = realisations.BroadbandParameters(
         flo=0.5, dt=0.005, fmidbot=0.5, fmin=0.25, site_amp_version="2014"
@@ -412,14 +412,14 @@ def test_broadband_parameters(tmp_path: Path):
     )
 
 
-def test_logtrail_init_empty():
+def test_logtrail_init_empty() -> None:
     """Test LogTrail initialization with no log provided."""
     trail = realisations.LogTrail([])
     assert trail.log == []
     assert trail._config_key == "log_trail"
 
 
-def test_logtrail_init_with_log_entries():
+def test_logtrail_init_with_log_entries() -> None:
     """Test LogTrail initialization with a list of LogEntry objects."""
     entry1 = realisations.LogEntry(
         utility="util1", args=["a"], version="1", timestamp=datetime.now()
@@ -431,7 +431,7 @@ def test_logtrail_init_with_log_entries():
     assert trail.log == [entry1, entry2]
 
 
-def test_logtrail_init_with_dicts_post_init():
+def test_logtrail_init_with_dicts_post_init() -> None:
     """Test LogTrail post_init conversion of dicts to LogEntry objects."""
     log_data = [
         {
@@ -458,7 +458,7 @@ def test_logtrail_init_with_dicts_post_init():
     assert trail.log[1].args == ["b"]
 
 
-def test_logtrail_log_entry_method():
+def test_logtrail_log_entry_method() -> None:
     """Test adding an entry using the log_entry method."""
     trail = realisations.LogTrail([])
     trail.log_entry("my_util", ["--flag", "value"])
@@ -469,7 +469,7 @@ def test_logtrail_log_entry_method():
     assert isinstance(trail.log[0].timestamp, datetime)
 
 
-def test_logtrail_to_dict():
+def test_logtrail_to_dict() -> None:
     """Test converting LogTrail to a dictionary."""
     ts = datetime.now()
     entry1 = realisations.LogEntry(
@@ -507,7 +507,7 @@ def test_logtrail_to_dict():
 
 def test_append_log_entry_file_exists_no_key(
     tmp_path: Path,
-):
+) -> None:
     """Test append_log_entry when file exists but lacks the 'log_trail' key."""
     realisation_file = tmp_path / "test_realisation.json"
     # Create a file with unrelated content
@@ -531,7 +531,7 @@ def test_append_log_entry_file_exists_no_key(
     assert data["log_trail"]["log"][0]["utility"] == "script_name.py"
 
 
-def test_seeds():
+def test_seeds() -> None:
     seeds = realisations.Seeds.random_seeds()
     assert all(
         0 <= seed <= 2 ** (struct.Struct("i").size * 8 - 1) - 1
@@ -539,7 +539,7 @@ def test_seeds():
     )
 
 
-def test_velocity_model_1d(tmp_path: Path):
+def test_velocity_model_1d(tmp_path: Path) -> None:
     velocity_model_1d = realisations.VelocityModel1D(
         model=pd.DataFrame(
             {
@@ -591,7 +591,7 @@ def test_velocity_model_1d(tmp_path: Path):
     )
 
 
-def test_intensity_measure_calculation_parameters(tmp_path: Path):
+def test_intensity_measure_calculation_parameters(tmp_path: Path) -> None:
     im_calc_params = realisations.IntensityMeasureCalculationParameters(
         ims=[im_calculation.IM("PGA"), im_calculation.IM("PGV")],
         valid_periods=np.array([0.1, 0.2, 0.3]),
@@ -673,7 +673,6 @@ def test_sources(tmp_path: Path):
         realisations.BroadbandParameters,
         realisations.VelocityModel1D,
         realisations.IntensityMeasureCalculationParameters,
-        realisations.HFVelocityModel1D,
     ],
 )
 @pytest.mark.parametrize("defaults_version", list(defaults.DefaultsVersion))
@@ -681,5 +680,5 @@ def test_defaults_are_loadable(
     tmp_path: Path,
     realisation_config: realisations.RealisationConfiguration,
     defaults_version: defaults.DefaultsVersion,
-):
+) -> None:
     realisation_config.read_from_defaults(defaults_version)

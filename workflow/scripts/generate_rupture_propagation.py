@@ -53,7 +53,7 @@ def generate_rupture_propagation(
     initial_fault: Annotated[str, typer.Argument()],
     shypo: Annotated[Optional[float], typer.Option(min=0, max=1)] = None,
     dhypo: Annotated[Optional[float], typer.Option(min=0, max=1)] = None,
-):
+) -> None:
     """Generate a likely rupture propagation for a given set of sources.
 
     Parameters

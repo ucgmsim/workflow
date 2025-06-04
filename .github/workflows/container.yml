@@ -1,0 +1,66 @@
+name: Build, Test in Container, and Upload
+
+on:
+  push:
+    branches:
+      - main
+      - pegasus
+  workflow_dispatch:
+
+jobs:
+  build-test-upload:
+    runs-on: ubuntu-latest
+
+    env:
+      COMMIT_HASH: ${{ github.sha }}
+      CONTAINER_NAME: runner-${{ github.sha }}.sif
+
+    steps:
+    - name: Configure rclone for Dropbox
+      run: |
+        mkdir -p ~/.config/rclone
+        cat <<EOF > ~/.config/rclone/rclone.conf
+        [dropbox]
+        type = dropbox
+        client_id =
+        client_secret =
+        token = ${{ secrets.RCLONE_CONFIG }}
+        EOF
+
+    - name: Set up SSH for deploy key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+    - name: Clone private repo
+      env:
+         TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+         git clone git@github.com:ucgmsim/EMOD3D.git /tmp/EMOD3D
+
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y squashfuse e2fsprogs runc rclone
+        wget --quiet https://github.com/apptainer/apptainer/releases/download/v1.4.0/apptainer_1.4.0_amd64.deb -O /tmp/apptainer_1.4.0_amd64.deb
+        sudo apt install -y /tmp/apptainer_1.4.0_amd64.deb
+
+    - name: Build Apptainer container
+      run: |
+        apptainer build $CONTAINER_NAME docker/runner/runner_action.def
+
+    - name: Run pytest inside container
+      run: |
+        apptainer exec \
+          --bind $PWD:/mnt \
+          $CONTAINER_NAME \
+          bash -c "cd /mnt && pytest tests/"
+
+    - name: Upload container to Dropbox
+      run: |
+        rclone copy $CONTAINER_NAME dropbox:/QuakeCoRE/Containers

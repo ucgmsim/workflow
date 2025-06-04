@@ -160,7 +160,7 @@ def generate_realisation(
             max=1,
         ),
     ] = None,
-):
+) -> None:
     """Generate realisation stub files from ruptures in the NSHM 2022 database.
 
     This function initializes a connection to the NSHM database, retrieves

@@ -508,7 +508,7 @@ def generate_srf(
     genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
         "/EMOD3D/tools/genslip_v5.4.2"
     ),
-):
+) -> None:
     """Generate an SRF file from a given realisation specification.
 
     This function reads the realisation metadata and configurations from the

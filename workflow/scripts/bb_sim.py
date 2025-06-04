@@ -81,7 +81,7 @@ def bb_simulate_station(
     n2: float,
     station_name: str,
     station: pd.Series,
-):
+) -> None:
     """Simulate broadband seismic for a single station.
 
     Combines the low frequency and high frequency waveforms together
@@ -185,7 +185,7 @@ def combine_hf_and_lf(
         Path, typer.Argument(file_okay=False, exists=True)
     ],
     output_ffp: Annotated[Path, typer.Argument(dir_okay=False, writable=True)],
-):
+) -> None:
     """Combine low-frequency and high-frequency seismic waveforms.
 
     Parameters

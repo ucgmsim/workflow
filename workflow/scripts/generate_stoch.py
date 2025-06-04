@@ -46,7 +46,7 @@ def generate_stoch(
     srf2stoch_path: Annotated[Path, typer.Option(exists=True)] = Path(
         "/EMOD3D/tools/srf2stoch"
     ),
-):
+) -> None:
     """Generate a stoch file from an SRF file.
 
     This function uses the `srf2stoch` binary to generate a stoch file from the provided SRF file.
