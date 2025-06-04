@@ -336,7 +336,7 @@ def test_rakes(tmp_path: Path):
     assert rakes.rakes == {"A": 100.0, "B": 67.0, "C": 125.0}
 
 
-def test_rupture_prop_properties():
+def test_rupture_prop_properties() -> None:
     rup_prop = realisations.RupturePropagationConfig(
         rupture_causality_tree={"A": None, "B": "A", "C": "B"},
         jump_points={
