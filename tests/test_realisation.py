@@ -302,7 +302,7 @@ def test_rupture_prop_config(tmp_path: Path) -> None:
     assert rupture_prop_config.hypocentre.tolist() == [0.0, 0.6]
 
 
-def test_magnitudes(tmp_path: Path):
+def test_magnitudes(tmp_path: Path) -> None:
     magnitudes = realisations.Magnitudes(
         magnitudes={"A": 6.5, "B": 6.7, "C": 6.9},
     )
@@ -319,7 +319,7 @@ def test_magnitudes(tmp_path: Path):
     assert magnitudes.magnitudes == {"A": 6.5, "B": 6.7, "C": 6.9}
 
 
-def test_rakes(tmp_path: Path):
+def test_rakes(tmp_path: Path) -> None:
     rakes = realisations.Rakes(
         rakes={"A": 100.0, "B": 67.0, "C": 125.0},
     )
@@ -615,7 +615,7 @@ def test_intensity_measure_calculation_parameters(tmp_path: Path) -> None:
     )
 
 
-def test_sources(tmp_path: Path):
+def test_sources(tmp_path: Path) -> None:
     realisation_ffp = tmp_path / "realisation.json"
     source_json = {
         "sources": {
