@@ -38,39 +38,43 @@ from workflow.defaults import DefaultsVersion
 # Accordingly, the most trivial of these functions lack docstrings.
 
 
-def is_positive(x: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+def _is_positive(x: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
     return x > 0
 
 
-def is_non_negative(x: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+def _is_non_negative(x: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
     return x >= 0
 
 
-def is_valid_latitude(latitude: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+def _is_valid_latitude(latitude: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
     return -90 <= latitude <= 90
 
 
-def is_valid_longitude(longitude: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+def _is_valid_longitude(longitude: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
     return -180 <= longitude <= 180
 
 
-def is_plausible_magnitude(magnitude: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+def _is_plausible_magnitude(
+    magnitude: float,
+) -> bool:  # noqa: D103 # numpydoc ignore=GL08
     return magnitude < 11
 
 
-def is_valid_degrees(degrees: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+def _is_valid_degrees(degrees: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
     return -360 <= degrees <= 360
 
 
-def is_valid_local_coordinate(coordinate: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+def _is_valid_local_coordinate(
+    coordinate: float,
+) -> bool:  # noqa: D103 # numpydoc ignore=GL08
     return 0 <= coordinate <= 1
 
 
-def is_valid_bearing(bearing: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+def _is_valid_bearing(bearing: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
     return 0 <= bearing <= 360
 
 
-def is_correct_corner_shape(corners: np.ndarray) -> bool:
+def _is_correct_corner_shape(corners: np.ndarray) -> bool:
     """Check if the corner shape matches the corner shape for plane sources.
 
     Parameters
@@ -87,7 +91,7 @@ def is_correct_corner_shape(corners: np.ndarray) -> bool:
     return corners.shape == (4, 3)
 
 
-def is_correct_fault_corner_shape(corners: np.ndarray) -> bool:
+def _is_correct_fault_corner_shape(corners: np.ndarray) -> bool:
     """Check if the corner shape matches the definition of corners for a fault (multi-plane; type-4).
 
     Parameters
@@ -105,7 +109,7 @@ def is_correct_fault_corner_shape(corners: np.ndarray) -> bool:
     return corners.shape[1:] == (4, 3)
 
 
-def has_non_negative_depth(corners: np.ndarray) -> bool:
+def _has_non_negative_depth(corners: np.ndarray) -> bool:
     """Check the depth component of corners array is non-negative.
 
     Parameters
@@ -122,7 +126,7 @@ def has_non_negative_depth(corners: np.ndarray) -> bool:
     return np.all(corners[:, -1] >= 0)
 
 
-def corners_to_array(corners_spec: list[dict[str, float]]) -> np.ndarray:
+def _corners_to_array(corners_spec: list[dict[str, float]]) -> np.ndarray:
     """Convert a list of coordinates to a numpy array in the corner format.
 
     Parameters
@@ -153,54 +157,48 @@ FAULT_LOCAL_COORDINATES_SCHEMA = Schema(
             Literal(
                 "s",
                 description="The `s` coordinate (fraction of length, in range [0, 1])",
-            ): And(float, is_valid_local_coordinate),
+            ): And(float, _is_valid_local_coordinate),
             Literal(
                 "d",
                 description="The `d` coordinate (fraction of width, in range [0, 1])",
-            ): And(float, is_valid_local_coordinate),
+            ): And(float, _is_valid_local_coordinate),
         },
         Use(lambda local_coords: np.array([local_coords["s"], local_coords["d"]])),
     )
 )
 
 
-LAT_LON_SCHEMA = Schema(
-    And(
+LAT_LON_SCHEMA = And(
+    [
         {
             Literal("latitude", description="Latitude (in decimal degrees)"): And(
-                float, is_valid_latitude
+                float, _is_valid_latitude
             ),
             Literal("longitude", description="Longitude (in decimal degrees)"): And(
-                float, is_valid_longitude
+                float, _is_valid_longitude
             ),
-        },
-        Use(lambda latlon: np.array([latlon["latitude"], latlon["longitude"]])),
+        }
+    ],
+    Use(
+        lambda latlon: np.array([[row["latitude"], row["longitude"]] for row in latlon])
     ),
 )
 
-LAT_LON_DEPTH_SCHEMA = Schema(
-    And(
-        {
-            Literal("latitude", description="Latitude (in decimal degrees)"): And(
-                float, is_valid_latitude
-            ),
-            Literal("longitude", description="Longitude (in decimal degrees)"): And(
-                float, is_valid_longitude
-            ),
-            Literal("depth", description="Depth (in metres)"): And(
-                float, is_non_negative
-            ),
-        },
-        Use(
-            lambda latlondepth: np.array(
-                [
-                    latlondepth["latitude"],
-                    latlondepth["longitude"],
-                    latlondepth["depth"],
-                ]
-            )
+POINT_COORD_SCHEMA = And(
+    {
+        Literal("latitude", description="Latitude (in decimal degrees)"): And(
+            float, _is_valid_latitude
         ),
-    )
+        Literal("longitude", description="Longitude (in decimal degrees)"): And(
+            float, _is_valid_longitude
+        ),
+        Literal("depth", description="Depth (in metres)"): And(float, _is_non_negative),
+    },
+    Use(
+        lambda latlon: np.array(
+            [latlon["latitude"], latlon["longitude"], latlon["depth"]]
+        )
+    ),
 )
 
 POINT_SCHEMA = Schema(
@@ -212,19 +210,19 @@ POINT_SCHEMA = Schema(
             ): "point",
             Literal(
                 "coordinates", description="The coordinates of the point source"
-            ): LAT_LON_DEPTH_SCHEMA,
+            ): POINT_COORD_SCHEMA,
             Literal("length", description="The pseudo-length of the point source"): And(
-                float, is_positive
+                float, _is_positive
             ),
             Literal(
                 "strike", description="The strike bearing of the point source"
-            ): And(float, is_valid_bearing),
+            ): And(float, _is_valid_bearing),
             Literal("dip", description="The dip angle of the point source"): And(
-                float, is_valid_bearing
+                float, _is_valid_bearing
             ),
             Literal(
                 "dip_dir", description="The dip direction bearing of the point source"
-            ): And(float, is_valid_bearing),
+            ): And(float, _is_valid_bearing),
         },
         Use(
             lambda schema: sources.Point.from_lat_lon_depth(
@@ -249,7 +247,9 @@ PLANE_SCHEMA = Schema(
                 "corners",
                 description="The corners of the plane (shape 4 x 3: lat, lon, depth)",
             ): And(
-                Use(corners_to_array), is_correct_corner_shape, has_non_negative_depth
+                Use(_corners_to_array),
+                _is_correct_corner_shape,
+                _has_non_negative_depth,
             ),
         },
         Use(lambda schema: sources.Plane.from_corners(schema["corners"])),
@@ -267,8 +267,8 @@ FAULT_SCHEMA = Schema(
                 "corners",
                 description="The corners of the plane (shape 4 x n x 3: lat, lon, depth)",
             ): And(
-                Use(corners_to_array),
-                has_non_negative_depth,
+                Use(_corners_to_array),
+                _has_non_negative_depth,
                 Use(
                     (lambda corners: corners.reshape((-1, 4, 3))),
                     error="Corners cannot be reshaped to (n x 4 x 3).",
@@ -289,12 +289,12 @@ SRF_SCHEMA = Schema(
         Literal(
             "genslip_dt",
             description="The timestep for genslip (used to specify the resolution for the `TINIT` values)",
-        ): And(float, is_positive),
+        ): And(float, _is_positive),
         Literal("genslip_version", description="The version of genslip to use"): Or(
             "5.4.2"
         ),
         Literal("resolution", description="Subdivision resolution."): And(
-            float, is_positive
+            float, _is_positive
         ),
     }
 )
@@ -302,20 +302,36 @@ SRF_SCHEMA = Schema(
 DOMAIN_SCHEMA = Schema(
     {
         Literal("resolution", description="The simulation resolution (in km)"): And(
-            float, is_positive
+            float, _is_positive
         ),
         Literal("domain", description="The corners of the simulation domain."): And(
-            Use(corners_to_array), Use(BoundingBox.from_wgs84_coordinates)
+            LAT_LON_SCHEMA, Use(BoundingBox.from_wgs84_coordinates)
         ),
         Literal("depth", description="The depth of the model (in km)"): And(
-            float, is_positive
+            float, _is_positive
         ),
         Literal(
             "duration", description="The duration of the simulation (in seconds)"
-        ): And(float, is_positive),
+        ): And(float, _is_positive),
         Literal("dt", "The resolution of the domain in time (in seconds)."): And(
-            float, is_positive
+            float, _is_positive
         ),
+    }
+)
+RAKES_SCHEMA = Schema(
+    {
+        Literal("rakes", description="The fault rakes"): {
+            str: And(float, _is_valid_degrees)
+        },
+    }
+)
+
+MAGNITUDES_SCHEMA = Schema(
+    {
+        Literal(
+            "magnitudes",
+            description="The total moment magnitude for the rupture on this fault",
+        ): {str: And(float, _is_plausible_magnitude)},
     }
 )
 
@@ -325,10 +341,6 @@ RUPTURE_PROPAGATION_SCHEMA = Schema(
             "hypocentre",
             description="The hypocentre coordinates (or initial rupture point if not the initial fault)",
         ): FAULT_LOCAL_COORDINATES_SCHEMA,
-        Literal(
-            "magnitudes",
-            description="The total moment magnitude for the rupture on this fault",
-        ): {str: And(float, is_plausible_magnitude)},
         Literal("jump_points", description="The jump points for the rupture"): Or(
             {
                 str: And(
@@ -341,9 +353,6 @@ RUPTURE_PROPAGATION_SCHEMA = Schema(
             },
             {},
         ),
-        Literal("rakes", description="The fault rakes"): {
-            str: And(float, is_valid_degrees)
-        },
         Literal("rupture_causality_tree", description="The fault propagation tree"): {
             str: Or(str, None)
         },
@@ -355,22 +364,22 @@ VELOCITY_MODEL_SCHEMA = Schema(
         Literal(
             "min_vs",
             description="The minimum velocity (km/s) produced in the velocity model.",
-        ): And(float, is_positive),
+        ): And(float, _is_positive),
         Literal("version", "Velocity model version"): Or(
             "2.02", "2.03", "2.06", "2.07"
         ),
         Literal("topo_type", "Velocity model topology type"): str,
-        Literal("dt", "Velocity model timestep resolution"): And(float, is_positive),
+        Literal("dt", "Velocity model timestep resolution"): And(float, _is_positive),
         Literal("ds_multiplier", "Velocity model ds multiplier"): And(
-            float, is_positive
+            float, _is_positive
         ),
         Literal("resolution", "Velocity model spatial resolution"): And(
-            float, is_positive
+            float, _is_positive
         ),
-        Literal("vs30", "VS30 value"): And(float, is_positive),
-        Literal("s_wave_velocity", "S-wave velocity"): And(float, is_positive),
+        Literal("vs30", "VS30 value"): And(float, _is_positive),
+        Literal("s_wave_velocity", "S-wave velocity"): And(float, _is_positive),
         Literal("pgv_interpolants", "PGV interpolants to estimate domain size"): And(
-            [[And(float, is_positive)]], Use(np.array)
+            [[And(float, _is_positive)]], Use(np.array)
         ),
     }
 )
@@ -398,12 +407,12 @@ VELOCITY_MODEL_1D_SCHEMA = Schema(
         Literal("model", description="The 1D velocity model"): And(
             [
                 {
-                    "thickness": And(float, is_positive),
-                    "Vp": And(float, is_positive),
-                    "Vs": And(float, is_positive),
-                    "rho": And(float, is_positive),
-                    "Qp": And(float, is_positive),
-                    "Qs": And(float, is_positive),
+                    "thickness": And(float, _is_positive),
+                    "Vp": And(float, _is_positive),
+                    "Vs": And(float, _is_positive),
+                    "rho": And(float, _is_positive),
+                    "Qp": And(float, _is_positive),
+                    "Qs": And(float, _is_positive),
                 }
             ],
             Use(pd.DataFrame),
@@ -443,10 +452,10 @@ HF_CONFIG_SCHEMA = Schema(
         Literal("ic_flag", description="Unknown!"): bool,
         Literal("velocity_name", description="Unknown!"): str,
         Literal("dt", description="Time resolution for HF simulation"): And(
-            float, is_positive
+            float, _is_positive
         ),
         Literal("t_sec", description="High frequency output start time."): And(
-            float, is_non_negative
+            float, _is_non_negative
         ),
         Literal("sdrop", description="Stress drop average (bars)"): float,
         Literal("rayset", description="ray types 1: direct, 2: moho"): [Or(1, 2)],
@@ -454,12 +463,12 @@ HF_CONFIG_SCHEMA = Schema(
             "no_siteamp", description="Disable BJ97 site amplification factors"
         ): bool,
         Literal("fmax", description="Max simulation frequency"): And(
-            float, is_positive
+            float, _is_positive
         ),
         Literal("kappa", description="Unknown!"): float,
         Literal("qfexp", description="Q frequency exponent"): float,
         Literal("rvfac", description="Rupture velocity factor (rupture : Vs)"): And(
-            float, is_non_negative
+            float, _is_non_negative
         ),
         Literal("rvfac_shal", description="rvfac shallow fault multiplier"): float,
         Literal("rvfac_deep", description="rvfac deep fault multiplier"): float,
@@ -476,7 +485,7 @@ HF_CONFIG_SCHEMA = Schema(
         Literal("fa_sig1", "Fourier amplitude uncertainty (1)"): float,
         Literal("fa_sig2", description="Fourier amplitude uncertainty (2)"): float,
         Literal("rv_sig1", description="Rupture velocity uncertainty"): And(
-            float, is_non_negative
+            float, _is_non_negative
         ),
         Literal(
             "path_dur",
@@ -495,8 +504,8 @@ HF_CONFIG_SCHEMA = Schema(
         Literal(
             "stress_parameter_adjustment_fault_area", "Fault area (or inferred if null)"
         ): Or(float, None),
-        Literal("stoch_dx", description="Stoch file dx"): And(float, is_positive),
-        Literal("stoch_dy", description="Stoch file dy"): And(float, is_positive),
+        Literal("stoch_dx", description="Stoch file dx"): And(float, _is_positive),
+        Literal("stoch_dy", description="Stoch file dy"): And(float, _is_positive),
     }
 )
 
@@ -572,16 +581,16 @@ EMOD3D_PARAMETERS_SCHEMA = Schema(
 BROADBAND_PARAMETERS_SCHEMA = Schema(
     {
         Literal("flo", description="low/high frequency cutoff"): And(
-            float, is_non_negative
+            float, _is_non_negative
         ),
         Literal("dt", description="simulation time resolution"): And(
-            float, is_positive
+            float, _is_positive
         ),
         Literal("fmidbot", description="fmidbot for site amplification"): And(
-            float, is_non_negative
+            float, _is_non_negative
         ),
         Literal("fmin", description="fmin for site amplification"): And(
-            float, is_non_negative
+            float, _is_non_negative
         ),
         "site_amp_version": str,
     }
@@ -594,10 +603,10 @@ INTENSITY_MEASURE_CALCUATION_PARAMETERS = Schema(
             And(str, Use(im_calculation.IM))
         ],
         Literal("valid_periods", description="Valid periods to calculate for"): And(
-            [And(float, is_positive)], Use(np.array)
+            [And(float, _is_positive)], Use(np.array)
         ),
         Literal("fas_frequencies", description="Fourier spectrum frequencies"): And(
-            [And(float, is_positive)], Use(np.array)
+            [And(float, _is_positive)], Use(np.array)
         ),
     }
 )

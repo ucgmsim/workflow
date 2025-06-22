@@ -47,6 +47,8 @@ from velocity_modelling.bounding_box import BoundingBox
 from workflow import log_utils, realisations
 from workflow.realisations import (
     DomainParameters,
+    Magnitudes,
+    Rakes,
     RealisationMetadata,
     RupturePropagationConfig,
     SourceConfig,
@@ -371,15 +373,15 @@ def dict_zip(*dicts: list[dict], strict: bool = True) -> dict:
 
 
 def pgv_target(
-    rupture_propagation_config: RupturePropagationConfig,
+    magnitudes: Magnitudes,
     velocity_model_parameters: VelocityModelParameters,
 ) -> float:
     """Compute the PGV target for the realisation.
 
     Parameters
     ----------
-    rupture_propagation_config : RupturePropagationConfig
-        The rupture propagation configuration containing magnitudes.
+    magnitudes : Magnitudes
+        The magnitudes object.
     velocity_model_parameters : VelocityModelParameters
         The velocity model parameters containing PGV interpolants.
 
@@ -391,7 +393,7 @@ def pgv_target(
     total_magnitude = mag_scaling.mom2mag(
         sum(
             mag_scaling.mag2mom(magnitude)
-            for magnitude in rupture_propagation_config.magnitudes.values()
+            for magnitude in magnitudes.magnitudes.values()
         )
     )
     return np.interp(
@@ -438,9 +440,10 @@ def generate_velocity_model_parameters(
     rupture_propagation = RupturePropagationConfig.read_from_realisation(
         realisation_ffp
     )
-    magnitudes = rupture_propagation.magnitudes
-    rupture_magnitude = total_magnitude(np.array(list(magnitudes.values())))
-    realisation_pgv_target = pgv_target(rupture_propagation, velocity_model_parameters)
+    magnitudes = Magnitudes.read_from_realisation(realisation_ffp)
+    rakes = Rakes.read_from_realisation(realisation_ffp)
+    rupture_magnitude = total_magnitude(np.array(list(magnitudes.magnitudes.values())))
+    realisation_pgv_target = pgv_target(magnitudes, velocity_model_parameters)
 
     initial_fault = source_config.source_geometries[rupture_propagation.initial_fault]
     max_depth = get_max_depth(
@@ -460,8 +463,8 @@ def generate_velocity_model_parameters(
         find_rrup_bounding_polygon(*args, pgv_target=realisation_pgv_target)
         for args in dict_zip(
             source_config.source_geometries,
-            magnitudes,
-            rupture_propagation.rakes,
+            magnitudes.magnitudes,
+            rakes.rakes,
         ).values()
     ]
 
@@ -478,7 +481,7 @@ def generate_velocity_model_parameters(
         model_domain,
         rupture_magnitude,
         list(source_config.source_geometries.values()),
-        np.fromiter(rupture_propagation.rakes.values(), float),
+        np.fromiter(rakes.rakes.values(), float),
         velocity_model_parameters.ds_multiplier,
         velocity_model_parameters.vs30,
         velocity_model_parameters.s_wave_velocity,

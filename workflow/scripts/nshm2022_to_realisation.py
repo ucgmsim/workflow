@@ -50,6 +50,8 @@ from workflow import realisations
 from workflow.defaults import DefaultsVersion
 from workflow.log_utils import log_call
 from workflow.realisations import (
+    Magnitudes,
+    Rakes,
     RealisationMetadata,
     RupturePropagationConfig,
     Seeds,
@@ -240,16 +242,16 @@ def generate_realisation(
             dhypo or distributions.truncated_weibull(1),
         ]
     )
+    magnitudes = Magnitudes(magnitudes)
+    rakes = Rakes(rakes)
     rupture_propagation_config = RupturePropagationConfig(
-        magnitudes=magnitudes,
         rupture_causality_tree=rupture_causality_tree,
         jump_points=rupture_propagation.jump_points_from_rupture_tree(
             faults, rupture_causality_tree
         ),
-        rakes=rakes,
         hypocentre=hypocentre,
     )
     realisation_ffp.parent.mkdir(parents=True, exist_ok=True)
-    for section in [source_config, rupture_propagation_config]:
+    for section in [source_config, rupture_propagation_config, magnitudes, rakes]:
         section.write_to_realisation(realisation_ffp)
     realisations.append_log_entry(realisation_ffp)

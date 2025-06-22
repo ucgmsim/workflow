@@ -46,6 +46,8 @@ from source_modelling.community_fault_model import NodalPlane
 from workflow import realisations
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import (
+    Magnitudes,
+    Rakes,
     RealisationMetadata,
     RupturePropagationConfig,
     SourceConfig,
@@ -237,19 +239,20 @@ def gcmt_to_realisation(
     source_config = SourceConfig(
         source_geometries={gcmt_event_id: sources.Fault([plane])}
     )
-
+    magnitudes = Magnitudes(magnitudes={gcmt_event_id: float(magnitude)})
+    rakes = Rakes(rakes={gcmt_event_id: float(rake)})
     rupture_config = RupturePropagationConfig(
         rupture_causality_tree={gcmt_event_id: None},
         jump_points={},
-        rakes={gcmt_event_id: float(rake)},
-        magnitudes={gcmt_event_id: float(magnitude)},
         hypocentre=hypocentre,
     )
     metadata = RealisationMetadata(
         name=gcmt_event_id, version="1", defaults_version=defaults_version, tag="gcmt"
     )
+
     realisation_ffp.parent.mkdir(parents=True, exist_ok=True)
-    metadata.write_to_realisation(realisation_ffp)
-    source_config.write_to_realisation(realisation_ffp)
-    rupture_config.write_to_realisation(realisation_ffp)
+
+    for config in [metadata, source_config, rupture_config, magnitudes, rakes]:
+        config.write_to_realisation(realisation_ffp)
+
     realisations.append_log_entry(realisation_ffp)

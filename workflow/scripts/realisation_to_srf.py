@@ -36,6 +36,7 @@ Visualisation
 You can visualise the output of this stage using the SRF plotting tools in the [source modelling](https://github.com/ucgmsim/visualization/blob/plots/wiki/Plotting-Tools.md) repository. Many of the tools take realisations as optional arguments to enhance the plot output.
 """
 
+import dataclasses
 import functools
 import multiprocessing
 import re
@@ -46,7 +47,6 @@ from pathlib import Path
 from typing import Annotated, Optional
 
 import numpy as np
-import numpy.typing as npt
 import pandas as pd
 import scipy as sp
 import typer
@@ -58,6 +58,8 @@ from source_modelling.sources import IsSource
 from workflow import log_utils, realisations, utils
 from workflow.log_utils import log_call
 from workflow.realisations import (
+    Magnitudes,
+    Rakes,
     RealisationMetadata,
     RupturePropagationConfig,
     Seeds,
@@ -83,7 +85,7 @@ def normalise_name(name: str) -> str:
         The normalised equivalent of this name. Normalised names are entirely
         lower case, and all non-alphanumeric characters are replaced with "_".
     """
-    return re.sub(r"[^A-z0-9]", "_", name.lower())
+    return re.sub(r"\W", "_", name.lower())
 
 
 def generate_fault_gsf(
@@ -118,105 +120,6 @@ def generate_fault_gsf(
     gsf_df["loc_rake"] = rake
     gsf.write_gsf(gsf_df, gsf_output_filepath)
     return gsf_output_filepath
-
-
-def generate_fault_srf(
-    name: str,
-    fault: IsSource,
-    rake: float,
-    magnitude: float,
-    hypocentre_local_coordinates: npt.NDArray[np.float64],
-    output_directory: Path,
-    srf_config: SRFConfig,
-    seeds: Seeds,
-    genslip_path: Path,
-) -> None:
-    """Generate an SRF file for a given fault.
-
-    Parameters
-    ----------
-    name : str
-        The name of the fault.
-    fault : IsSource
-        The fault to generate the SRF file for.
-    rake : float
-        The rake of the fault.
-    magnitude : float
-        The magnitude of the fault.
-    hypocentre_local_coordinates : npt.NDArray[np.float64]
-        The local coordinates of the hypocentre.
-    output_directory : Path
-        The output directory.
-    srf_config : SRFConfig
-        The SRF configuration.
-    seeds : Seeds
-        The seeds for random number generation.
-    genslip_path : Path
-        The path to the genslip binary.
-    """
-    gsf_output_directory = output_directory / "gsf"
-
-    gsf_file_path = generate_fault_gsf(
-        name,
-        fault,
-        rake,
-        gsf_output_directory,
-        srf_config.resolution,
-    )
-
-    nx = sum(round(plane.length / srf_config.resolution) for plane in fault.planes)
-    ny = round(fault.planes[0].width / srf_config.resolution)
-
-    genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
-        hypocentre_local_coordinates - np.array([1 / 2, 0])
-    )
-    velocity_model_path = output_directory / "velocity_model"
-    genslip_cmd = [
-        str(genslip_path),
-        "read_erf=0",
-        "write_srf=1",
-        "read_gsf=1",
-        "write_gsf=0",
-        f"infile={gsf_file_path}",
-        f"mag={magnitude}",
-        f"nstk={nx}",
-        f"ndip={ny}",
-        "ns=1",
-        "nh=1",
-        f"seed={seeds.genslip_seed}",
-        f"velfile={velocity_model_path}",
-        f"shypo={genslip_hypocentre_coords[0]}",
-        f"dhypo={genslip_hypocentre_coords[1]}",
-        f"dt={srf_config.genslip_dt}",
-        "plane_header=1",
-        "srf_version=1.0",
-        "seg_delay={0}",
-        "rvfac_seg=-1",
-        "gwid=-1",
-        "side_taper=0.02",
-        "bot_taper=0.02",
-        "top_taper=0.0",
-        "rup_delay=0",
-        "alpha_rough=0.0",
-    ]
-
-    srf_file_path = output_directory / "srf" / (name + ".srf")
-    with open(srf_file_path, "w", encoding="utf-8") as srf_file_handle:
-        logger = log_utils.get_logger(__name__)
-        logger.info("executing command", cmd=" ".join(genslip_cmd))
-        try:
-            proc = subprocess.run(
-                genslip_cmd, stdout=srf_file_handle, stderr=subprocess.PIPE, check=True
-            )
-        except subprocess.CalledProcessError as e:
-            logger.error(
-                "failed",
-                exception=e.output.decode("utf-8"),
-                code=e.returncode,
-                stderr=e.stderr.decode("utf-8"),
-            )
-            raise
-        logger.info("command completed", stderr=proc.stderr.decode("utf-8"))
 
 
 def concatenate_csr_arrays(csr_arrays: list[csr_array]) -> csr_array:
@@ -442,14 +345,130 @@ def stitch_srf_files(
     return output_srf_path
 
 
+@dataclasses.dataclass
+class SRFRealisationContext:
+    """Realisation configuration for the entire SRF generation process."""
+
+    source_config: SourceConfig
+    """The sources to generate"""
+    rupture_propagation_config: RupturePropagationConfig
+    """The rupture propagation for the SRF to follow"""
+    magnitudes: Magnitudes
+    """The magnitudes of the component faults for individual SRF generation"""
+    rakes: Rakes
+    """The rakes of the component faults for individual SRF generation"""
+    velocity_model_1d: VelocityModel1D
+    """The 1D velocity model to use for SRF generation"""
+    srf_config: SRFConfig
+    """SRF configuration options to apply"""
+
+
+@dataclasses.dataclass
+class SRFEnvironmentContext:
+    """Environment context for working directory, output files, and binary paths."""
+
+    genslip_path: Path
+    """Path to genslip binary"""
+    work_directory: Path
+    """Directory to output component SRF files, geometry files"""
+    seeds: Seeds
+    """Random seeds to apply for reproducibility"""
+
+    @property
+    def srf_directory(self) -> Path:  # numpydoc ignore=RT01
+        """Path: the directory to write component SRF files."""
+        return self.work_directory / "srf"
+
+    @property
+    def gsf_directory(self) -> Path:  # numpydoc ignore=RT01
+        """Path: the directory to write geometry definition files."""
+        return self.work_directory / "gsf"
+
+    @property
+    def velocity_model_path(self) -> Path:  # numpydoc ignore=RT01
+        """Path: the directory to write the 1D velocity model to."""
+        return self.work_directory / "velocity_model"
+
+
+def generate_fault_srf(
+    name: str, params: SRFRealisationContext, environment: SRFEnvironmentContext
+) -> None:
+    """Generate an SRF file for a given fault.
+
+    Parameters
+    ----------
+    name : str
+        The name of the fault.
+    params : SRFRealisationContext
+        The SRF realisation context to use.
+    environment : SRFEnvironmentContext
+        The SRF environment context to use.
+    """
+    fault = params.source_config.source_geometries[name]
+    resolution = params.srf_config.resolution
+
+    gsf_file_path = generate_fault_gsf(
+        name, fault, params.rakes.rakes[name], environment.gsf_directory, resolution
+    )
+
+    nx = sum(round(plane.length / resolution) for plane in fault.planes)
+    ny = round(fault.planes[0].width / resolution)
+
+    genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
+        params.rupture_propagation_config.hypocentres[name] - np.array([1 / 2, 0])
+    )
+    genslip_cmd = [
+        str(environment.genslip_path),
+        "read_erf=0",
+        "write_srf=1",
+        "read_gsf=1",
+        "write_gsf=0",
+        f"infile={gsf_file_path}",
+        f"mag={params.magnitudes.magnitudes[name]}",
+        f"nstk={nx}",
+        f"ndip={ny}",
+        "ns=1",
+        "nh=1",
+        f"seed={environment.seeds.genslip_seed}",
+        f"velfile={environment.velocity_model_path}",
+        f"shypo={genslip_hypocentre_coords[0]}",
+        f"dhypo={genslip_hypocentre_coords[1]}",
+        f"dt={params.srf_config.genslip_dt}",
+        "plane_header=1",
+        "srf_version=1.0",
+        "seg_delay={0}",
+        "rvfac_seg=-1",
+        "gwid=-1",
+        "side_taper=0.02",
+        "bot_taper=0.02",
+        "top_taper=0.0",
+        "rup_delay=0",
+        "alpha_rough=0.0",
+    ]
+
+    srf_file_path = environment.srf_directory / (normalise_name(name) + ".srf")
+    with open(srf_file_path, "w", encoding="utf-8") as srf_file_handle:
+        logger = log_utils.get_logger(__name__)
+        logger.info("executing command", cmd=" ".join(genslip_cmd))
+        try:
+            proc = subprocess.run(
+                genslip_cmd, stdout=srf_file_handle, stderr=subprocess.PIPE, check=True
+            )
+        except subprocess.CalledProcessError as e:
+            logger.error(
+                "failed",
+                exception=e.output.decode("utf-8"),
+                code=e.returncode,
+                stderr=e.stderr.decode("utf-8"),
+            )
+            raise
+        logger.info("command completed", stderr=proc.stderr.decode("utf-8"))
+
+
 def generate_fault_srfs_parallel(
     faults: dict[str, IsSource],
-    rupture_propagation_config: RupturePropagationConfig,
-    output_directory: Path,
-    srf_config: SRFConfig,
-    seeds: Seeds,
-    velocity_model_1d: VelocityModel1D,
-    genslip_path: Path,
+    params: SRFRealisationContext,
+    environment: SRFEnvironmentContext,
 ) -> None:
     """Generate fault SRF files in parallel.
 
@@ -457,57 +476,22 @@ def generate_fault_srfs_parallel(
     ----------
     faults : dict[str, IsSource]
         The faults and their geometries.
-    rupture_propagation_config : RupturePropagationConfig
-        The rupture propagation configuration.
-    output_directory : Path
-        The directory to output the fault SRF files.
-    srf_config : SRFConfig
-        The SRF configuration.
-    seeds : Seeds
-        The seeds for random number generation.
-    velocity_model_1d : VelocityModel1D
-        The 1D velocity model.
-    genslip_path : Path
-        The path to the genslip binary.
+    params : SRFRealisationContext
+        The SRF realisation context to use.
+    environment : SRFEnvironmentContext
+        The SRF environment context to use.
     """
     # need to do this before multiprocessing because of race conditions
-    gsf_directory = output_directory / "gsf"
-    gsf_directory.mkdir(exist_ok=True)
-    srf_directory = output_directory / "srf"
-    srf_directory.mkdir(exist_ok=True)
-    velocity_model_1d.write_velocity_model(output_directory / "velocity_model")
-
-    magnitudes = rupture_propagation_config.magnitudes
-    rakes = rupture_propagation_config.rakes
-    hypocentres = {
-        fault_name: jump_point.to_point
-        for fault_name, jump_point in rupture_propagation_config.jump_points.items()
-    }
-    hypocentres[rupture_propagation_config.initial_fault] = (
-        rupture_propagation_config.hypocentre
-    )
-
-    srf_generation_parameters = [
-        (
-            normalise_name(fault_name),
-            faults[fault_name],
-            rakes[fault_name],
-            magnitudes[fault_name],
-            hypocentres[fault_name],
-        )
-        for fault_name in faults
-    ]
+    environment.srf_directory.mkdir(exist_ok=True)
+    environment.gsf_directory.mkdir(exist_ok=True)
+    params.velocity_model_1d.write_velocity_model(environment.velocity_model_path)
 
     with multiprocessing.Pool(utils.get_available_cores()) as worker_pool:
         worker_pool.starmap(
             functools.partial(
-                generate_fault_srf,
-                output_directory=output_directory,
-                srf_config=srf_config,
-                genslip_path=genslip_path,
-                seeds=seeds,
+                generate_fault_srf, params=params, environment=environment
             ),
-            srf_generation_parameters,
+            list(faults),
         )
 
 
@@ -527,10 +511,11 @@ def generate_srf(
 ) -> None:
     """Generate an SRF file from a given realisation specification.
 
-    This function reads the realisation metadata and configurations from the specified YAML file. It then generates
-    fault SRF files using the genslip tool and stitches these files into a final SRF file. The SRF configuration is
-    updated and written back to the realisation file. Finally, the resulting SRF file is copied to the specified
-    output path.
+    This function reads the realisation metadata and configurations from the
+    specified YAML file. It then generates fault SRF files using the genslip
+    tool and stitches these files into a final SRF file. The SRF configuration
+    is updated and written back to the realisation file. Finally, the resulting
+    SRF file is copied to the specified output path.
 
     Parameters
     ----------
@@ -542,6 +527,7 @@ def generate_srf(
         Path to output intermediate geometry and SRF files.
     genslip_path : Path, optional
         Path to the genslip binary.
+
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     srf_config = SRFConfig.read_from_realisation_or_defaults(
@@ -551,20 +537,27 @@ def generate_srf(
     rupture_propagation = RupturePropagationConfig.read_from_realisation(
         realisation_ffp
     )
-    velocity_model = VelocityModel1D.read_from_realisation_or_defaults(
+    velocity_model_1d = VelocityModel1D.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
+    rakes = Rakes.read_from_realisation(realisation_ffp)
+    magnitudes = Magnitudes.read_from_realisation(realisation_ffp)
     source_config = SourceConfig.read_from_realisation(realisation_ffp)
 
-    generate_fault_srfs_parallel(
-        source_config.source_geometries,
-        rupture_propagation,
-        work_directory,
-        srf_config,
-        seeds,
-        velocity_model,
-        genslip_path,
+    params = SRFRealisationContext(
+        source_config=source_config,
+        rupture_propagation_config=rupture_propagation,
+        magnitudes=magnitudes,
+        rakes=rakes,
+        velocity_model_1d=velocity_model_1d,
+        srf_config=srf_config,
     )
+
+    environment = SRFEnvironmentContext(
+        work_directory=work_directory, genslip_path=genslip_path, seeds=seeds
+    )
+
+    generate_fault_srfs_parallel(source_config.source_geometries, params, environment)
     srf_name = normalise_name(metadata.name)
     stitch_srf_files(
         source_config.source_geometries,

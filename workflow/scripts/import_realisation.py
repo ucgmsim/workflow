@@ -11,6 +11,8 @@ from qcore import cli
 from source_modelling.sources import Fault, Plane
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import (
+    Magnitudes,
+    Rakes,
     RealisationMetadata,
     RupturePropagationConfig,
     SourceConfig,
@@ -31,9 +33,7 @@ def convert_realisation(
     ],
     realisation_path: Annotated[
         Path,
-        typer.Argument(
-            writable=True, dir_okay=False
-        ),
+        typer.Argument(writable=True, dir_okay=False),
     ],
     defaults_version: Annotated[
         DefaultsVersion,
@@ -78,14 +78,13 @@ def convert_realisation(
     fault = Fault(planes)
     shypo = old_realisation["shypo"] / fault.length + 1 / 2
     dhypo = old_realisation["dhypo"] / fault.width
-
+    magnitudes = Magnitudes({name: old_realisation["magnitude"]})
+    rakes = Rakes({name: old_realisation["rake"]})
     sources = SourceConfig(source_geometries={name: fault})
     rupture_propagation_config = RupturePropagationConfig(
         rupture_causality_tree={name: None},  # Trivial rupture propagation tree
         jump_points={},  # no jump points
-        rakes={name: old_realisation["rake"]},
-        magnitudes={name: old_realisation["magnitude"]},
         hypocentre=np.array([shypo, dhypo]),
     )
-    for config in [metadata, sources, rupture_propagation_config]:
+    for config in [metadata, sources, rupture_propagation_config, magnitudes, rakes]:
         config.write_to_realisation(realisation_path)
