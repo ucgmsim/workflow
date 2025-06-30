@@ -27,15 +27,27 @@ srf_config = realisations.SRFConfig(
 
 srf_config.write_to_realisation('/home/arr65/data/workflow/test/test_realisation.json')
 
-test_plane = sources.Plane.from_centroid_strike_dip(
-    centroid=np.array([-43.53092, 172.63701, 10.0]),
-    dip=90.0,  # vertical fault
-    length=20.0,  # 20km length
-    width=15.0,  # 15km width  
-    strike=45.0  # 45 degree strike
+# test_plane = sources.Plane.from_centroid_strike_dip(
+#     centroid=np.array([-43.53092, 172.63701, 10.0]),
+#     dip=90.0,  # vertical fault
+#     length=20.0,  # 20km length
+#     width=15.0,  # 15km width  
+#     strike=45.0  # 45 degree strike
+# )
+# source_config = realisations.SourceConfig(
+#     source_geometries={"test_fault": sources.Fault([test_plane])}
+# )
+
+# Create a Point source instead
+test_point = sources.Point.from_lat_lon_depth(
+    point_coordinates=np.array([-43.53092, 172.63701, 10000.0]),  # depth in meters
+    length_m=5000.0,  # 5km approximating patch size
+    strike=45.0,      # 45 degree strike
+    dip=90.0,         # vertical dip
+    dip_dir=135.0     # dip direction (strike + 90 for vertical fault)
 )
 source_config = realisations.SourceConfig(
-    source_geometries={"test_fault": sources.Fault([test_plane])}
+    source_geometries={"test_fault": test_point}
 )
 
 source_config.write_to_realisation('/home/arr65/data/workflow/test/test_realisation.json')
