@@ -487,12 +487,13 @@ def generate_fault_srfs_parallel(
     params.velocity_model_1d.write_velocity_model(environment.velocity_model_path)
 
     with multiprocessing.Pool(utils.get_available_cores()) as worker_pool:
-        worker_pool.starmap(
+        list(worker_pool.imap(
             functools.partial(
                 generate_fault_srf, params=params, environment=environment
             ),
-            list(faults),
-        )
+            #[(name,) for name in faults],
+            list(faults)
+        ))
 
 
 @cli.from_docstring(app)
@@ -506,7 +507,8 @@ def generate_srf(
         "/out"
     ),
     genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
-        "/EMOD3D/tools/genslip_v5.4.2"
+        #"/EMOD3D/tools/genslip_v5.4.2"
+        "/home/arr65/src/EMOD3D/tools/genslip_v5.4.2"
     ),
 ) -> None:
     """Generate an SRF file from a given realisation specification.
