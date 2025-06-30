@@ -49,6 +49,8 @@ app = typer.Typer()
 
 
 class RuptureStrategy(StrEnum):
+    """Rupture propagation strategy."""
+
     RANDOM = auto()
     MAXIMISING = auto()
 

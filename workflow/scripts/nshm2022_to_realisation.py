@@ -36,19 +36,17 @@ See the output of `nshm2022-to-realisation --help`.
 
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import numpy as np
 import numpy.typing as npt
-import pandas as pd
-
 import typer
-
+from scipy.cluster.hierarchy import DisjointSet
 
 from nshmdb import nshmdb
 from qcore import cli
 from qcore.uncertainties import distributions, mag_scaling
-from source_modelling import rupture_propagation, sources, moment
+from source_modelling import moment, rupture_propagation, sources
 from source_modelling.sources import Fault
 from workflow import realisations
 from workflow.defaults import DefaultsVersion
@@ -61,9 +59,7 @@ from workflow.realisations import (
     Seeds,
     SourceConfig,
     SRFConfig,
-    VelocityModel1D,
 )
-from scipy.cluster.hierarchy import DisjointSet
 
 app = typer.Typer()
 
@@ -105,6 +101,10 @@ def default_magnitude_estimation(
     ----------
     faults : dict
         A dictionary where the keys are fault names and the values are `Fault` objects containing information about each fault.
+    components : DisjointSet
+        A disjoint set representing the connected components of the faults.
+        Each component corresponds to a group of faults that are connected
+        and share a common rupture propagation path.
     avg_rake : float
         The average rake angle of the rupture.
 
@@ -199,7 +199,7 @@ def generate_realisation(
         typer.Argument(),
     ],
     initial_fault: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(),
     ] = None,
     strategy: Annotated[
@@ -211,28 +211,28 @@ def generate_realisation(
         typer.Option(min=0),
     ] = 15,
     shypo: Annotated[
-        Optional[float],
+        float | None,
         typer.Option(
             min=0,
             max=1,
         ),
     ] = None,
     dhypo: Annotated[
-        Optional[float],
+        float | None,
         typer.Option(
             min=0,
             max=1,
         ),
     ] = None,
     lat_hypo: Annotated[
-        Optional[float],
+        float | None,
         typer.Option(
             min=-90,
             max=90,
         ),
     ] = None,
     lon_hypo: Annotated[
-        Optional[float],
+        float | None,
         typer.Option(
             min=-180,
             max=180,
@@ -260,7 +260,7 @@ def generate_realisation(
         Location to write out the realisation.
     defaults_version : DefaultsVersion
         Scientific default parameters version to use.
-    initial_fault : Optional[str], optional
+    initial_fault : str, optional
         The name of the fault to use as the initial fault for rupture
         propagation. If not specified, the initial fault will be drawn
         proportionally to its likelihood of rupture.
@@ -270,26 +270,28 @@ def generate_realisation(
         choose a random rupture propagation tree.
     jump_cutoff : float, optional
         The maximum jump distance between faults in km.
-    shypo : Optional[float], optional
+    shypo : float, optional
         The initial hypocentre strike coordinate (0 - 1). If not supplied, draw
         shypo from a truncated normal distribution.
-    dhypo : Optional[float], optional
+    dhypo : float, optional
         The initial hypocentre strike coordinate (0 - 1). If not supplied, draw
         dhypo from a weibull distribution.
-    lat_hypo : Optional[float], optional
+    lat_hypo : float, optional
         The initial hypocentre latitude (degrees). Will cause an error
         if latitude and longitude are both not supplied, or specify a
         point not on the rupture geometry. Incompatible with shypo, dhypo and initial fault.
-    lon_hypo : Optional[float], optional
+    lon_hypo : float, optional
         The initial hypocentre longitude (degrees). Will cause an error
         if latitude and longitude are both not supplied, or specify a
         point not on the rupture geometry. Incompatible with shypo, dhypo and initial fault.
-    dip_delta : float, optional
-        The maximum difference in dip angle between connected faults in degrees.
-        Defaults to 30 degrees.
     separation_distance : float, optional
         The maximum distance between faults to consider them connected in km.
         Defaults to 5 km.
+    dip_delta : float, optional
+        The maximum difference in dip angle between connected faults in degrees.
+        Defaults to 30 degrees.
+    min_connected_depth : float, optional
+        The depth to measure the fault distance. Defaults to 5km.
     """
     # Check a compatible combination of hypocentre parameters is supplied.
     if (lat_hypo is None) != (lon_hypo is None):
