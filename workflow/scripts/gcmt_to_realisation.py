@@ -239,8 +239,8 @@ def gcmt_to_realisation(
     source_config = SourceConfig(
         source_geometries={gcmt_event_id: sources.Fault([plane])}
     )
-    rakes = Rakes(rakes={gcmt_event_id: rake})
     magnitudes = Magnitudes(magnitudes={gcmt_event_id: float(magnitude)})
+    rakes = Rakes(rakes={gcmt_event_id: float(rake)})
     rupture_config = RupturePropagationConfig(
         rupture_causality_tree={gcmt_event_id: None},
         jump_points={},
