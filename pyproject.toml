@@ -10,34 +10,42 @@ readme = "README.md"
 requires-python = ">=3.12"
 dynamic = ["version"]
 dependencies = [
-    "empirical @ git+https://github.com/ucgmsim/Empirical_Engine.git",
-    "fastparquet",
-    "geopandas",
-    "h5py",
+    # UCGMSim Dependencies
     "im_calculation @ git+https://github.com/ucgmsim/IM_calculation.git",
-    "jinja2",
-    "networkx",
     "nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB.git",
-    "numexpr",
-    "numpy",
-    "pandas",
-    "printree",
-    "pyarrow",
-    "pyvis",
-    "pyyaml",
+    "oq_wrapper @ git+https://github.com/ucgmsim/Empirical_Engine.git#subdirectory=oq_wrapper"
     "pygmt_helper @ git+https://github.com/ucgmsim/pygmt_helper.git",
     "qcore @ git+https://github.com/ucgmsim/qcore.git",
-    "requests",
-    "schema",
+    "source_modelling @ git+https://github.com/ucgmsim/source_modelling.git",
+    "velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling.git",
+
+    # Data Formats
+    "geopandas",
+    "h5py",
+    "pandas[parquet, hdf5]",
+    "pyyaml",
+    "xarray[io]"
+
+    # Workflow Planner
+    "jinja2",
+    "networkx",
+    "printree",
+    "pyvis",
+
+    # Numerics
+    "numexpr",
+    "numpy",
     "scipy",
     "shapely",
-    "source_modelling @ git+https://github.com/ucgmsim/source_modelling.git",
-    "structlog",
-    "tables",
+
+    # CLI
     "tqdm",
     "typer",
-    "velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling.git",
-    "xarray[io]"
+
+    # Misc.
+    "requests", # For gcmt-to-realisation
+    "schema", # For loading realisations
+    "structlog", # Logging.
 ]
 
 [project.optional-dependencies]
@@ -159,9 +167,4 @@ checks = [
 exclude = [ # don't report on objects that match any of these regex
     '\.undocumented_method$',
     '\.__repr__$',
-]
-
-[tool.uv]
-override-dependencies = [
-    "source_modelling @ git+https://github.com/ucgmsim/source_modelling.git@moment_component"
 ]
