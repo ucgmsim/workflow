@@ -421,7 +421,7 @@ def pgv_target(
 @log_utils.log_call()
 def generate_velocity_model_parameters(
     realisation_ffp: Annotated[Path, typer.Argument()],
-):
+) -> None:
     """Generate velocity model parameters for a given realisation file.
 
     This function reads the source and rupture propagation information and computes:
@@ -462,10 +462,7 @@ def generate_velocity_model_parameters(
     initial_fault = source_config.source_geometries[rupture_propagation.initial_fault]
     max_depth = get_max_depth(
         rupture_magnitude,
-        initial_fault.fault_coordinates_to_wgs_depth_coordinates(
-            rupture_propagation.hypocentre
-        )[2]
-        / 1000,
+        initial_fault.planes[0].bottom_m / 1000,
     )
 
     # This polygon includes all the faults corners + a 2km buffer (which must be in the simulation domain).

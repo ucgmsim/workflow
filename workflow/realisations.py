@@ -244,7 +244,9 @@ class Seeds(RealisationConfiguration):
     @classmethod
     def read_from_realisation_or_defaults(
         cls, realisation_ffp: Path, *args: list[Any]
-    ) -> Self:  # *args is to maintain compat with superclass (remove this and see the error in mypy).
+    ) -> (
+        Self
+    ):  # *args is to maintain compat with superclass (remove this and see the error in mypy).
         """Read seeds configuration from a realisation file or generate random seeds if not present.
 
         This method attempts to read the seeds configuration from the specified
@@ -256,7 +258,7 @@ class Seeds(RealisationConfiguration):
         ----------
         realisation_ffp : Path
             The realisation filepath to read from.
-        *args : Any
+        *args : list
             Ignored arguments.
 
         Returns
@@ -315,7 +317,7 @@ class SourceConfig(RealisationConfiguration):
     source_geometries: dict[str, IsSource]
     """Dictionary mapping source names to their definitions."""
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert the object to a dictionary representation.
 
@@ -582,7 +584,7 @@ class VelocityModel1D(RealisationConfiguration):
 
     model: pd.DataFrame
 
-    def write_velocity_model(self, velocity_model_path: Path):
+    def write_velocity_model(self, velocity_model_path: Path) -> None:
         """Write a 1D velocity model to the specified path.
 
         Parameters
@@ -606,17 +608,6 @@ class VelocityModel1D(RealisationConfiguration):
         _dict = dataclasses.asdict(self)
         _dict["model"] = _dict["model"].to_dict("records")
         return _dict
-
-
-@dataclasses.dataclass
-class HFVelocityModel1D(VelocityModel1D):
-    """1D Velocity Model for SRF and HF.
-
-    Differs from the VelocityModel1D class in the default case with a minimum
-    Vs of 500 m/s."""
-
-    _config_key: ClassVar[str] = "hf_velocity_model_1d"
-    _schema: ClassVar[Schema] = schemas.VELOCITY_MODEL_1D_SCHEMA
 
 
 @dataclasses.dataclass

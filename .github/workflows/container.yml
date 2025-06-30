@@ -16,6 +16,17 @@ jobs:
       CONTAINER_NAME: runner-${{ github.sha }}.sif
 
     steps:
+    - name: Configure rclone for Dropbox
+      run: |
+        mkdir -p ~/.config/rclone
+        cat <<EOF > ~/.config/rclone/rclone.conf
+        [dropbox]
+        type = dropbox
+        client_id =
+        client_secret =
+        token = ${{ secrets.RCLONE_CONFIG }}
+        EOF
+
     - name: Set up SSH for deploy key
       run: |
         mkdir -p ~/.ssh
@@ -49,11 +60,6 @@ jobs:
           --bind $PWD:/mnt \
           $CONTAINER_NAME \
           bash -c "cd /mnt && pytest tests/"
-
-    - name: Configure rclone for Dropbox
-      run: |
-        mkdir -p ~/.config/rclone
-        echo "${{ secrets.RCLONE_CONFIG }}" > ~/.config/rclone/rclone.conf
 
     - name: Upload container to Dropbox
       run: |

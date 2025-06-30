@@ -242,7 +242,7 @@ def generate_realisation(
     dip_delta: Annotated[float, typer.Option()] = 30.0,
     strike_delta: Annotated[float | None, typer.Option()] = None,
     min_connected_depth: Annotated[float, typer.Option()] = 5.0,
-):
+) -> None:
     """Generate realisation stub files from ruptures in the NSHM 2022 database.
 
     This function initializes a connection to the NSHM database, retrieves

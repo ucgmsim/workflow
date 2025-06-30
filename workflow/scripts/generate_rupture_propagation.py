@@ -63,7 +63,7 @@ def generate_rupture_propagation(
         RuptureStrategy,
         typer.Option(case_sensitive=False),
     ] = RuptureStrategy.RANDOM,
-):
+) -> None:
     """Generate a likely rupture propagation for a given set of sources.
 
     Parameters
