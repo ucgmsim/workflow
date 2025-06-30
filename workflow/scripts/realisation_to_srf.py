@@ -509,7 +509,7 @@ def generate_srf(
         "/EMOD3D/tools/genslip_v5.4.2"
     ),
     single_threaded: Annotated[bool, typer.Option()] = False,
-):
+) -> None:
     """Generate an SRF file from a given realisation specification.
 
     This function reads the realisation metadata and configurations from the
