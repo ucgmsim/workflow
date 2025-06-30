@@ -514,7 +514,7 @@ def generate_srf(
     """Generate an SRF file from a given realisation specification.
 
     This function reads the realisation metadata and configurations from the
-    specified YAML file. It then generates fault SRF files using the genslip
+    specified JSON file. It then generates fault SRF files using the genslip
     tool and stitches these files into a final SRF file. The SRF configuration
     is updated and written back to the realisation file. Finally, the resulting
     SRF file is copied to the specified output path.
@@ -522,7 +522,7 @@ def generate_srf(
     Parameters
     ----------
     realisation_ffp : Path
-        The filepath of the YAML file containing the realisation data.
+        The filepath of the JSON file containing the realisation data.
     output_srf_filepath : Path
         The filepath where the final SRF file will be saved.
     work_directory : Path, optional
