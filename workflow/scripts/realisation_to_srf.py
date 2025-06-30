@@ -392,7 +392,7 @@ class SRFEnvironmentContext:
 
 def generate_fault_srf(
     name: str, params: SRFRealisationContext, environment: SRFEnvironmentContext
-):
+) -> None:
     """Generate an SRF file for a given fault.
 
     Parameters

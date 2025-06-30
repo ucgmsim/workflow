@@ -38,8 +38,6 @@ import shapely
 import typer
 from shapely import Polygon
 
-from empirical.util import z_model_calculations
-from empirical.util.classdef import GMM, TectType
 from pygmt_helper import plotting
 from qcore import cli, coordinates
 from qcore.uncertainties import mag_scaling
@@ -140,22 +138,24 @@ def estimate_simulation_duration(
     )
 
     s_wave_arrival_time = (largest_distance * 1000) / s_wave_velocity
+
+    # import here rather than at the module level because openquake is slow to import
+    import oq_wrapper as oqw
+
     avg_rake = np.mean(rakes)
 
     oq_dataframe = pd.DataFrame.from_dict(
         {
             "vs30": [vs30],
-            "z1pt0": [z_model_calculations.chiou_young_08_calc_z1p0(vs30)],
+            "z1pt0": [oqw.estimations.chiou_young_08_calc_z1p0(vs30)],
             "rrup": [largest_distance],
             "mag": [magnitude],
             "rake": [avg_rake],
         }
     )
-    # import here rather than at the module level because openquake is slow to import
-    from empirical.util import openquake_wrapper_vectorized as openquake
 
     ds = np.exp(
-        openquake.oq_run(GMM.AS_16, TectType.ACTIVE_SHALLOW, oq_dataframe, "Ds595")[
+        oqw.run_gmm(oqw.constants.GMM.AS_16, oqw.constants.TectType.ACTIVE_SHALLOW, oq_dataframe, "Ds595")[
             "Ds595_mean"
         ].iloc[0]
     )
@@ -245,13 +245,14 @@ def pgv_from_rrup(magnitude: float, rake: float, dip: float, rrup: float) -> flo
     float
             The peak ground velocity (cm/s) at the given distance from the rupture.
     """
-    from empirical.util import openquake_wrapper_vectorized as openquake
+    # import here rather than at the module level because openquake is slow to import
+    import oq_wrapper as oqw
 
     vs30 = 500  # default Vs30 value
     return np.exp(
-        openquake.oq_run(
-            GMM.CY_14,
-            TectType.ACTIVE_SHALLOW,
+        oqw.run_gmm(
+            oqw.constants.GMM.CY_14,
+            oqw.constants.TectType.ACTIVE_SHALLOW,
             pd.DataFrame(
                 {
                     "mag": [magnitude],
@@ -259,7 +260,7 @@ def pgv_from_rrup(magnitude: float, rake: float, dip: float, rrup: float) -> flo
                     "vs30": [vs30],
                     "vs30measured": [False],
                     "dip": [dip],
-                    "z1pt0": [z_model_calculations.chiou_young_08_calc_z1p0(vs30)],
+                    "z1pt0": [oqw.estimations.chiou_young_08_calc_z1p0(vs30)],
                     "ztor": [0],
                     "rrup": [rrup],
                     "rjb": [rrup],
