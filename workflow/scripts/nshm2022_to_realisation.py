@@ -240,7 +240,6 @@ def generate_realisation(
     ] = None,
     separation_distance: Annotated[float, typer.Option()] = 5.0,
     dip_delta: Annotated[float, typer.Option()] = 30.0,
-    strike_delta: Annotated[float | None, typer.Option()] = None,
     min_connected_depth: Annotated[float, typer.Option()] = 5.0,
 ) -> None:
     """Generate realisation stub files from ruptures in the NSHM 2022 database.
@@ -285,6 +284,12 @@ def generate_realisation(
         The initial hypocentre longitude (degrees). Will cause an error
         if latitude and longitude are both not supplied, or specify a
         point not on the rupture geometry. Incompatible with shypo, dhypo and initial fault.
+    dip_delta : float, optional
+        The maximum difference in dip angle between connected faults in degrees.
+        Defaults to 30 degrees.
+    separation_distance : float, optional
+        The maximum distance between faults to consider them connected in km.
+        Defaults to 5 km.
     """
     # Check a compatible combination of hypocentre parameters is supplied.
     if (lat_hypo is None) != (lon_hypo is None):
@@ -329,9 +334,8 @@ def generate_realisation(
     }
     avg_rake = np.mean(list(rakes.values()))
     components = moment.find_connected_faults(
-        faults, separation_distance, dip_delta, strike_delta, min_connected_depth
+        faults, separation_distance, dip_delta, min_connected_depth
     )
-    print(components.subsets())
     magnitudes = default_magnitude_estimation(faults, components, float(avg_rake))
     if lat_hypo is not None and lon_hypo is not None:
         initial_fault, hypocentre = find_fault_and_hypocentre(
