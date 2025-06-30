@@ -24,7 +24,7 @@ dependencies = [
     "h5py",
     "pandas[parquet, hdf5]",
     "pyyaml",
-    "xarray[io]"
+    "xarray[io]",
 
     # Workflow Planner
     "jinja2",
