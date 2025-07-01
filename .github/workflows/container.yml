@@ -52,7 +52,7 @@ jobs:
 
     - name: Build Apptainer container
       run: |
-        apptainer build $CONTAINER_NAME docker/runner/runner.def
+        apptainer build $CONTAINER_NAME container/runner.def
 
     - name: Run pytest inside container
       run: |
