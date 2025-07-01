@@ -37,14 +37,18 @@ From: ubuntu:latest
     mkdir build && \
     cd build && \
     cmake .. && \
-    make genslip_v5.4.2 srf2stoch hb_high_binmod_v6.0.3 hb_high_binmod_v5.4.5
+    make -j $(nproc) genslip_v5.4.2 srf2stoch hb_high_binmod_v6.0.3 hb_high_binmod_v5.4.5
+
+    # Remove all folders in EMOD3D except the tools folder
+    find /EMOD3D -mindepth 1 -maxdepth 1 ! -name "tools" -exec rm -rf \{\} \;
+
 
     git clone --depth 1 https://github.com/ucgmsim/Velocity-Model.git /Velocity-Model && \
     cd /Velocity-Model && \
     mkdir build && \
     cd build && \
     cmake ../ -DCMAKE_C_FLAGS="-fopenmp" -DCMAKE_CXX_FLAGS="-fopenmp" && \
-    make
+    make -j $(nproc)
 
     pip install "git+https://github.com/ucgmsim/workflow@pegasus" --break-system-packages
 
