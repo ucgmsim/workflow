@@ -11,8 +11,6 @@ jobs:
         with:
           enable-cache: true
       # Install deptry
-      - run: uv tool install deptry
-      - run: uv lock
-      - run: uv sync
+      - run: uv sync --dev --all-extras
       # Run deptry to check that all dependencies are present.
-      - run: uv tool run deptry . --per-rule-ignores "DEP001=workflow,DEP002=workflow,DEP003=workflow"
+      - run: uv run deptry . --per-rule-ignores "DEP001=workflow,DEP002=workflow,DEP003=workflow"

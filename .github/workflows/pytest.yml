@@ -13,7 +13,7 @@ jobs:
         with:
           enable-cache: true
       - name: Install the project
-        run: uv lock && uv sync --all-extras --dev
+        run: uv sync --all-extras --dev
       - name: Run tests
         run: uv run pytest --cov=workflow --cov-report=html tests
       - name: Upload coverage data
