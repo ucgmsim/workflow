@@ -54,7 +54,7 @@ from scipy.sparse import csr_array
 
 from qcore import cli, coordinates
 from source_modelling import gsf, rupture_propagation, srf
-from source_modelling.sources import IsSource
+from source_modelling.sources import Fault, IsSource
 from workflow import log_utils, realisations, utils
 from workflow.log_utils import log_call
 from workflow.realisations import (
@@ -411,8 +411,14 @@ def generate_fault_srf(
         name, fault, params.rakes.rakes[name], environment.gsf_directory, resolution
     )
 
-    nx = sum(round(plane.length / resolution) for plane in fault.planes)
-    ny = round(fault.planes[0].width / resolution)
+    if isinstance(fault, Fault):
+        nx = sum(round(plane.length / resolution) for plane in fault.planes)
+        ny = round(fault.planes[0].width / resolution)
+
+    else:
+        # It is a Point or Plane source
+        nx = round(fault.length / resolution)
+        ny = round(fault.width / resolution)
 
     genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
         params.rupture_propagation_config.hypocentres[name] - np.array([1 / 2, 0])
@@ -487,13 +493,15 @@ def generate_fault_srfs_parallel(
     params.velocity_model_1d.write_velocity_model(environment.velocity_model_path)
 
     with multiprocessing.Pool(utils.get_available_cores()) as worker_pool:
-        list(worker_pool.imap(
-            functools.partial(
-                generate_fault_srf, params=params, environment=environment
-            ),
-            #[(name,) for name in faults],
-            list(faults)
-        ))
+        list(
+            worker_pool.imap(
+                functools.partial(
+                    generate_fault_srf, params=params, environment=environment
+                ),
+                # [(name,) for name in faults],
+                list(faults),
+            )
+        )
 
 
 @cli.from_docstring(app)
@@ -507,7 +515,7 @@ def generate_srf(
         "/out"
     ),
     genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
-        #"/EMOD3D/tools/genslip_v5.4.2"
+        # "/EMOD3D/tools/genslip_v5.4.2"
         "/home/arr65/src/EMOD3D/tools/genslip_v5.4.2"
     ),
 ) -> None:
