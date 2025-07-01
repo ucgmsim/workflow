@@ -13,4 +13,4 @@ jobs:
       # Install deptry
       - run: uv sync --dev --all-extras
       # Run deptry to check that all dependencies are present.
-      - run: uv run deptry . --per-rule-ignores "DEP001=workflow,DEP002=workflow,DEP003=workflow"
+      - run: uv run deptry .

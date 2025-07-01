@@ -57,6 +57,9 @@ dev = [
     "deptry"
 ]
 
+[tool.deptry]
+pep621_dev_dependency_groups = ["test", "dev"]
+
 [project.scripts]
 nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:app"
 gcmt-to-realisation = "workflow.scripts.gcmt_to_realisation:app"
