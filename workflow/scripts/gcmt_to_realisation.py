@@ -84,9 +84,9 @@ class SamplingStrategy(StrEnum):
 class SourceType(StrEnum):
     """Source type for GCMT solutions."""
 
-    PLANE = "plane"
-    """Use a finite fault plane (default)."""
-    POINT = "point"
+    FINITE_FAULT = "finite-fault"
+    """Use a finite fault plane."""
+    POINT_SOURCE = "point-source"
     """Use a point source approximation."""
 
 
@@ -95,6 +95,7 @@ def gcmt_to_realisation(
     gcmt_event_id: Annotated[str, typer.Argument()],
     defaults_version: Annotated[DefaultsVersion, typer.Argument()],
     realisation_ffp: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
+    source_type: Annotated[SourceType, typer.Argument()],
     hypocentre_strategy: Annotated[
         SamplingStrategy, typer.Option()
     ] = SamplingStrategy.CENTROID,
@@ -114,8 +115,6 @@ def gcmt_to_realisation(
     nodal_plane: Annotated[
         NodalPlaneChoice, typer.Option()
     ] = NodalPlaneChoice.MOST_LIKELY,
-    source_type: Annotated[SourceType, typer.Option()] = SourceType.PLANE,
-    point_source_width_km: Annotated[float, typer.Option(min=0.1, max=100)] = 1.0,
 ) -> None:
     """Generate a realisation from a GCMT solution.
 
@@ -127,6 +126,9 @@ def gcmt_to_realisation(
         Scientific defaults to use (determines simulation resolution among many other things).
     realisation_ffp : Path
         Path to output realisation.
+    source_type : SourceType
+        The type of source to generate. FINITE_FAULT creates a finite fault plane,
+        POINT_SOURCE creates a point source approximation.
     hypocentre_strategy : SamplingStrategy
         Sampling strategy for the hypocentre strike coordinate.
     shypo : float, optional
@@ -146,12 +148,6 @@ def gcmt_to_realisation(
         The nodal plane to use. Most likely will use the community fault model to
         choose a nodal plane that agrees with the tectonic fabric.
         Defaults to `MOST_LIKELY`.
-    source_type : SourceType
-        The type of source to generate. PLANE creates a finite fault plane (default),
-        POINT creates a point source approximation.
-    point_source_width_km : float
-        The width (in km) of the point source approximation when using POINT source type.
-        Only used when source_type is POINT. Defaults to 1.0 km.
     """
     if (shypo is not None or dhypo is not None) and (
         lat_hypo is not None or lon_hypo is not None
@@ -220,13 +216,26 @@ def gcmt_to_realisation(
     centroid = np.array([latitude, longitude, centroid_depth])
 
     # Create source based on source_type parameter
-    if source_type == SourceType.POINT:
+    if source_type == SourceType.POINT_SOURCE:
         # Create point source
+        # Calculate area using scaling relation and take square root for length_m
+        if isinstance(scaling_relation, str | magnitude_scaling.ScalingRelation):
+            area_km2 = magnitude_scaling.magnitude_to_area(
+                scaling_relation, magnitude, rake
+            )
+        elif isinstance(scaling_relation, Callable):
+            # For custom scaling relations, we need to get area somehow
+            # Assume the callable returns (length, width) and calculate area
+            length_temp, width_temp = scaling_relation(magnitude)
+            area_km2 = length_temp * width_temp
+
+        length_m = np.sqrt(area_km2) * 1000  # Convert km to meters
+
         source_geometry = sources.Point.from_lat_lon_depth(
             point_coordinates=np.array(
                 [latitude, longitude, centroid_depth * 1000]
             ),  # Convert km to meters
-            length_m=point_source_width_km * 1000,  # Convert km to meters
+            length_m=length_m,  # Use calculated length from area
             strike=selected_nodal_plane.strike,
             dip=selected_nodal_plane.dip,
             dip_dir=dip_direction,
@@ -251,7 +260,7 @@ def gcmt_to_realisation(
         source_geometry = sources.Fault([plane])
 
     if lat_hypo is not None and lon_hypo is not None:
-        if source_type == SourceType.POINT:
+        if source_type == SourceType.POINT_SOURCE:
             # For point sources, hypocentre is always at the center (0.5, 0.5)
             hypocentre = np.array([0.5, 0.5])
         else:
