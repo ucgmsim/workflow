@@ -29,7 +29,6 @@ See the output of `gcmt-to-realisation --help`.
 """
 
 import warnings
-from collections.abc import Callable
 from enum import StrEnum, auto
 from pathlib import Path
 from typing import Annotated, Optional
@@ -139,11 +138,9 @@ def gcmt_to_realisation(
         The latitude coordinate of the hypocentre. Conflicts with shypo and dhypo.
     lon_hypo : float, optional
         The latitude coordinate of the hypocentre. Conflicts with shypo and dhypo.
-    scaling_relation : magnitude_scaling.ScalingRelation or callable, optional
-        Either the name of the magnitude scaling relation from source
-        modelling to use, or a callable function that takes a
-        magnitude and returns a tuple `(length, width)`. Used for custom
-        scaling relations.
+    scaling_relation : magnitude_scaling.ScalingRelation, optional
+        The magnitude scaling relation from source modelling to use.
+        Defaults to Leonard2014.
     nodal_plane : NodalPlaneChoice
         The nodal plane to use. Most likely will use the community fault model to
         choose a nodal plane that agrees with the tectonic fabric.
@@ -206,12 +203,9 @@ def gcmt_to_realisation(
     # Calculate dip direction from strike (strike + 90 degrees for right-hand rule)
     dip_direction = (selected_nodal_plane.strike + 90) % 360
 
-    if isinstance(scaling_relation, str | magnitude_scaling.ScalingRelation):
-        length, width = magnitude_scaling.magnitude_to_length_width(
-            scaling_relation, magnitude, rake
-        )
-    elif isinstance(scaling_relation, Callable):
-        length, width = scaling_relation(magnitude)
+    length, width = magnitude_scaling.magnitude_to_length_width(
+        scaling_relation, magnitude, rake
+    )
 
     centroid = np.array([latitude, longitude, centroid_depth])
 
@@ -219,15 +213,9 @@ def gcmt_to_realisation(
     if source_type == SourceType.POINT_SOURCE:
         # Create point source
         # Calculate area using scaling relation and take square root for length_m
-        if isinstance(scaling_relation, str | magnitude_scaling.ScalingRelation):
-            area_km2 = magnitude_scaling.magnitude_to_area(
-                scaling_relation, magnitude, rake
-            )
-        elif isinstance(scaling_relation, Callable):
-            # For custom scaling relations, we need to get area somehow
-            # Assume the callable returns (length, width) and calculate area
-            length_temp, width_temp = scaling_relation(magnitude)
-            area_km2 = length_temp * width_temp
+        area_km2 = magnitude_scaling.magnitude_to_area(
+            scaling_relation, magnitude, rake
+        )
 
         length_m = np.sqrt(area_km2) * 1000  # Convert km to meters
 
