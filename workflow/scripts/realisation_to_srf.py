@@ -167,7 +167,7 @@ def concatenate_slip_values(
 
     Returns
     -------
-    Optional[csr_array]
+    csr_array or None
         The concatenated slip array, or None if the slip array
         contains no non-zero values.
     """
