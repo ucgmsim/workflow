@@ -66,7 +66,7 @@ def generate_fd_files(
     nx = domain_parameters.nx
     ny = domain_parameters.ny
     mlat, mlon = domain.origin
-    mrot = domain.bearing
+    mrot = domain.great_circle_bearing
     proj = coordinates.SphericalProjection(mlat=mlat, mlon=mlon, mrot=mrot)
 
     # where to save gridpoint and longlat station files
