@@ -492,12 +492,14 @@ def generate_fault_srfs_parallel(
     environment.gsf_directory.mkdir(exist_ok=True)
     params.velocity_model_1d.write_velocity_model(environment.velocity_model_path)
 
+    # Changed from starmap to map to fix "TypeError: generate_fault_srf() got multiple values for argument 'params'"
+    # The use of starmap may have been from an earlier version that did not use functools.partial to handle multiple parameters
     with multiprocessing.Pool(utils.get_available_cores()) as worker_pool:
-        worker_pool.starmap(
+        worker_pool.map(
             functools.partial(
                 generate_fault_srf, params=params, environment=environment
             ),
-            list(faults),
+            faults,
         )
 
 
