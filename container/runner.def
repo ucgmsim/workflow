@@ -37,7 +37,7 @@ From: ubuntu:latest
     mkdir build && \
     cd build && \
     cmake .. && \
-    make -j $(nproc) genslip_v5.4.2 srf2stoch hb_high_binmod_v6.0.3 hb_high_binmod_v5.4.5
+    make -j $(nproc) genslip_v5.6.2 srf2stoch hb_high_binmod_v6.0.3 hb_high_binmod_v5.4.5
 
     # Remove all folders in EMOD3D except the tools folder
     find /EMOD3D -mindepth 1 -maxdepth 1 ! -name "tools" -exec rm -rf \{\} \;
