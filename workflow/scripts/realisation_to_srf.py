@@ -94,6 +94,7 @@ def generate_fault_gsf(
     rake: float,
     gsf_output_directory: Path,
     subdivision_resolution: float,
+    slip: float | None = None,
 ) -> Path:
     """Write the fault geometry of a fault to a GSF file.
 
@@ -118,6 +119,8 @@ def generate_fault_gsf(
     gsf_output_filepath = gsf_output_directory / f"{name}.gsf"
     gsf_df = gsf.source_to_gsf_dataframe(geometry, subdivision_resolution)
     gsf_df["loc_rake"] = rake
+    if slip is not None:
+        gsf_df["slip"] = [slip]
     gsf.write_gsf(gsf_df, gsf_output_filepath)
     return gsf_output_filepath
 
@@ -390,6 +393,54 @@ class SRFEnvironmentContext:
         return self.work_directory / "velocity_model"
 
 
+def calc_point_source_slip(
+    params: SRFRealisationContext, name: str, fault_area: float
+) -> float:
+    """Calculate slip for a point source using seismic moment and fault properties.
+
+    Parameters
+    ----------
+    params : SRFRealisationContext
+        The SRF realisation context containing magnitude and velocity model.
+    name : str
+        The name of the fault to get magnitude for.
+    fault_area : float
+        The area of the fault in square meters.
+
+    Returns
+    -------
+    float
+        The calculated slip in meters.
+    """
+    # Get magnitude and convert to seismic moment
+    magnitude = params.magnitudes.magnitudes[name]
+
+    # Convert moment magnitude to seismic moment (in N⋅m) using the Hanks-Kanamori relation
+    # The Hanks-Kanamori relation (1979) is the standard formula relating moment magnitude (Mw)
+    # to seismic moment (M0): Mw = (2/3) * (log10(M0) - 9.1)
+    # Solving for M0 gives: M0 = 10^((3/2)*Mw + 9.1)
+    # This formula is widely accepted in seismology and gives seismic moment in Newton-meters (N⋅m)
+    moment = 10 ** ((3 / 2) * magnitude + 9.1)
+
+    # Get velocity and density from 1D velocity model
+    # Using the first layer (surface) values for point source calculations
+    # Point sources require scalar vs and rho values, so we extract from the surface layer
+    # of the 1D velocity profile since point sources typically represent surface ruptures
+    velocity_model = params.velocity_model_1d.model
+    vs = velocity_model.iloc[0][
+        "Vs"
+    ]  # S-wave velocity: used directly as in old_realisation_to_srf.py (vs = 3.20)
+    rho = velocity_model.iloc[0][
+        "rho"
+    ]  # Density in g/cm³ (used directly as in old_realisation_to_srf.py line 278)
+
+    # Calculate slip using the provided equation
+    # slip = (moment * 1.0e-20) / (aa * vs * vs * rho)
+    slip = (moment * 1.0e-20) / (fault_area * vs * vs * rho)
+
+    return slip
+
+
 def generate_fault_srf(
     name: str, params: SRFRealisationContext, environment: SRFEnvironmentContext
 ) -> None:
@@ -407,18 +458,26 @@ def generate_fault_srf(
     fault = params.source_config.source_geometries[name]
     resolution = params.srf_config.resolution
 
-    gsf_file_path = generate_fault_gsf(
-        name, fault, params.rakes.rakes[name], environment.gsf_directory, resolution
-    )
-
     if isinstance(fault, Fault):
         nx = sum(round(plane.length / resolution) for plane in fault.planes)
         ny = round(fault.planes[0].width / resolution)
+        slip = None
 
     else:
         # It is a Point or Plane source
         nx = round(fault.length / resolution)
         ny = round(fault.width / resolution)
+        fault_area = fault.length * fault.width  # Area in square meters
+        slip = calc_point_source_slip(params, name, fault_area)
+
+    gsf_file_path = generate_fault_gsf(
+        name,
+        fault,
+        params.rakes.rakes[name],
+        environment.gsf_directory,
+        resolution,
+        slip,
+    )
 
     genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
         params.rupture_propagation_config.hypocentres[name] - np.array([1 / 2, 0])
@@ -503,88 +562,6 @@ def generate_fault_srfs_parallel(
         )
 
 
-def generate_point_srf(
-    name: str, params: SRFRealisationContext, environment: SRFEnvironmentContext
-) -> None:
-    """Generate an SRF file for a given fault.
-
-    Parameters
-    ----------
-    name : str
-        The name of the fault.
-    params : SRFRealisationContext
-        The SRF realisation context to use.
-    environment : SRFEnvironmentContext
-        The SRF environment context to use.
-    """
-    point = params.source_config.source_geometries[name]
-    resolution = params.srf_config.resolution
-
-    gsf_file_path = generate_fault_gsf(
-        name, point, params.rakes.rakes[name], environment.gsf_directory, resolution
-    )
-    print()
-
-    if isinstance(fault, Fault):
-        nx = sum(round(plane.length / resolution) for plane in fault.planes)
-        ny = round(fault.planes[0].width / resolution)
-
-    else:
-        # It is a Point or Plane source
-        nx = round(fault.length / resolution)
-        ny = round(fault.width / resolution)
-
-    genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
-        params.rupture_propagation_config.hypocentres[name] - np.array([1 / 2, 0])
-    )
-    genslip_cmd = [
-        str(environment.genslip_path),
-        "read_erf=0",
-        "write_srf=1",
-        "read_gsf=1",
-        "write_gsf=0",
-        f"infile={gsf_file_path}",
-        f"mag={params.magnitudes.magnitudes[name]}",
-        f"nstk={nx}",
-        f"ndip={ny}",
-        "ns=1",
-        "nh=1",
-        f"seed={environment.seeds.genslip_seed}",
-        f"velfile={environment.velocity_model_path}",
-        f"shypo={genslip_hypocentre_coords[0]}",
-        f"dhypo={genslip_hypocentre_coords[1]}",
-        f"dt={params.srf_config.genslip_dt}",
-        "plane_header=1",
-        "srf_version=1.0",
-        "seg_delay={0}",
-        "rvfac_seg=-1",
-        "gwid=-1",
-        "side_taper=0.02",
-        "bot_taper=0.02",
-        "top_taper=0.0",
-        "rup_delay=0",
-        "alpha_rough=0.0",
-    ]
-
-    srf_file_path = environment.srf_directory / (normalise_name(name) + ".srf")
-    with open(srf_file_path, "w", encoding="utf-8") as srf_file_handle:
-        logger = log_utils.get_logger(__name__)
-        logger.info("executing command", cmd=" ".join(genslip_cmd))
-        try:
-            proc = subprocess.run(
-                genslip_cmd, stdout=srf_file_handle, stderr=subprocess.PIPE, check=True
-            )
-        except subprocess.CalledProcessError as e:
-            logger.error(
-                "failed",
-                exception=e.output.decode("utf-8"),
-                code=e.returncode,
-                stderr=e.stderr.decode("utf-8"),
-            )
-            raise
-        logger.info("command completed", stderr=proc.stderr.decode("utf-8"))
-
-
 @cli.from_docstring(app)
 @log_call()
 def generate_srf(
@@ -648,10 +625,7 @@ def generate_srf(
         work_directory=work_directory, genslip_path=genslip_path, seeds=seeds
     )
 
-    # if isinstance(list(source_config.source_geometries.values())[0], Fault):
     generate_fault_srfs_parallel(source_config.source_geometries, params, environment)
-    # else:
-    #     generate_point_srf(source_config.source_geometries, params, environment)
 
     srf_name = normalise_name(metadata.name)
     stitch_srf_files(
