@@ -493,15 +493,94 @@ def generate_fault_srfs_parallel(
     params.velocity_model_1d.write_velocity_model(environment.velocity_model_path)
 
     with multiprocessing.Pool(utils.get_available_cores()) as worker_pool:
-        list(
-            worker_pool.imap(
-                functools.partial(
-                    generate_fault_srf, params=params, environment=environment
-                ),
-                # [(name,) for name in faults],
-                list(faults),
-            )
+        worker_pool.starmap(
+            functools.partial(
+                generate_fault_srf, params=params, environment=environment
+            ),
+            list(faults),
         )
+
+
+def generate_point_srf(
+    name: str, params: SRFRealisationContext, environment: SRFEnvironmentContext
+) -> None:
+    """Generate an SRF file for a given fault.
+
+    Parameters
+    ----------
+    name : str
+        The name of the fault.
+    params : SRFRealisationContext
+        The SRF realisation context to use.
+    environment : SRFEnvironmentContext
+        The SRF environment context to use.
+    """
+    point = params.source_config.source_geometries[name]
+    resolution = params.srf_config.resolution
+
+    gsf_file_path = generate_fault_gsf(
+        name, point, params.rakes.rakes[name], environment.gsf_directory, resolution
+    )
+    print()
+
+    if isinstance(fault, Fault):
+        nx = sum(round(plane.length / resolution) for plane in fault.planes)
+        ny = round(fault.planes[0].width / resolution)
+
+    else:
+        # It is a Point or Plane source
+        nx = round(fault.length / resolution)
+        ny = round(fault.width / resolution)
+
+    genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
+        params.rupture_propagation_config.hypocentres[name] - np.array([1 / 2, 0])
+    )
+    genslip_cmd = [
+        str(environment.genslip_path),
+        "read_erf=0",
+        "write_srf=1",
+        "read_gsf=1",
+        "write_gsf=0",
+        f"infile={gsf_file_path}",
+        f"mag={params.magnitudes.magnitudes[name]}",
+        f"nstk={nx}",
+        f"ndip={ny}",
+        "ns=1",
+        "nh=1",
+        f"seed={environment.seeds.genslip_seed}",
+        f"velfile={environment.velocity_model_path}",
+        f"shypo={genslip_hypocentre_coords[0]}",
+        f"dhypo={genslip_hypocentre_coords[1]}",
+        f"dt={params.srf_config.genslip_dt}",
+        "plane_header=1",
+        "srf_version=1.0",
+        "seg_delay={0}",
+        "rvfac_seg=-1",
+        "gwid=-1",
+        "side_taper=0.02",
+        "bot_taper=0.02",
+        "top_taper=0.0",
+        "rup_delay=0",
+        "alpha_rough=0.0",
+    ]
+
+    srf_file_path = environment.srf_directory / (normalise_name(name) + ".srf")
+    with open(srf_file_path, "w", encoding="utf-8") as srf_file_handle:
+        logger = log_utils.get_logger(__name__)
+        logger.info("executing command", cmd=" ".join(genslip_cmd))
+        try:
+            proc = subprocess.run(
+                genslip_cmd, stdout=srf_file_handle, stderr=subprocess.PIPE, check=True
+            )
+        except subprocess.CalledProcessError as e:
+            logger.error(
+                "failed",
+                exception=e.output.decode("utf-8"),
+                code=e.returncode,
+                stderr=e.stderr.decode("utf-8"),
+            )
+            raise
+        logger.info("command completed", stderr=proc.stderr.decode("utf-8"))
 
 
 @cli.from_docstring(app)
@@ -567,7 +646,11 @@ def generate_srf(
         work_directory=work_directory, genslip_path=genslip_path, seeds=seeds
     )
 
+    # if isinstance(list(source_config.source_geometries.values())[0], Fault):
     generate_fault_srfs_parallel(source_config.source_geometries, params, environment)
+    # else:
+    #     generate_point_srf(source_config.source_geometries, params, environment)
+
     srf_name = normalise_name(metadata.name)
     stitch_srf_files(
         source_config.source_geometries,
@@ -579,3 +662,7 @@ def generate_srf(
 
     shutil.copyfile(work_directory / (srf_name + ".srf"), output_srf_filepath)
     realisations.append_log_entry(realisation_ffp)
+
+
+if __name__ == "__main__":
+    app()
