@@ -78,7 +78,7 @@ def generate_fd_files(
         stat_file, delimiter=r"\s+", comment="#", names=["lon", "lat", "name"]
     )
 
-    x, y = proj(lat=stations["lat"].values, lon=stations["lon"].values)
+    x, y = proj(lat=stations["lat"].values, lon=stations["lon"].values).T
 
     cx = nx // 2 * domain_parameters.resolution
     cy = ny // 2 * domain_parameters.resolution
@@ -107,7 +107,7 @@ def generate_fd_files(
 
     gp_x = x * domain_parameters.resolution - cx
     gp_y = y * domain_parameters.resolution - cy
-    gp_lat, gp_lon = proj.inverse(gp_x, gp_y)
+    gp_lat, gp_lon = proj.inverse(gp_x, gp_y).T
     stations["grid_lat"] = gp_lat
     stations["grid_lon"] = gp_lon
 
