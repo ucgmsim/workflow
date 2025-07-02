@@ -53,6 +53,7 @@ import typer
 from scipy.sparse import csr_array
 
 from qcore import cli, coordinates
+from qcore.uncertainties import mag_scaling
 from source_modelling import gsf, rupture_propagation, srf
 from source_modelling.sources import Fault, IsSource
 from workflow import log_utils, realisations, utils
@@ -393,50 +394,45 @@ class SRFEnvironmentContext:
         return self.work_directory / "velocity_model"
 
 
-def calc_point_source_slip(
-    params: SRFRealisationContext, name: str, fault_area: float
-) -> float:
-    """Calculate slip for a point source using seismic moment and fault properties.
+def calc_point_source_slip(params: SRFRealisationContext, name: str) -> float:
+    """Calculate slip for a point source.
+
+    This calculation is the same as in the old workflow:
+    https://github.com/ucgmsim/Pre-processing/blob/6572ea8be0963da4f7ac6a503ab07dd2519296e5/srf_generation/input_file_generation/realisation_to_srf.py#L321C9-L321C57
 
     Parameters
     ----------
     params : SRFRealisationContext
-        The SRF realisation context containing magnitude and velocity model.
+        The SRF realisation context containing the magnitude and velocity model.
     name : str
-        The name of the fault to get magnitude for.
-    fault_area : float
-        The area of the fault in square meters.
+        The name of the fault for which to calculate the slip.
 
     Returns
     -------
     float
-        The calculated slip in meters.
+        The calculated slip in cm.
     """
     # Get magnitude and convert to seismic moment
     magnitude = params.magnitudes.magnitudes[name]
+    moment_dyne_cm = mag_scaling.mag2mom(magnitude)
 
-    # Convert moment magnitude to seismic moment (in N⋅m) using the Hanks-Kanamori relation
-    # The Hanks-Kanamori relation (1979) is the standard formula relating moment magnitude (Mw)
-    # to seismic moment (M0): Mw = (2/3) * (log10(M0) - 9.1)
-    # Solving for M0 gives: M0 = 10^((3/2)*Mw + 9.1)
-    # This formula is widely accepted in seismology and gives seismic moment in Newton-meters (N⋅m)
-    moment = 10 ** ((3 / 2) * magnitude + 9.1)
-
-    # Get velocity and density from 1D velocity model
-    # Using the first layer (surface) values for point source calculations
-    # Point sources require scalar vs and rho values, so we extract from the surface layer
-    # of the 1D velocity profile since point sources typically represent surface ruptures
+    # Get Vs and rho from the 1D velocity model
     velocity_model = params.velocity_model_1d.model
-    vs = velocity_model.iloc[0][
-        "Vs"
-    ]  # S-wave velocity: used directly as in old_realisation_to_srf.py (vs = 3.20)
-    rho = velocity_model.iloc[0][
-        "rho"
-    ]  # Density in g/cm³ (used directly as in old_realisation_to_srf.py line 278)
+    velocity_model["depth_km"] = velocity_model["thickness"].cumsum()
+    # divide by 1000 to convert depth from meters to kilometers
+    source_depth_km = params.source_config.source_geometries[name].centroid[2] / 1000
 
-    # Calculate slip using the provided equation
-    # slip = (moment * 1.0e-20) / (aa * vs * vs * rho)
-    slip = (moment * 1.0e-20) / (fault_area * vs * vs * rho)
+    fault_area_km2 = (params.source_config.source_geometries[name].length_m / 1000) ** 2
+
+    # Find the index of the closest depth in the velocity model
+    idx = np.argmin(np.abs(velocity_model["depth_km"] - source_depth_km))
+    vs_km_per_s = velocity_model.iloc[idx]["Vs"]
+    rho_g_per_cm3 = velocity_model.iloc[idx]["rho"]
+
+    # The factor of 1.0e-20 converts the combination of input units to cm.
+    slip = (moment_dyne_cm * 1.0e-20) / (
+        fault_area_km2 * rho_g_per_cm3 * vs_km_per_s**2
+    )
 
     return slip
 
