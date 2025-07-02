@@ -21,7 +21,7 @@ Can be run in the cybershake container. Can also be run from your own computer u
 
 Usage
 -----
-`generate-station-coordinates [OPTIONS] REALISATIONS_FFP OUTPUT_PATH`
+`generate-station-coordinates [OPTIONS] REALISATIONS_FFP STAT_FILE OUTPUT_PATH`
 
 For More Help
 -------------
@@ -31,11 +31,10 @@ See the output of `generate-station-coordinates --help`.
 from pathlib import Path
 from typing import Annotated
 
-import numpy as np
 import pandas as pd
 import typer
 
-from qcore import cli
+from qcore import cli, coordinates
 from workflow import log_utils, realisations
 from workflow.realisations import DomainParameters
 
@@ -45,12 +44,9 @@ app = typer.Typer()
 @cli.from_docstring(app)
 @log_utils.log_call()
 def generate_fd_files(
-    realisation_ffp: Annotated[Path, typer.Argument(readable=True)],
+    realisation_ffp: Annotated[Path, typer.Argument(readable=True, dir_okay=False)],
+    stat_file: Annotated[Path, typer.Argument(readable=True, dir_okay=False)],
     output_path: Annotated[Path, typer.Argument(file_okay=False, writable=True)],
-    keep_dup_station: Annotated[bool, typer.Option()] = True,
-    stat_file: Annotated[Path, typer.Option(readable=True, exists=True)] = Path(
-        "/input/stations.ll"
-    ),
 ) -> None:
     """Generate station coordinate files.
 
@@ -58,15 +54,20 @@ def generate_fd_files(
     ----------
     realisation_ffp : Path
         Path to realisation json file.
-    output_path : Path
-        Output path for station files.
-    keep_dup_station : bool
-        Keep stations whose gridpoint coordinates are identical.
     stat_file : Path
         The location of the station files.
+    output_path : Path
+        Output path for station files.
     """
     output_path.mkdir(exist_ok=True)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
+    domain = domain_parameters.domain
+
+    nx = domain_parameters.nx
+    ny = domain_parameters.ny
+    mlat, mlon = domain.origin
+    mrot = domain.bearing
+    proj = coordinates.SphericalProjection(mlat=mlat, mlon=mlon, mrot=mrot)
 
     # where to save gridpoint and longlat station files
     gp_out = output_path / "stations.statcords"
@@ -77,33 +78,38 @@ def generate_fd_files(
         stat_file, delimiter=r"\s+", comment="#", names=["lon", "lat", "name"]
     )
 
-    in_domain_mask = domain_parameters.domain.contains(
-        stations[["lat", "lon"]].to_numpy()
+    x, y = proj(lat=stations["lat"].values, lon=stations["lon"].values)
+
+    cx = nx // 2 * domain_parameters.resolution
+    cy = ny // 2 * domain_parameters.resolution
+
+    # translate coordinates so that top-left corner of the domain is at (0, 0)
+    x += cx
+    y += cy
+
+    # C-compatible rounding of the continuous coordinates into grid point coordinates
+    x = (x / domain_parameters.resolution + 0.5).astype(int)
+    y = (y / domain_parameters.resolution + 0.5).astype(int)
+
+    in_domain_mask = (
+        (x >= 0) & (x < domain_parameters.nx) & (y >= 0) & (y < domain_parameters.ny)
     )
+    # filter out stations outside the domain
     stations = stations.loc[in_domain_mask]
-    # convert ll to grid points
-    xy = domain_parameters.domain.wgs_depth_coordinates_to_local_coordinates(
-        stations[["lat", "lon"]].to_numpy()
-    )
-
-    stations["x"] = np.round(
-        domain_parameters.domain.extent_x * xy[:, 0] / domain_parameters.resolution
-    ).astype(int)
-    # the bounding box local coordinates start from the left bottom, so we flip that so that it starts from the top left
-    stations["y"] = np.round(
-        domain_parameters.domain.extent_y
-        * (1 - xy[:, 1])
-        / domain_parameters.resolution
-    ).astype(int)
-
-    # Stations can occasionally be rounded to grid positions outside
-    # the domain. So we filter these out.
-    max_x = domain_parameters.domain.extent_x // domain_parameters.resolution
-    max_y = domain_parameters.domain.extent_y // domain_parameters.resolution
-    stations = stations[(stations["x"] < max_x) & (stations["y"] < max_y)]
 
     if len(stations) == 0:
         raise ValueError("No stations in domain.")
+
+    x = x[in_domain_mask]
+    y = y[in_domain_mask]
+    stations["x"] = x
+    stations["y"] = y
+
+    gp_x = x * domain_parameters.resolution - cx
+    gp_y = y * domain_parameters.resolution - cy
+    gp_lat, gp_lon = proj.inverse(gp_x, gp_y)
+    stations["grid_lat"] = gp_lat
+    stations["grid_lon"] = gp_lon
 
     # create grid point file
     with open(gp_out, "w", encoding="utf-8") as gpf:
@@ -117,20 +123,6 @@ def generate_fd_files(
             axis=1,
         )
 
-    # convert unique grid points back to ll
-    # warning: modifies sxy
-    stations["y"] = (domain_parameters.ny - 1) - stations["y"]
-
-    ll = domain_parameters.domain.local_coordinates_to_wgs_depth(
-        stations[["x", "y"]].to_numpy()
-        * domain_parameters.resolution
-        / np.array(
-            [domain_parameters.domain.extent_x, domain_parameters.domain.extent_y]
-        )
-    )
-    stations["grid_lat"] = ll[:, 0]
-    stations["grid_lon"] = ll[:, 1]
-
     # create ll file
     with open(ll_out, "w", encoding="utf-8") as llf:
         stations.apply(
@@ -139,4 +131,5 @@ def generate_fd_files(
             ),
             axis=1,
         )
+
     realisations.append_log_entry(realisation_ffp)
