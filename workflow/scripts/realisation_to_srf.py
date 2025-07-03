@@ -115,7 +115,7 @@ def generate_fault_gsf(
     Path
         The path to the generated GSF file.
     """
-    gsf_output_filepath = gsf_output_directory / f"{name}.gsf"
+    gsf_output_filepath = gsf_output_directory / f"{normalise_name(name)}.gsf"
     gsf_df = gsf.source_to_gsf_dataframe(geometry, subdivision_resolution)
     gsf_df["loc_rake"] = rake
     gsf.write_gsf(gsf_df, gsf_output_filepath)
@@ -485,9 +485,8 @@ def generate_fault_srfs_parallel(
     environment.srf_directory.mkdir(exist_ok=True)
     environment.gsf_directory.mkdir(exist_ok=True)
     params.velocity_model_1d.write_velocity_model(environment.velocity_model_path)
-
     with multiprocessing.Pool(utils.get_available_cores()) as worker_pool:
-        worker_pool.starmap(
+        worker_pool.map(
             functools.partial(
                 generate_fault_srf, params=params, environment=environment
             ),
