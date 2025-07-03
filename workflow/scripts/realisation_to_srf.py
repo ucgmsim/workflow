@@ -394,11 +394,12 @@ class SRFEnvironmentContext:
         return self.work_directory / "velocity_model"
 
 
-def calc_point_source_slip(params: SRFRealisationContext, name: str) -> float:
-    """Calculate slip for a point source.
+def calc_point_source_slip_wrapper(params: SRFRealisationContext, name: str) -> float:
+    """Calculate moment from SRFRealisationContext.
 
-    This calculation is the same as in the old workflow:
-    https://github.com/ucgmsim/Pre-processing/blob/6572ea8be0963da4f7ac6a503ab07dd2519296e5/srf_generation/input_file_generation/realisation_to_srf.py#L321C9-L321C57
+    This function extracts the required information from the SRFRealisationContext
+    and then calls `calc_point_source_slip` to calculate the slip for a point source.
+
 
     Parameters
     ----------
@@ -429,12 +430,45 @@ def calc_point_source_slip(params: SRFRealisationContext, name: str) -> float:
     vs_km_per_s = velocity_model.iloc[idx]["Vs"]
     rho_g_per_cm3 = velocity_model.iloc[idx]["rho"]
 
-    # The factor of 1.0e-20 converts the combination of input units to cm.
-    slip = (moment_dyne_cm * 1.0e-20) / (
-        fault_area_km2 * rho_g_per_cm3 * vs_km_per_s**2
+    return calc_point_source_slip(
+        moment_dyne_cm,
+        fault_area_km2,
+        rho_g_per_cm3,
+        vs_km_per_s,
     )
 
-    return slip
+
+def calc_point_source_slip(
+    moment_dyne_cm: float,
+    fault_area_km2: float,
+    rho_g_per_cm3: float,
+    vs_km_per_s: float,
+) -> float:
+    """Calculate slip for a point source.
+
+    This calculation is the same as in the old workflow:
+    https://github.com/ucgmsim/Pre-processing/blob/6572ea8be0963da4f7ac6a503ab07dd2519296e5/srf_generation/input_file_generation/realisation_to_srf.py#L321C9-L321C57
+
+    Parameters
+    ----------
+    moment_dyne_cm : float
+        The seismic moment in dyne-cm.
+    fault_area_km2 : float
+        The area of the fault in square kilometers.
+    rho_g_per_cm3 : float
+        The density of the fault in grams per cubic centimeter.
+    vs_km_per_s : float
+        The shear wave velocity in kilometers per second.
+    Returns
+    -------
+    float
+        The calculated slip in cm.
+    """
+
+    # The factor of 1.0e-20 converts the combination of input units to cm.
+    return (moment_dyne_cm * 1.0e-20) / (
+        fault_area_km2 * rho_g_per_cm3 * vs_km_per_s**2
+    )
 
 
 def generate_fault_srf(
@@ -463,8 +497,7 @@ def generate_fault_srf(
         # It is a Point or Plane source
         nx = round(fault.length / resolution)
         ny = round(fault.width / resolution)
-        fault_area = fault.length * fault.width  # Area in square meters
-        slip = calc_point_source_slip(params, name, fault_area)
+        slip = calc_point_source_slip_wrapper(params, name)
 
     gsf_file_path = generate_fault_gsf(
         name,
@@ -478,34 +511,61 @@ def generate_fault_srf(
     genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
         params.rupture_propagation_config.hypocentres[name] - np.array([1 / 2, 0])
     )
-    genslip_cmd = [
-        str(environment.genslip_path),
-        "read_erf=0",
-        "write_srf=1",
-        "read_gsf=1",
-        "write_gsf=0",
-        f"infile={gsf_file_path}",
-        f"mag={params.magnitudes.magnitudes[name]}",
-        f"nstk={nx}",
-        f"ndip={ny}",
-        "ns=1",
-        "nh=1",
-        f"seed={environment.seeds.genslip_seed}",
-        f"velfile={environment.velocity_model_path}",
-        f"shypo={genslip_hypocentre_coords[0]}",
-        f"dhypo={genslip_hypocentre_coords[1]}",
-        f"dt={params.srf_config.genslip_dt}",
-        "plane_header=1",
-        "srf_version=1.0",
-        "seg_delay={0}",
-        "rvfac_seg=-1",
-        "gwid=-1",
-        "side_taper=0.02",
-        "bot_taper=0.02",
-        "top_taper=0.0",
-        "rup_delay=0",
-        "alpha_rough=0.0",
-    ]
+    if isinstance(fault, Fault):
+        genslip_cmd = [
+            str(environment.genslip_path),
+            "read_erf=0",
+            "write_srf=1",
+            "read_gsf=1",
+            "write_gsf=0",
+            f"infile={gsf_file_path}",
+            f"mag={params.magnitudes.magnitudes[name]}",
+            f"nstk={nx}",
+            f"ndip={ny}",
+            "ns=1",
+            "nh=1",
+            f"seed={environment.seeds.genslip_seed}",
+            f"velfile={environment.velocity_model_path}",
+            f"shypo={genslip_hypocentre_coords[0]}",
+            f"dhypo={genslip_hypocentre_coords[1]}",
+            f"dt={params.srf_config.genslip_dt}",
+            "plane_header=1",
+            "srf_version=1.0",
+            "seg_delay={0}",
+            "rvfac_seg=-1",
+            "gwid=-1",
+            "side_taper=0.02",
+            "bot_taper=0.02",
+            "top_taper=0.0",
+            "rup_delay=0",
+            "alpha_rough=0.0",
+        ]
+    else:
+        ## Try using generic_slip2srf
+        ## generic_slip2srf
+
+        stype = "cos"
+        risetime = 0.5
+        generic_slip2srf_path = Path("/home/arr65/src/EMOD3D/tools/generic_slip2srf")
+        srf_file_path = environment.srf_directory / (normalise_name(name) + ".srf")
+        genslip_cmd = [
+            str(generic_slip2srf_path),
+            f"infile={gsf_file_path}",
+            f"outfile={srf_file_path}",
+            "outbin=0",
+            f"stype={stype}",
+            f"dt={params.srf_config.genslip_dt}",
+            "plane_header=1",
+            f"risetime={risetime}",
+            "risetimefac=1.0",
+            "risetimedep=0.0",
+        ]
+        cmd = " ".join(genslip_cmd)
+
+        print(cmd)
+        print()
+
+        #################################################
 
     srf_file_path = environment.srf_directory / (normalise_name(name) + ".srf")
     with open(srf_file_path, "w", encoding="utf-8") as srf_file_handle:
