@@ -111,6 +111,8 @@ def generate_fault_gsf(
         The directory to output the GSF file to.
     subdivision_resolution : float
         The geometry resolution.
+    slip : float, optional
+        The slip value to write to the GSF file. If None, the slip will not be written.
 
     Returns
     -------
@@ -373,6 +375,8 @@ class SRFEnvironmentContext:
 
     genslip_path: Path
     """Path to genslip binary"""
+    generic_slip2srf_path: Path
+    """Path to generic_slip2srf binary"""
     work_directory: Path
     """Directory to output component SRF files, geometry files"""
     seeds: Seeds
@@ -392,6 +396,118 @@ class SRFEnvironmentContext:
     def velocity_model_path(self) -> Path:  # numpydoc ignore=RT01
         """Path: the directory to write the 1D velocity model to."""
         return self.work_directory / "velocity_model"
+
+
+def generate_fault_srf(
+    name: str, params: SRFRealisationContext, environment: SRFEnvironmentContext
+) -> None:
+    """Generate an SRF file for a given fault.
+
+    Parameters
+    ----------
+    name : str
+        The name of the fault.
+    params : SRFRealisationContext
+        The SRF realisation context to use.
+    environment : SRFEnvironmentContext
+        The SRF environment context to use.
+    """
+    fault = params.source_config.source_geometries[name]
+    resolution = params.srf_config.resolution
+
+    nx = sum(round(plane.length / resolution) for plane in fault.planes)
+    ny = round(fault.planes[0].width / resolution)
+
+    gsf_file_path = generate_fault_gsf(
+        name,
+        fault,
+        params.rakes.rakes[name],
+        environment.gsf_directory,
+        resolution,
+    )
+
+    genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
+        params.rupture_propagation_config.hypocentres[name] - np.array([1 / 2, 0])
+    )
+
+    genslip_cmd = [
+        str(environment.genslip_path),
+        "read_erf=0",
+        "write_srf=1",
+        "read_gsf=1",
+        "write_gsf=0",
+        f"infile={gsf_file_path}",
+        f"mag={params.magnitudes.magnitudes[name]}",
+        f"nstk={nx}",
+        f"ndip={ny}",
+        "ns=1",
+        "nh=1",
+        f"seed={environment.seeds.genslip_seed}",
+        f"velfile={environment.velocity_model_path}",
+        f"shypo={genslip_hypocentre_coords[0]}",
+        f"dhypo={genslip_hypocentre_coords[1]}",
+        f"dt={params.srf_config.genslip_dt}",
+        "plane_header=1",
+        "srf_version=1.0",
+        "seg_delay={0}",
+        "rvfac_seg=-1",
+        "gwid=-1",
+        "side_taper=0.02",
+        "bot_taper=0.02",
+        "top_taper=0.0",
+        "rup_delay=0",
+        "alpha_rough=0.0",
+    ]
+
+    srf_file_path = environment.srf_directory / (normalise_name(name) + ".srf")
+    with open(srf_file_path, "w", encoding="utf-8") as srf_file_handle:
+        logger = log_utils.get_logger(__name__)
+        logger.info("executing command", cmd=" ".join(genslip_cmd))
+        try:
+            proc = subprocess.run(
+                genslip_cmd, stdout=srf_file_handle, stderr=subprocess.PIPE, check=True
+            )
+        except subprocess.CalledProcessError as e:
+            logger.error(
+                "failed",
+                exception=e.output.decode("utf-8"),
+                code=e.returncode,
+                stderr=e.stderr.decode("utf-8"),
+            )
+            raise
+        logger.info("command completed", stderr=proc.stderr.decode("utf-8"))
+
+
+def generate_fault_srfs_parallel(
+    faults: dict[str, IsSource],
+    params: SRFRealisationContext,
+    environment: SRFEnvironmentContext,
+) -> None:
+    """Generate fault SRF files in parallel.
+
+    Parameters
+    ----------
+    faults : dict[str, IsSource]
+        The faults and their geometries.
+    params : SRFRealisationContext
+        The SRF realisation context to use.
+    environment : SRFEnvironmentContext
+        The SRF environment context to use.
+    """
+    # need to do this before multiprocessing because of race conditions
+    environment.srf_directory.mkdir(exist_ok=True)
+    environment.gsf_directory.mkdir(exist_ok=True)
+    params.velocity_model_1d.write_velocity_model(environment.velocity_model_path)
+
+    # Changed from starmap to map to fix "TypeError: generate_fault_srf() got multiple values for argument 'params'"
+    # The use of starmap may have been from an earlier version that did not use functools.partial to handle multiple parameters
+    with multiprocessing.Pool(utils.get_available_cores()) as worker_pool:
+        worker_pool.map(
+            functools.partial(
+                generate_fault_srf, params=params, environment=environment
+            ),
+            faults,
+        )
 
 
 def calc_point_source_slip_wrapper(params: SRFRealisationContext, name: str) -> float:
@@ -471,8 +587,11 @@ def calc_point_source_slip(
     )
 
 
-def generate_fault_srf(
-    name: str, params: SRFRealisationContext, environment: SRFEnvironmentContext
+def generate_point_source_srf(
+    name: str,
+    params: SRFRealisationContext,
+    environment: SRFEnvironmentContext,
+    output_srf_filepath: Path,
 ) -> None:
     """Generate an SRF file for a given fault.
 
@@ -485,19 +604,13 @@ def generate_fault_srf(
     environment : SRFEnvironmentContext
         The SRF environment context to use.
     """
+
+    environment.gsf_directory.mkdir(parents=True, exist_ok=True)
+
     fault = params.source_config.source_geometries[name]
     resolution = params.srf_config.resolution
 
-    if isinstance(fault, Fault):
-        nx = sum(round(plane.length / resolution) for plane in fault.planes)
-        ny = round(fault.planes[0].width / resolution)
-        slip = None
-
-    else:
-        # It is a Point or Plane source
-        nx = round(fault.length / resolution)
-        ny = round(fault.width / resolution)
-        slip = calc_point_source_slip_wrapper(params, name)
+    slip = calc_point_source_slip_wrapper(params, name)
 
     gsf_file_path = generate_fault_gsf(
         name,
@@ -508,73 +621,34 @@ def generate_fault_srf(
         slip,
     )
 
-    genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
-        params.rupture_propagation_config.hypocentres[name] - np.array([1 / 2, 0])
-    )
-    if isinstance(fault, Fault):
-        genslip_cmd = [
-            str(environment.genslip_path),
-            "read_erf=0",
-            "write_srf=1",
-            "read_gsf=1",
-            "write_gsf=0",
-            f"infile={gsf_file_path}",
-            f"mag={params.magnitudes.magnitudes[name]}",
-            f"nstk={nx}",
-            f"ndip={ny}",
-            "ns=1",
-            "nh=1",
-            f"seed={environment.seeds.genslip_seed}",
-            f"velfile={environment.velocity_model_path}",
-            f"shypo={genslip_hypocentre_coords[0]}",
-            f"dhypo={genslip_hypocentre_coords[1]}",
-            f"dt={params.srf_config.genslip_dt}",
-            "plane_header=1",
-            "srf_version=1.0",
-            "seg_delay={0}",
-            "rvfac_seg=-1",
-            "gwid=-1",
-            "side_taper=0.02",
-            "bot_taper=0.02",
-            "top_taper=0.0",
-            "rup_delay=0",
-            "alpha_rough=0.0",
-        ]
-    else:
-        ## Try using generic_slip2srf
-        ## generic_slip2srf
+    stype = "cos"
+    risetime = 0.5
 
-        stype = "cos"
-        risetime = 0.5
-        generic_slip2srf_path = Path("/home/arr65/src/EMOD3D/tools/generic_slip2srf")
-        srf_file_path = environment.srf_directory / (normalise_name(name) + ".srf")
-        genslip_cmd = [
-            str(generic_slip2srf_path),
-            f"infile={gsf_file_path}",
-            f"outfile={srf_file_path}",
-            "outbin=0",
-            f"stype={stype}",
-            f"dt={params.srf_config.genslip_dt}",
-            "plane_header=1",
-            f"risetime={risetime}",
-            "risetimefac=1.0",
-            "risetimedep=0.0",
-        ]
-        cmd = " ".join(genslip_cmd)
+    generic_slip2srf_cmd = [
+        str(environment.generic_slip2srf_path),
+        f"infile={gsf_file_path}",
+        f"outfile={output_srf_filepath}",
+        "outbin=0",
+        f"stype={stype}",
+        f"dt={params.srf_config.genslip_dt}",
+        "plane_header=1",
+        f"risetime={risetime}",
+        "risetimefac=1.0",
+        "risetimedep=0.0",
+    ]
 
-        print(cmd)
-        print()
+    logger = log_utils.get_logger(__name__)
+    logger.info("executing command", cmd=" ".join(generic_slip2srf_cmd))
 
-        #################################################
-
-    srf_file_path = environment.srf_directory / (normalise_name(name) + ".srf")
-    with open(srf_file_path, "w", encoding="utf-8") as srf_file_handle:
-        logger = log_utils.get_logger(__name__)
-        logger.info("executing command", cmd=" ".join(genslip_cmd))
+    with open(output_srf_filepath, "w", encoding="utf-8") as srf_file_handle:
         try:
             proc = subprocess.run(
-                genslip_cmd, stdout=srf_file_handle, stderr=subprocess.PIPE, check=True
+                generic_slip2srf_cmd,
+                stdout=srf_file_handle,
+                stderr=subprocess.PIPE,
+                check=True,
             )
+
         except subprocess.CalledProcessError as e:
             logger.error(
                 "failed",
@@ -586,38 +660,6 @@ def generate_fault_srf(
         logger.info("command completed", stderr=proc.stderr.decode("utf-8"))
 
 
-def generate_fault_srfs_parallel(
-    faults: dict[str, IsSource],
-    params: SRFRealisationContext,
-    environment: SRFEnvironmentContext,
-) -> None:
-    """Generate fault SRF files in parallel.
-
-    Parameters
-    ----------
-    faults : dict[str, IsSource]
-        The faults and their geometries.
-    params : SRFRealisationContext
-        The SRF realisation context to use.
-    environment : SRFEnvironmentContext
-        The SRF environment context to use.
-    """
-    # need to do this before multiprocessing because of race conditions
-    environment.srf_directory.mkdir(exist_ok=True)
-    environment.gsf_directory.mkdir(exist_ok=True)
-    params.velocity_model_1d.write_velocity_model(environment.velocity_model_path)
-
-    # Changed from starmap to map to fix "TypeError: generate_fault_srf() got multiple values for argument 'params'"
-    # The use of starmap may have been from an earlier version that did not use functools.partial to handle multiple parameters
-    with multiprocessing.Pool(utils.get_available_cores()) as worker_pool:
-        worker_pool.map(
-            functools.partial(
-                generate_fault_srf, params=params, environment=environment
-            ),
-            faults,
-        )
-
-
 @cli.from_docstring(app)
 @log_call()
 def generate_srf(
@@ -625,13 +667,14 @@ def generate_srf(
         Path, typer.Argument(exists=True, readable=True, dir_okay=False)
     ],
     output_srf_filepath: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
-    work_directory: Annotated[Path, typer.Option(exists=True, file_okay=False)] = Path(
-        "/out"
-    ),
+    work_directory: Annotated[Path, typer.Option(file_okay=False)] = Path("/out"),
     genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
         # "/EMOD3D/tools/genslip_v5.4.2"
         "/home/arr65/src/EMOD3D/tools/genslip_v5.4.2"
     ),
+    generic_slip2srf_path: Annotated[
+        Path, typer.Option(readable=True, dir_okay=False)
+    ] = Path("/home/arr65/src/EMOD3D/tools/generic_slip2srf"),
 ) -> None:
     """Generate an SRF file from a given realisation specification.
 
@@ -651,6 +694,8 @@ def generate_srf(
         Path to output intermediate geometry and SRF files.
     genslip_path : Path, optional
         Path to the genslip binary.
+    generic_slip2srf_path : Path, optional
+        Path to the generic_slip2srf binary.
 
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
@@ -678,22 +723,36 @@ def generate_srf(
     )
 
     environment = SRFEnvironmentContext(
-        work_directory=work_directory, genslip_path=genslip_path, seeds=seeds
+        work_directory=work_directory,
+        genslip_path=genslip_path,
+        generic_slip2srf_path=generic_slip2srf_path,
+        seeds=seeds,
     )
 
-    generate_fault_srfs_parallel(source_config.source_geometries, params, environment)
+    environment.work_directory.mkdir(parents=True, exist_ok=True)
 
     srf_name = normalise_name(metadata.name)
-    stitch_srf_files(
-        source_config.source_geometries,
-        rupture_propagation,
-        work_directory,
-        srf_name,
-    )
-    srf_config.write_to_realisation(realisation_ffp)
 
-    shutil.copyfile(work_directory / (srf_name + ".srf"), output_srf_filepath)
-    realisations.append_log_entry(realisation_ffp)
+    for name, geometry in params.source_config.source_geometries.items():
+        if isinstance(geometry, Fault):
+            generate_fault_srfs_parallel(
+                source_config.source_geometries, params, environment
+            )
+
+            stitch_srf_files(
+                source_config.source_geometries,
+                rupture_propagation,
+                work_directory,
+                srf_name,
+            )
+
+            shutil.copyfile(work_directory / (srf_name + ".srf"), output_srf_filepath)
+
+        else:
+            generate_point_source_srf(name, params, environment, output_srf_filepath)
+
+        realisations.append_log_entry(realisation_ffp)
+        srf_config.write_to_realisation(realisation_ffp)
 
 
 if __name__ == "__main__":
