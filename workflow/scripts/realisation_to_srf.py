@@ -96,6 +96,7 @@ def generate_fault_gsf(
     gsf_output_directory: Path,
     subdivision_resolution: float,
     slip: float | None = None,
+    init_time: float | None = None,
 ) -> Path:
     """Write the fault geometry of a fault to a GSF file.
 
@@ -113,7 +114,9 @@ def generate_fault_gsf(
         The geometry resolution.
     slip : float, optional
         The slip value to write to the GSF file. If None, the slip will not be written.
-
+    init_time : float, optional
+        The initial time (INIT_TIME) to write to the GSF file.
+        If None, a default value of -1 will be set by `gsf.write_gsf()`.
     Returns
     -------
     Path
@@ -124,6 +127,8 @@ def generate_fault_gsf(
     gsf_df["loc_rake"] = rake
     if slip is not None:
         gsf_df["slip"] = [slip]
+    if init_time is not None:
+        gsf_df["init_time"] = [init_time]
     gsf.write_gsf(gsf_df, gsf_output_filepath)
     return gsf_output_filepath
 
@@ -619,22 +624,20 @@ def generate_point_source_srf(
         environment.gsf_directory,
         resolution,
         slip,
+        init_time=params.srf_config.inittime,
     )
-
-    stype = "cos"
-    risetime = 0.5
 
     generic_slip2srf_cmd = [
         str(environment.generic_slip2srf_path),
         f"infile={gsf_file_path}",
         f"outfile={output_srf_filepath}",
         "outbin=0",
-        f"stype={stype}",
+        f"stype={params.srf_config.stype}",
         f"dt={params.srf_config.genslip_dt}",
         "plane_header=1",
-        f"risetime={risetime}",
-        "risetimefac=1.0",
-        "risetimedep=0.0",
+        f"risetime={params.srf_config.risetime}",
+        f"risetimefac={params.srf_config.risetimefac}",
+        f"risetimedep={params.srf_config.risetimedep}",
     ]
 
     logger = log_utils.get_logger(__name__)

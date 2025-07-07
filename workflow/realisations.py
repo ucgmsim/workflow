@@ -363,6 +363,21 @@ class SRFConfig(RealisationConfiguration):
     resolution: float
     """The resolution of the SRF geometry"""
 
+    stype: str
+    """Slip type for generic_slip2srf"""
+
+    risetime: float
+    """Rise time for generic_slip2srf"""
+
+    risetimefac: float
+    """Rise time factor for generic_slip2srf"""
+
+    risetimedep: float
+    """Rise time depth dependency for generic_slip2srf"""
+
+    inittime: float
+    """Initial time for generic_slip2srf"""
+
 
 @dataclasses.dataclass
 class Rakes(RealisationConfiguration):
