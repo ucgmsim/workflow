@@ -756,7 +756,3 @@ def generate_srf(
 
         realisations.append_log_entry(realisation_ffp)
         srf_config.write_to_realisation(realisation_ffp)
-
-
-if __name__ == "__main__":
-    app()
