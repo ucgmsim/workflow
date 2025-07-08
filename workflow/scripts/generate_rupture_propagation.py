@@ -9,7 +9,7 @@ Inputs
 
 1. A realisation containing a source configuration.
 2. An initial fault for the rupture to begin on.
-3. A list of fault rakes, e.g. Acton=110
+
 
 Outputs
 -------
@@ -17,7 +17,7 @@ A realisation file containing:
 
 1. A rupture propagation plan (i.e. how the rupture jumps between faults, and where),
 2. The estimated rupture magnitude and apportionment to the involved faults.
-3. The definition of the rakes.
+
 
 Environment
 -----------
@@ -33,6 +33,7 @@ See the output of `nshm2022-to-realisation --help`.
 """
 
 import random
+from enum import StrEnum, auto
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -47,12 +48,23 @@ from workflow import realisations
 app = typer.Typer()
 
 
+class RuptureStrategy(StrEnum):
+    """Rupture propagation strategy."""
+
+    RANDOM = auto()
+    MAXIMISING = auto()
+
+
 @cli.from_docstring(app)
 def generate_rupture_propagation(
     realisation_ffp: Annotated[Path, typer.Argument()],
     initial_fault: Annotated[str, typer.Argument()],
     shypo: Annotated[Optional[float], typer.Option(min=0, max=1)] = None,
     dhypo: Annotated[Optional[float], typer.Option(min=0, max=1)] = None,
+    strategy: Annotated[
+        RuptureStrategy,
+        typer.Option(case_sensitive=False),
+    ] = RuptureStrategy.RANDOM,
 ) -> None:
     """Generate a likely rupture propagation for a given set of sources.
 
@@ -66,6 +78,8 @@ def generate_rupture_propagation(
         Hypocentre s-coordinates.
     dhypo : float, optional
         Hypocentre d-coordinates.
+    strategy : RuptureStrategy
+        The rupture propagation strategy to use. Default is `RuptureStrategy.RANDOM`.
     """
     seeds = realisations.Seeds.read_from_realisation_or_defaults(realisation_ffp)
     source_config = realisations.SourceConfig.read_from_realisation(realisation_ffp)
@@ -84,7 +98,7 @@ def generate_rupture_propagation(
         )
 
     rupture_causality_tree = rupture_propagation.sample_rupture_propagation(
-        faults, initial_source=initial_fault
+        faults, initial_source=initial_fault, strategy=strategy
     )
 
     rupture_propagation_config = realisations.RupturePropagationConfig(

@@ -44,7 +44,7 @@ import shutil
 import subprocess
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import numpy as np
 import pandas as pd
@@ -168,7 +168,7 @@ def concatenate_csr_arrays(csr_arrays: list[csr_array]) -> csr_array:
 
 def concatenate_slip_values(
     slip_values: Iterable[csr_array],
-) -> Optional[csr_array]:
+) -> csr_array | None:
     """Concatenate a list of slip arrays.
 
     Parameters
@@ -178,7 +178,7 @@ def concatenate_slip_values(
 
     Returns
     -------
-    Optional[csr_array]
+    csr_array or None
         The concatenated slip array, or None if the slip array
         contains no non-zero values.
     """
@@ -482,10 +482,11 @@ def generate_fault_srf(
         logger.info("command completed", stderr=proc.stderr.decode("utf-8"))
 
 
-def generate_fault_srfs_parallel(
+def generate_fault_srfs_multi(
     faults: dict[str, IsSource],
     params: SRFRealisationContext,
     environment: SRFEnvironmentContext,
+    single_threaded: bool = False,
 ) -> None:
     """Generate fault SRF files in parallel.
 
@@ -497,18 +498,25 @@ def generate_fault_srfs_parallel(
         The SRF realisation context to use.
     environment : SRFEnvironmentContext
         The SRF environment context to use.
+    single_threaded : bool, optional
+        If True, generate each segment SRF on a single thread.
+        Defaults to False, which uses multiprocessing to generate SRFs in parallel.
     """
     # need to do this before multiprocessing because of race conditions
     environment.srf_directory.mkdir(exist_ok=True)
     environment.gsf_directory.mkdir(exist_ok=True)
     params.velocity_model_1d.write_velocity_model(environment.velocity_model_path)
-    with multiprocessing.Pool(utils.get_available_cores()) as worker_pool:
-        worker_pool.map(
-            functools.partial(
-                generate_fault_srf, params=params, environment=environment
-            ),
-            list(faults),
-        )
+    if single_threaded:
+        for name in faults:
+            generate_fault_srf(name, params, environment)
+    else:
+        with multiprocessing.Pool(utils.get_available_cores()) as worker_pool:
+            worker_pool.map(
+                functools.partial(
+                    generate_fault_srf, params=params, environment=environment
+                ),
+                list(faults),
+            )
 
 
 def calc_point_source_slip_wrapper(params: SRFRealisationContext, name: str) -> float:
@@ -666,13 +674,16 @@ def generate_srf(
         Path, typer.Argument(exists=True, readable=True, dir_okay=False)
     ],
     output_srf_filepath: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
-    work_directory: Annotated[Path, typer.Option(file_okay=False)] = Path("/out"),
+    work_directory: Annotated[Path, typer.Option(exists=True, file_okay=False)] = Path(
+        "/out"
+    ),
     genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
         "/EMOD3D/tools/genslip_v5.4.2"
     ),
     generic_slip2srf_path: Annotated[
         Path, typer.Option(readable=True, dir_okay=False)
     ] = Path("/EMOD3D/tools/generic_slip2srf"),
+    single_threaded: Annotated[bool, typer.Option()] = False,
 ) -> None:
     """Generate an SRF file from a given realisation specification.
 
@@ -695,6 +706,8 @@ def generate_srf(
     generic_slip2srf_path : Path, optional
         Path to the generic_slip2srf binary.
 
+    single_threaded : bool, optional
+        If True, generate each segment SRF on a single thread.
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     srf_config = SRFConfig.read_from_realisation_or_defaults(
@@ -727,13 +740,17 @@ def generate_srf(
         seeds=seeds,
     )
 
-    environment.work_directory.mkdir(parents=True, exist_ok=True)
-
+    generate_fault_srfs_multi(
+        source_config.source_geometries,
+        params,
+        environment,
+        single_threaded=single_threaded,
+    )
     srf_name = normalise_name(metadata.name)
 
     for name, geometry in params.source_config.source_geometries.items():
         if isinstance(geometry, Fault):
-            generate_fault_srfs_parallel(
+            generate_fault_srfs_multi(
                 source_config.source_geometries, params, environment
             )
 

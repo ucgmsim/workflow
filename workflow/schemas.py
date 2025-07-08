@@ -341,7 +341,8 @@ DOMAIN_SCHEMA = Schema(
         ),
     }
 )
-RAKES_SCHEMA = Schema(
+
+RAKE_SCHEMA = Schema(
     {
         Literal("rakes", description="The fault rakes"): {
             str: And(float, _is_valid_degrees)
@@ -349,7 +350,7 @@ RAKES_SCHEMA = Schema(
     }
 )
 
-MAGNITUDES_SCHEMA = Schema(
+MAGNITUDE_SCHEMA = Schema(
     {
         Literal(
             "magnitudes",
@@ -357,6 +358,7 @@ MAGNITUDES_SCHEMA = Schema(
         ): {str: And(float, _is_plausible_magnitude)},
     }
 )
+
 
 RUPTURE_PROPAGATION_SCHEMA = Schema(
     {
