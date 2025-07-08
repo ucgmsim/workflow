@@ -85,6 +85,7 @@ def get_nz_outline_polygon() -> Polygon:
     return shapely.union(south_island, north_island)
 
 
+@log_utils.log_call(exclude_args=["faults"])
 def estimate_simulation_duration(
     bounding_box: BoundingBox,
     magnitude: float,
@@ -142,6 +143,7 @@ def estimate_simulation_duration(
     import oq_wrapper as oqw
 
     avg_rake = np.mean(rakes)
+
     oq_dataframe = pd.DataFrame.from_dict(
         {
             "vs30": [vs30],
@@ -156,6 +158,19 @@ def estimate_simulation_duration(
         oqw.run_gmm(oqw.constants.GMM.AS_16, oqw.constants.TectType.ACTIVE_SHALLOW, oq_dataframe, "Ds595")[
             "Ds595_mean"
         ].iloc[0]
+    )
+
+    log_utils.get_logger(__name__).debug(
+        "Computing simulation duration with parameters",
+        vs30=vs30,
+        largest_distance=largest_distance,
+        s_wave_velocity=s_wave_velocity,
+        s_wave_arrival_time=s_wave_arrival_time,
+        ds_multiplier=ds_multiplier,
+        magnitude=magnitude,
+        rakes=rakes,
+        ds=ds,
+        avg_rake=avg_rake,
     )
 
     return s_wave_arrival_time + ds_multiplier * ds
@@ -456,6 +471,7 @@ def generate_velocity_model_parameters(
         shapely.buffer(fault.geometry, 2000)
         for fault in source_config.source_geometries.values()
     ]
+    rakes = Rakes.read_from_realisation(realisation_ffp)
     # This polygon includes all areas within rrup distance of any
     # corner in the source geometries.
     # These may be in the domain where they are over land.

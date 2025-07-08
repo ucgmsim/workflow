@@ -2,7 +2,7 @@ Bootstrap: docker
 From: ubuntu:latest
 
 %setup
-    rm -rf /tmp/EMOD3D && git clone git@github.com:ucgmsim/EMOD3D.git /tmp/EMOD3D
+    [ -d /tmp/EMOD3D ] || git clone --depth 1 git@github.com:ucgmsim/EMOD3D.git /tmp/EMOD3D
 
 %files
     /tmp/EMOD3D /EMOD3D
@@ -11,7 +11,6 @@ From: ubuntu:latest
     apt-get update && apt-get install -y \
                       build-essential \
                       cmake \
-                      ffmpeg \
                       gdal-bin \
                       gfortran \
                       ghostscript \
@@ -29,32 +28,27 @@ From: ubuntu:latest
                       sqlite3 \
                       wget
 
-    wget "https://www.dropbox.com/scl/fi/50kww45wpsnmtf3pn2okz/nshmdb.db?rlkey=4mjuomuevl1963fjwfximgldm&st=keryhkwb&dl=0" -O /nshmdb.db
     wget "https://www.dropbox.com/scl/fi/b4m9g32x1j70ti69zyybq/genslip_velocity_model.vmod?rlkey=yxurhrdn8uvqh33hsb0inhsq0&st=o77aaccp&dl=0" -O /genslip_velocity_model.vmod
     wget "https://www.dropbox.com/scl/fi/qakchhg6qu23aclcb02ye/Cant1D_v2-midQ_leer.1d?rlkey=wn1a6nnol2eaf5n6qsy5t1nym&st=8yahw7id&dl=0" -O /Cant1D_v2-midQ_leer.1d
     wget "https://www.dropbox.com/scl/fi/tw1m15owloi0eo8h3u1kw/geoNet_stats-2023-06-28.vs30?rlkey=plu90zg0ti4lc2nvf51zu9xmg&st=iz8c2ls3&dl=0" -O /stations.vs30
     wget "https://www.dropbox.com/scl/fi/bb852b1f0rly6cfvs9p9b/geoNet_stats-2023-06-28.ll?rlkey=3y8k5qviy52nbksfdkm1n92yh&st=605h60u6&dl=0" -O /stations.ll
 
     cd /EMOD3D && \
-    git checkout cylc && \
     mkdir build && \
     cd build && \
     cmake .. && \
-    make genslip_v5.4.2 srf2stoch hb_high_binmod_v6.0.3 hb_high_binmod_v5.4.5
+    make -j $(nproc) genslip_v5.6.2 srf2stoch hb_high_binmod_v6.0.3 hb_high_binmod_v5.4.5
 
-    cd / && \
-    wget "https://www.dropbox.com/scl/fi/xomwzo5xagrxzbdmm7z7w/Velocity-Model-1.0.0.tar.gz?rlkey=0vc6kevs851qos39kkmd4ffol&dl=0" -O /Velocity-Model.tar.gz && \
-    tar xvf /Velocity-Model.tar.gz && \
-    mv /Velocity-Model-1.0.0 /Velocity-Model && \
+    # Remove all folders in EMOD3D except the tools folder
+    find /EMOD3D -mindepth 1 -maxdepth 1 ! -name "tools" -exec rm -rf \{\} \;
+
+
+    git clone --depth 1 https://github.com/ucgmsim/Velocity-Model.git /Velocity-Model && \
     cd /Velocity-Model && \
-    make parallel && \
-    rm /Velocity-Model.tar.gz
-
-    cd / &&
-    mkdir -p /usr/local/lib/python3.12/dist-packages/qcore/ && \
-    wget 'https://www.dropbox.com/scl/fi/p5so9irbx43c9g96jr2qr/qcore_resources.tar.xz?rlkey=pgmn69e212c0zx0fauxuikgky&dl=0' -O /tmp/qcore-resources.tar.xz && \
-    tar xvf /tmp/qcore-resources.tar.xz -C /usr/local/lib/python3.12/dist-packages/qcore/ && \
-    rm /tmp/qcore-resources.tar.xz
+    mkdir build && \
+    cd build && \
+    cmake ../ -DCMAKE_C_FLAGS="-fopenmp" -DCMAKE_CXX_FLAGS="-fopenmp" && \
+    make -j $(nproc)
 
     pip install "git+https://github.com/ucgmsim/workflow@pegasus" --break-system-packages
 

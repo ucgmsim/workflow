@@ -366,24 +366,54 @@ class SRFConfig(RealisationConfiguration):
 
 @dataclasses.dataclass
 class Rakes(RealisationConfiguration):
-    """Fault rakes."""
+    """Configuration for fault rakes."""
 
     _config_key: ClassVar[str] = "rakes"
-    _schema: ClassVar[Schema] = schemas.RAKES_SCHEMA
+    _schema: ClassVar[Schema] = schemas.RAKE_SCHEMA
 
     rakes: dict[str, float]
-    """A map from faults to rakes."""
+    """A map from faults to their rake angles."""
+
+    def __getitem__(self, key: str) -> float:
+        """Get the rake for a fault name.
+
+        Parameters
+        ----------
+        key : str
+            The fault rake to retrieve.
+
+        Returns
+        -------
+        float
+            The rake.
+        """
+        return self.rakes[key]
 
 
 @dataclasses.dataclass
 class Magnitudes(RealisationConfiguration):
-    """Per-fault rupture magnitudes."""
+    """Configuration for fault magnitudes."""
 
     _config_key: ClassVar[str] = "magnitudes"
-    _schema: ClassVar[Schema] = schemas.MAGNITUDES_SCHEMA
+    _schema: ClassVar[Schema] = schemas.MAGNITUDE_SCHEMA
 
     magnitudes: dict[str, float]
-    """A map from faults to the magnitude of the rupture for each fault."""
+    """A map from faults to their magnitudes."""
+
+    def __getitem__(self, key: str) -> float:
+        """Get the magnitude for a fault name.
+
+        Parameters
+        ----------
+        key : str
+            The fault magnitude to retrieve.
+
+        Returns
+        -------
+        float
+            The magnitude.
+        """
+        return self.magnitudes[key]
 
 
 @dataclasses.dataclass
