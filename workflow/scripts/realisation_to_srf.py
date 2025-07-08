@@ -145,7 +145,12 @@ def concatenate_csr_arrays(csr_arrays: list[csr_array]) -> csr_array:
     padded_arrays = [
         (
             sp.sparse.hstack(
-                [arr, sp.sparse.csr_array((arr.shape[0], max_columns - arr.shape[1]))]
+                [
+                    arr,
+                    sp.sparse.csr_array(
+                        (arr.shape[0], max_columns - arr.shape[1]), dtype=np.float32
+                    ),
+                ]
             )
             if arr.shape[1] < max_columns
             else arr
@@ -317,22 +322,6 @@ def stitch_srf_files(
             (
                 fault_srf.slipt1_array
                 if fault_srf.slipt1_array is not None
-                else csr_array((len(fault_srf.points), 1))
-            )
-            for fault_srf in srf_file_map.values()
-        ),
-        slipt2_array=concatenate_slip_values(
-            (
-                fault_srf.slipt2_array
-                if fault_srf.slipt2_array is not None
-                else csr_array((len(fault_srf.points), 1))
-            )
-            for fault_srf in srf_file_map.values()
-        ),
-        slipt3_array=concatenate_slip_values(
-            (
-                fault_srf.slipt3_array
-                if fault_srf.slipt3_array is not None
                 else csr_array((len(fault_srf.points), 1))
             )
             for fault_srf in srf_file_map.values()
