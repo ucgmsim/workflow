@@ -740,18 +740,16 @@ def generate_srf(
         seeds=seeds,
     )
 
-    generate_fault_srfs_multi(
-        source_config.source_geometries,
-        params,
-        environment,
-        single_threaded=single_threaded,
-    )
+
     srf_name = normalise_name(metadata.name)
 
     for name, geometry in params.source_config.source_geometries.items():
         if isinstance(geometry, Fault):
             generate_fault_srfs_multi(
-                source_config.source_geometries, params, environment
+                source_config.source_geometries,
+                params,
+                environment,
+                single_threaded=single_threaded,
             )
 
             stitch_srf_files(
