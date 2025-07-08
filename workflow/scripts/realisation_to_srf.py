@@ -73,7 +73,8 @@ app = typer.Typer()
 
 
 def normalise_name(name: str) -> str:
-    """Normalise a name (fault name, realisation name) as a filename.
+    """
+    Normalise a name (fault name, realisation name) as a filename.
 
     Parameters
     ----------
@@ -86,6 +87,7 @@ def normalise_name(name: str) -> str:
         The normalised equivalent of this name. Normalised names are entirely
         lower case, and all non-alphanumeric characters are replaced with "_".
     """
+
     return re.sub(r"\W", "_", name.lower())
 
 
@@ -117,6 +119,7 @@ def generate_fault_gsf(
     init_time : float, optional
         The initial time (INIT_TIME) to write to the GSF file.
         If None, a default value of -1 will be set by `gsf.write_gsf()`.
+
     Returns
     -------
     Path
@@ -619,6 +622,7 @@ def generate_point_source_srf(
     Returns
     -------
     None
+        This function does not return a value; it writes the SRF file to disk.
     """
 
     environment.gsf_directory.mkdir(parents=True, exist_ok=True)
