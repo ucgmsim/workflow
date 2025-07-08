@@ -145,7 +145,12 @@ def concatenate_csr_arrays(csr_arrays: list[csr_array]) -> csr_array:
     padded_arrays = [
         (
             sp.sparse.hstack(
-                [arr, sp.sparse.csr_array((arr.shape[0], max_columns - arr.shape[1]))]
+                [
+                    arr,
+                    sp.sparse.csr_array(
+                        (arr.shape[0], max_columns - arr.shape[1]), dtype=np.float32
+                    ),
+                ]
             )
             if arr.shape[1] < max_columns
             else arr
