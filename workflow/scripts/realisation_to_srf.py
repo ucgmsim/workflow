@@ -321,22 +321,6 @@ def stitch_srf_files(
             )
             for fault_srf in srf_file_map.values()
         ),
-        slipt2_array=concatenate_slip_values(
-            (
-                fault_srf.slipt2_array
-                if fault_srf.slipt2_array is not None
-                else csr_array((len(fault_srf.points), 1))
-            )
-            for fault_srf in srf_file_map.values()
-        ),
-        slipt3_array=concatenate_slip_values(
-            (
-                fault_srf.slipt3_array
-                if fault_srf.slipt3_array is not None
-                else csr_array((len(fault_srf.points), 1))
-            )
-            for fault_srf in srf_file_map.values()
-        ),
     )
 
     # Write the combined SRF file
