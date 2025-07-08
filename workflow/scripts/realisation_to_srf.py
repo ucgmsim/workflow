@@ -672,7 +672,7 @@ def generate_srf(
     ),
     generic_slip2srf_path: Annotated[
         Path, typer.Option(readable=True, dir_okay=False)
-    ] = Path("/home/arr65/src/EMOD3D/tools/generic_slip2srf"),
+    ] = Path("/EMOD3D/tools/generic_slip2srf"),
 ) -> None:
     """Generate an SRF file from a given realisation specification.
 
