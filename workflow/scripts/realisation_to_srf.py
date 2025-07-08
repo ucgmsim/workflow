@@ -612,6 +612,12 @@ def generate_point_source_srf(
         The SRF realisation context to use.
     environment : SRFEnvironmentContext
         The SRF environment context to use.
+    output_srf_filepath : Path
+        The output SRF file path.
+
+    Returns
+    -------
+    None
     """
 
     environment.gsf_directory.mkdir(parents=True, exist_ok=True)
