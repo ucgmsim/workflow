@@ -584,6 +584,7 @@ def calc_point_source_slip(
         The density of the fault in grams per cubic centimeter.
     vs_km_per_s : float
         The shear wave velocity in kilometers per second.
+    
     Returns
     -------
     float
