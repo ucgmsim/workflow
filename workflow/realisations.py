@@ -363,19 +363,20 @@ class SRFConfig(RealisationConfiguration):
     resolution: float
     """The resolution of the SRF geometry"""
 
-    stype: str
+    # The following attributes are only used for the point source approximation
+    stype: Optional[str] = None
     """Slip type for generic_slip2srf"""
 
-    risetime: float
+    risetime: Optional[float] = None
     """Rise time for generic_slip2srf"""
 
-    risetimefac: float
+    risetimefac: Optional[float] = None
     """Rise time factor for generic_slip2srf"""
 
-    risetimedep: float
+    risetimedep: Optional[float] = None
     """Rise time depth dependency for generic_slip2srf"""
 
-    inittime: float
+    inittime: Optional[float] = None
     """Initial time for generic_slip2srf"""
 
 

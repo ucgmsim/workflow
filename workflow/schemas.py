@@ -296,18 +296,28 @@ SRF_SCHEMA = Schema(
         Literal("resolution", description="Subdivision resolution."): And(
             float, _is_positive
         ),
-        Literal("stype", description="Slip type for generic_slip2srf"): str,
-        Literal("risetime", description="Rise time for generic_slip2srf"): And(
-            float, _is_positive
+        Literal("stype", description="Slip type for generic_slip2srf"): Or(None, str),
+        Literal("risetime", description="Rise time for generic_slip2srf"): Or(
+            None,
+            And(
+                float, _is_positive
+            )
         ),
         Literal(
             "risetimefac", description="Rise time factor for generic_slip2srf"
-        ): And(float, _is_positive),
+        ): Or(
+            None,
+            And(float, _is_positive)
+        ),
         Literal(
             "risetimedep", description="Rise time depth dependency for generic_slip2srf"
-        ): And(float, _is_non_negative),
-        Literal("inittime", description="Initial time for generic_slip2srf"): And(
-            float, _is_non_negative
+        ): Or(None,
+              And(float, _is_non_negative)
+        ),
+        Literal("inittime", description="Initial time for generic_slip2srf"): Or(
+            None,
+            And(
+            float, _is_non_negative)
         ),
     }
 )

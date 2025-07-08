@@ -120,6 +120,11 @@ def test_srf_config_example(tmp_path: Path) -> None:
                 "genslip_dt": 1.0,
                 "resolution": 0.1,
                 "genslip_version": "5.4.2",
+                "stype": None,
+                "risetime": None,
+                "risetimefac": None,
+                "risetimedep": None,
+                "inittime": None,
             },
         }
 
