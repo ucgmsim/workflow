@@ -122,7 +122,7 @@ def generate_fault_gsf(
     Path
         The path to the generated GSF file.
     """
-    gsf_output_filepath = gsf_output_directory / f"{name}.gsf"
+    gsf_output_filepath = gsf_output_directory / f"{normalise_name(name)}.gsf"
     gsf_df = gsf.source_to_gsf_dataframe(geometry, subdivision_resolution)
     gsf_df["loc_rake"] = rake
     if slip is not None:
@@ -434,7 +434,6 @@ def generate_fault_srf(
     genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
         params.rupture_propagation_config.hypocentres[name] - np.array([1 / 2, 0])
     )
-
     genslip_cmd = [
         str(environment.genslip_path),
         "read_erf=0",
@@ -503,15 +502,12 @@ def generate_fault_srfs_parallel(
     environment.srf_directory.mkdir(exist_ok=True)
     environment.gsf_directory.mkdir(exist_ok=True)
     params.velocity_model_1d.write_velocity_model(environment.velocity_model_path)
-
-    # Changed from starmap to map to fix "TypeError: generate_fault_srf() got multiple values for argument 'params'"
-    # The use of starmap may have been from an earlier version that did not use functools.partial to handle multiple parameters
     with multiprocessing.Pool(utils.get_available_cores()) as worker_pool:
         worker_pool.map(
             functools.partial(
                 generate_fault_srf, params=params, environment=environment
             ),
-            faults,
+            list(faults),
         )
 
 
@@ -672,8 +668,7 @@ def generate_srf(
     output_srf_filepath: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
     work_directory: Annotated[Path, typer.Option(file_okay=False)] = Path("/out"),
     genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
-        # "/EMOD3D/tools/genslip_v5.4.2"
-        "/home/arr65/src/EMOD3D/tools/genslip_v5.4.2"
+        "/EMOD3D/tools/genslip_v5.4.2"
     ),
     generic_slip2srf_path: Annotated[
         Path, typer.Option(readable=True, dir_okay=False)
