@@ -2230,8 +2230,8 @@ wheels = [
 
 [[package]]
 name = "source-modelling"
-version = "0.0.0"
-source = { git = "https://github.com/ucgmsim/source_modelling.git#ac9f7b6747a9fe7bebd5483f5adcfb5d8340d5c2" }
+version = "0.1.dev520+gee4ab7d"
+source = { git = "https://github.com/ucgmsim/source_modelling.git#ee4ab7d7f729d0c3d1b7585425b61b657b7ca0ca" }
 dependencies = [
     { name = "fiona" },
     { name = "geopandas" },
