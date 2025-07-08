@@ -36,15 +36,17 @@ See the output of `nshm2022-to-realisation --help`.
 
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import numpy as np
+import numpy.typing as npt
 import typer
+from scipy.cluster.hierarchy import DisjointSet
 
 from nshmdb import nshmdb
 from qcore import cli
 from qcore.uncertainties import distributions, mag_scaling
-from source_modelling import rupture_propagation
+from source_modelling import moment, rupture_propagation, sources
 from source_modelling.sources import Fault
 from workflow import realisations
 from workflow.defaults import DefaultsVersion
@@ -56,6 +58,7 @@ from workflow.realisations import (
     RupturePropagationConfig,
     Seeds,
     SourceConfig,
+    SRFConfig,
 )
 
 app = typer.Typer()
@@ -88,7 +91,9 @@ def a_to_mw_leonard(area: float, rake: float) -> float:
 
 
 def default_magnitude_estimation(
-    faults: dict[str, Fault], rakes: dict[str, float]
+    faults: dict[str, Fault],
+    components: DisjointSet,
+    avg_rake: float,
 ) -> dict[str, float]:
     """Estimate the magnitudes for a set of faults based on their areas and average rake.
 
@@ -96,8 +101,12 @@ def default_magnitude_estimation(
     ----------
     faults : dict
         A dictionary where the keys are fault names and the values are `Fault` objects containing information about each fault.
-    rakes : dict
-        A dictionary where the keys are fault names and the values are rake angles (in degrees) for each fault.
+    components : DisjointSet
+        A disjoint set representing the connected components of the faults.
+        Each component corresponds to a group of faults that are connected
+        and share a common rupture propagation path.
+    avg_rake : float
+        The average rake angle of the rupture.
 
     Returns
     -------
@@ -105,13 +114,68 @@ def default_magnitude_estimation(
         A dictionary where the keys are fault names and the values are the estimated magnitudes for each fault.
     """
     total_area = sum(fault.area() for fault in faults.values())
-    avg_rake = np.mean(list(rakes.values()))
     estimated_mw = a_to_mw_leonard(total_area, avg_rake)
     estimated_moment = mag_scaling.mag2mom(estimated_mw)
-    return {
-        fault_name: mag_scaling.mom2mag((fault.area() / total_area) * estimated_moment)
-        for fault_name, fault in faults.items()
+    roots = {components[fault_name] for fault_name in faults}
+    component_areas = {
+        root: sum(faults[name].area() for name in components.subset(root))
+        for root in roots
     }
+    total_component_area = sum(
+        component_area ** (3 / 2) for component_area in component_areas.values()
+    )
+    component_moments = {
+        root: (component_area ** (3 / 2) / total_component_area) * estimated_moment
+        for root, component_area in component_areas.items()
+    }
+    segment_moments = {}
+
+    for fault_name, fault in faults.items():
+        component = components[fault_name]
+        component_area = component_areas[component]
+        component_moment = component_moments[component]
+        segment_moments[fault_name] = (fault.area() / component_area) * component_moment
+
+    return {
+        fault_name: mag_scaling.mom2mag(fault_moment)
+        for fault_name, fault_moment in segment_moments.items()
+    }
+
+
+def find_fault_and_hypocentre(
+    faults: dict[str, Fault], lat_hypo: float, lon_hypo: float
+) -> tuple[str, npt.NDArray[np.float64]]:
+    """Find the fault and fault-local hypocentre coordinates corresponding to a hypocentre in lat, lon coordinates.
+
+    Parameters
+    ----------
+    faults : dict[str, Fault]
+        The faults in the rupture.
+    lat_hypo : float
+        The hypocentre latitude.
+    lon_hypo : float
+        The hypocentre longitude.
+
+    Returns
+    -------
+    tuple[str, np.ndarray]
+        The name of the fault and the hypocentre coordinates on the fault.
+
+    Raises
+    ------
+    ValueError
+        If the hypocentre is not on any fault.
+    """
+    hypocentre_wgs = np.array([lat_hypo, lon_hypo])
+    for fault_name, fault in faults.items():
+        try:
+            hypocentre: npt.NDArray[np.float64] = (
+                fault.wgs_depth_coordinates_to_fault_coordinates(hypocentre_wgs)
+            )
+            return fault_name, hypocentre
+        except ValueError:
+            continue
+    raise ValueError("Hypocentre not on any fault.")
 
 
 class SamplingStrategy(StrEnum):
@@ -135,7 +199,7 @@ def generate_realisation(
         typer.Argument(),
     ],
     initial_fault: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(),
     ] = None,
     strategy: Annotated[
@@ -147,19 +211,36 @@ def generate_realisation(
         typer.Option(min=0),
     ] = 15,
     shypo: Annotated[
-        Optional[float],
+        float | None,
         typer.Option(
             min=0,
             max=1,
         ),
     ] = None,
     dhypo: Annotated[
-        Optional[float],
+        float | None,
         typer.Option(
             min=0,
             max=1,
         ),
     ] = None,
+    lat_hypo: Annotated[
+        float | None,
+        typer.Option(
+            min=-90,
+            max=90,
+        ),
+    ] = None,
+    lon_hypo: Annotated[
+        float | None,
+        typer.Option(
+            min=-180,
+            max=180,
+        ),
+    ] = None,
+    separation_distance: Annotated[float, typer.Option()] = 5.0,
+    dip_delta: Annotated[float, typer.Option()] = 30.0,
+    min_connected_depth: Annotated[float, typer.Option()] = 5.0,
 ) -> None:
     """Generate realisation stub files from ruptures in the NSHM 2022 database.
 
@@ -179,7 +260,7 @@ def generate_realisation(
         Location to write out the realisation.
     defaults_version : DefaultsVersion
         Scientific default parameters version to use.
-    initial_fault : Optional[str], optional
+    initial_fault : str, optional
         The name of the fault to use as the initial fault for rupture
         propagation. If not specified, the initial fault will be drawn
         proportionally to its likelihood of rupture.
@@ -189,13 +270,38 @@ def generate_realisation(
         choose a random rupture propagation tree.
     jump_cutoff : float, optional
         The maximum jump distance between faults in km.
-    shypo : Optional[float], optional
+    shypo : float, optional
         The initial hypocentre strike coordinate (0 - 1). If not supplied, draw
         shypo from a truncated normal distribution.
-    dhypo : Optional[float], optional
+    dhypo : float, optional
         The initial hypocentre strike coordinate (0 - 1). If not supplied, draw
         dhypo from a weibull distribution.
+    lat_hypo : float, optional
+        The initial hypocentre latitude (degrees). Will cause an error
+        if latitude and longitude are both not supplied, or specify a
+        point not on the rupture geometry. Incompatible with shypo, dhypo and initial fault.
+    lon_hypo : float, optional
+        The initial hypocentre longitude (degrees). Will cause an error
+        if latitude and longitude are both not supplied, or specify a
+        point not on the rupture geometry. Incompatible with shypo, dhypo and initial fault.
+    separation_distance : float, optional
+        The maximum distance between faults to consider them connected in km.
+        Defaults to 5 km.
+    dip_delta : float, optional
+        The maximum difference in dip angle between connected faults in degrees.
+        Defaults to 30 degrees.
+    min_connected_depth : float, optional
+        The depth to measure the fault distance. Defaults to 5km.
     """
+    # Check a compatible combination of hypocentre parameters is supplied.
+    if (lat_hypo is None) != (lon_hypo is None):
+        print("Both latitude and longitude must be supplied.")
+        raise typer.Exit(code=1)
+    if lat_hypo is not None and (
+        dhypo is not None or shypo is not None or initial_fault
+    ):
+        print("Latitude and longitude are incompatible with shypo and dhypo.")
+        raise typer.Exit(code=1)
 
     metadata = RealisationMetadata(
         name=f"Rupture {rupture_id}",
@@ -203,10 +309,23 @@ def generate_realisation(
         tag="nshm",
         defaults_version=defaults_version,
     )
-    metadata.write_to_realisation(realisation_ffp)
-    db = nshmdb.NSHMDB(nshmdb_path)
 
+    metadata.write_to_realisation(realisation_ffp)
+    srf_config = SRFConfig.read_from_realisation_or_defaults(
+        realisation_ffp, defaults_version
+    )
+    db = nshmdb.NSHMDB(nshmdb_path)
     faults = db.get_rupture_faults(rupture_id)
+    faults = {
+        fault_name: sources.simplify_fault(fault, srf_config.resolution)
+        for fault_name, fault in faults.items()
+    }
+
+    if initial_fault and initial_fault not in faults:
+        print(
+            f"Initial fault '{initial_fault}' not found in rupture. Options are {', '.join(list(faults))}"
+        )
+        raise typer.Exit(code=1)
     faults_info = db.get_rupture_fault_info(rupture_id)
     seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
     np.random.seed(seed=seeds.nshm_to_realisation_seed)
@@ -215,32 +334,45 @@ def generate_realisation(
     rakes = {
         fault_name: fault_info.rake for fault_name, fault_info in faults_info.items()
     }
-    magnitudes = default_magnitude_estimation(faults, rakes)
-    if not initial_fault:
+    avg_rake = np.mean(list(rakes.values()))
+    components = moment.find_connected_faults(
+        faults, separation_distance, dip_delta, min_connected_depth
+    )
+    magnitudes = default_magnitude_estimation(faults, components, float(avg_rake))
+    if lat_hypo is not None and lon_hypo is not None:
+        initial_fault, hypocentre = find_fault_and_hypocentre(
+            faults, lat_hypo, lon_hypo
+        )
+    elif initial_fault:
+        hypocentre = np.array(
+            [
+                shypo
+                if shypo is not None
+                else distributions.truncated_normal(1 / 2, 1 / 4),
+                dhypo if dhypo is not None else distributions.truncated_weibull(1),
+            ]
+        )
+    else:
         mfds_rates = db.most_likely_fault(rupture_id, magnitudes)
         mfds_probabilities = np.array(list(mfds_rates.values()))
         if np.allclose(mfds_probabilities, 0):
             mfds_probabilities = np.ones_like(mfds_probabilities)
         mfds_probabilities /= mfds_probabilities.sum()
         initial_fault = np.random.choice(list(mfds_rates), p=mfds_probabilities)
-    elif initial_fault not in faults:
-        print(
-            f"Initial fault '{initial_fault}' not found in rupture. Options are {', '.join(list(faults))}"
+        hypocentre = np.array(
+            [
+                shypo
+                if shypo is not None
+                else distributions.truncated_normal(1 / 2, 1 / 4),
+                dhypo if dhypo is not None else distributions.truncated_weibull(1),
+            ]
         )
-        raise typer.Exit(code=1)
 
     rupture_causality_tree = rupture_propagation.sample_rupture_propagation(
         faults,
         initial_source=initial_fault,
-        strategy=strategy,
-        jump_impossibility_limit_distance=jump_cutoff * 1000,
-    )
-
-    hypocentre = np.array(
-        [
-            shypo or distributions.truncated_normal(1 / 2, 1 / 4),
-            dhypo or distributions.truncated_weibull(1),
-        ]
+        strategy=str(strategy),
+        jump_impossibility_limit_distance=round(jump_cutoff * 1000),
     )
     magnitudes = Magnitudes(magnitudes)
     rakes = Rakes(rakes)

@@ -8,7 +8,57 @@ authors = [{ name = "QuakeCoRE" }]
 description = "Next generation workflow powered by cylc."
 readme = "README.md"
 requires-python = ">=3.12"
-dynamic = ["version", "dependencies"]
+dynamic = ["version"]
+dependencies = [
+    # UCGMSim Dependencies
+    "im_calculation @ git+https://github.com/ucgmsim/IM_calculation.git",
+    "nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB.git",
+    "oq_wrapper @ git+https://github.com/ucgmsim/Empirical_Engine.git#subdirectory=oq_wrapper",
+    "pygmt_helper @ git+https://github.com/ucgmsim/pygmt_helper.git",
+    "qcore @ git+https://github.com/ucgmsim/qcore.git",
+    "source_modelling @ git+https://github.com/ucgmsim/source_modelling.git",
+    "velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling.git",
+
+    # Data Formats
+    "geopandas",
+    "h5py",
+    "pandas[parquet, hdf5]",
+    "pyyaml",
+    "xarray[io]",
+
+    # Workflow Planner
+    "jinja2",
+    "networkx",
+    "printree",
+    "pyvis",
+
+    # Numerics
+    "numexpr",
+    "numpy",
+    "scipy",
+    "shapely",
+
+    # CLI
+    "tqdm",
+    "typer",
+
+    # Misc.
+    "requests", # For gcmt-to-realisation
+    "schema", # For loading realisations
+    "structlog", # Logging.
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+]
+dev = [
+    "ruff",
+    "deptry"
+]
+
+[tool.deptry]
+pep621_dev_dependency_groups = ["test", "dev"]
 
 [project.scripts]
 nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:app"
@@ -35,8 +85,8 @@ import-realisation = "workflow.scripts.import_realisation:app"
 [tool.setuptools.package-dir]
 workflow = "workflow"
 
-[tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt"] }
+
+
 
 [tool.setuptools_scm]
 
