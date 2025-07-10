@@ -217,6 +217,15 @@ def gcmt_to_realisation(
             scaling_relation, magnitude, rake
         )
 
+        if magnitude < 5.0:
+            warnings.warn(
+            "The point source approximation models the fault as a small square,"
+            "(with equal length and width) using the Leonard magnitude-area "
+            "scaling relation. However, for Mw < 5, such as this case "
+            f"with Mw = {magnitude}, the (not yet implemented) separate Leonard length "
+            "and width scaling relations may be more appropriate."
+            )
+
         length_m = np.sqrt(area_km2) * 1000  # Convert km to meters
 
         source_geometry = sources.Point.from_lat_lon_depth(
@@ -228,6 +237,7 @@ def gcmt_to_realisation(
             dip=selected_nodal_plane.dip,
             dip_dir=dip_direction,
         )
+
     else:
         # Create plane source (default behavior)
         plane = sources.Plane.from_centroid_strike_dip(
@@ -293,3 +303,6 @@ def gcmt_to_realisation(
         config.write_to_realisation(realisation_ffp)
 
     realisations.append_log_entry(realisation_ffp)
+
+if __name__ == "__main__":
+    app()
