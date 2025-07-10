@@ -45,7 +45,6 @@ import subprocess
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Annotated
-from enum import StrEnum
 
 import numpy as np
 import pandas as pd
@@ -71,6 +70,7 @@ from workflow.realisations import (
 )
 
 app = typer.Typer()
+
 
 def normalise_name(name: str) -> str:
     """
@@ -576,7 +576,7 @@ def calc_point_source_slip(
         The density of the fault in grams per cubic centimeter.
     vs_km_per_s : float
         The shear wave velocity in kilometers per second.
-    
+
     Returns
     -------
     float
@@ -679,7 +679,7 @@ def generate_srf(
         "/out"
     ),
     genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
-        #"/EMOD3D/tools/genslip_v5.4.2"
+        # "/EMOD3D/tools/genslip_v5.4.2"
         "/home/arr65/src/EMOD3D/tools/genslip_v5.4.2"
     ),
     generic_slip2srf_path: Annotated[
@@ -746,7 +746,6 @@ def generate_srf(
         seeds=seeds,
     )
 
-
     srf_name = normalise_name(metadata.name)
 
     for name, geometry in params.source_config.source_geometries.items():
@@ -772,6 +771,7 @@ def generate_srf(
 
         realisations.append_log_entry(realisation_ffp)
         srf_config.write_to_realisation(realisation_ffp)
+
 
 if __name__ == "__main__":
     app()

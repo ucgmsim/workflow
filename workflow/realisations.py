@@ -8,7 +8,6 @@ node) should be done outside this module. This is to avoid having this
 module become an "everything" module.
 """
 
-from enum import StrEnum
 import dataclasses
 import datetime
 import importlib
@@ -17,6 +16,7 @@ import random
 import struct
 import sys
 from abc import ABC
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Optional, Self, Union
 
@@ -33,18 +33,21 @@ from velocity_modelling.bounding_box import BoundingBox
 from workflow import defaults, schemas
 from workflow.defaults import DefaultsVersion
 
+
 class Stype(StrEnum):
-    esg2006 = "esg2006", 
-    urs = "urs", 
-    ucsb = "ucsb", 
-    ucsb2 = "ucsb2", 
-    ucsb_T = "ucsb-T", 
-    ucsb_varT1 = "ucsb-varT1", 
-    cos = "cos", 
+    esg2006 = ("esg2006",)
+    urs = ("urs",)
+    ucsb = ("ucsb",)
+    ucsb2 = ("ucsb2",)
+    ucsb_T = ("ucsb-T",)
+    ucsb_varT1 = ("ucsb-varT1",)
+    cos = ("cos",)
     seki = "seki"
+
 
 # Map the string representation of the stype to the Stype enum.
 stype_enum_mapping = {member.value: member for member in Stype}
+
 
 def to_name_coordinate_dictionary(
     coordinate_array: npt.NDArray[np.float64],
