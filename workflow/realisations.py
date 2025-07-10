@@ -35,6 +35,8 @@ from workflow.defaults import DefaultsVersion
 
 
 class Stype(StrEnum):
+    """Options for slip time function (stype) in generic_slip2srf."""
+
     esg2006 = "esg2006"
     urs = "urs"
     ucsb = "ucsb"
