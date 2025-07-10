@@ -41,8 +41,8 @@ class Stype(StrEnum):
     urs = "urs"
     ucsb = "ucsb"
     ucsb2 = "ucsb2"
-    ucsb_T = "ucsb-T"
-    ucsb_varT1 = "ucsb-varT1"
+    ucsb_T = "ucsb-T"  # noqa: N815
+    ucsb_varT1 = "ucsb-varT1"  # noqa: N815
     cos = "cos"
     seki = "seki"
 
