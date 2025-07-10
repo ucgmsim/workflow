@@ -45,6 +45,7 @@ import subprocess
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Annotated
+from enum import StrEnum
 
 import numpy as np
 import pandas as pd
@@ -70,7 +71,6 @@ from workflow.realisations import (
 )
 
 app = typer.Typer()
-
 
 def normalise_name(name: str) -> str:
     """
@@ -617,6 +617,7 @@ def generate_point_source_srf(
     environment.gsf_directory.mkdir(parents=True, exist_ok=True)
 
     fault = params.source_config.source_geometries[name]
+
     resolution = params.srf_config.resolution
 
     slip = calc_point_source_slip_wrapper(params, name)
@@ -714,6 +715,10 @@ def generate_srf(
     srf_config = SRFConfig.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
+    # Map the string representation of the stype to the Stype enum.
+    if srf_config.stype is not None:
+        srf_config.stype = realisations.stype_enum_mapping[srf_config.stype]
+
     seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
     rupture_propagation = RupturePropagationConfig.read_from_realisation(
         realisation_ffp
@@ -767,3 +772,6 @@ def generate_srf(
 
         realisations.append_log_entry(realisation_ffp)
         srf_config.write_to_realisation(realisation_ffp)
+
+if __name__ == "__main__":
+    app()

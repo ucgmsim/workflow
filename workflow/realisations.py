@@ -8,6 +8,7 @@ node) should be done outside this module. This is to avoid having this
 module become an "everything" module.
 """
 
+from enum import StrEnum
 import dataclasses
 import datetime
 import importlib
@@ -32,6 +33,18 @@ from velocity_modelling.bounding_box import BoundingBox
 from workflow import defaults, schemas
 from workflow.defaults import DefaultsVersion
 
+class Stype(StrEnum):
+    esg2006 = "esg2006", 
+    urs = "urs", 
+    ucsb = "ucsb", 
+    ucsb2 = "ucsb2", 
+    ucsb_T = "ucsb-T", 
+    ucsb_varT1 = "ucsb-varT1", 
+    cos = "cos", 
+    seki = "seki"
+
+# Map the string representation of the stype to the Stype enum.
+stype_enum_mapping = {member.value: member for member in Stype}
 
 def to_name_coordinate_dictionary(
     coordinate_array: npt.NDArray[np.float64],
@@ -364,7 +377,7 @@ class SRFConfig(RealisationConfiguration):
     """The resolution of the SRF geometry"""
 
     # The following attributes are only used for the point source approximation
-    stype: Optional[str] = None
+    stype: Optional[Stype] = None
     """Slip type for generic_slip2srf"""
 
     risetime: Optional[float] = None
