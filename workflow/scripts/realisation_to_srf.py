@@ -129,9 +129,9 @@ def generate_fault_gsf(
     gsf_df = gsf.source_to_gsf_dataframe(geometry, subdivision_resolution)
     gsf_df["loc_rake"] = rake
     if slip is not None:
-        gsf_df["slip"] = [slip]
+        gsf_df["slip"] = slip
     if init_time is not None:
-        gsf_df["init_time"] = [init_time]
+        gsf_df["init_time"] = init_time
     gsf.write_gsf(gsf_df, gsf_output_filepath)
     return gsf_output_filepath
 
@@ -689,11 +689,12 @@ def generate_srf(
         "/out"
     ),
     genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
-        "/EMOD3D/tools/genslip_v5.4.2"
+        #"/EMOD3D/tools/genslip_v5.4.2"
+        "/home/arr65/src/EMOD3D/tools/genslip_v5.4.2"
     ),
     generic_slip2srf_path: Annotated[
         Path, typer.Option(readable=True, dir_okay=False)
-    ] = Path("/EMOD3D/tools/generic_slip2srf"),
+    ] = Path("/home/arr65/src/EMOD3D/tools/generic_slip2srf"),
     single_threaded: Annotated[bool, typer.Option()] = False,
 ) -> None:
     """Generate an SRF file from a given realisation specification.
