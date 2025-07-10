@@ -303,7 +303,3 @@ def gcmt_to_realisation(
         config.write_to_realisation(realisation_ffp)
 
     realisations.append_log_entry(realisation_ffp)
-
-
-if __name__ == "__main__":
-    app()

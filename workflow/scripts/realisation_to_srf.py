@@ -54,7 +54,7 @@ from scipy.sparse import csr_array
 
 from qcore import cli, coordinates
 from qcore.uncertainties import mag_scaling
-from source_modelling import gsf, rupture_propagation, srf
+from source_modelling import gsf, moment, rupture_propagation, srf
 from source_modelling.sources import Fault, IsSource
 from workflow import log_utils, realisations, utils
 from workflow.log_utils import log_call
@@ -511,84 +511,6 @@ def generate_fault_srfs_multi(
             )
 
 
-def calc_point_source_slip_wrapper(params: SRFRealisationContext, name: str) -> float:
-    """Calculate moment from SRFRealisationContext.
-
-    This function extracts the required information from the SRFRealisationContext
-    and then calls `calc_point_source_slip` to calculate the slip for a point source.
-
-
-    Parameters
-    ----------
-    params : SRFRealisationContext
-        The SRF realisation context containing the magnitude and velocity model.
-    name : str
-        The name of the fault for which to calculate the slip.
-
-    Returns
-    -------
-    float
-        The calculated slip in cm.
-    """
-    # Get magnitude and convert to seismic moment
-    magnitude = params.magnitudes.magnitudes[name]
-    moment_dyne_cm = mag_scaling.mag2mom(magnitude)
-
-    # Get Vs and rho from the 1D velocity model
-    velocity_model = params.velocity_model_1d.model
-    velocity_model["depth_km"] = velocity_model["thickness"].cumsum()
-    # divide by 1000 to convert depth from meters to kilometers
-    source_depth_km = params.source_config.source_geometries[name].centroid[2] / 1000
-
-    fault_area_km2 = (params.source_config.source_geometries[name].length_m / 1000) ** 2
-
-    # Find the index of the closest depth in the velocity model
-    idx = np.argmin(np.abs(velocity_model["depth_km"] - source_depth_km))
-    vs_km_per_s = velocity_model.iloc[idx]["Vs"]
-    rho_g_per_cm3 = velocity_model.iloc[idx]["rho"]
-
-    return calc_point_source_slip(
-        moment_dyne_cm,
-        fault_area_km2,
-        rho_g_per_cm3,
-        vs_km_per_s,
-    )
-
-
-def calc_point_source_slip(
-    moment_dyne_cm: float,
-    fault_area_km2: float,
-    rho_g_per_cm3: float,
-    vs_km_per_s: float,
-) -> float:
-    """Calculate slip for a point source.
-
-    This calculation is the same as in the old workflow:
-    https://github.com/ucgmsim/Pre-processing/blob/6572ea8be0963da4f7ac6a503ab07dd2519296e5/srf_generation/input_file_generation/realisation_to_srf.py#L321C9-L321C57
-
-    Parameters
-    ----------
-    moment_dyne_cm : float
-        The seismic moment in dyne-cm.
-    fault_area_km2 : float
-        The area of the fault in square kilometers.
-    rho_g_per_cm3 : float
-        The density of the fault in grams per cubic centimeter.
-    vs_km_per_s : float
-        The shear wave velocity in kilometers per second.
-
-    Returns
-    -------
-    float
-        The calculated slip in cm.
-    """
-
-    # The factor of 1.0e-20 converts the combination of input units to cm.
-    return (moment_dyne_cm * 1.0e-20) / (
-        fault_area_km2 * rho_g_per_cm3 * vs_km_per_s**2
-    )
-
-
 def generate_point_source_srf(
     name: str,
     params: SRFRealisationContext,
@@ -620,7 +542,22 @@ def generate_point_source_srf(
 
     resolution = params.srf_config.resolution
 
-    slip = calc_point_source_slip_wrapper(params, name)
+    # Get magnitude and convert to seismic moment
+    magnitude = params.magnitudes.magnitudes[name]
+    moment_dyne_cm = mag_scaling.mag2mom(magnitude)
+
+    velocity_model_df = params.velocity_model_1d.model
+    velocity_model_df["depth_km"] = velocity_model_df["thickness"].cumsum()
+
+    # Get the source depth
+    # divide by 1000 to convert depth from meters to kilometers
+    source_depth_km = params.source_config.source_geometries[name].centroid[2] / 1000
+
+    fault_area_km2 = (params.source_config.source_geometries[name].length_m / 1000) ** 2
+
+    slip = moment.calc_point_source_slip(
+        moment_dyne_cm, fault_area_km2, velocity_model_df, source_depth_km
+    )
 
     gsf_file_path = generate_fault_gsf(
         name,
@@ -679,12 +616,11 @@ def generate_srf(
         "/out"
     ),
     genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
-        # "/EMOD3D/tools/genslip_v5.4.2"
-        "/home/arr65/src/EMOD3D/tools/genslip_v5.4.2"
+        "/EMOD3D/tools/genslip_v5.4.2"
     ),
     generic_slip2srf_path: Annotated[
         Path, typer.Option(readable=True, dir_okay=False)
-    ] = Path("/home/arr65/src/EMOD3D/tools/generic_slip2srf"),
+    ] = Path("/EMOD3D/tools/generic_slip2srf"),
     single_threaded: Annotated[bool, typer.Option()] = False,
 ) -> None:
     """Generate an SRF file from a given realisation specification.
@@ -771,7 +707,3 @@ def generate_srf(
 
         realisations.append_log_entry(realisation_ffp)
         srf_config.write_to_realisation(realisation_ffp)
-
-
-if __name__ == "__main__":
-    app()
