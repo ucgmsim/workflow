@@ -1,5 +1,5 @@
 [[copy_input]]
         script = """
-               mkdir -p {% for realisation in realisations %}$CYLC_WORKFLOW_SHARE_DIR/{{realisation[0]}}{% if realisation[1] %}_{{realisation[1]}}{% endif %}{% endfor %}
+               mkdir -p {% for realisation in realisations %}$CYLC_WORKFLOW_SHARE_DIR/{{realisation[0]}}{% if realisation[1] %}_{{realisation[1]}}{% endif %} {% endfor %}
                [[ ! -d $CYLC_WORKFLOW_RUN_DIR/input ]] || cp -rn $CYLC_WORKFLOW_RUN_DIR/input/. $CYLC_WORKFLOW_SHARE_DIR
         """
