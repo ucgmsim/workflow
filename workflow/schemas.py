@@ -284,6 +284,8 @@ SOURCE_SCHEMA = Schema(
     {"source_geometries": {str: Or(POINT_SCHEMA, PLANE_SCHEMA, FAULT_SCHEMA)}}
 )
 
+ALLOWED_STYPE_VALUES = {"esg2006", "urs", "ucsb", "ucsb2", "ucsb-T", "ucsb-varT1", "cos", "seki"}
+
 SRF_SCHEMA = Schema(
     {
         Literal(
@@ -296,7 +298,10 @@ SRF_SCHEMA = Schema(
         Literal("resolution", description="Subdivision resolution."): And(
             float, _is_positive
         ),
-        Literal("stype", description="Slip type for generic_slip2srf"): Or(None, str),
+        Literal("stype", description="Slip type for generic_slip2srf"): Or(
+            None, 
+            And(str, lambda s: s in ALLOWED_STYPE_VALUES)
+        ),
         Literal("risetime", description="Rise time for generic_slip2srf"): Or(
             None,
             And(
