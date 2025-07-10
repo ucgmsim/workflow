@@ -219,7 +219,7 @@ def gcmt_to_realisation(
 
         if magnitude < 5.0:
             warnings.warn(
-                "The point source approximation models the fault as a small square,"
+                "The point source approximation models the fault as a small square "
                 "(with equal length and width) using the Leonard magnitude-area "
                 "scaling relation. However, for Mw < 5, such as this case "
                 f"with Mw = {magnitude}, the (not yet implemented) separate Leonard length "

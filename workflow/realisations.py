@@ -35,13 +35,13 @@ from workflow.defaults import DefaultsVersion
 
 
 class Stype(StrEnum):
-    esg2006 = ("esg2006",)
-    urs = ("urs",)
-    ucsb = ("ucsb",)
-    ucsb2 = ("ucsb2",)
-    ucsb_T = ("ucsb-T",)
-    ucsb_varT1 = ("ucsb-varT1",)
-    cos = ("cos",)
+    esg2006 = "esg2006"
+    urs = "urs"
+    ucsb = "ucsb"
+    ucsb2 = "ucsb2"
+    ucsb_T = "ucsb-T"
+    ucsb_varT1 = "ucsb-varT1"
+    cos = "cos"
     seki = "seki"
 
 
