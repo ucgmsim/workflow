@@ -300,7 +300,7 @@ SRF_SCHEMA = Schema(
         ),
         Literal("stype", description="Slip type for generic_slip2srf"): Or(
             None, 
-            And(str, lambda s: s in ALLOWED_STYPE_VALUES)
+            Use(Stype)
         ),
         Literal("risetime", description="Rise time for generic_slip2srf"): Or(
             None,
