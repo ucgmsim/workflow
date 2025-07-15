@@ -47,10 +47,6 @@ class Stype(StrEnum):
     seki = "seki"
 
 
-# Map the string representation of the stype to the Stype enum.
-stype_enum_mapping = {member.value: member for member in Stype}
-
-
 def to_name_coordinate_dictionary(
     coordinate_array: npt.NDArray[np.float64],
     coordinate_names: list[str] = ["latitude", "longitude", "depth"],
