@@ -681,29 +681,23 @@ def generate_srf(
 
     srf_name = normalise_name(metadata.name)
 
-    for name, geometry in params.source_config.source_geometries.items():
-        if isinstance(geometry, Fault):
-            generate_fault_srfs_multi(
-                source_config.source_geometries,
-                params,
-                environment,
-                single_threaded=single_threaded,
-            )
+    generate_fault_srfs_multi(
+        source_config.source_geometries,
+        params,
+        environment,
+        single_threaded=single_threaded,
+    )
+    srf_name = normalise_name(metadata.name)
+    stitch_srf_files(
+        source_config.source_geometries,
+        rupture_propagation,
+        work_directory,
+        srf_name,
+    )
+    srf_config.write_to_realisation(realisation_ffp)
 
-            stitch_srf_files(
-                source_config.source_geometries,
-                rupture_propagation,
-                work_directory,
-                srf_name,
-            )
-
-            shutil.copyfile(work_directory / (srf_name + ".srf"), output_srf_filepath)
-
-        else:
-            generate_point_source_srf(name, params, environment, output_srf_filepath)
-
-        realisations.append_log_entry(realisation_ffp)
-        srf_config.write_to_realisation(realisation_ffp)
+    shutil.copyfile(work_directory / (srf_name + ".srf"), output_srf_filepath)
+    realisations.append_log_entry(realisation_ffp)
 
 
 if __name__ == "__main__":
