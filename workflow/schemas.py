@@ -6,6 +6,8 @@ the [Realisations page](https://github.com/ucgmsim/workflow/wiki/Realisations), 
 for a description of realisations and the schemas.
 """
 
+from enum import StrEnum
+
 import numpy as np
 import pandas as pd
 from schema import And, Literal, Optional, Or, Schema, Use
@@ -36,6 +38,19 @@ from workflow.defaults import DefaultsVersion
 # from the library.
 #
 # Accordingly, the most trivial of these functions lack docstrings.
+
+
+class Stype(StrEnum):
+    """Options for slip time function (stype) in generic_slip2srf."""
+
+    esg2006 = "esg2006"
+    urs = "urs"
+    ucsb = "ucsb"
+    ucsb2 = "ucsb2"
+    ucsb_T = "ucsb-T"  # noqa: N815
+    ucsb_varT1 = "ucsb-varT1"  # noqa: N815
+    cos = "cos"
+    seki = "seki"
 
 
 def _is_positive(x: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
@@ -284,7 +299,6 @@ SOURCE_SCHEMA = Schema(
     {"source_geometries": {str: Or(POINT_SCHEMA, PLANE_SCHEMA, FAULT_SCHEMA)}}
 )
 
-ALLOWED_STYPE_VALUES = {"esg2006", "urs", "ucsb", "ucsb2", "ucsb-T", "ucsb-varT1", "cos", "seki"}
 
 SRF_SCHEMA = Schema(
     {
@@ -299,30 +313,19 @@ SRF_SCHEMA = Schema(
             float, _is_positive
         ),
         Literal("stype", description="Slip type for generic_slip2srf"): Or(
-            None, 
-            Use(Stype)
+            None, Use(Stype)
         ),
         Literal("risetime", description="Rise time for generic_slip2srf"): Or(
-            None,
-            And(
-                float, _is_positive
-            )
+            None, And(float, _is_positive)
         ),
-        Literal(
-            "risetimefac", description="Rise time factor for generic_slip2srf"
-        ): Or(
-            None,
-            And(float, _is_positive)
+        Literal("risetimefac", description="Rise time factor for generic_slip2srf"): Or(
+            None, And(float, _is_positive)
         ),
         Literal(
             "risetimedep", description="Rise time depth dependency for generic_slip2srf"
-        ): Or(None,
-              And(float, _is_non_negative)
-        ),
+        ): Or(None, And(float, _is_non_negative)),
         Literal("inittime", description="Initial time for generic_slip2srf"): Or(
-            None,
-            And(
-            float, _is_non_negative)
+            None, And(float, _is_non_negative)
         ),
     }
 )

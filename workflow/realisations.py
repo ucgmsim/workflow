@@ -16,7 +16,6 @@ import random
 import struct
 import sys
 from abc import ABC
-from enum import StrEnum
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Optional, Self, Union
 
@@ -32,19 +31,6 @@ from source_modelling.sources import IsSource
 from velocity_modelling.bounding_box import BoundingBox
 from workflow import defaults, schemas
 from workflow.defaults import DefaultsVersion
-
-
-class Stype(StrEnum):
-    """Options for slip time function (stype) in generic_slip2srf."""
-
-    esg2006 = "esg2006"
-    urs = "urs"
-    ucsb = "ucsb"
-    ucsb2 = "ucsb2"
-    ucsb_T = "ucsb-T"  # noqa: N815
-    ucsb_varT1 = "ucsb-varT1"  # noqa: N815
-    cos = "cos"
-    seki = "seki"
 
 
 def to_name_coordinate_dictionary(
@@ -378,7 +364,7 @@ class SRFConfig(RealisationConfiguration):
     """The resolution of the SRF geometry"""
 
     # The following attributes are only used for the point source approximation
-    stype: Optional[Stype] = None
+    stype: Optional[schemas.Stype] = None
     """Slip type for generic_slip2srf"""
 
     risetime: Optional[float] = None

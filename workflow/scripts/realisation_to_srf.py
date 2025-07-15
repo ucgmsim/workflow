@@ -616,11 +616,11 @@ def generate_srf(
         "/out"
     ),
     genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
-        "/EMOD3D/tools/genslip_v5.4.2"
+        "/home/arr65/src/EMOD3D/tools/genslip_v5.4.2"
     ),
     generic_slip2srf_path: Annotated[
         Path, typer.Option(readable=True, dir_okay=False)
-    ] = Path("/EMOD3D/tools/generic_slip2srf"),
+    ] = Path("/home/arr65/src/EMOD3D/tools/generic_slip2srf"),
     single_threaded: Annotated[bool, typer.Option()] = False,
 ) -> None:
     """Generate an SRF file from a given realisation specification.
@@ -651,9 +651,6 @@ def generate_srf(
     srf_config = SRFConfig.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
-    # Map the string representation of the stype to the Stype enum.
-    if srf_config.stype is not None:
-        srf_config.stype = realisations.stype_enum_mapping[srf_config.stype]
 
     seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
     rupture_propagation = RupturePropagationConfig.read_from_realisation(
@@ -707,3 +704,7 @@ def generate_srf(
 
         realisations.append_log_entry(realisation_ffp)
         srf_config.write_to_realisation(realisation_ffp)
+
+
+if __name__ == "__main__":
+    app()
