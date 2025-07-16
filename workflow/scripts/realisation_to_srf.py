@@ -55,7 +55,7 @@ from scipy.sparse import csr_array
 from qcore import cli, coordinates
 from qcore.uncertainties import mag_scaling
 from source_modelling import gsf, moment, rupture_propagation, srf
-from source_modelling.sources import Fault, IsSource
+from source_modelling.sources import IsSource, Point
 from workflow import log_utils, realisations, utils
 from workflow.log_utils import log_call
 from workflow.realisations import (
@@ -498,9 +498,20 @@ def generate_fault_srfs_multi(
     environment.srf_directory.mkdir(exist_ok=True)
     environment.gsf_directory.mkdir(exist_ok=True)
     params.velocity_model_1d.write_velocity_model(environment.velocity_model_path)
+
+    # In practice, a Point source will be the only item in `faults`, so if there
+    # is a Point source, restrict to `single_threaded` mode for simplicity.
+    for name in faults:
+        if isinstance(faults[name], Point):
+            single_threaded = True
+            break
+
     if single_threaded:
         for name in faults:
-            generate_fault_srf(name, params, environment)
+            if isinstance(faults[name], Point):
+                generate_point_source_srf(name, params, environment)
+            else:
+                generate_fault_srf(name, params, environment)
     else:
         with multiprocessing.Pool(utils.get_available_cores()) as worker_pool:
             worker_pool.map(
@@ -515,7 +526,6 @@ def generate_point_source_srf(
     name: str,
     params: SRFRealisationContext,
     environment: SRFEnvironmentContext,
-    output_srf_filepath: Path,
 ) -> None:
     """Generate an SRF file for a given fault.
 
@@ -527,8 +537,6 @@ def generate_point_source_srf(
         The SRF realisation context to use.
     environment : SRFEnvironmentContext
         The SRF environment context to use.
-    output_srf_filepath : Path
-        The output SRF file path.
 
     Returns
     -------
@@ -572,7 +580,7 @@ def generate_point_source_srf(
     generic_slip2srf_cmd = [
         str(environment.generic_slip2srf_path),
         f"infile={gsf_file_path}",
-        f"outfile={output_srf_filepath}",
+        f"outfile={environment.srf_directory / (normalise_name(name) + '.srf')}",
         "outbin=0",
         f"stype={params.srf_config.stype}",
         f"dt={params.srf_config.genslip_dt}",
@@ -585,24 +593,23 @@ def generate_point_source_srf(
     logger = log_utils.get_logger(__name__)
     logger.info("executing command", cmd=" ".join(generic_slip2srf_cmd))
 
-    with open(output_srf_filepath, "w", encoding="utf-8") as srf_file_handle:
-        try:
-            proc = subprocess.run(
-                generic_slip2srf_cmd,
-                stdout=srf_file_handle,
-                stderr=subprocess.PIPE,
-                check=True,
-            )
+    # generic_slip2srf writes the file directly so there is no need to open a file handle
+    try:
+        proc = subprocess.run(
+            generic_slip2srf_cmd,
+            stderr=subprocess.PIPE,
+            check=True,
+        )
 
-        except subprocess.CalledProcessError as e:
-            logger.error(
-                "failed",
-                exception=e.output.decode("utf-8"),
-                code=e.returncode,
-                stderr=e.stderr.decode("utf-8"),
-            )
-            raise
-        logger.info("command completed", stderr=proc.stderr.decode("utf-8"))
+    except subprocess.CalledProcessError as e:
+        logger.error(
+            "failed",
+            exception=e.output.decode("utf-8"),
+            code=e.returncode,
+            stderr=e.stderr.decode("utf-8"),
+        )
+        raise
+    logger.info("command completed", stderr=proc.stderr.decode("utf-8"))
 
 
 @cli.from_docstring(app)
@@ -679,8 +686,6 @@ def generate_srf(
         seeds=seeds,
     )
 
-    srf_name = normalise_name(metadata.name)
-
     generate_fault_srfs_multi(
         source_config.source_geometries,
         params,
@@ -688,17 +693,24 @@ def generate_srf(
         single_threaded=single_threaded,
     )
     srf_name = normalise_name(metadata.name)
-    stitch_srf_files(
-        source_config.source_geometries,
-        rupture_propagation,
-        work_directory,
-        srf_name,
-    )
+    # `stitch_srf_files` changes the slip value even if there is only one source
+    # (like when using a Point source approximation). Therefore, `stitch_srf_files` is
+    # only used if there are multiple sources.
+    # Otherwise, we just copy the one SRF file to the output directory.
+    if len(source_config.source_geometries) > 1:
+        stitch_srf_files(
+            source_config.source_geometries,
+            rupture_propagation,
+            work_directory,
+            srf_name,
+        )
+    else:
+        shutil.copyfile(
+            work_directory / "srf" / (srf_name + ".srf"),
+            work_directory / (srf_name + ".srf"),
+        )
+
     srf_config.write_to_realisation(realisation_ffp)
 
     shutil.copyfile(work_directory / (srf_name + ".srf"), output_srf_filepath)
     realisations.append_log_entry(realisation_ffp)
-
-
-if __name__ == "__main__":
-    app()
