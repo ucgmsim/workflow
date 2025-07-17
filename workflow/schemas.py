@@ -229,6 +229,9 @@ POINT_SCHEMA = Schema(
             Literal("length", description="The pseudo-length of the point source"): And(
                 float, _is_positive
             ),
+            Literal("width", description="The pseudo-width of the point source"): And(
+                float, _is_positive
+            ),
             Literal(
                 "strike", description="The strike bearing of the point source"
             ): And(float, _is_valid_bearing),
@@ -243,6 +246,7 @@ POINT_SCHEMA = Schema(
             lambda schema: sources.Point.from_lat_lon_depth(
                 schema["coordinates"],
                 length_m=schema["length"],
+                width_m=schema["width"],
                 strike=schema["strike"],
                 dip=schema["dip"],
                 dip_dir=schema["dip_dir"],

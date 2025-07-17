@@ -212,27 +212,38 @@ def gcmt_to_realisation(
     # Create source based on source_type parameter
     if source_type == SourceType.POINT_SOURCE:
         # Create point source
-        # Calculate area using scaling relation and take square root for length_m
-        area_km2 = magnitude_scaling.magnitude_to_area(
-            scaling_relation, magnitude, rake
-        )
-
-        if magnitude < 5.0:
+        magnitude_threshold = 5.0
+        if magnitude < magnitude_threshold:
             warnings.warn(
-                "The point source approximation models the fault as a small square "
-                "(with equal length and width) using the Leonard magnitude-area "
-                "scaling relation. However, for Mw < 5, such as this case "
-                f"with Mw = {magnitude}, the (not yet implemented) separate Leonard length "
-                "and width scaling relations may be more appropriate."
+                "Using a rectangular source (different length and width) as "
+                f"Mw of {magnitude} is < than {magnitude_threshold}"
             )
 
-        length_m = np.sqrt(area_km2) * 1000  # Convert km to meters
+            length_km, width_km = magnitude_scaling.magnitude_to_length_width(
+                scaling_relation, magnitude, rake
+            )
+            length_m = length_km * 1000  # Convert km to meters
+            width_m = width_km * 1000  # Convert km to meters
+
+        else:
+            # Approximate the Point source as a square with equal length and width
+            warnings.warn(
+                "Using a square source (same length and width) as "
+                f"Mw of {magnitude} is ≥ than {magnitude_threshold}"
+            )
+            area_km2 = magnitude_scaling.magnitude_to_area(
+                scaling_relation, magnitude, rake
+            )
+
+            length_m = np.sqrt(area_km2) * 1000  # Convert km to meters
+            width_m = length_m  # For point source, length and width are equal
 
         source_geometry = sources.Point.from_lat_lon_depth(
             point_coordinates=np.array(
                 [latitude, longitude, centroid_depth * 1000]
             ),  # Convert km to meters
             length_m=length_m,  # Use calculated length from area
+            width_m=width_m,  # Use calculated width from area
             strike=selected_nodal_plane.strike,
             dip=selected_nodal_plane.dip,
             dip_dir=dip_direction,

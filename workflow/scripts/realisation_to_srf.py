@@ -623,11 +623,11 @@ def generate_srf(
         "/out"
     ),
     genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
-        "/home/arr65/src/EMOD3D/tools/genslip_v5.4.2"
+        "/EMOD3D/tools/genslip_v5.4.2"
     ),
     generic_slip2srf_path: Annotated[
         Path, typer.Option(readable=True, dir_okay=False)
-    ] = Path("/home/arr65/src/EMOD3D/tools/generic_slip2srf"),
+    ] = Path("/EMOD3D/tools/generic_slip2srf"),
     single_threaded: Annotated[bool, typer.Option()] = False,
 ) -> None:
     """Generate an SRF file from a given realisation specification.

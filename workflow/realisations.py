@@ -331,6 +331,7 @@ class SourceConfig(RealisationConfiguration):
                     "type": "point",
                     "coordinates": to_name_coordinate_dictionary(geometry.coordinates),
                     "length": geometry.length_m,
+                    "width": geometry.width_m,
                     "strike": geometry.strike,
                     "dip": geometry.dip,
                     "dip_dir": geometry.dip_dir,
