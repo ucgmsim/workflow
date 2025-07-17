@@ -623,11 +623,11 @@ def generate_srf(
         "/out"
     ),
     genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
-        "/EMOD3D/tools/genslip_v5.4.2"
+        "/home/arr65/src/EMOD3D/tools/genslip_v5.4.2"
     ),
     generic_slip2srf_path: Annotated[
         Path, typer.Option(readable=True, dir_okay=False)
-    ] = Path("/EMOD3D/tools/generic_slip2srf"),
+    ] = Path("/home/arr65/src/EMOD3D/tools/generic_slip2srf"),
     single_threaded: Annotated[bool, typer.Option()] = False,
 ) -> None:
     """Generate an SRF file from a given realisation specification.
@@ -693,23 +693,12 @@ def generate_srf(
         single_threaded=single_threaded,
     )
     srf_name = normalise_name(metadata.name)
-    # `stitch_srf_files` changes the slip value even if there is only one source
-    # (like when using a Point source approximation). Therefore, `stitch_srf_files` is
-    # only used if there are multiple sources.
-    # Otherwise, we just copy the one SRF file to the output directory.
-    if len(source_config.source_geometries) > 1:
-        stitch_srf_files(
-            source_config.source_geometries,
-            rupture_propagation,
-            work_directory,
-            srf_name,
-        )
-    else:
-        shutil.copyfile(
-            work_directory / "srf" / (srf_name + ".srf"),
-            work_directory / (srf_name + ".srf"),
-        )
-
+    stitch_srf_files(
+        source_config.source_geometries,
+        rupture_propagation,
+        work_directory,
+        srf_name,
+    )
     srf_config.write_to_realisation(realisation_ffp)
 
     shutil.copyfile(work_directory / (srf_name + ".srf"), output_srf_filepath)
