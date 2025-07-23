@@ -58,18 +58,18 @@ def get_logger(name: str) -> structlog.BoundLogger:
 
 
 def log_call(
-    action_name: Optional[str] = None,
-    exclude_args: Optional[Iterable[str]] = None,
+    action_name: str | None = None,
+    exclude_args: Iterable[str] | None = None,
     include_result: bool = True,
 ) -> Callable:
     """Wrap a function with logging calls of the arguments and success status.
 
     Parameters
     ----------
-    action_name : Optional[str]
+    action_name : str | None
         An alternative identifier for the function in the log output.
         If None, will use `f.__name__` as the identifier.
-    exclude_args : Optional[Iterable[str]]
+    exclude_args : Iterable[str] | None
         Arguments to exclude from log reports.
     include_result : bool
         If True, log the result of function call.

@@ -135,9 +135,9 @@ class Stage:
 
     identifier: StageIdentifier
     """The stage identifier."""
-    event: Optional[str]
+    event: str | None
     """The event the stage is running for."""
-    sample: Optional[int]
+    sample: int | None
     """The sample number of the realisation."""
 
     @property
@@ -146,8 +146,8 @@ class Stage:
         return self.__class__(self.identifier, self.event, None)
 
     @property
-    def directory(self) -> Optional[PurePath]:  # numpydoc ignore=RT01
-        """Optional[PurePath]: the directory for this stage."""
+    def directory(self) -> PurePath | None:  # numpydoc ignore=RT01
+        """PurePath: the directory for this stage."""
         if not self.event:
             return None
         directory = self.event
@@ -310,7 +310,7 @@ def stage_outputs(
     return file_outputs
 
 
-def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
+def realisation_workflow(event: str, sample: int | None) -> nx.DiGraph:
     """Add a realisation to a workflow plan.
 
     Adds all stages for the realisation to run, and links to event
@@ -320,7 +320,7 @@ def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
     ----------
     event : str
         The event to add.
-    sample : Optional[int]
+    sample : int or None
         The sample number (or None, if the original event).
 
     Returns
@@ -463,7 +463,7 @@ def realisation_workflow(event: str, sample: Optional[int]) -> nx.DiGraph:
 
 
 def create_abstract_workflow_plan(
-    realisations: set[tuple[str, Optional[int]]],
+    realisations: set[tuple[str, int | None]],
     goals: Iterable[StageIdentifier],
     excluding: Iterable[StageIdentifier],
 ) -> nx.DiGraph:
@@ -471,7 +471,7 @@ def create_abstract_workflow_plan(
 
     Parameters
     ----------
-    realisations : set[tuple[str, Optional[int]]]
+    realisations : set[tuple[str, int | None]]
         The realisations to generate the workflow for.
     goals : Iterable[StageIdentifier]
         The goal stages for the workflow.
@@ -571,7 +571,7 @@ def pyvis_graph(workflow_plan: nx.DiGraph) -> Network:
     return network
 
 
-def parse_realisation(realisation_id: str) -> set[tuple[str, Optional[int]]]:
+def parse_realisation(realisation_id: str) -> set[tuple[str, int | None]]:
     """Parse a realisation identifier string from the command line into a realisation identifier.
 
     Parameters
@@ -581,7 +581,7 @@ def parse_realisation(realisation_id: str) -> set[tuple[str, Optional[int]]]:
 
     Returns
     -------
-    tuple[str, Optional[int]]
+    tuple[str, int | None]
         The parsed realisation event and sample number.
     """
     try:
