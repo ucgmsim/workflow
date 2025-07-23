@@ -544,6 +544,9 @@ def generate_point_source_srf(
         This function does not return a value; it writes the SRF file to disk.
     """
 
+    if params.srf_config.point_source_params is None:
+        raise ValueError(f"Point source parameters are required for generating SRF for fault '{name}'")
+
     environment.gsf_directory.mkdir(parents=True, exist_ok=True)
 
     fault = params.source_config.source_geometries[name]
@@ -574,7 +577,7 @@ def generate_point_source_srf(
         environment.gsf_directory,
         resolution,
         slip,
-        init_time=params.srf_config.inittime,
+        init_time=params.srf_config.point_source_params.inittime,
     )
 
     generic_slip2srf_cmd = [
@@ -582,12 +585,12 @@ def generate_point_source_srf(
         f"infile={gsf_file_path}",
         f"outfile={environment.srf_directory / (normalise_name(name) + '.srf')}",
         "outbin=0",
-        f"stype={params.srf_config.stype}",
+        f"stype={params.srf_config.point_source_params.stype}",
         f"dt={params.srf_config.genslip_dt}",
         "plane_header=1",
-        f"risetime={params.srf_config.risetime}",
-        f"risetimefac={params.srf_config.risetimefac}",
-        f"risetimedep={params.srf_config.risetimedep}",
+        f"risetime={params.srf_config.point_source_params.risetime}",
+        f"risetimefac={params.srf_config.point_source_params.risetimefac}",
+        f"risetimedep={params.srf_config.point_source_params.risetimedep}",
     ]
 
     logger = log_utils.get_logger(__name__)

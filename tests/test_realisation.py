@@ -97,6 +97,13 @@ def test_srf_config_example(tmp_path: Path) -> None:
         genslip_dt=1.0,
         genslip_version="5.4.2",
         resolution=0.1,
+        point_source_params=realisations.PointSourceParams(
+            stype=realisations.schemas.Stype.cos,
+            risetime=0.5,
+            risetimefac=1.0,
+            risetimedep=0.0,
+            inittime=0.0,
+        ),
     )
 
     realisation_ffp = tmp_path / "realisation.json"
@@ -120,11 +127,13 @@ def test_srf_config_example(tmp_path: Path) -> None:
                 "genslip_dt": 1.0,
                 "resolution": 0.1,
                 "genslip_version": "5.4.2",
-                "stype": None,
-                "risetime": None,
-                "risetimefac": None,
-                "risetimedep": None,
-                "inittime": None,
+                "point_source_params": {
+                    "stype": "cos",
+                    "risetime": 0.5,
+                    "risetimefac": 1.0,
+                    "risetimedep": 0.0,
+                    "inittime": 0.0,
+                },
             },
         }
 

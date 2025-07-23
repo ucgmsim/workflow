@@ -304,6 +304,25 @@ SOURCE_SCHEMA = Schema(
 )
 
 
+POINT_SOURCE_PARAMS_SCHEMA = Schema(
+    {
+        Literal("stype", description="Slip time function for generic_slip2srf"): Use(Stype),
+        Literal("risetime", description="Rise time for generic_slip2srf"): And(
+            float, _is_positive
+        ),
+        Literal("risetimefac", description="Rise time factor for generic_slip2srf"): And(
+            float, _is_positive
+        ),
+        Literal(
+            "risetimedep", description="Rise time depth dependency for generic_slip2srf"
+        ): And(float, _is_non_negative),
+        Literal("inittime", description="Initial time for generic_slip2srf"): And(
+            float, _is_non_negative
+        ),
+    }
+)
+
+
 SRF_SCHEMA = Schema(
     {
         Literal(
@@ -316,21 +335,12 @@ SRF_SCHEMA = Schema(
         Literal("resolution", description="Subdivision resolution."): And(
             float, _is_positive
         ),
-        Literal("stype", description="Slip type for generic_slip2srf"): Or(
-            None, Use(Stype)
-        ),
-        Literal("risetime", description="Rise time for generic_slip2srf"): Or(
-            None, And(float, _is_positive)
-        ),
-        Literal("risetimefac", description="Rise time factor for generic_slip2srf"): Or(
-            None, And(float, _is_positive)
-        ),
-        Literal(
-            "risetimedep", description="Rise time depth dependency for generic_slip2srf"
-        ): Or(None, And(float, _is_non_negative)),
-        Literal("inittime", description="Initial time for generic_slip2srf"): Or(
-            None, And(float, _is_non_negative)
-        ),
+        Optional(
+            Literal(
+                "point_source_params",
+                description="Parameters for point source approximation, if applicable",
+            )
+        ): Or(None, POINT_SOURCE_PARAMS_SCHEMA),
     }
 )
 

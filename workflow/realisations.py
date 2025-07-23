@@ -348,6 +348,24 @@ class SourceConfig(RealisationConfiguration):
                 }
         return {"source_geometries": config_dict}
 
+@dataclasses.dataclass
+class PointSourceParams():
+    """Parameters for point source approximation."""
+
+    stype: schemas.Stype
+    """Slip type for generic_slip2srf"""
+
+    risetime: float
+    """Rise time for generic_slip2srf"""
+
+    risetimefac: float
+    """Rise time factor for generic_slip2srf"""
+
+    risetimedep: float
+    """Rise time depth dependency for generic_slip2srf"""
+
+    inittime: float
+    """Initial time for generic_slip2srf"""
 
 @dataclasses.dataclass
 class SRFConfig(RealisationConfiguration):
@@ -363,23 +381,35 @@ class SRFConfig(RealisationConfiguration):
     """The version of genslip to use (currently supports "5.4.2")."""
     resolution: float
     """The resolution of the SRF geometry"""
+    
+    point_source_params: PointSourceParams | None
+    """Parameters for point source approximation, if applicable."""
 
-    # The following attributes are only used for the point source approximation
-    stype: Optional[schemas.Stype] = None
-    """Slip type for generic_slip2srf"""
+    def __post_init__(self) -> None:
+        """Post-initialization to convert point_source_params dict to PointSourceParams instance."""
+        if (
+            self.point_source_params is not None
+            and isinstance(self.point_source_params, dict)
+        ):
+            self.point_source_params = PointSourceParams(**self.point_source_params)
 
-    risetime: Optional[float] = None
-    """Rise time for generic_slip2srf"""
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the object to a dictionary representation.
 
-    risetimefac: Optional[float] = None
-    """Rise time factor for generic_slip2srf"""
-
-    risetimedep: Optional[float] = None
-    """Rise time depth dependency for generic_slip2srf"""
-
-    inittime: Optional[float] = None
-    """Initial time for generic_slip2srf"""
-
+        Returns
+        -------
+        dict
+            Dictionary representation of the object.
+        """
+        config_dict = {
+            "genslip_dt": self.genslip_dt,
+            "genslip_version": self.genslip_version,
+            "resolution": self.resolution,
+        }
+        if self.point_source_params is not None:
+            config_dict["point_source_params"] = dataclasses.asdict(self.point_source_params)
+        return config_dict
 
 @dataclasses.dataclass
 class Rakes(RealisationConfiguration):
