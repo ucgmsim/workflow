@@ -53,7 +53,6 @@ import typer
 from scipy.sparse import csr_array
 
 from qcore import cli, coordinates
-from qcore.uncertainties import mag_scaling
 from source_modelling import gsf, moment, rupture_propagation, srf
 from source_modelling.sources import IsSource, Point
 from workflow import log_utils, realisations, utils
@@ -123,7 +122,7 @@ def generate_fault_gsf(
     Returns
     -------
     Path
-        The path to the generated GSF file. 
+        The path to the generated GSF file.
         Will create required directories if they do not exist.
     """
     gsf_output_filepath = gsf_output_directory / f"{normalise_name(name)}.gsf"
@@ -547,7 +546,9 @@ def generate_point_source_srf(
     """
 
     if params.srf_config.point_source_params is None:
-        raise ValueError(f"Point source parameters are required for generating SRF for fault '{name}'")
+        raise ValueError(
+            f"Point source parameters are required for generating SRF for fault '{name}'"
+        )
 
     environment.gsf_directory.mkdir(parents=True, exist_ok=True)
 
@@ -557,8 +558,7 @@ def generate_point_source_srf(
 
     # Get magnitude and convert to seismic moment
     magnitude = params.magnitudes.magnitudes[name]
-    moment_dyne_cm = mag_scaling.mag2mom(magnitude)
-    moment_newton_metre = moment.dyne_cm_to_newton_metre(moment_dyne_cm)
+    moment_newton_metre = moment.magnitude_to_moment(magnitude)
 
     velocity_model_df = params.velocity_model_1d.model
     velocity_model_df["depth_km"] = velocity_model_df["thickness"].cumsum()
