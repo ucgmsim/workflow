@@ -123,7 +123,8 @@ def generate_fault_gsf(
     Returns
     -------
     Path
-        The path to the generated GSF file.
+        The path to the generated GSF file. 
+        Will create required directories if they do not exist.
     """
     gsf_output_filepath = gsf_output_directory / f"{normalise_name(name)}.gsf"
     gsf_df = gsf.source_to_gsf_dataframe(geometry, subdivision_resolution)
@@ -132,6 +133,7 @@ def generate_fault_gsf(
         gsf_df["slip"] = slip
     if init_time is not None:
         gsf_df["init_time"] = init_time
+    gsf_output_filepath.parent.mkdir(parents=True, exist_ok=True)
     gsf.write_gsf(gsf_df, gsf_output_filepath)
     return gsf_output_filepath
 
@@ -556,6 +558,7 @@ def generate_point_source_srf(
     # Get magnitude and convert to seismic moment
     magnitude = params.magnitudes.magnitudes[name]
     moment_dyne_cm = mag_scaling.mag2mom(magnitude)
+    moment_newton_metre = moment.dyne_cm_to_newton_metre(moment_dyne_cm)
 
     velocity_model_df = params.velocity_model_1d.model
     velocity_model_df["depth_km"] = velocity_model_df["thickness"].cumsum()
@@ -566,8 +569,8 @@ def generate_point_source_srf(
 
     fault_area_km2 = (params.source_config.source_geometries[name].length_m / 1000) ** 2
 
-    slip = moment.calc_point_source_slip(
-        moment_dyne_cm, fault_area_km2, velocity_model_df, source_depth_km
+    slip = moment.point_source_slip(
+        moment_newton_metre, fault_area_km2, velocity_model_df, source_depth_km
     )
 
     gsf_file_path = generate_fault_gsf(
