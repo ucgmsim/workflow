@@ -5,3 +5,7 @@
         """
         [[[directives]]]
                 --account = nesi00213
+        [[[environment]]]
+                {% for var, value in environment.items() -%}
+                {{var}} = "{{value}}"
+                {% endfor -%}

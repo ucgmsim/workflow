@@ -1,0 +1,122 @@
+[nshm_to_realisation]
+parameters = ["event", "realisation"]
+provides_config = [
+  "source_config",
+  "rupture_propagation",
+  "rakes",
+  "magnitudes",
+  "metadata",
+]
+
+[gcmt_to_realisation]
+parameters = ["event", "realisation"]
+provides_config = [
+  "source_config",
+  "rupture_propagation",
+  "rakes",
+  "magnitudes",
+  "metadata",
+]
+
+[create_e3d_par]
+parameters = ["event", "realisation"]
+requires_files = [
+  "realisation.srf",
+  "Velocity_Model/rho3dfile.d",
+  "Velocity_Model/vs3dfile.s",
+  "Velocity_Model/vp3dfile.p",
+  "stations/stations.ll",
+  "stations/stations.statcords",
+]
+requires_config = ["domain_parameters", "velocity_model_parameters", "metadata"]
+provides_config = ["emod3d_parameters"]
+provides_files = ["LF/e3d.par"]
+
+[bb_sim]
+parameters = ["event", "realisation"]
+requires_config = ["metadata", "domain_parameters"]
+requires_files = [
+  "realisation.lf",
+  "realisation.hf",
+  "Velocity_Model/vs3dfile.s",
+]
+provides_config = ["broadband_parameters"]
+provides_files = ["realisation.bb"]
+
+[generate_velocity_model]
+parameters = ["event"]
+requires_config = ["domain_parameters", "metadata"]
+provides_config = ["velocity_model_parameters"]
+provides_files = [
+  "velocity_model/rho3dfile.d",
+  "velocity_model/vp3dfile.p",
+  "velocity_model/vs3dfile.s",
+  "velocity_model/in_basin_mask.b",
+]
+
+[hf_sim]
+parameters = ["event", "realisation"]
+requires_config = ["metadata", "domain_parameters"]
+requires_files = ["stations/stations.ll", "realisation.stoch"]
+provides_config = ["hf_config"]
+provides_files = ["realisation.hf"]
+
+[im_calc]
+parameters = ["event", "realisation"]
+requires_files = ["velocity_model/vs3dfile.s", "realisation.bb"]
+requires_config = [
+  "broadband_parameters",
+  "metadata",
+  "source_geometries",
+  "rupture_propagation",
+]
+provides_config = ["intensity_measure_calculation_parameters"]
+provides_files = ["intensity_measures.h5"]
+
+[generate_velocity_model_parameters]
+parameters = ["event", "realisation"]
+requires_config = [
+  "metadata",
+  "source_config",
+  "magnitudes",
+  "rakes",
+  "rupture_propagation",
+]
+provides_config = ["velocity_model_parameters", "domain_parameters"]
+
+[realisation_to_srf]
+parameters = ["event", "realisation"]
+requires_config = [
+  "metadata",
+  "rupture_propagation",
+  "rakes",
+  "magnitudes",
+  "source_config",
+]
+provides_config = ["srf_config"]
+provides_files = ["realisation.srf"]
+
+[generate_stoch]
+parameters = ["event", "realisation"]
+requires_files = ["realisation.srf"]
+requires_config = ["metadata", "source_config"]
+provides_files = ["realisation.stoch"]
+
+[generate_station_coordinates]
+parameters = ["event"]
+requires_config = ["domain_parameters"]
+provides_files = ["stations/stations.ll", "stations/stations.statcords"]
+
+[emod3d]
+parameters = ["event", "realisation"]
+requires_files = [
+  "lf/e3d.par",
+  "velocity_model/rho3dfile.d",
+  "velocity_model/vp3dfile.p",
+  "velocity_model/vs3dfile.s",
+  "Velocity_Model/in_basin_mask.b",
+  "realisation.srf",
+  "stations/stations.ll",
+  "stations/stations.statcords",
+]
+provides_files = ["realisation.lf"]

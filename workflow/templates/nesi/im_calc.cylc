@@ -1,7 +1,6 @@
 [[{{stage_node_identifier(stage)}}]]
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/{{realisation_identifier(stage)}}:/share,/nesi/project/nesi00213/ko_matrices:/ko_matrices" {{container}} im-calc /share/realisation.json /share/realisation.bb /share/intensity_measures.h5 --num-processes 64 --psa-rotd-maximum-memory-allocation 40 --ko-directory /ko_matrices
+        script = apptainer exec -c --bind "$BIND:$KO_MATRIX_PATH:/ko_matrices" "$CONTAINER" im-calc /share/realisation.json /share/realisation.bb /share/intensity_measures.h5 --num-processes 64 --psa-rotd-maximum-memory-allocation 40 --ko-directory /ko_matrices
         [[[directives]]]
                 --cpus-per-task = 64
                 --time = 01:00:00
                 --mem = 100G
-                --partition = milan

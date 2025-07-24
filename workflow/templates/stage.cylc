@@ -1,0 +1,2 @@
+[[{{stage_node_identifier(stage)}}]]
+        script = {% block script %}

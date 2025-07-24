@@ -1,23 +1,27 @@
 {% macro stage_node_identifier(stage) -%}
-{{stage.identifier}}{% if stage.event %}_{{stage.event}}{% if stage.sample %}_{{stage.sample}}{% endif %}{% endif %}
+{{stage.id}}<{{stage.parameters | join(", ")}}>
 {%- endmacro -%}
 
-{% macro realisation_identifier(stage) -%}
-{{stage.event}}{% if stage.sample %}_{{stage.sample}}{% endif %}
-{%- endmacro -%}
-
+[task parameters]
+      event = {{ realisations | map(attribute=0) | join(", ") }}
+      {% for event, realisation in realisations -%}
+      {{event}}_realisations = 1..{{realisation}}
+      {% endfor %}
 [scheduling]
     [[graph]]
         R1 = """
-        {% for stage, next_stages in workflow_plan.items() -%}
-        {% for next_stage in next_stages %}
-        {{ stage_node_identifier(stage) }} => {{ stage_node_identifier(next_stage) }}
-        {% endfor -%}
-        {% endfor -%}
+        {{workflow_graph | indent(8, false)}}
         """
     {% include target_host + '/queue.cylc' %}
-[runtime]
-    {% include target_host + '/root.cylc' %}
-    {% for stage, next_stages in workflow_plan.items() -%}
-    {% include target_host + '/' + stage.identifier + '.cylc' %}
-    {% endfor %}
+{% include target_host + '/root.cylc' %}
+[[JOB<event, realisation>]]
+     [[[environment]]]
+          EVENT = %(event)s
+          REALISATION = %(realisation)s
+          TASK_SHARE = $CYLC_WORKFLOW_SHARE_DIR/share/%(event)s_%(realisation)s
+          EVENT_SHARE = $CYLC_WORKFLOW_SHARE_DIR/share/%(event)s
+          BIND = $PWD:/out:$TASK_SHARE:/share:$EVENT_SHARE:/event
+{% for stage in stages %}
+{% include target_host + '/' + stage.id + '.cylc' %}
+        inherit = JOB
+{% endfor %}
