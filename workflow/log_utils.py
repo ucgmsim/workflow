@@ -27,7 +27,7 @@ import subprocess
 import traceback
 import uuid
 from collections.abc import Callable, Iterable
-from typing import Any, Optional
+from typing import Any
 
 import structlog
 

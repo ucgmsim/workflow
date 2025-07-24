@@ -17,7 +17,7 @@ import struct
 import sys
 from abc import ABC
 from pathlib import Path
-from typing import Any, ClassVar, Literal, Optional, Self, Union
+from typing import Any, ClassVar, Literal, Self, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -348,8 +348,9 @@ class SourceConfig(RealisationConfiguration):
                 }
         return {"source_geometries": config_dict}
 
+
 @dataclasses.dataclass
-class PointSourceParams():
+class PointSourceParams:
     """Parameters for point source approximation."""
 
     stype: schemas.Stype
@@ -367,6 +368,7 @@ class PointSourceParams():
     inittime: float
     """Initial time for generic_slip2srf"""
 
+
 @dataclasses.dataclass
 class SRFConfig(RealisationConfiguration):
     """Configuration for SRF generation."""
@@ -381,15 +383,14 @@ class SRFConfig(RealisationConfiguration):
     """The version of genslip to use (currently supports "5.4.2")."""
     resolution: float
     """The resolution of the SRF geometry"""
-    
+
     point_source_params: PointSourceParams | None
     """Parameters for point source approximation, if applicable."""
 
     def __post_init__(self) -> None:
         """Post-initialization to convert point_source_params dict to PointSourceParams instance."""
-        if (
-            self.point_source_params is not None
-            and isinstance(self.point_source_params, dict)
+        if self.point_source_params is not None and isinstance(
+            self.point_source_params, dict
         ):
             self.point_source_params = PointSourceParams(**self.point_source_params)
 
@@ -408,8 +409,11 @@ class SRFConfig(RealisationConfiguration):
             "resolution": self.resolution,
         }
         if self.point_source_params is not None:
-            config_dict["point_source_params"] = dataclasses.asdict(self.point_source_params)
+            config_dict["point_source_params"] = dataclasses.asdict(
+                self.point_source_params
+            )
         return config_dict
+
 
 @dataclasses.dataclass
 class Rakes(RealisationConfiguration):
