@@ -411,6 +411,12 @@ def generate_fault_srf(
         The SRF environment context to use.
     """
     fault = params.source_config.source_geometries[name]
+
+    if isinstance(fault, Point):
+        generate_point_source_srf(name, params, environment)
+        # Return None here as no other code in this function should be run if generating a point source SRF.
+        return None
+
     resolution = params.srf_config.resolution
 
     nx = sum(round(plane.length / resolution) for plane in fault.planes)
@@ -505,10 +511,7 @@ def generate_fault_srfs_multi(
     single_threaded = single_threaded or len(faults) == 1
     if single_threaded:
         for name in faults:
-            if isinstance(faults[name], Point):
-                generate_point_source_srf(name, params, environment)
-            else:
-                generate_fault_srf(name, params, environment)
+            generate_fault_srf(name, params, environment)
     else:
         with multiprocessing.Pool(utils.get_available_cores()) as worker_pool:
             worker_pool.map(
@@ -625,11 +628,11 @@ def generate_srf(
         "/out"
     ),
     genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
-        "/home/arr65/src/EMOD3D/tools/genslip_v5.4.2"
+        "EMOD3D/tools/genslip_v5.4.2"
     ),
     generic_slip2srf_path: Annotated[
         Path, typer.Option(readable=True, dir_okay=False)
-    ] = Path("/home/arr65/src/EMOD3D/tools/generic_slip2srf"),
+    ] = Path("EMOD3D/tools/generic_slip2srf"),
     single_threaded: Annotated[bool, typer.Option()] = False,
 ) -> None:
     """Generate an SRF file from a given realisation specification.
