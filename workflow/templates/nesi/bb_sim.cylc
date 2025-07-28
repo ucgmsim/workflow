@@ -1,5 +1,6 @@
-[[{{stage_node_identifier(stage)}}]]
-        script = apptainer exec -c --bind "$BIND" "$CONTAINER" bb-sim /share/realisation.json /stations.vs30 /share/LF/OutBin /share/realisation.hf /parent/Velocity_Model /share/realisation.bb
-        [[[directives]]]
-                --cpus-per-task = 32
-                --time = 01:00:00
+{% extends "stage.cylc" %}
+{% block script %}apptainer exec -c --bind "$BIND" "$CONTAINER" bb-sim /share/realisation.json /stations.vs30 /share/LF/OutBin /share/realisation.hf /parent/Velocity_Model /share/realisation.bb{% endblock %}
+{% block directives -%}
+--cpus-per-task = 32
+--time = 01:00:00
+{% endblock %}

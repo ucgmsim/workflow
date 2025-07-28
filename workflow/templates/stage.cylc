@@ -1,2 +1,9 @@
 [[{{stage_node_identifier(stage)}}]]
-        script = {% block script %}
+inherit = JOB
+{% block content -%}
+{% endblock -%}
+script = {% block script %}{% endblock %}
+
+[[[directives]]]
+{% block directives %}
+{% endblock %}

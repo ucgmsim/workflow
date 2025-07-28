@@ -1,5 +1,6 @@
-[[{{stage_node_identifier(stage)}}]]
-        script = apptainer exec -c --bind "$BIND" "$CONTAINER" sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc) --velocity-model-bin-path /Velocity-Model/NZVM'
-        [[[directives]]]
-                --cpus-per-task = 32
-                --time = 01:00:00
+{% extends "stage.cylc" %}
+{% block script %}apptainer exec -c --bind "$BIND" "$CONTAINER" sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc) --velocity-model-bin-path /Velocity-Model/NZVM'{% endblock %}
+{% block directives -%}
+--cpus-per-task = 32
+--time = 01:00:00
+{% endblock %}

@@ -1,3 +1,5 @@
-[[{{stage_node_identifier(stage)}}]]
-        platform = localhost
-        script = apptainer exec -c --bind "$BIND" "$CONTAINER" gcmt-to-realisation "$EVENT" "$DEFAULTS" /share/realisation.json
+{% extends "stage.cylc" %}
+{% block script %}apptainer exec -c --bind "$BIND" "$CONTAINER" gcmt-to-realisation "$EVENT" "$DEFAULTS" /share/realisation.json{% endblock %}
+{% block content %}
+platform = localhost
+{% endblock %}

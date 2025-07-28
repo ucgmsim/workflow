@@ -110,7 +110,7 @@ provides_files = ["stations/stations.ll", "stations/stations.statcords"]
 [emod3d]
 parameters = ["event", "realisation"]
 requires_files = [
-  "lf/e3d.par",
+  "LF/e3d.par",
   "velocity_model/rho3dfile.d",
   "velocity_model/vp3dfile.p",
   "velocity_model/vs3dfile.s",

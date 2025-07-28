@@ -23,5 +23,4 @@
           BIND = $PWD:/out:$TASK_SHARE:/share:$EVENT_SHARE:/event
 {% for stage in stages %}
 {% include target_host + '/' + stage.id + '.cylc' %}
-        inherit = JOB
 {% endfor %}

@@ -1,3 +1,5 @@
-[[{{stage_node_identifier(stage)}}]]
-        platform = localhost
-        script = apptainer exec $CONTAINER create-e3d-par $TASK_SHARE/realisation.json $TASK_SHARE/realisation.srf $EVENT_SHARE/Velocity_Model $EVENT_SHARE/stations $TASK_SHARE/LF --emod3d-path $EMOD3D --scratch-ffp $TASK_SHARE/LF
+{% extends "stage.cylc" %}
+{% block script %}apptainer exec $CONTAINER create-e3d-par $TASK_SHARE/realisation.json $TASK_SHARE/realisation.srf $EVENT_SHARE/Velocity_Model $EVENT_SHARE/stations $TASK_SHARE/LF --emod3d-path $EMOD3D --scratch-ffp $TASK_SHARE/LF{% endblock %}
+{% block content %}
+platform = localhost
+{% endblock %}
