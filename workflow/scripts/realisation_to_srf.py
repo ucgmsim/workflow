@@ -506,8 +506,6 @@ def generate_fault_srfs_multi(
     environment.gsf_directory.mkdir(exist_ok=True)
     params.velocity_model_1d.write_velocity_model(environment.velocity_model_path)
 
-    # In practice, a Point source will be the only item in `faults`, so if there
-    # is a Point source, restrict to `single_threaded` mode for simplicity.
     single_threaded = single_threaded or len(faults) == 1
     if single_threaded:
         for name in faults:
