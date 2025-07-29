@@ -73,6 +73,26 @@ class PointSourceParams:
     inittime: float
     """Initial time for generic_slip2srf"""
 
+    @classmethod
+    def from_dict(cls, params_dict: dict) -> "PointSourceParams":
+        """Create PointSourceParams from a dictionary.
+
+        This class method is necessary because the schema library passes validated
+        dictionaries to the Use() constructor, but dataclasses require keyword arguments
+        to be unpacked with **kwargs. This method handles the unpacking automatically.
+
+        Parameters
+        ----------
+        params_dict : dict
+            The dictionary containing parameters for PointSourceParams.
+
+        Returns
+        -------
+        PointSourceParams
+            A new instance created from the dictionary.
+        """
+        return cls(**params_dict)
+
 
 def _is_positive(x: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
     return x > 0
@@ -325,17 +345,6 @@ SOURCE_SCHEMA = Schema(
 )
 
 
-def _create_point_source_params(params_dict: dict) -> PointSourceParams:
-    """Create PointSourceParams from a dictionary.
-
-    This helper function is necessary because the schema library passes validated
-    dictionaries to the Use() constructor, but dataclasses require keyword arguments
-    to be unpacked with **kwargs. Without this function, calling PointSourceParams
-    directly would result in a TypeError about missing positional arguments.
-    """
-    return PointSourceParams(**params_dict)
-
-
 POINT_SOURCE_PARAMS_SCHEMA = Schema(
     And(
         {
@@ -356,7 +365,7 @@ POINT_SOURCE_PARAMS_SCHEMA = Schema(
                 float, _is_non_negative
             ),
         },
-        Use(_create_point_source_params),
+        Use(PointSourceParams.from_dict),
     )
 )
 
