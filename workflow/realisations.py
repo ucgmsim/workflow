@@ -384,7 +384,7 @@ class SRFConfig(RealisationConfiguration):
     resolution: float
     """The resolution of the SRF geometry"""
 
-    point_source_params: PointSourceParams | None
+    point_source_params: schemas.PointSourceParams | None
     """Parameters for point source approximation, if applicable."""
 
 
