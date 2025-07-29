@@ -387,12 +387,6 @@ class SRFConfig(RealisationConfiguration):
     point_source_params: PointSourceParams | None
     """Parameters for point source approximation, if applicable."""
 
-    def __post_init__(self) -> None:
-        """Post-initialization to convert point_source_params dict to PointSourceParams instance."""
-        if self.point_source_params is not None and isinstance(
-            self.point_source_params, dict
-        ):
-            self.point_source_params = PointSourceParams(**self.point_source_params)
 
     def to_dict(self) -> dict[str, Any]:
         """
