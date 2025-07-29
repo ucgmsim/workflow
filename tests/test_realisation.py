@@ -97,7 +97,7 @@ def test_srf_config_example(tmp_path: Path) -> None:
         genslip_dt=1.0,
         genslip_version="5.4.2",
         resolution=0.1,
-        point_source_params=realisations.PointSourceParams(
+        point_source_params=schemas.PointSourceParams(
             stype=schemas.Stype.cos,
             risetime=0.5,
             risetimefac=1.0,
