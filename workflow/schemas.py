@@ -340,7 +340,8 @@ SRF_SCHEMA = Schema(
                 "point_source_params",
                 description="Parameters for point source approximation, if applicable",
             )
-        ): Or(None, POINT_SOURCE_PARAMS_SCHEMA),
+        ): Or(None, And(POINT_SOURCE_PARAMS_SCHEMA, Use(PointSourceParams))),
+}
     }
 )
 
