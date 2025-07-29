@@ -6,6 +6,7 @@ the [Realisations page](https://github.com/ucgmsim/workflow/wiki/Realisations), 
 for a description of realisations and the schemas.
 """
 
+import dataclasses
 from enum import StrEnum
 
 import numpy as np
@@ -52,11 +53,12 @@ class Stype(StrEnum):
     cos = "cos"
     seki = "seki"
 
+
 @dataclasses.dataclass
 class PointSourceParams:
     """Parameters for point source approximation."""
 
-    stype: schemas.Stype
+    stype: Stype
     """Slip type for generic_slip2srf"""
 
     risetime: float
@@ -67,9 +69,11 @@ class PointSourceParams:
 
     risetimedep: float
     """Rise time depth dependency for generic_slip2srf"""
-    
+
     inittime: float
     """Initial time for generic_slip2srf"""
+
+
 def _is_positive(x: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
     return x > 0
 
@@ -323,13 +327,15 @@ SOURCE_SCHEMA = Schema(
 
 POINT_SOURCE_PARAMS_SCHEMA = Schema(
     {
-        Literal("stype", description="Slip time function for generic_slip2srf"): Use(Stype),
+        Literal("stype", description="Slip time function for generic_slip2srf"): Use(
+            Stype
+        ),
         Literal("risetime", description="Rise time for generic_slip2srf"): And(
             float, _is_positive
         ),
-        Literal("risetimefac", description="Rise time factor for generic_slip2srf"): And(
-            float, _is_positive
-        ),
+        Literal(
+            "risetimefac", description="Rise time factor for generic_slip2srf"
+        ): And(float, _is_positive),
         Literal(
             "risetimedep", description="Rise time depth dependency for generic_slip2srf"
         ): And(float, _is_non_negative),
@@ -358,7 +364,6 @@ SRF_SCHEMA = Schema(
                 description="Parameters for point source approximation, if applicable",
             )
         ): Or(None, And(POINT_SOURCE_PARAMS_SCHEMA, Use(PointSourceParams))),
-}
     }
 )
 
