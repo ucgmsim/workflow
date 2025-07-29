@@ -325,24 +325,39 @@ SOURCE_SCHEMA = Schema(
 )
 
 
+def _create_point_source_params(params_dict: dict) -> PointSourceParams:
+    """Create PointSourceParams from a dictionary.
+
+    This helper function is necessary because the schema library passes validated
+    dictionaries to the Use() constructor, but dataclasses require keyword arguments
+    to be unpacked with **kwargs. Without this function, calling PointSourceParams
+    directly would result in a TypeError about missing positional arguments.
+    """
+    return PointSourceParams(**params_dict)
+
+
 POINT_SOURCE_PARAMS_SCHEMA = Schema(
-    {
-        Literal("stype", description="Slip time function for generic_slip2srf"): Use(
-            Stype
-        ),
-        Literal("risetime", description="Rise time for generic_slip2srf"): And(
-            float, _is_positive
-        ),
-        Literal(
-            "risetimefac", description="Rise time factor for generic_slip2srf"
-        ): And(float, _is_positive),
-        Literal(
-            "risetimedep", description="Rise time depth dependency for generic_slip2srf"
-        ): And(float, _is_non_negative),
-        Literal("inittime", description="Initial time for generic_slip2srf"): And(
-            float, _is_non_negative
-        ),
-    }
+    And(
+        {
+            Literal(
+                "stype", description="Slip time function for generic_slip2srf"
+            ): Use(Stype),
+            Literal("risetime", description="Rise time for generic_slip2srf"): And(
+                float, _is_positive
+            ),
+            Literal(
+                "risetimefac", description="Rise time factor for generic_slip2srf"
+            ): And(float, _is_positive),
+            Literal(
+                "risetimedep",
+                description="Rise time depth dependency for generic_slip2srf",
+            ): And(float, _is_non_negative),
+            Literal("inittime", description="Initial time for generic_slip2srf"): And(
+                float, _is_non_negative
+            ),
+        },
+        Use(_create_point_source_params),
+    )
 )
 
 
@@ -363,7 +378,7 @@ SRF_SCHEMA = Schema(
                 "point_source_params",
                 description="Parameters for point source approximation, if applicable",
             )
-        ): Or(None, And(POINT_SOURCE_PARAMS_SCHEMA, Use(PointSourceParams))),
+        ): Or(None, POINT_SOURCE_PARAMS_SCHEMA),
     }
 )
 

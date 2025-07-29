@@ -15,7 +15,7 @@ import schema
 from IM import im_calculation
 from source_modelling import rupture_propagation
 from velocity_modelling import bounding_box
-from workflow import defaults, realisations
+from workflow import defaults, realisations, schemas
 from workflow.realisations import SourceConfig
 
 
@@ -98,7 +98,7 @@ def test_srf_config_example(tmp_path: Path) -> None:
         genslip_version="5.4.2",
         resolution=0.1,
         point_source_params=realisations.PointSourceParams(
-            stype=realisations.schemas.Stype.cos,
+            stype=schemas.Stype.cos,
             risetime=0.5,
             risetimefac=1.0,
             risetimedep=0.0,
