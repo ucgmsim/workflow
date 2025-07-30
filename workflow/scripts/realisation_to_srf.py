@@ -123,7 +123,6 @@ def generate_fault_gsf(
     -------
     Path
         The path to the generated GSF file.
-        Will create required directories if they do not exist.
     """
     gsf_output_filepath = gsf_output_directory / f"{normalise_name(name)}.gsf"
     gsf_df = gsf.source_to_gsf_dataframe(geometry, subdivision_resolution)
@@ -132,7 +131,6 @@ def generate_fault_gsf(
         gsf_df["slip"] = slip
     if init_time is not None:
         gsf_df["init_time"] = init_time
-    gsf_output_filepath.parent.mkdir(parents=True, exist_ok=True)
     gsf.write_gsf(gsf_df, gsf_output_filepath)
     return gsf_output_filepath
 
@@ -546,8 +544,6 @@ def generate_point_source_srf(
         raise ValueError(
             f"Point source parameters are required for generating SRF for fault '{name}'"
         )
-
-    environment.gsf_directory.mkdir(parents=True, exist_ok=True)
 
     fault = params.source_config.source_geometries[name]
 
