@@ -211,32 +211,11 @@ def gcmt_to_realisation(
 
     # Create source based on source_type parameter
     if source_type == SourceType.POINT_SOURCE:
-        # Create point source
-        magnitude_threshold = 5.0
-        if magnitude < magnitude_threshold:
-            warnings.warn(
-                "Using a rectangular source (different length and width) as "
-                f"Mw of {magnitude} is < than {magnitude_threshold}"
-            )
-
-            length_km, width_km = magnitude_scaling.magnitude_to_length_width(
-                scaling_relation, magnitude, rake
-            )
-            length_m = length_km * 1000  # Convert km to meters
-            width_m = width_km * 1000  # Convert km to meters
-
-        else:
-            # Approximate the Point source as a square with equal length and width
-            warnings.warn(
-                "Using a square source (same length and width) as "
-                f"Mw of {magnitude} is ≥ than {magnitude_threshold}"
-            )
-            area_km2 = magnitude_scaling.magnitude_to_area(
-                scaling_relation, magnitude, rake
-            )
-
-            length_m = np.sqrt(area_km2) * 1000  # Convert km to meters
-            width_m = length_m  # assumption for a square
+        length_km, width_km = magnitude_scaling.magnitude_to_length_width(
+            scaling_relation, magnitude, rake
+        )
+        length_m = length_km * 1000  # Convert km to meters
+        width_m = width_km * 1000  # Convert km to meters
 
         source_geometry = sources.Point.from_lat_lon_depth(
             point_coordinates=np.array(
