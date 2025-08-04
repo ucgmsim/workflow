@@ -236,7 +236,7 @@ def gcmt_to_realisation(
             )
 
             length_m = np.sqrt(area_km2) * 1000  # Convert km to meters
-            width_m = length_m  # For point source, length and width are equal
+            width_m = length_m  # assumption for a square
 
         source_geometry = sources.Point.from_lat_lon_depth(
             point_coordinates=np.array(
