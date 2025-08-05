@@ -59,9 +59,9 @@ def combine_hf_and_lf(
     realisation_ffp: Annotated[Path, typer.Argument(dir_okay=False, exists=True)],
     station_vs30_ffp: Annotated[Path, typer.Argument(dir_okay=False, exists=True)],
     low_frequency_waveform_file: Annotated[
-        Path, typer.Argument(file_okay=False, exists=True)
+        Path, typer.Argument(dir_okay=False, exists=True)
     ],
-    high_frequency_waveform_file: Annotated[Path, typer.Argument(exists=True)],
+    high_frequency_waveform_file: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
     output_ffp: Annotated[Path, typer.Argument(dir_okay=False, writable=True)],
 ) -> None:
     """Combine low-frequency and high-frequency seismic waveforms.
