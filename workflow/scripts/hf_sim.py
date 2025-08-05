@@ -33,6 +33,7 @@ See the output of `hf-sim --help`.
 """
 
 import concurrent.futures
+import struct
 import subprocess
 import tempfile
 from concurrent.futures.thread import ThreadPoolExecutor
@@ -95,7 +96,7 @@ def build_hf_input(
         f"{len(hf_config.rayset)} {' '.join(str(ray) for ray in hf_config.rayset)}",
         int(not hf_config.no_siteamp),
         f"{hf_config.nbu} {hf_config.ift} {hf_config.flo} {hf_config.fhi}",
-        seeds.hf_seed,
+        "{seed}",
         1,  # one station in the input
         f"{domain_parameters.duration} {hf_config.dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",
         f"{hf_config.rvfac} {hf_config.rvfac_shal} {hf_config.rvfac_deep} {hf_config.czero} {hf_config.calpha}",
@@ -120,12 +121,17 @@ def build_hf_input(
     return "\n".join(str(line) for line in hf_sim_input)
 
 
+MAX_INT = 2 ** (struct.calcsize("i") * 8 - 1) - 1
+MIN_INT = -MAX_INT
+
+
 def hf_simulate_station(
     hf_sim_path: Path,
     hf_stdin_template: str,
     station_latitude: float,
     station_longitude: float,
     station_name: str,
+    seed: int,
 ) -> tuple[float, np.ndarray]:
     """Simulate a seismic station using the HF (High-Frequency) simulation tool.
 
@@ -159,7 +165,7 @@ def hf_simulate_station(
         input_file.flush()
 
         hf_sim_input_str = hf_stdin_template.format(
-            station_input_file=input_file.name, output_file=output_file.name
+            station_input_file=input_file.name, output_file=output_file.name, seed=seed
         )
 
         logger = log_utils.get_logger(__name__)
@@ -242,6 +248,7 @@ def run_hf(
         The function does not return any value. It writes the HF output directly to `out_file`.
     """
     seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
+    np.random.seed(seeds.hf_seed)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     velocity_model = VelocityModel1D.read_from_realisation_or_defaults(
@@ -257,6 +264,7 @@ def run_hf(
         header=None,
         names=["longitude", "latitude", "name"],
     )
+    stations["seed"] = np.random.randint(low=MIN_INT, high=MAX_INT, size=len(stations))
     velocity_model_path = work_directory / "velocity_model"
     velocity_model.write_velocity_model(velocity_model_path)
     nt = int(domain_parameters.duration / hf_config.dt)
@@ -277,6 +285,7 @@ def run_hf(
                 station["lat"],
                 station["lon"],
                 station["name"],
+                station["seed"],
             )
             for _, station in stations.iterrows()
         ]
