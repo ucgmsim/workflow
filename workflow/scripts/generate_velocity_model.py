@@ -95,7 +95,7 @@ def write_nzvm_config(
 
 
 def run_nzvm(
-    nzvm_binary_ffp: Path, nzvm_config_ffp: Path, num_threads: Optional[int]
+    nzvm_binary_ffp: Path, nzvm_config_ffp: Path, num_threads: int | None
 ) -> None:
     """Run NZVM executable with specified configuration.
 

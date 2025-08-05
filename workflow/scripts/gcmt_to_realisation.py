@@ -29,7 +29,6 @@ See the output of `gcmt-to-realisation --help`.
 """
 
 import warnings
-from collections.abc import Callable
 from enum import StrEnum, auto
 from pathlib import Path
 from typing import Annotated, Optional
@@ -81,11 +80,21 @@ class SamplingStrategy(StrEnum):
     """Use the solution centroid."""
 
 
+class SourceType(StrEnum):
+    """Source type for GCMT solutions."""
+
+    FINITE_FAULT = "finite-fault"
+    """Use a finite fault plane."""
+    POINT_SOURCE = "point-source"
+    """Use a point source approximation."""
+
+
 @cli.from_docstring(app)
 def gcmt_to_realisation(
     gcmt_event_id: Annotated[str, typer.Argument()],
     defaults_version: Annotated[DefaultsVersion, typer.Argument()],
     realisation_ffp: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
+    source_type: Annotated[SourceType, typer.Argument()],
     hypocentre_strategy: Annotated[
         SamplingStrategy, typer.Option()
     ] = SamplingStrategy.CENTROID,
@@ -116,6 +125,9 @@ def gcmt_to_realisation(
         Scientific defaults to use (determines simulation resolution among many other things).
     realisation_ffp : Path
         Path to output realisation.
+    source_type : SourceType
+        The type of source to generate. FINITE_FAULT creates a finite fault plane,
+        POINT_SOURCE creates a point source approximation.
     hypocentre_strategy : SamplingStrategy
         Sampling strategy for the hypocentre strike coordinate.
     shypo : float, optional
@@ -126,11 +138,9 @@ def gcmt_to_realisation(
         The latitude coordinate of the hypocentre. Conflicts with shypo and dhypo.
     lon_hypo : float, optional
         The latitude coordinate of the hypocentre. Conflicts with shypo and dhypo.
-    scaling_relation : magnitude_scaling.ScalingRelation or callable, optional
-        Either the name of the magnitude scaling relation from source
-        modelling to use, or a callable function that takes a
-        magnitude and returns a tuple `(length, width)`. Used for custom
-        scaling relations.
+    scaling_relation : magnitude_scaling.ScalingRelation, optional
+        The magnitude scaling relation from source modelling to use.
+        Defaults to Leonard2014.
     nodal_plane : NodalPlaneChoice
         The nodal plane to use. Most likely will use the community fault model to
         choose a nodal plane that agrees with the tectonic fabric.
@@ -190,33 +200,62 @@ def gcmt_to_realisation(
 
     rake = selected_nodal_plane.rake
 
-    if isinstance(scaling_relation, str | magnitude_scaling.ScalingRelation):
-        length, width = magnitude_scaling.magnitude_to_length_width(
-            scaling_relation, magnitude, rake
-        )
-    elif isinstance(scaling_relation, Callable):
-        length, width = scaling_relation(magnitude)
+    # Calculate dip direction from strike (strike + 90 degrees for right-hand rule)
+    dip_direction = (selected_nodal_plane.strike + 90) % 360
 
-    centroid = np.array([latitude, longitude, centroid_depth])
-    plane = sources.Plane.from_centroid_strike_dip(
-        centroid,
-        selected_nodal_plane.dip,
-        length,
-        width,
-        strike=selected_nodal_plane.strike,
+    length, width = magnitude_scaling.magnitude_to_length_width(
+        scaling_relation, magnitude, rake
     )
 
-    if plane.bounds[:, 2].min() < 0:
-        warnings.warn(
-            f"Scaling relationship produced a plane with negative depth ({plane.bounds[:, 2].min()/1000:.2f}km)."
-            " Shifting the plane down to correct."
+    centroid = np.array([latitude, longitude, centroid_depth])
+
+    # Create source based on source_type parameter
+    if source_type == SourceType.POINT_SOURCE:
+        length_km, width_km = magnitude_scaling.magnitude_to_length_width(
+            scaling_relation, magnitude, rake
         )
-        plane.bounds[:, 2] -= plane.bounds[:, 2].min()
+        length_m = length_km * 1000  # Convert km to meters
+        width_m = width_km * 1000  # Convert km to meters
+
+        source_geometry = sources.Point.from_lat_lon_depth(
+            point_coordinates=np.array(
+                [latitude, longitude, centroid_depth * 1000]
+            ),  # Convert km to meters
+            length_m=length_m,  # Use calculated length from area
+            width_m=width_m,  # Use calculated width from area
+            strike=selected_nodal_plane.strike,
+            dip=selected_nodal_plane.dip,
+            dip_dir=dip_direction,
+        )
+
+    else:
+        # Create plane source (default behavior)
+        plane = sources.Plane.from_centroid_strike_dip(
+            centroid,
+            selected_nodal_plane.dip,
+            length,
+            width,
+            strike=selected_nodal_plane.strike,
+        )
+
+        if plane.bounds[:, 2].min() < 0:
+            warnings.warn(
+                f"Scaling relationship produced a plane with negative depth ({plane.bounds[:, 2].min() / 1000:.2f}km)."
+                " Shifting the plane down to correct."
+            )
+            plane.bounds[:, 2] -= plane.bounds[:, 2].min()
+
+        source_geometry = sources.Fault([plane])
 
     if lat_hypo is not None and lon_hypo is not None:
-        hypocentre = plane.wgs_depth_coordinates_to_fault_coordinates(
-            np.array([lat_hypo, lon_hypo])
-        )
+        if source_type == SourceType.POINT_SOURCE:
+            # For point sources, hypocentre is always at the center (0.5, 0.5)
+            hypocentre = np.array([0.5, 0.5])
+        else:
+            # For plane sources, convert lat/lon to fault coordinates
+            hypocentre = plane.wgs_depth_coordinates_to_fault_coordinates(
+                np.array([lat_hypo, lon_hypo])
+            )
     elif shypo is not None and dhypo is not None:
         hypocentre = np.array([shypo, dhypo])
     elif hypocentre_strategy == SamplingStrategy.AVERAGE:
@@ -236,9 +275,7 @@ def gcmt_to_realisation(
     else:
         hypocentre = np.array([1 / 2, 1 / 2])
 
-    source_config = SourceConfig(
-        source_geometries={gcmt_event_id: sources.Fault([plane])}
-    )
+    source_config = SourceConfig(source_geometries={gcmt_event_id: source_geometry})
     magnitudes = Magnitudes(magnitudes={gcmt_event_id: float(magnitude)})
     rakes = Rakes(rakes={gcmt_event_id: float(rake)})
     rupture_config = RupturePropagationConfig(
