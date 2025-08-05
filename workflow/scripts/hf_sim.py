@@ -304,13 +304,14 @@ def run_hf(
         {
             "waveform": (["component", "station", "time"], waveform),
             "epicentre_distance": (["station"], stations["epicentre_distance"]),
+            "seed": (["station"], stations["seed"]),
+            "vref": (["station"], stations["vs"]),
         },
         coords={
             "station": stations["name"],
             "time": time,
-            "lat": stations["lat"],
-            "lon": stations["lon"],
-            "vref": stations["vs"],
+            "lat": (["station"], stations["lat"]),
+            "lon": (["station"], stations["lon"]),
         },
         attrs={
             "start_sec": start_sec,
