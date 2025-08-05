@@ -38,138 +38,22 @@ For More Help
 See the output of `bb-sim --help`.
 """
 
-import functools
-import multiprocessing
 from pathlib import Path
 from typing import Annotated
 
-import h5py
 import numpy as np
-import numpy.typing as npt
 import pandas as pd
-import scipy as sp
 import typer
+import xarray as xr
 
 from qcore import cli, siteamp_models, timeseries
-from workflow import log_utils, realisations, utils
+from workflow import log_utils, realisations
 from workflow.realisations import (
     BroadbandParameters,
-    DomainParameters,
     RealisationMetadata,
 )
 
 app = typer.Typer()
-
-
-@log_utils.log_call(
-    exclude_args={
-        "lf",
-        "hf",
-        "hf_padding",
-        "lf_padding",
-        "broadband_config",
-        "n2",
-    },
-    include_result=False,
-)
-def bb_simulate_station(
-    lf: timeseries.LFSeis,
-    hf_path: Path,
-    hf_padding: tuple[int, int],
-    lf_padding: tuple[int, int],
-    broadband_config: BroadbandParameters,
-    n2: float,
-    station_name: str,
-    station: pd.Series,
-) -> None:
-    """Simulate broadband seismic for a single station.
-
-    Combines the low frequency and high frequency waveforms together
-    for a single station with appropriate filtering and padding.
-    Writes the simulated broadband acceleration data to a file in the
-    work directory.
-
-    Parameters
-    ----------
-    lf : timeseries.LFSeis
-        Low-frequency seismic data object.
-    hf_path : Path
-        Path to the high-frequency seismic data file.
-    hf_padding : tuple[int, int]
-        Padding for the high-frequency data (start, end).
-    lf_padding : tuple[int, int]
-        Padding for the low-frequency data (start, end).
-    broadband_config : BroadbandParameters
-        Configuration parameters for broadband simulation.
-    n2 : float
-        Site amplification parameter.
-    station_name : str
-        Name of the seismic station.
-    station : pd.Series
-        Series containing station metadata including vs and vs30 values.
-
-    Returns
-    -------
-    np.ndarray
-        Simulated broadband acceleration data.
-    """
-    hf = h5py.File(hf_path)
-    # we expected waveform files to have size n_components (3) * float size (4) * number of padded timesteps.
-    station_vs = station["vs"]
-    station_vs30 = station["vs30"]
-    lf_acc = np.copy(lf.acc(station_name, dt=broadband_config.dt))
-    hf_acc = sp.signal.resample(
-        np.array(hf["waveforms"][int(station["waveform_index"])]),
-        int(round(hf.attrs["duration"] / broadband_config.dt)),
-    )
-    logger = log_utils.get_logger(__name__)
-
-    if np.isnan(lf_acc).any():
-        logger.error("Station LF had NaN waveform", station=station)
-        raise ValueError(f"Station {station_name} had NaN waveform")
-    if np.isnan(hf_acc).any():
-        logger.error("Station HF had NaN waveform", station=station)
-        raise ValueError(f"Station {station_name} had NaN waveform")
-
-    pga = np.max(np.abs(hf_acc), axis=0) / 981.0
-    bb_acc: list[npt.NDArray[np.float32]] = []
-    for c in range(3):
-        hf_amp_val = siteamp_models.cb_amp(
-            broadband_config.dt,
-            n2,
-            station_vs,
-            station_vs30,
-            station_vs,
-            pga[c],
-            fmin=broadband_config.fmin,
-            fmidbot=broadband_config.fmidbot,
-            version=broadband_config.site_amp_version,
-        )
-
-        hf_filtered = timeseries.bwfilter(
-            timeseries.ampdeamp(
-                hf_acc[:, c],
-                hf_amp_val,
-                amp=True,
-            ),
-            broadband_config.dt,
-            broadband_config.flo,
-            "highpass",
-        )
-        lf_filtered = timeseries.bwfilter(
-            lf_acc[:, c],
-            broadband_config.dt,
-            broadband_config.flo,
-            "lowpass",
-        )
-
-        hf_c = np.pad(hf_filtered, hf_padding)
-        lf_c = np.pad(lf_filtered, lf_padding)
-        bb_comp = (hf_c + lf_c) / 981.0
-
-        bb_acc.append(bb_comp)
-
-    return np.array(bb_acc).T.astype(np.float32)
 
 
 @cli.from_docstring(app)
@@ -177,13 +61,10 @@ def bb_simulate_station(
 def combine_hf_and_lf(
     realisation_ffp: Annotated[Path, typer.Argument(dir_okay=False, exists=True)],
     station_vs30_ffp: Annotated[Path, typer.Argument(dir_okay=False, exists=True)],
-    low_frequency_waveform_directory: Annotated[
+    low_frequency_waveform_file: Annotated[
         Path, typer.Argument(file_okay=False, exists=True)
     ],
     high_frequency_waveform_file: Annotated[Path, typer.Argument(exists=True)],
-    velocity_model_directory: Annotated[
-        Path, typer.Argument(file_okay=False, exists=True)
-    ],
     output_ffp: Annotated[Path, typer.Argument(dir_okay=False, writable=True)],
 ) -> None:
     """Combine low-frequency and high-frequency seismic waveforms.
@@ -194,139 +75,119 @@ def combine_hf_and_lf(
         Path to the realisation file containing parameters for the simulation.
     station_vs30_ffp : Path
         Path to the file containing VS30 reference values for stations.
-    low_frequency_waveform_directory : Path
-        Directory containing low-frequency waveform data files.
+    low_frequency_waveform_file : Path
+        File containing low-frequency waveform data.
     high_frequency_waveform_file : Path
         File containing high-frequency waveform data.
-    velocity_model_directory : Path
-        Directory containing velocity model files.
     output_ffp : Path
         Path to the output file where the combined broadband waveforms will be saved.
     """
-    # load data stores
-    lf = timeseries.LFSeis(low_frequency_waveform_directory)
-    hf = h5py.File(high_frequency_waveform_file, mode="r")
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     broadband_config = BroadbandParameters.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
-    domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
 
-    # As LF has a start time offset it is necessary to pad the start of HF by the same number of timesteps
-    # Similar code to account for an end time difference is also present
-    # allowing for HF and LF to have separate start times and durations
+    # load data stores
+    lf = xr.open_dataset(low_frequency_waveform_file)
+    hf = xr.open_dataset(high_frequency_waveform_file)
+    common_stations = list(
+        set(map(str, hf.station.values)) & set(map(str, lf.station.values))
+    )
+    hf = hf.sel(station=common_stations)
+    lf = lf.sel(station=common_stations)
 
-    bb_start_sec = min(lf.start_sec, hf.attrs["t_sec"])
-    lf_start_sec_offset = max(lf.start_sec - hf.attrs["t_sec"], 0)
-    hf_start_sec_offset = max(hf.attrs["t_sec"] - lf.start_sec, 0)
-    lf_start_padding = int(round(lf_start_sec_offset / broadband_config.dt))
-    hf_start_padding = int(round(hf_start_sec_offset / broadband_config.dt))
+    vs30_df = pd.read_csv(
+        station_vs30_ffp, sep=r"\s+", header=None, names=["station", "vsite"]
+    ).set_index("station")
+    vs30_df = vs30_df.loc[common_stations]
+    vs30_df["vref"] = 500
+    vs30_df["vpga"] = 500
+    dt = bb_dt = broadband_config.dt
 
-    lf_end_padding = int(
-        round(
-            max(
-                hf.attrs["duration"]
-                + hf_start_sec_offset
-                - (lf.duration + lf_start_sec_offset),
-                0,
-            )
-            / broadband_config.dt
+    lf_start_sec = lf.attrs["start_sec"]
+    hf_start_sec = hf.attrs["start_sec"]
+    dt = lf.attrs["dt"]
+    hf_duration = lf_duration = len(lf.time.values) * dt
+
+    bb_start_sec = min(lf_start_sec, hf_start_sec)
+    # Calculate time offsets for LF and HF relative to the broadband start time
+    lf_start_sec_offset = max(lf_start_sec - bb_start_sec, 0)
+    hf_start_sec_offset = max(hf_start_sec - bb_start_sec, 0)
+
+    # Convert time offsets to number of samples (padding at the beginning)
+    lf_start_padding_nt = int(np.round(lf_start_sec_offset / bb_dt))
+    hf_start_padding_nt = int(np.round(hf_start_sec_offset / bb_dt))
+
+    # Determine the latest end time for the combined broadband waveform
+    max_end_sec = max(lf_start_sec + lf_duration, hf_start_sec + hf_duration)
+
+    # Calculate the total duration needed for the combined waveform
+    bb_total_duration = max_end_sec - bb_start_sec
+
+    # Calculate the total number of samples for the combined waveform
+    bb_nt = int(np.round(bb_total_duration / bb_dt))
+
+    # Calculate padding at the end for LF and HF waveforms
+    # This ensures both padded waveforms have the same total length (bb_nt)
+    lf_end_padding_nt = bb_nt - (
+        lf_start_padding_nt + int(np.round(lf_duration / bb_dt))
+    )
+    hf_end_padding_nt = bb_nt - (
+        hf_start_padding_nt + int(np.round(hf_duration / bb_dt))
+    )
+
+    # Ensure padding values are non-negative
+    lf_end_padding_nt = max(0, lf_end_padding_nt)
+    hf_end_padding_nt = max(0, hf_end_padding_nt)
+
+    bb_waveform = np.empty_like(lf.waveform)
+    for i, (lf_component, hf_component) in enumerate(zip(lf.component, hf.component)):
+        hf_waveform_raw = hf.sel(component=hf_component).waveform.values
+        lf_waveform_raw = lf.sel(component=lf_component).waveform.values
+
+        temp_lf_padded = np.zeros((lf_waveform_raw.shape[0], bb_nt), dtype=np.float32)
+        temp_hf_padded = np.zeros((hf_waveform_raw.shape[0], bb_nt), dtype=np.float32)
+
+        temp_lf_padded[
+            :, lf_start_padding_nt : lf_start_padding_nt + lf_waveform_raw.shape[1]
+        ] = lf_waveform_raw
+        temp_hf_padded[
+            :,
+            hf_start_padding_nt : hf_start_padding_nt + hf_waveform_raw.shape[1],
+        ] = hf_waveform_raw
+
+        vs30_df["pga"] = temp_hf_padded.max(axis=1)
+
+        hf_amp_val = siteamp_models.cb_amp_multi(
+            vs30_df,
         )
-    )
-    hf_end_padding = int(
-        round(
-            max(
-                lf.duration
-                + lf_start_sec_offset
-                - (hf.attrs["duration"] + hf_start_sec_offset),
-                0,
-            )
-            / broadband_config.dt
+        hf_amp_fas_vals = siteamp_models.cb2014_to_fas_amplification_factors(
+            hf_amp_val, bb_dt, bb_nt
         )
-    )
-
-    if (
-        lf_start_padding + round(lf.duration / broadband_config.dt) + lf_end_padding
-        != hf_start_padding
-        + round(hf.attrs["duration"] / broadband_config.dt)
-        + hf_end_padding
-    ):
-        raise ValueError("HF and LF padded timesteps do not align.")
-    lf_padding = (lf_start_padding, lf_end_padding)
-    hf_padding = (hf_start_padding, hf_end_padding)
-    bb_nt = int(
-        lf_start_padding + round(lf.duration / broadband_config.dt) + lf_end_padding
-    )
-    n2 = siteamp_models.nt2n(bb_nt)
-
-    lfvs30refs = (
-        np.memmap(
-            velocity_model_directory / "vs3dfile.s",
-            dtype="<f4",
-            shape=(domain_parameters.ny, domain_parameters.nz, domain_parameters.nx),
-            mode="r",
-        )[lf.stations.y, 0, lf.stations.x]
-        * 1000.0
-    )
-
-    stations = pd.read_hdf(high_frequency_waveform_file, key="stations").set_index(
-        "name"
-    )
-    stations["waveform_index"] = np.arange(len(stations))
-    # ensure that LF and HF agree on station list, sometimes LF can drop a station or two
-    stations = stations.loc[lf.stations["name"]]
-
-    station_vs30 = pd.read_csv(
-        station_vs30_ffp,
-        delimiter=r"\s+",
-        header=None,
-        names=["name", "vs30"],
-    ).set_index("name")
-    stations = stations.join(station_vs30, how="inner")
-
-    with multiprocessing.Pool(utils.get_available_cores()) as pool:
-        waveforms_raw = np.array(
-            list(
-                pool.starmap(
-                    functools.partial(
-                        bb_simulate_station,
-                        lf,
-                        high_frequency_waveform_file,
-                        hf_padding,
-                        lf_padding,
-                        broadband_config,
-                        n2,
-                    ),
-                    stations.iterrows(),
-                )
-            ),
-            dtype=np.float32,
+        hf_waveform_amped = timeseries.ampdeamp(
+            temp_hf_padded, hf_amp_fas_vals, amp=True
         )
-
-    with h5py.File(output_ffp, "w") as output_h5py:
-        header_data = {
-            "nt": bb_nt,
-            "duration": bb_nt * broadband_config.dt,
-            "start": bb_start_sec,
-        }
-        output_h5py.attrs.update(header_data)
-        waveforms_dset = output_h5py.create_dataset(
-            "waveforms",
-            data=waveforms_raw,
-            shape=(len(stations), bb_nt, 3),
-            dtype=np.float32,
-            compression="gzip",
+        hf_filtered = timeseries.bwfilter(
+            hf_waveform_amped, bb_dt, 1.0, timeseries.Band.HIGHPASS
         )
-        waveforms_dset.dims[0].label = "90"
-        waveforms_dset.dims[1].label = "0"
-        waveforms_dset.dims[2].label = "vertical"
+        lf_filtered = timeseries.bwfilter(
+            temp_lf_padded, bb_dt, 1.0, timeseries.Band.LOWPASS
+        )
+        bb_waveform[i] = hf_filtered + lf_filtered
 
-    stations["name"] = stations.index
-    # The waveform index referred to the waveform index in HF, we want to update this to refer to the index in broadband!
-    stations["waveform_index"] = np.arange(len(stations))
-    stations["x"] = lf.stations.x
-    stations["y"] = lf.stations.y
-    stations["z"] = lf.stations.z
-    stations["lf_vs_ref"] = lfvs30refs
-    stations.to_hdf(output_ffp, key="stations", mode="a")
+    new_time_coords = np.arange(bb_nt) * bb_dt + bb_start_sec
+    xr.Dataset(
+        {"waveforms": (["station", "component", "time"], bb_waveform)},
+        coords={
+            "station": common_stations,
+            "time": new_time_coords,
+            "x": lf.x.values,
+            "y": lf.y.values,
+            "lat": lf.lat.values,
+            "lon": lf.lon.values,
+        },
+        attrs={
+            "units": "cm/s^2",
+        },
+    ).to_netcdf(output_ffp, engine="h5netcdf")
     realisations.append_log_entry(realisation_ffp)
