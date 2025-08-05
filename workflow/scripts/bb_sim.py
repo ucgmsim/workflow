@@ -1,7 +1,5 @@
 """Broadband Simulation.
 
-Combine high-frequency and low-frequency simulation waveforms for each station into a broadband simulation file.
-
 Description
 -----------
 Combine high-frequency and low-frequency simulation waveforms for each station into a broadband simulation file.
@@ -15,11 +13,10 @@ Inputs
 3. Stations VS30 reference values,
 4. Low frequency waveform directory,
 5. High frequency output file,
-6. Velocity model directory.
 
 Outputs
 -------
-An output [broadband file](https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation#FileFormatsUsedInGroundMotionSimulation-LF/HF/BBbinaryformat).
+An output broadband file in the HDF5 format.
 
 Environment
 -----------
@@ -31,7 +28,7 @@ running on your own computer, you need to configure a work directory
 
 Usage
 -----
-`bb-sim REALISATION_FFP STATION_FFP STATION_VS30_FFP LOW_FREQUENCY_WAVEFORM_DIRECTORY HIGH_FREQUENCY_WAVEFORM_FILE VELOCITY_MODEL_DIRECTORY OUTPUT_FFP`
+`bb-sim REALISATION_FFP STATION_FFP STATION_VS30_FFP LOW_FREQUENCY_WAVEFORM_DIRECTORY HIGH_FREQUENCY_WAVEFORM_FILE OUTPUT_FFP`
 
 For More Help
 -------------
