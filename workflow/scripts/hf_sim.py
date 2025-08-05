@@ -32,17 +32,17 @@ For More Help
 See the output of `hf-sim --help`.
 """
 
-import functools
-import multiprocessing
+import concurrent.futures
 import subprocess
 import tempfile
+from concurrent.futures.thread import ThreadPoolExecutor
 from pathlib import Path
 from typing import Annotated
 
-import h5py
 import numpy as np
 import pandas as pd
 import typer
+import xarray as xr
 
 from qcore import cli
 from workflow import log_utils, realisations, utils
@@ -56,51 +56,92 @@ from workflow.realisations import (
 
 app = typer.Typer()
 
-HEAD_STAT = 24
-FLOAT_SIZE = 4
 
-
-def hf_simulate_station(
+def build_hf_input(
+    stoch_ffp: Path,
+    velocity_model: Path,
     hf_config: HFConfig,
     seeds: Seeds,
     domain_parameters: DomainParameters,
-    velocity_model: Path,
-    stoch_ffp: Path,
-    output_directory: Path,
+) -> str:
+    """Build a high-frequency input template string.
+
+    Parameters
+    ----------
+    stoch_ffp : Path
+        The path to the stoch file.
+    velocity_model : Path
+        The path to the velocity model.
+    hf_config : HFConfig
+        The high-frequency config.
+    seeds : Seeds
+        The seeds.
+    domain_parameters : DomainParameters
+        The simulation domain parameters.
+
+    Returns
+    -------
+    str
+        A template HF input, this template has two format placeholders
+        `station_input_file` and `output_file` which can be
+        substituted to yield a high-frequency input in for each
+        station.
+    """
+    hf_sim_input = [
+        "",
+        hf_config.sdrop,
+        "{station_input_file}",
+        "{output_file}",
+        f"{len(hf_config.rayset)} {' '.join(str(ray) for ray in hf_config.rayset)}",
+        int(not hf_config.no_siteamp),
+        f"{hf_config.nbu} {hf_config.ift} {hf_config.flo} {hf_config.fhi}",
+        seeds.hf_seed,
+        1,  # one station in the input
+        f"{domain_parameters.duration} {hf_config.dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",
+        f"{hf_config.rvfac} {hf_config.rvfac_shal} {hf_config.rvfac_deep} {hf_config.czero} {hf_config.calpha}",
+        f"{hf_config.mom or -1} {hf_config.rupv or -1}",
+        stoch_ffp,
+        velocity_model,
+        hf_config.vs_moho,
+        f"{hf_config.nl_skip} {hf_config.vp_sig} {hf_config.vsh_sig} {hf_config.rho_sig} {hf_config.qs_sig} {int(hf_config.ic_flag)}",
+        hf_config.velocity_name,
+        f"{hf_config.fa_sig1} {hf_config.fa_sig2} {hf_config.rv_sig1}",
+        hf_config.path_dur,
+        0,  # maybe don't need this?
+        # If running v5.4.5 it stops reading input here and so
+        # these parameters are unused. It is harmless to add them
+        # regardless of version
+        f"{hf_config.stress_parameter_adjustment_fault_area or -1} "
+        f"{hf_config.stress_parameter_adjustment_target_magnitude or -1} "
+        f"{hf_config.stress_parameter_adjustment_tect_type or -1}",
+        0,  # seek bytes to 0 (no binary offset for this output)
+        "",
+    ]
+    return "\n".join(str(line) for line in hf_sim_input)
+
+
+def hf_simulate_station(
     hf_sim_path: Path,
-    longitude: float,
-    latitude: float,
-    name: str,
-) -> None:
+    hf_stdin_template: str,
+    station_latitude: float,
+    station_longitude: float,
+    station_name: str,
+) -> tuple[float, np.ndarray]:
     """Simulate a seismic station using the HF (High-Frequency) simulation tool.
 
     Parameters
     ----------
-    hf_config : HFConfig
-        Configuration object containing the parameters for the high-frequency simulation.
-    seeds : Seeds
-        Seeds object containing the seeds for the simulation.
-    domain_parameters : DomainParameters
-        Domain parameters such as simulation duration and other domain-specific settings.
-    velocity_model : Path
-        Path to the velocity model file used in the simulation.
-    stoch_ffp : Path
-        Path to the stoch file used as input for the simulation.
-    output_directory : Path
-        Directory where the HF output file will be saved.
     hf_sim_path : Path
-        Path to the HF simulation binary.
-    longitude : float
-        Longitude of the seismic station.
-    latitude : float
-        Latitude of the seismic station.
-    name : str
-        Name of the seismic station, used for naming the output file.
+        The path to the HF simulation binary.
+    hf_sim_stdin : str
+        The stdin input for the HF simulation binary.
 
     Returns
     -------
     float
         The epicentre distance obtained from the simulation output.
+    array of floats
+        The simulation waveform.
 
     Raises
     ------
@@ -110,46 +151,21 @@ def hf_simulate_station(
         If the HF binary throws an error. A note to the exception is
         added with the stderr.
     """
-    raw_hf_output_ffp = output_directory / f"{name}.hf"
-    with tempfile.NamedTemporaryFile(mode="w") as station_input_file:
-        station_input_file.write(f"{longitude} {latitude} {name}\n")
-        station_input_file.flush()
-        hf_sim_input = [
-            "",
-            hf_config.sdrop,
-            station_input_file.name,
-            raw_hf_output_ffp,
-            f"{len(hf_config.rayset)} {' '.join(str(ray) for ray in hf_config.rayset)}",
-            int(not hf_config.no_siteamp),
-            f"{hf_config.nbu} {hf_config.ift} {hf_config.flo} {hf_config.fhi}",
-            seeds.hf_seed,
-            1,  # one station in the input
-            f"{domain_parameters.duration} {hf_config.dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",
-            f"{hf_config.rvfac} {hf_config.rvfac_shal} {hf_config.rvfac_deep} {hf_config.czero} {hf_config.calpha}",
-            f"{hf_config.mom or -1} {hf_config.rupv or -1}",
-            stoch_ffp,
-            velocity_model,
-            hf_config.vs_moho,
-            f"{hf_config.nl_skip} {hf_config.vp_sig} {hf_config.vsh_sig} {hf_config.rho_sig} {hf_config.qs_sig} {int(hf_config.ic_flag)}",
-            hf_config.velocity_name,
-            f"{hf_config.fa_sig1} {hf_config.fa_sig2} {hf_config.rv_sig1}",
-            hf_config.path_dur,
-            0,  # maybe don't need this?
-            # If running v5.4.5 it stops reading input here and so
-            # these parameters are unused. It is harmless to add them
-            # regardless of version
-            f"{hf_config.stress_parameter_adjustment_fault_area or -1} "
-            f"{hf_config.stress_parameter_adjustment_target_magnitude or -1} "
-            f"{hf_config.stress_parameter_adjustment_tect_type or -1}",
-            0,  # seek bytes to 0 (no binary offset for this output)
-            "",
-        ]
-        logger = log_utils.get_logger(__name__)
-        try:
-            hf_sim_input_str = "\n".join(str(line) for line in hf_sim_input)
+    with (
+        tempfile.NamedTemporaryFile(mode="w") as input_file,
+        tempfile.NamedTemporaryFile() as output_file,
+    ):
+        input_file.write(f"{station_latitude} {station_longitude} {station_name}\n")
+        input_file.flush()
 
-            print("---\n" + hf_sim_input_str + "\n---")
-            logger.info("running hf", station=name, input=hf_sim_input_str)
+        hf_sim_input_str = hf_stdin_template.format(
+            station_input_file=input_file.name, output_file=output_file.name
+        )
+
+        logger = log_utils.get_logger(__name__)
+        logger.info("running hf", station=station_name, input=hf_sim_input_str)
+
+        try:
             output = subprocess.run(
                 str(hf_sim_path),
                 input=hf_sim_input_str,
@@ -158,22 +174,24 @@ def hf_simulate_station(
                 stderr=subprocess.PIPE,
             )
         except subprocess.CalledProcessError as e:
-            logger.error("hf failed", station=name, stdout=e.stdout, stderr=e.stderr)
+            logger.error(
+                "hf failed", station=station_name, stdout=e.stdout, stderr=e.stderr
+            )
+            e.add_note(e.stderr)
             raise
-        epicentre_distance = np.fromstring(output.stderr, dtype="f4", sep="\n")
+
+        epicentre_distance = float(output.stderr.strip())
+
         logger.info(
             "hf succeeded",
-            station=name,
+            station=station_name,
             epicentre_distance=epicentre_distance,
             stderr=output.stderr,
         )
 
-        if epicentre_distance.size != 1:
-            raise ValueError(
-                f"Expected exactly one epicentre_distance value, got {epicentre_distance.size}"
-            )
+        station_waveform = np.fromfile(output_file, dtype=np.float32).reshape((-1, 3))
 
-        return epicentre_distance[0]
+        return epicentre_distance, station_waveform
 
 
 @cli.from_docstring(app)
@@ -241,53 +259,55 @@ def run_hf(
     )
     velocity_model_path = work_directory / "velocity_model"
     velocity_model.write_velocity_model(velocity_model_path)
-    with multiprocessing.Pool(utils.get_available_cores()) as pool:
-        stations["epicentre_distance"] = pool.starmap(
-            functools.partial(
+    nt = int(domain_parameters.duration / hf_config.dt)
+    waveform = np.empty((3, len(stations), nt), dtype=np.float32)
+
+    hf_input_template = build_hf_input(
+        stoch_ffp, velocity_model_path, hf_config, seeds, domain_parameters
+    )
+
+    epicentres: list[float] = []
+
+    with ThreadPoolExecutor(max_workers=utils.get_available_cores()) as executor:
+        futures = [
+            executor.submit(
                 hf_simulate_station,
-                hf_config,
-                seeds,
-                domain_parameters,
-                velocity_model_path,
-                stoch_ffp,
-                work_directory,
                 hf_sim_path,
-            ),
-            stations.values.tolist(),
-        )
-        stations["epicentre_distance"] = stations["epicentre_distance"].astype(
-            np.float32
-        )
+                hf_input_template,
+                station["lat"],
+                station["lon"],
+                station["name"],
+            )
+            for _, station in stations.iterrows()
+        ]
+        for i, future in enumerate(concurrent.futures.as_completed(futures)):
+            epicentre, station_waveform = future.result()
+            epicentres.append(epicentre)
+            for component in range(3):
+                waveform[component, i] = station_waveform[:, component]
 
     vs = velocity_model.model["Vs"].iloc[0] * 1000
     stations["vs"] = vs
 
-    nt = int(domain_parameters.duration / hf_config.dt)
-    with h5py.File(out_file, "w") as output_h5py:
-        attributes = hf_config.to_dict() | {
-            "hf_tstart": 0.0,
-            "duration": nt * hf_config.dt,
-            "stoch_ffp": stoch_ffp.name,
-        }
-        # H5Py cannot store regular Python bools, and requires converting them too booleans
-        attributes = {
-            key: np.bool_(value) if isinstance(value, bool) else value
-            for key, value in attributes.items()
-            if value is not None
-        }
-
-        output_h5py.attrs.update(attributes)
-
-        waveforms_dset = output_h5py.create_dataset(
-            "waveforms", shape=(len(stations), nt, 3), dtype=np.float32
-        )
-        for i, station in stations.iterrows():
-            station_file_path = work_directory / f"{station['name']}.hf"
-            with open(station_file_path, mode="rb") as station_file_data:
-                waveform = np.fromfile(station_file_data, dtype=np.float32).reshape(
-                    (nt, 3)
-                )
-                waveforms_dset[i] = waveform
-
-    stations.to_hdf(out_file, key="stations", mode="a")
+    start_sec = 0.0
+    time = start_sec + np.arange(nt) * hf_config.dt
+    xr.Dataset(
+        {
+            "waveform": (["component", "station", "time"], waveform),
+            "epicentre_distance": (["station"], stations["epicentre_distance"]),
+        },
+        coords={
+            "station": stations["name"],
+            "time": time,
+            "lat": stations["lat"],
+            "lon": stations["lon"],
+            "vref": stations["vs"],
+        },
+        attrs={
+            "start_sec": start_sec,
+            "nt": nt,
+            "dt": hf_config.dt,
+            "units": "cm/s^2",
+        },
+    ).to_netcdf(out_file, engine="h5netcdf")
     realisations.append_log_entry(realisation_ffp)
