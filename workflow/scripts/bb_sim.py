@@ -189,5 +189,15 @@ def combine_hf_and_lf(
         attrs={
             "units": "cm/s^2",
         },
-    ).to_netcdf(output_ffp, engine="h5netcdf")
+    ).to_netcdf(
+        output_ffp,
+        engine="h5netcdf",
+        encoding={
+            "waveform": {
+                "compression": "zlib",  # Use zlib compression.
+                "complevel": 5,  # Compress to level 5 (of 9).
+                "fletcher32": True,  # Add Fletcher-32 checksums for long-term storage.
+            }
+        },
+    )
     realisations.append_log_entry(realisation_ffp)
