@@ -163,7 +163,7 @@ def hf_simulate_station(
         tempfile.NamedTemporaryFile(mode="w") as input_file,
         tempfile.NamedTemporaryFile() as output_file,
     ):
-        input_file.write(f"{station_latitude} {station_longitude} {station_name}\n")
+        input_file.write(f"{station_longitude} {station_latitude} {station_name}\n")
         input_file.flush()
 
         hf_sim_input_str = hf_stdin_template.format(
