@@ -174,7 +174,7 @@ def combine_hf_and_lf(
 
     new_time_coords = np.arange(bb_nt) * bb_dt + bb_start_sec
     xr.Dataset(
-        {"waveforms": (["station", "component", "time"], bb_waveform)},
+        {"waveform": (["component", "station", "time"], bb_waveform)},
         coords={
             "station": common_stations,
             "time": new_time_coords,
