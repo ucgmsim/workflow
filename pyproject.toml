@@ -10,52 +10,47 @@ readme = "README.md"
 requires-python = ">=3.12"
 dynamic = ["version"]
 dependencies = [
-    # UCGMSim Dependencies
-    "im_calculation @ git+https://github.com/ucgmsim/IM_calculation.git",
-    "nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB.git",
-    "oq_wrapper @ git+https://github.com/ucgmsim/Empirical_Engine.git#subdirectory=oq_wrapper",
-    "pygmt_helper @ git+https://github.com/ucgmsim/pygmt_helper.git",
-    "qcore @ git+https://github.com/ucgmsim/qcore.git",
-    "source_modelling @ git+https://github.com/ucgmsim/source_modelling.git",
-    "velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling.git",
+  # UCGMSim Dependencies
+  "im_calculation @ git+https://github.com/ucgmsim/IM_calculation.git",
+  "nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB.git",
+  "oq_wrapper @ git+https://github.com/ucgmsim/Empirical_Engine.git#subdirectory=oq_wrapper",
+  "pygmt_helper @ git+https://github.com/ucgmsim/pygmt_helper.git",
+  "qcore @ git+https://github.com/ucgmsim/qcore.git",
+  "source_modelling @ git+https://github.com/ucgmsim/source_modelling.git",
+  "velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling.git",
 
-    # Data Formats
-    "geopandas",
-    "h5py",
-    "pandas[parquet, hdf5]",
-    "pyyaml",
-    "xarray[io]",
+  # Data Formats
+  "geopandas",
+  "h5py",
+  "pandas[parquet, hdf5]",
+  "pyyaml",
+  "xarray[io]",
 
-    # Workflow Planner
-    "jinja2",
-    "networkx",
-    "printree",
-    "pyvis",
+  # Workflow Planner
+  "jinja2",
+  "networkx",
+  "printree",
+  "pyvis",
 
-    # Numerics
-    "numexpr",
-    "numpy",
-    "scipy",
-    "shapely",
+  # Numerics
+  "numexpr",
+  "numpy",
+  "scipy",
+  "shapely",
 
-    # CLI
-    "tqdm",
-    "typer",
+  # CLI
+  "tqdm",
+  "typer",
 
-    # Misc.
-    "requests", # For gcmt-to-realisation
-    "schema", # For loading realisations
-    "structlog", # Logging.
+  # Misc.
+  "requests",  # For gcmt-to-realisation
+  "schema",    # For loading realisations
+  "structlog", # Logging.
 ]
 
 [project.optional-dependencies]
-test = [
-    "pytest",
-]
-dev = [
-    "ruff",
-    "deptry"
-]
+test = ["pytest"]
+dev = ["ruff", "deptry"]
 
 [tool.deptry]
 pep621_dev_dependency_groups = ["test", "dev"]
@@ -81,11 +76,10 @@ check-domain = "workflow.scripts.check_domain:app"
 plan-workflow = "workflow.scripts.plan_workflow:app"
 gcmt-auto-simulate = "workflow.scripts.gcmt_auto_simulate:app"
 import-realisation = "workflow.scripts.import_realisation:app"
+lf-to-xarray = "workflow.scripts.lf_to_xarray:app"
 
 [tool.setuptools.package-dir]
 workflow = "workflow"
-
-
 
 
 [tool.setuptools_scm]
@@ -93,33 +87,33 @@ workflow = "workflow"
 
 [tool.ruff.lint]
 extend-select = [
-    # isort imports
-    "I",
-    # Use r'\s+' rather than '\s+'
-    "W605",
-    # All the naming errors, like using camel case for function names.
-    "N",
-    # Missing docstrings in classes, methods, and functions
-    "D101",
-    "D102",
-    "D103",
-    "D105",
-    "D107",
-    # Use f-string instead of a format call
-    "UP032",
-    # Standard library import is deprecated
-    "UP035",
-    # Missing function argument type-annotation
-    "ANN001",
-    "ANN002",
-    "ANN003",
-    "ANN201",
-    "ANN202",
-    "ANN204",
-    "ANN205",
-    "ANN206",
-    # Using except without specifying an exception type to catch
-    "BLE001",
+  # isort imports
+  "I",
+  # Use r'\s+' rather than '\s+'
+  "W605",
+  # All the naming errors, like using camel case for function names.
+  "N",
+  # Missing docstrings in classes, methods, and functions
+  "D101",
+  "D102",
+  "D103",
+  "D105",
+  "D107",
+  # Use f-string instead of a format call
+  "UP032",
+  # Standard library import is deprecated
+  "UP035",
+  # Missing function argument type-annotation
+  "ANN001",
+  "ANN002",
+  "ANN003",
+  "ANN201",
+  "ANN202",
+  "ANN204",
+  "ANN205",
+  "ANN206",
+  # Using except without specifying an exception type to catch
+  "BLE001",
 ]
 ignore = ["D104"]
 
@@ -128,15 +122,15 @@ convention = "numpy"
 
 [tool.ruff.lint.isort]
 known-first-party = [
-    "source_modelling",
-    "workflow",
-    "pygmt_helper",
-    "qcore",
-    "empirical",
-    "nshmdb",
-    "IM",
-    "mera",
-    "velocity_modelling",
+  "source_modelling",
+  "workflow",
+  "pygmt_helper",
+  "qcore",
+  "empirical",
+  "nshmdb",
+  "IM",
+  "mera",
+  "velocity_modelling",
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -150,24 +144,24 @@ omit = ["workflow/scripts/*.py"]
 
 [tool.numpydoc_validation]
 checks = [
-    "GL05",
-    "GL08",
-    "GL10",
-    "PR01",
-    "PR02",
-    "PR03",
-    "PR04",
-    "PR05",
-    "PR06",
-    "PR07",
-    "RT01",
-    "RT02",
-    "RT03",
-    "RT04",
-    "YD01",
+  "GL05",
+  "GL08",
+  "GL10",
+  "PR01",
+  "PR02",
+  "PR03",
+  "PR04",
+  "PR05",
+  "PR06",
+  "PR07",
+  "RT01",
+  "RT02",
+  "RT03",
+  "RT04",
+  "YD01",
 ]
 # remember to use single quotes for regex in TOML
 exclude = [ # don't report on objects that match any of these regex
-    '\.undocumented_method$',
-    '\.__repr__$',
+  '\.undocumented_method$',
+  '\.__repr__$',
 ]
