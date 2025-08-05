@@ -132,7 +132,7 @@ def hf_simulate_station(
     station_longitude: float,
     station_name: str,
     seed: int,
-) -> tuple[float, np.ndarray]:
+) -> tuple[str, float, np.ndarray]:
     """Simulate a seismic station using the HF (High-Frequency) simulation tool.
 
     Parameters
@@ -144,6 +144,8 @@ def hf_simulate_station(
 
     Returns
     -------
+    str
+        The completed station name.
     float
         The epicentre distance obtained from the simulation output.
     array of floats
@@ -197,7 +199,7 @@ def hf_simulate_station(
 
         station_waveform = np.fromfile(output_file, dtype=np.float32).reshape((-1, 3))
 
-        return epicentre_distance, station_waveform
+        return station_name, epicentre_distance, station_waveform
 
 
 @cli.from_docstring(app)
@@ -263,7 +265,7 @@ def run_hf(
         delimiter=r"\s+",
         header=None,
         names=["longitude", "latitude", "name"],
-    )
+    ).set_index("name")
     stations["seed"] = np.random.randint(low=MIN_INT, high=MAX_INT, size=len(stations))
     velocity_model_path = work_directory / "velocity_model"
     velocity_model.write_velocity_model(velocity_model_path)
@@ -274,7 +276,7 @@ def run_hf(
         stoch_ffp, velocity_model_path, hf_config, seeds, domain_parameters
     )
 
-    epicentres: list[float] = []
+    stations["epicentre_distance"] = np.nan
 
     with ThreadPoolExecutor(max_workers=utils.get_available_cores()) as executor:
         futures = [
@@ -284,14 +286,15 @@ def run_hf(
                 hf_input_template,
                 station["lat"],
                 station["lon"],
-                station["name"],
+                name,
                 station["seed"],
             )
-            for _, station in stations.iterrows()
+            for name, station in stations.iterrows()
         ]
         for i, future in enumerate(concurrent.futures.as_completed(futures)):
-            epicentre, station_waveform = future.result()
-            epicentres.append(epicentre)
+            station, epicentre, station_waveform = future.result()
+            stations.loc[station]["epicentre_distance"] = epicentre
+
             for component in range(3):
                 waveform[component, i] = station_waveform[:, component]
 
