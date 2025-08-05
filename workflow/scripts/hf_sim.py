@@ -284,8 +284,8 @@ def run_hf(
                 hf_simulate_station,
                 hf_sim_path,
                 hf_input_template,
-                station["lat"],
-                station["lon"],
+                station["latitude"],
+                station["longitude"],
                 name,
                 station["seed"],
             )
@@ -313,8 +313,8 @@ def run_hf(
         coords={
             "station": stations.index,
             "time": time,
-            "lat": (["station"], stations["lat"]),
-            "lon": (["station"], stations["lon"]),
+            "lat": (["station"], stations["latitude"]),
+            "lon": (["station"], stations["longitude"]),
         },
         attrs={
             "start_sec": start_sec,
