@@ -173,7 +173,7 @@ def combine_hf_and_lf(
         lf_filtered = timeseries.bwfilter(
             temp_lf_padded, bb_dt, 1.0, timeseries.Band.LOWPASS
         )
-        bb_waveform[i] = hf_filtered + lf_filtered
+        bb_waveform[i] = (hf_filtered + lf_filtered) / 981.0
 
     new_time_coords = np.arange(bb_nt) * bb_dt + bb_start_sec
     xr.Dataset(
@@ -187,7 +187,7 @@ def combine_hf_and_lf(
             "lon": lf.lon.values,
         },
         attrs={
-            "units": "cm/s^2",
+            "units": "g",
         },
     ).to_netcdf(
         output_ffp,
