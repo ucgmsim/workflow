@@ -153,7 +153,7 @@ def combine_hf_and_lf(
             hf_start_padding_nt : hf_start_padding_nt + hf_waveform_raw.shape[1],
         ] = hf_waveform_raw
 
-        vs30_df["pga"] = temp_hf_padded.max(axis=1)
+        vs30_df["pga"] = temp_hf_padded.max(axis=1) / 981.0
 
         hf_amp_val = siteamp_models.cb_amp_multi(
             vs30_df,
