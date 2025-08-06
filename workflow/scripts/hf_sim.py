@@ -331,7 +331,7 @@ def run_hf(
         ]
         for future in concurrent.futures.as_completed(futures):
             station, epicentre, station_waveform = future.result()
-            stations.loc[station]["epicentre_distance"] = epicentre
+            stations.loc[station, "epicentre_distance"] = epicentre
             i = station_index[station]
 
             for component in range(3):
