@@ -139,8 +139,16 @@ def hf_simulate_station(
     ----------
     hf_sim_path : Path
         The path to the HF simulation binary.
-    hf_sim_stdin : str
-        The stdin input for the HF simulation binary.
+    hf_sim_template : str
+        The stdin input template for the HF simulation binary.
+    station_latitude : float
+        The station latitude.
+    station_longitude : float
+        The station longitude.
+    station_name : str
+        The station name.
+    seed : int
+        The seed for this HF simulation.
 
     Returns
     -------
