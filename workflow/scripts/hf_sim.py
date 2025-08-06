@@ -122,7 +122,7 @@ def build_hf_input(
 
 
 MAX_INT = 2 ** (struct.calcsize("i") * 8 - 1) - 1
-MIN_INT = -MAX_INT
+MIN_INT = -MAX_INT - 1
 
 
 def hf_simulate_station(
