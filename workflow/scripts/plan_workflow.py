@@ -3,16 +3,18 @@ import tomllib
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from importlib import resources
-from pathlib import Path
+from pathlib import Path, PurePath
 from string import Template
 from typing import Annotated, Any, Generator, Iterable
 
 import jinja2
 import networkx as nx
+import printree
 import typer
 
 import workflow
 from qcore import cli
+from workflow import realisations
 from workflow.defaults import DefaultsVersion
 
 app = typer.Typer()
@@ -47,19 +49,38 @@ class Stage:
         return f"{self.id}<{parameters}>"
 
 
-def workflow_graph(stages: list[Stage]) -> nx.DiGraph:
+def build_resource_graph(stages: list[Stage]) -> nx.DiGraph:
     resource_graph = nx.DiGraph()
 
     for stage in stages:
         resource_graph.add_node(stage.id, type="stage")
-        for resource in stage.requires:
-            resource_graph.add_node(f"_{resource}", type="resource")
+        for resource in stage.requires_files:
+            resource_graph.add_node(
+                f"_{resource}", type="resource", resource_type="file"
+            )
+            resource_graph.add_edge(f"_{resource}", stage.id)
+        for resource in stage.requires_config:
+            resource_graph.add_node(
+                f"_{resource}", type="resource", resource_type="config"
+            )
             resource_graph.add_edge(f"_{resource}", stage.id)
 
-        for resource in stage.provides:
-            resource_graph.add_node(f"_{resource}", type="resource")
+        for resource in stage.provides_files:
+            resource_graph.add_node(
+                f"_{resource}", type="resource", resource_type="file"
+            )
             resource_graph.add_edge(stage.id, f"_{resource}")
 
+        for resource in stage.provides_config:
+            resource_graph.add_node(
+                f"_{resource}", type="resource", resource_type="config"
+            )
+            resource_graph.add_edge(stage.id, f"_{resource}")
+    return resource_graph
+
+
+def workflow_graph(stages: list[Stage]) -> nx.DiGraph:
+    resource_graph = build_resource_graph(stages)
     workflow_plan = nx.DiGraph()
     workflow_plan.add_nodes_from([stage.id for stage in stages])
     for node, data in resource_graph.nodes(data=True):
@@ -217,6 +238,106 @@ def union_all(sets: Iterable[set[Any]]) -> set[Any]:
     return out
 
 
+def build_filetree(root_path: PurePath, files: set[PurePath]) -> dict[str, Any]:
+    """Build a file tree from a set of file paths.
+
+    Parameters
+    ----------
+    root_path : PurePath
+        The root path for the file tree.
+    files : set[PurePath]
+        The set of files to construct a tree for.
+
+
+    Returns
+    -------
+    dict[str, Any]
+        A file tree.
+    """
+    file_descriptions = {
+        "realisation.srf": "Contains the slip model for the realisation.",
+        "model_params": "Parameters for the model used in the simulation.",
+        "grid_file": "Grid file for the model coordinates.",
+        "stations.ll": "Station coordinates (lat, lon) in the simulation domain.",
+        "stations.statcords": "Station coordinates (x, y) in the simulation domain.",
+        "rho3dfile.d": "3D density model file (for first realisation ONLY).",
+        "vp3dfile.p": "3D P-wave velocity model file (for first realisation ONLY).",
+        "vs3dfile.s": "3D S-wave velocity model file (for first realisation ONLY).",
+        "in_basin_mask.b": "In-basin mask file for the velocity model (for first realisation ONLY).",
+        "LF": "Directory containing low frequency simulation files.",
+        "e3d.par": "EMOD3D parameter file.",
+        "realisation.stoch": "Stochastic file for the realisation.",
+        "realisation.hf": "High frequency waveform file for the realisation.",
+        "realisation.lf": "Low frequency waveform file for the realisation.",
+        "realisation.bb": "Broadband waveform file for the realisation.",
+        "intensity_measures.parquet": "Parquet file containing intensity measures.",
+        "animation.mp4": "Animation of the timeslices.",
+        "output.e3d": "Merged XYTS output file from the low frequency simulation.",
+    }
+    config_descriptions = {
+        cls._config_key: cls.__doc__
+        for cls in [
+            realisations.RealisationMetadata,
+            realisations.SRFConfig,
+            realisations.RupturePropagationConfig,
+            realisations.DomainParameters,
+            realisations.VelocityModelParameters,
+            realisations.VelocityModel1D,
+            realisations.HFConfig,
+            realisations.EMOD3DParameters,
+            realisations.BroadbandParameters,
+            realisations.IntensityMeasureCalculationParameters,
+            realisations.Rakes,
+            realisations.Magnitudes,
+            realisations.SourceConfig,
+        ]
+    }
+
+    filetree = {}
+    root = filetree
+    for part in root_path.parts:
+        root[part] = {}
+        root = root[part]
+
+    for file in sorted(files):
+        cur = root
+        for part in file.parts[:-1]:
+            if part not in cur or isinstance(cur[part], str):
+                cur[part] = {}
+            cur = cur[part]
+
+        if file.parent.name == "realisation.json":
+            cur[file.parts[-1]] = config_descriptions.get(file.name, {})
+        else:
+            cur[file.parts[-1]] = file_descriptions.get(file.name, {})
+    if not root:
+        return {}
+    return filetree
+
+
+def print_required_files(stages: list[Stage]):
+    root_path = PurePath("cylc-src") / "WORKFLOW_NAME" / "inputs" / "REALISATION"
+    resource_graph = build_resource_graph(stages)
+    unmet_resources = {
+        PurePath(resource.lstrip("_"))
+        if data["resource_type"] == "file"
+        else PurePath("realisation.json") / resource.lstrip("_")
+        for resource, data in resource_graph.nodes(data=True)
+        # Only select nodes that are resources, and have no workflow
+        # stage providing them (i.e. in-degree in the resource graph
+        # is zero).
+        if data["type"] == "resource" and not resource_graph.in_degree(resource)
+    }
+    filetree = build_filetree(root_path, unmet_resources)
+    if not filetree:
+        print("You do not require any files (besides the flow.cylc).")
+        return
+    print("You require the following files for your simulation:")
+    print()
+    filetree["cylc-src"]["WORKFLOW_NAME"]["flow.cylc"] = "Cylc workflow file."
+    printree.ptree(filetree)
+
+
 @cli.from_docstring(app)
 def plan_workflow(
     realisation_ids: Annotated[list[str], typer.Argument()],
@@ -257,19 +378,6 @@ def plan_workflow(
             show_default=False,
         ),
     ],
-    # archive: Annotated[
-    #     list[StageIdentifier],
-    #     typer.Option(
-    #         default_factory=lambda: [
-    #             StageIdentifier.Broadband,
-    #             StageIdentifier.IntensityMeasureCalculation,
-    #         ],
-    #         rich_help_panel="Archiving",
-    #     ),
-    # ],
-    show_required_files: Annotated[
-        bool, typer.Option(rich_help_panel="Visualising Workflows")
-    ] = True,
     target_host: Annotated[
         WorkflowTarget, typer.Option(rich_help_panel="Planning Workflows")
     ] = WorkflowTarget.NeSI,
@@ -277,32 +385,34 @@ def plan_workflow(
     defaults_version: Annotated[
         DefaultsVersion | None, typer.Option(rich_help_panel="Sources")
     ] = None,
+    show_required_files: Annotated[
+        bool, typer.Option(rich_help_panel="Visualising Workflows")
+    ] = True,
 ) -> None:
     """Plan a workflow.
 
     Parameters
     ----------
     realisation_ids : Annotated[list[str], typer.Argument()]
-        test
+        List of realisations to generate workflows for. Realisations have the format event:realisation_count, such as Darfield:4.
     flow_file : Path
-        test
+        Path to output flow file (e.g. ~/cylc-src/my-workflow/flow.cylc).
     goals : Annotated[ list[str], typer.Option( "--goal", default_factory=lambda: [], rich_help_panel="Planning Workflows" ), ]
-        test
+        List of workflow outputs to generate.
     group_goal : Annotated[ list[GroupIdentifier], typer.Option(default_factory=lambda: [], rich_help_panel="Planning Workflows"), ]
-        test
+        List of group goals to generate.
     excluding : Annotated[ list[str], typer.Option(default_factory=lambda: [], rich_help_panel="Planning Workflows"), ]
-        test
+        List of stages to exclude.
     excluding_groups : Annotated[ list[GroupIdentifier], typer.Option( "--excluding-group", default_factory=lambda: [], rich_help_panel="Planning Workflows", ), ]
-        test
+        List of stage groups to exclude.
     show_required_files : bool
-        test
+        Print the expected directory tree at the start of the simulation.
     target_host : WorkflowTarget
-        test
+        Select the target host where the workflow will be run.
     source : Annotated[Source | None, typer.Option(rich_help_panel="Sources")]
-        test
+        If given, set the source of the realisation. For NSHM and GCMT, the realisation id corresponds to the rupture id and GCMT PublicID respectively.
     defaults_version : Annotated[ DefaultsVersion | None, typer.Option(rich_help_panel="Sources") ]
-        test
-
+        The simulation defaults to apply for all realisations. Required if source is specified.
     """
     realisations = [
         parse_realisation(realisation_id) for realisation_id in realisation_ids
@@ -354,6 +464,8 @@ def plan_workflow(
         stages=workflow_stages,
         environment=default_environment | host_environment,
     ).dump(str(flow_file))
+    if show_required_files:
+        print_required_files(workflow_stages)
 
 
 if __name__ == "__main__":
