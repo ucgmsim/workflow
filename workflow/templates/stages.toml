@@ -120,3 +120,12 @@ requires_files = [
   "stations/stations.statcords",
 ]
 provides_files = ["realisation.lf"]
+
+
+[check_srf]
+parameters = ['event', 'realisation']
+follows = 'realisation_to_srf'
+
+[check_domain]
+parameters = ['event']
+follows = 'generate_velocity_model'
