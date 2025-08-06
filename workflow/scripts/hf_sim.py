@@ -33,7 +33,6 @@ See the output of `hf-sim --help`.
 """
 
 import concurrent.futures
-import struct
 import subprocess
 import tempfile
 from concurrent.futures.thread import ThreadPoolExecutor
