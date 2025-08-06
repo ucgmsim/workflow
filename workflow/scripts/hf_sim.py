@@ -283,6 +283,7 @@ def run_hf(
     stations["epicentre_distance"] = np.nan
 
     with ThreadPoolExecutor(max_workers=utils.get_available_cores()) as executor:
+        station_index = {station: i for i, station in enumerate(stations.index)}
         futures = [
             executor.submit(
                 hf_simulate_station,
@@ -295,9 +296,10 @@ def run_hf(
             )
             for name, station in stations.iterrows()
         ]
-        for i, future in enumerate(concurrent.futures.as_completed(futures)):
+        for future in concurrent.futures.as_completed(futures):
             station, epicentre, station_waveform = future.result()
             stations.loc[station]["epicentre_distance"] = epicentre
+            i = station_index[station]
 
             for component in range(3):
                 waveform[component, i] = station_waveform[:, component]
