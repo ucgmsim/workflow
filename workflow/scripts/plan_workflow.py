@@ -31,6 +31,7 @@ class Stage:
     requires_files: set[str] = field(default_factory=set)
     provides_config: set[str] = field(default_factory=set)
     provides_files: set[str] = field(default_factory=set)
+    follows: str | None = None
 
     @property
     def provides(self) -> set[str]:
@@ -60,19 +61,21 @@ def workflow_graph(stages: list[Stage]) -> nx.DiGraph:
             resource_graph.add_edge(stage.id, f"_{resource}")
 
     workflow_plan = nx.DiGraph()
-    workflow_plan.add_nodes_from(
-        [
-            node
-            for node, data in resource_graph.nodes(data=True)
-            if data["type"] == "stage"
-        ]
-    )
+    workflow_plan.add_nodes_from([stage.id for stage in stages])
     for node, data in resource_graph.nodes(data=True):
         if data["type"] != "resource":
             continue
         producers = resource_graph.predecessors(node)
         consumers = resource_graph.successors(node)
         workflow_plan.add_edges_from(itertools.product(producers, consumers))
+    for stage in stages:
+        if stage.follows:
+            # This order is required! If we add the stage.follows -> stage.id edge first we get a loop.
+            workflow_plan.add_edges_from(
+                (stage.id, neighbour)
+                for neighbour in workflow_plan.successors(stage.follows)
+            )
+            workflow_plan.add_edge(stage.follows, stage.id)
 
     return workflow_plan
 
@@ -128,6 +131,7 @@ def load_workflow_stages() -> list[Stage]:
                 requires_config=set(kwargs.get("requires_config", set())),
                 provides_files=set(kwargs.get("provides_files", set())),
                 provides_config=set(kwargs.get("provides_config", set())),
+                follows=kwargs.get("follows"),
             )
             for id, kwargs in toml_parser.items()
         ]
@@ -275,8 +279,6 @@ def plan_workflow(
     ] = None,
 ) -> None:
     """Plan a workflow.
-
-
 
     Parameters
     ----------
