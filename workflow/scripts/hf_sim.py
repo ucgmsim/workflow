@@ -253,7 +253,7 @@ def run_hf(
         The function does not return any value. It writes the HF output directly to `out_file`.
     """
     seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
-    np.random.seed(seeds.hf_seed)
+    rng = np.random.default_rng(seeds.hf_seed)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     velocity_model = VelocityModel1D.read_from_realisation_or_defaults(
@@ -269,7 +269,14 @@ def run_hf(
         header=None,
         names=["longitude", "latitude", "name"],
     ).set_index("name")
-    stations["seed"] = np.random.randint(size=len(stations), dtype=np.int32)
+    int_bounds = np.iinfo(np.int32)
+    stations["seed"] = rng.integers(
+        low=int_bounds.min,
+        high=int_bounds.max,
+        endpoint=True,
+        size=len(stations),
+        dtype=np.int32,
+    )
     velocity_model_path = work_directory / "velocity_model"
     velocity_model.write_velocity_model(velocity_model_path)
     nt = int(domain_parameters.duration / hf_config.dt)
