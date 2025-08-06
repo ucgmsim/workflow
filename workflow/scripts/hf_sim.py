@@ -121,10 +121,6 @@ def build_hf_input(
     return "\n".join(str(line) for line in hf_sim_input)
 
 
-MAX_INT = 2 ** (struct.calcsize("i") * 8 - 1) - 1
-MIN_INT = -MAX_INT
-
-
 def hf_simulate_station(
     hf_sim_path: Path,
     hf_stdin_template: str,
@@ -274,7 +270,7 @@ def run_hf(
         header=None,
         names=["longitude", "latitude", "name"],
     ).set_index("name")
-    stations["seed"] = np.random.randint(low=MIN_INT, high=MAX_INT, size=len(stations))
+    stations["seed"] = np.random.randint(size=len(stations), dtype=np.int32)
     velocity_model_path = work_directory / "velocity_model"
     velocity_model.write_velocity_model(velocity_model_path)
     nt = int(domain_parameters.duration / hf_config.dt)
