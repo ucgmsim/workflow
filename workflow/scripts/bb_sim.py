@@ -52,6 +52,8 @@ from workflow.realisations import (
 
 app = typer.Typer()
 
+G = 1 / 981.0
+
 
 @cli.from_docstring(app)
 @log_utils.log_call()
@@ -61,7 +63,9 @@ def combine_hf_and_lf(
     low_frequency_waveform_file: Annotated[
         Path, typer.Argument(dir_okay=False, exists=True)
     ],
-    high_frequency_waveform_file: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    high_frequency_waveform_file: Annotated[
+        Path, typer.Argument(exists=True, dir_okay=False)
+    ],
     output_ffp: Annotated[Path, typer.Argument(dir_okay=False, writable=True)],
 ) -> None:
     """Combine low-frequency and high-frequency seismic waveforms.
@@ -153,7 +157,7 @@ def combine_hf_and_lf(
             hf_start_padding_nt : hf_start_padding_nt + hf_waveform_raw.shape[1],
         ] = hf_waveform_raw
 
-        vs30_df["pga"] = temp_hf_padded.max(axis=1) / 981.0
+        vs30_df["pga"] = temp_hf_padded.max(axis=1) * G
 
         hf_amp_val = siteamp_models.cb_amp_multi(
             vs30_df,
@@ -170,7 +174,7 @@ def combine_hf_and_lf(
         lf_filtered = timeseries.bwfilter(
             temp_lf_padded, bb_dt, 1.0, timeseries.Band.LOWPASS
         )
-        bb_waveform[i] = (hf_filtered + lf_filtered) / 981.0
+        bb_waveform[i] = (hf_filtered + lf_filtered) * G
 
     new_time_coords = np.arange(bb_nt) * bb_dt + bb_start_sec
     xr.Dataset(
