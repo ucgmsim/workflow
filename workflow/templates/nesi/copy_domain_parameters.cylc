@@ -2,4 +2,4 @@
 {% block content %}
 platform = localhost
 {% endblock %}
-{% block script %}apptainer exec -c --bind "$BIND" "$CONTAINER" copy-domain-parameters /parent/realisation.json /share/realisation.json{% endblock %}
+{% block script %}apptainer exec -c --bind "$BIND" "$CONTAINER" copy-domain-parameters /parent/realisation.json /event/realisation.json{% endblock %}

@@ -1,3 +1,5 @@
-[[{{stage_node_identifier(stage)}}]]
-    platform = localhost
-    script = apptainer exec -c --bind "$BIND" "$CONTAINER" generate-station-coordinates /share/realisation.json /share/stations --stat-file /stations.ll
+{% extends "stage.cylc" %}
+{% block content %}
+platform = localhost
+{% endblock %}
+{% block script %}apptainer exec -c --bind "$BIND" "$CONTAINER" generate-station-coordinates /share/realisation.json /share/stations{% endblock %}
