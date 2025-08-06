@@ -33,6 +33,7 @@ See the output of `hf-sim --help`.
 """
 
 import concurrent.futures
+import hashlib
 import subprocess
 import tempfile
 from concurrent.futures.thread import ThreadPoolExecutor
@@ -205,6 +206,32 @@ def hf_simulate_station(
         return station_name, epicentre_distance, station_waveform
 
 
+def stable_hash(station: str) -> int:
+    """Compute stable hashes for station names.
+
+    The HF binary expects seeds. We want the provided seed to be
+    independent of the order of stations in the stations lists. This
+    is so setting HF seed reproduces the same outputs, even for
+    different orders or subsets of the original station file. To do
+    that, we generate stable hashes based on the station name.
+
+
+    Parameters
+    ----------
+    station : str
+        The station name.
+
+    Returns
+    -------
+    int
+        A hash of the station name. This is guaranteed to be in the
+        range of a signed 32-bit integer.
+    """
+    return int.from_bytes(
+        hashlib.blake2b(station.encode("utf-8"), digest_size=4).digest(), signed=True
+    )
+
+
 @cli.from_docstring(app)
 @log_utils.log_call()
 def run_hf(
@@ -253,7 +280,7 @@ def run_hf(
         The function does not return any value. It writes the HF output directly to `out_file`.
     """
     seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
-    rng = np.random.default_rng(seeds.hf_seed)
+
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     velocity_model = VelocityModel1D.read_from_realisation_or_defaults(
@@ -269,14 +296,14 @@ def run_hf(
         header=None,
         names=["longitude", "latitude", "name"],
     ).set_index("name")
-    int_bounds = np.iinfo(np.int32)
-    stations["seed"] = rng.integers(
-        low=int_bounds.min,
-        high=int_bounds.max,
-        endpoint=True,
-        size=len(stations),
-        dtype=np.int32,
+    station_hashes = np.array(
+        [stable_hash(name) for name in stations.index], dtype=np.int32
     )
+    # Rather than add (which could overflow and cause annoying numpy
+    # warnings), we just xor the hf seed with the station hashes.
+    # Since this is invertible, we ensure that the same hf seed gives
+    # the same station seeds.
+    stations["seed"] = np.int32(seeds.hf_seed) ^ station_hashes
     velocity_model_path = work_directory / "velocity_model"
     velocity_model.write_velocity_model(velocity_model_path)
     nt = int(domain_parameters.duration / hf_config.dt)
