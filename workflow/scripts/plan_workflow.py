@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from importlib import resources
 from pathlib import Path, PurePath
-from string import Template
 from typing import Annotated, Any, Generator, Iterable
 
 import jinja2
@@ -27,29 +26,56 @@ class Parameter(StrEnum):
 
 @dataclass
 class Stage:
+    """A workflow stage."""
+
     id: str
+    """The identifier of the stage, e.g. realisation_to_srf."""
     parameters: list[Parameter] = field(default_factory=list)
+    """The cylc parameters that this stage takes."""
     requires_config: set[str] = field(default_factory=set)
+    """The configuration blocks required for this workflow stage."""
     requires_files: set[str] = field(default_factory=set)
+    """The files required for this workflow stage."""
     provides_config: set[str] = field(default_factory=set)
+    """The configuration blocks that this stage produces."""
     provides_files: set[str] = field(default_factory=set)
+    """The files that this stage generates."""
     follows: str | None = None
-
-    @property
-    def provides(self) -> set[str]:
-        return self.provides_config | self.provides_files
-
-    @property
-    def requires(self) -> set[str]:
-        return self.requires_config | self.requires_files
+    """An explicit reference to a stage that this stage must follow."""
 
     @property
     def cylc_stage_identifier_template(self) -> str:
-        parameters = ", ".join("${" + parameter + "}" for parameter in self.parameters)
+        """Return a template for a cylc stage identifier.
+
+        Returns
+        -------
+        str
+            The cylc stage identifier template. Comes in the form
+            {id}<{parameters}>.
+        """
+        parameters = ", ".join("{" + parameter + "}" for parameter in self.parameters)
         return f"{self.id}<{parameters}>"
 
 
 def build_resource_graph(stages: list[Stage]) -> nx.DiGraph:
+    """Build a graph representing workflow stage and resource needs.
+
+
+
+    Parameters
+    ----------
+    stages : list[Stage]
+        The stages to build the resource graph from.
+
+
+    Returns
+    -------
+    nx.DiGraph
+        A directed bipartite graph containing resource and stage
+        nodes. An directed edge resource -> stage implies that a stage
+        requires a resource to run. A directed edge stage -> resource
+        implies that a stage produces a resource.
+    """
     resource_graph = nx.DiGraph()
 
     for stage in stages:
@@ -80,6 +106,24 @@ def build_resource_graph(stages: list[Stage]) -> nx.DiGraph:
 
 
 def workflow_graph(stages: list[Stage]) -> nx.DiGraph:
+    """Build a workflow graph from a list of stages.
+
+
+
+    Parameters
+    ----------
+    stages : list[Stage]
+        The stages to build the workflow graph from.
+
+
+    Returns
+    -------
+    nx.DiGraph
+        A directed acyclic graph over workflow stages, where an edge
+        stage a -> stage b implies that stage b depends on the output
+        of stage a. The graph is not transitively reduced (hence, some
+        edges are redundant).
+    """
     resource_graph = build_resource_graph(stages)
     workflow_plan = nx.DiGraph()
     workflow_plan.add_nodes_from([stage.id for stage in stages])
@@ -102,10 +146,42 @@ def workflow_graph(stages: list[Stage]) -> nx.DiGraph:
 
 
 def dfs_paths(workflow_plan: nx.DiGraph, roots: list[str]) -> Generator[list[str]]:
+    """Yield all DFS paths from a digraph beginning at any listed root.
+
+    Parameters
+    ----------
+    workflow_plan : nx.DiGraph
+        The graph to generate DFS paths for.
+    roots : list[str]
+        The roots to begin recursion at.
+
+    Yields
+    ------
+    list[str]
+        A DFS path from the graph `workflow_graph` starting from a root in `roots`.
+    """
+
     def aux(path: list[str], visited: set[str]) -> Generator[list[str]]:
+        """Auxiliary function to perform DFS recursion.
+
+        Parameters
+        ----------
+        path : list[str]
+            The current path from a root.
+        visited : set[str]
+            The visited nodes.
+
+        Yields
+        ------
+        list[str]
+            A DFS path from the graph.
+        """
         cur = path[-1]
         if cur in visited or workflow_plan.out_degree(cur) == 0:
             visited.add(cur)  # in the case where out-degree == 0, this is helpful
+
+            # Paths must be copied at the end, or else the paths will
+            # be modified after yielding.
             yield path.copy()
             return
         visited.add(cur)
@@ -121,6 +197,20 @@ def dfs_paths(workflow_plan: nx.DiGraph, roots: list[str]) -> Generator[list[str
 
 
 def dfs_tree_cover(workflow_plan: nx.DiGraph):
+    """Cover every edge with DFS paths.
+
+    Parameters
+    ----------
+    workflow_plan : nx.DiGraph
+        The graph to cover.
+
+    Yields
+    list[str]
+        A DFS path of the graph `workflow_plan`. Every edge of
+        `workflow_plan` is guaranteed to be included in at least one
+        path.
+    """
+
     roots = [
         node for node in workflow_plan.nodes() if workflow_plan.in_degree(node) == 0
     ]
@@ -129,19 +219,40 @@ def dfs_tree_cover(workflow_plan: nx.DiGraph):
 
 def workflow_plan_as_cylc_template(
     stages: list[Stage], workflow_plan: nx.DiGraph
-) -> Template:
+) -> str:
+    """Render a workflow plan graph as a workflow plan template.
+
+    Parameters
+    ----------
+    stages : list[Stage]
+        The stages to render.
+    workflow_plan : nx.DiGraph
+        The workflow plan to render.
+
+    Returns
+    -------
+    str
+        A format-string template for the workflow graph. This
+        format-subtring can be substituted with named parameters to
+        yield a concrete cylc flow graph to output into a .flow file.
+    """
     stage_lookup = {stage.id: stage for stage in stages}
-    return Template(
-        "\n".join(
-            " => ".join(
-                stage_lookup[stage].cylc_stage_identifier_template for stage in path
-            )
-            for path in dfs_tree_cover(workflow_plan)
+    return "\n".join(
+        " => ".join(
+            stage_lookup[stage].cylc_stage_identifier_template for stage in path
         )
+        for path in dfs_tree_cover(workflow_plan)
     )
 
 
 def load_workflow_stages() -> list[Stage]:
+    """Load workflow stages from the `stages.toml` definition file.
+
+    Returns
+    -------
+    list[Stage]
+        A list of loaded stages.
+    """
     with resources.open_binary(workflow, "templates", "stages.toml") as f:
         toml_parser = tomllib.load(f)
         return [
@@ -159,6 +270,18 @@ def load_workflow_stages() -> list[Stage]:
 
 
 def load_host_environment(host: str) -> dict[str, Any]:
+    """Load a host environment dictionary from its defining toml file.
+
+    Parameters
+    ----------
+    host : str
+        The host to load.
+
+    Returns
+    -------
+    dict[str, Any]
+        A dictionary containing the loaded host environment variables.
+    """
     with resources.open_binary(workflow, "templates", host, "environment.toml") as f:
         return tomllib.load(f)
 
@@ -232,6 +355,18 @@ GROUP_STAGES = {
 
 
 def union_all(sets: Iterable[set[Any]]) -> set[Any]:
+    """Union an iterable of sets.
+
+    Parameters
+    ----------
+    sets : Iterable[set[Any]]
+        The sets to union.
+
+    Returns
+    -------
+    set[Any]
+        A set containing the union of all `sets`.
+    """
     out = set()
     for aset in sets:
         out |= aset
@@ -315,7 +450,18 @@ def build_filetree(root_path: PurePath, files: set[PurePath]) -> dict[str, Any]:
     return filetree
 
 
-def print_required_files(stages: list[Stage]):
+def print_required_files(stages: list[Stage]) -> None:
+    """Print the required files by stages.
+
+    A resource is considered required if no stage in `stages` provides
+    that resource.
+
+    Parameters
+    ----------
+    stages : list[Stage]
+        The stages that will be run in the workflow.
+
+    """
     root_path = PurePath("cylc-src") / "WORKFLOW_NAME" / "inputs" / "REALISATION"
     resource_graph = build_resource_graph(stages)
     unmet_resources = {
@@ -450,7 +596,7 @@ def plan_workflow(
     environment = jinja2.Environment(loader=jinja2.PackageLoader("workflow"))
     template = environment.get_template("flow.cylc")
     workflow_graph_string = "\n".join(
-        workflow_graph_template.substitute(
+        workflow_graph_template.format(
             event="event", realisation=f"{event}_realisations"
         )
         for event, _ in realisations
