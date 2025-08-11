@@ -97,7 +97,7 @@ hf:
   rv_sig1: 0.1
   path_dur: 11
   dpath_pert: 0.0
-  stress_parameter_adjustment_tect_type: 1
+  stress_parameter_adjustment_tect_type: 0
   stress_parameter_adjustment_target_magnitude: null
   stress_parameter_adjustment_fault_area: null
   stoch_dx: 2.0
@@ -108,13 +108,13 @@ srf:
   genslip_version: 5.4.2
   # The following parameters are only used for the point source approximation.
   point_source_params:
-    # Valid options for the slip time function (stype) are: 
+    # Valid options for the slip time function (stype) are:
     # esg2006, urs, ucsb, ucsb2, ucsb-T, ucsb-varT1, cos, and seki
     stype: "cos"
     risetime: 0.5
     risetimefac: 1.0
     risetimedep: 0.0
-    inittime : 0.0
+    inittime: 0.0
 velocity_model:
   min_vs: 0.5
   resolution: 0.1
@@ -124,11 +124,7 @@ velocity_model:
   topo_type: "SQUASHED_TAPERED"
   vs30: 500.0
   s_wave_velocity: 3500.0
-  pgv_interpolants:
-    [
-      [3.5, 1.0],
-      [8., 1.0],
-    ]
+  pgv_interpolants: [[3.5, 1.0], [8., 1.0]]
 velocity_model_1d:
   model:
     - thickness: 0.0500
@@ -330,7 +326,7 @@ velocity_model_1d:
       Qp: 430.00
       Qs: 215.00
     - thickness: 999.9999
-       
+
       Vp: 8.1000
       Vs: 4.6000
       rho: 3.3300
