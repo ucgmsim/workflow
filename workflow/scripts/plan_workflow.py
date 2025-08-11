@@ -20,8 +20,11 @@ app = typer.Typer()
 
 
 class Parameter(StrEnum):
+    """Parameter names for cylc workflow templates."""
     event = auto()
+    """The event parameter."""
     sample = auto()
+    """The sample parameter."""
 
 
 @dataclass
