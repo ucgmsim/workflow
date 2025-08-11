@@ -287,15 +287,22 @@ class WorkflowTarget(StrEnum):
     """Enumeration of possible workflow targets."""
 
     NeSI = auto()
+    """Target NeSI HPC environment."""
     Hypocentre = auto()
+    """Target Hypocentre or local environment."""
     TACC = auto()
+    """Target TACC environment."""
+    RCH = auto()
+    """Target RCH environment."""
 
 
 class Source(StrEnum):
     """Realisation source options."""
 
     GCMT = auto()
+    """Source realisation information from GCMT solution."""
     NSHM = auto()
+    """Source realisation information from NSHM2022 database."""
 
 
 def parse_realisation(realisation_id: str) -> tuple[str, int]:
