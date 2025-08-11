@@ -63,13 +63,10 @@ class Stage:
 def build_resource_graph(stages: list[Stage]) -> nx.DiGraph:
     """Build a graph representing workflow stage and resource needs.
 
-
-
     Parameters
     ----------
     stages : list[Stage]
         The stages to build the resource graph from.
-
 
     Returns
     -------
@@ -111,13 +108,10 @@ def build_resource_graph(stages: list[Stage]) -> nx.DiGraph:
 def workflow_graph(stages: list[Stage]) -> nx.DiGraph:
     """Build a workflow graph from a list of stages.
 
-
-
     Parameters
     ----------
     stages : list[Stage]
         The stages to build the workflow graph from.
-
 
     Returns
     -------
@@ -386,7 +380,6 @@ def build_filetree(root_path: PurePath, files: set[PurePath]) -> dict[str, Any]:
     files : set[PurePath]
         The set of files to construct a tree for.
 
-
     Returns
     -------
     dict[str, Any]
@@ -463,7 +456,6 @@ def print_required_files(stages: list[Stage]) -> None:
     ----------
     stages : list[Stage]
         The stages that will be run in the workflow.
-
     """
     root_path = PurePath("cylc-src") / "WORKFLOW_NAME" / "inputs" / "REALISATION"
     resource_graph = build_resource_graph(stages)
@@ -542,26 +534,30 @@ def plan_workflow(
 
     Parameters
     ----------
-    realisation_ids : Annotated[list[str], typer.Argument()]
-        List of realisations to generate workflows for. Realisations have the format event:realisation_count, such as Darfield:4.
+    realisation_ids : list[str]
+        List of realisations to generate workflows for. Realisations
+        have the format event:realisation_count, such as Darfield:4.
     flow_file : Path
         Path to output flow file (e.g. ~/cylc-src/my-workflow/flow.cylc).
-    goals : Annotated[ list[str], typer.Option( "--goal", default_factory=lambda: [], rich_help_panel="Planning Workflows" ), ]
+    goals : list[str]
         List of workflow outputs to generate.
-    group_goal : Annotated[ list[GroupIdentifier], typer.Option(default_factory=lambda: [], rich_help_panel="Planning Workflows"), ]
+    group_goal : list[GroupIdentifier]
         List of group goals to generate.
-    excluding : Annotated[ list[str], typer.Option(default_factory=lambda: [], rich_help_panel="Planning Workflows"), ]
+    excluding : list[str]
         List of stages to exclude.
-    excluding_groups : Annotated[ list[GroupIdentifier], typer.Option( "--excluding-group", default_factory=lambda: [], rich_help_panel="Planning Workflows", ), ]
+    excluding_groups : list[GroupIdentifier]
         List of stage groups to exclude.
     show_required_files : bool
         Print the expected directory tree at the start of the simulation.
     target_host : WorkflowTarget
         Select the target host where the workflow will be run.
-    source : Annotated[Source | None, typer.Option(rich_help_panel="Sources")]
-        If given, set the source of the realisation. For NSHM and GCMT, the realisation id corresponds to the rupture id and GCMT PublicID respectively.
-    defaults_version : Annotated[ DefaultsVersion | None, typer.Option(rich_help_panel="Sources") ]
-        The simulation defaults to apply for all realisations. Required if source is specified.
+    source : Source | None
+        If given, set the source of the realisation. For NSHM and
+        GCMT, the realisation id corresponds to the rupture id and
+        GCMT PublicID respectively.
+    defaults_version : DefaultsVersion | None
+        The simulation defaults to apply for all realisations.
+        Required if source is specified.
     """
     realisations = [
         parse_realisation(realisation_id) for realisation_id in realisation_ids
