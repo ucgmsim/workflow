@@ -82,6 +82,8 @@ class StageConfig:
     """The slurm or pbs directives to supply with the job."""
     environment: dict[str, str] = field(default_factory=dict)
     """The environment variables to make available to the script."""
+    settings: dict[str, str] = field(default_factory=dict)
+    """Additional settings for the stage"""
 
 
 def build_resource_graph(stages: list[Stage]) -> nx.DiGraph:

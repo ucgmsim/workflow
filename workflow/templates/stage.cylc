@@ -9,7 +9,7 @@
     """
 {% endif %}
     script = {% block script %}{% endblock %}
-{% for variable, value in host_environment[stage.id].settings %}
+{% for variable, value in host_environment[stage.id].settings.items() %}
 {{variable}} = {{value}}
 {% endfor %}
 {% if host_environment[stage.id].directives %}
