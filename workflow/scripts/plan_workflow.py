@@ -202,7 +202,7 @@ def dfs_paths(workflow_plan: nx.DiGraph, roots: list[str]) -> Generator[list[str
         yield from aux([root], visited)
 
 
-def dfs_tree_cover(workflow_plan: nx.DiGraph):
+def dfs_tree_cover(workflow_plan: nx.DiGraph) -> Generator[list[str]]:
     """Cover every edge with DFS paths.
 
     Parameters
@@ -211,6 +211,7 @@ def dfs_tree_cover(workflow_plan: nx.DiGraph):
         The graph to cover.
 
     Yields
+    ------
     list[str]
         A DFS path of the graph `workflow_plan`. Every edge of
         `workflow_plan` is guaranteed to be included in at least one
