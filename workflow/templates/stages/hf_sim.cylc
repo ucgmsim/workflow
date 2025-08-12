@@ -1,2 +1,2 @@
 {% extends "stage.cylc" %}
-{% block script %}apptainer exec -c --bind "$BIND" "$CONTAINER" hf-sim /share/realisation.json /share/realisation.stoch /event/stations.ll{% endblock %}
+{% block script %}apptainer exec -c --bind "$BIND" "$CONTAINER" hf-sim /share/realisation.json /share/realisation.stoch /event/stations.ll /share/realisation.hf{% endblock %}

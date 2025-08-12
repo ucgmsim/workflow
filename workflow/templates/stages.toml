@@ -35,11 +35,7 @@ provides_files = ["LF/e3d.par"]
 [bb_sim]
 parameters = ["event", "realisation"]
 requires_config = ["metadata", "domain"]
-requires_files = [
-  "realisation.lf",
-  "realisation.hf",
-  "Velocity_Model/vs3dfile.s",
-]
+requires_files = ["realisation.lf", "realisation.hf", "stations/stations.vs30"]
 provides_config = ["broadband_parameters"]
 provides_files = ["realisation.bb"]
 
@@ -63,7 +59,7 @@ provides_files = ["realisation.hf"]
 
 [im_calc]
 parameters = ["event", "realisation"]
-requires_files = ["Velocity_Model/vs3dfile.s", "realisation.bb"]
+requires_files = ["realisation.bb"]
 requires_config = [
   "broadband_parameters",
   "metadata",
@@ -105,7 +101,11 @@ provides_files = ["realisation.stoch"]
 [generate_station_coordinates]
 parameters = ["event"]
 requires_config = ["domain"]
-provides_files = ["stations/stations.ll", "stations/stations.statcords"]
+provides_files = [
+  "stations/stations.ll",
+  "stations/stations.statcords",
+  "stations/stations.vs30",
+]
 
 [emod3d]
 parameters = ["event", "realisation"]
