@@ -168,7 +168,9 @@ def workflow_graph(stages: list[Stage]) -> nx.DiGraph:
     return workflow_plan
 
 
-def dfs_paths(workflow_plan: nx.DiGraph, roots: list[str]) -> Generator[list[str]]:
+def dfs_paths(
+    workflow_plan: nx.DiGraph, roots: list[str]
+) -> Generator[list[str], None, None]:
     """Yield all DFS paths from a digraph beginning at any listed root.
 
     Parameters
@@ -184,7 +186,7 @@ def dfs_paths(workflow_plan: nx.DiGraph, roots: list[str]) -> Generator[list[str
         A DFS path from the graph `workflow_graph` starting from a root in `roots`.
     """
 
-    def aux(path: list[str], visited: set[str]) -> Generator[list[str]]:
+    def aux(path: list[str], visited: set[str]) -> Generator[list[str], None, None]:
         """Auxiliary function to perform DFS recursion.
 
         Parameters
@@ -219,7 +221,7 @@ def dfs_paths(workflow_plan: nx.DiGraph, roots: list[str]) -> Generator[list[str
         yield from aux([root], visited)
 
 
-def dfs_tree_cover(workflow_plan: nx.DiGraph) -> Generator[list[str]]:
+def dfs_tree_cover(workflow_plan: nx.DiGraph) -> Generator[list[str], None, None]:
     """Cover every edge with DFS paths.
 
     Parameters
