@@ -3,11 +3,12 @@
 import itertools
 import tomllib
 from collections import defaultdict
+from collections.abc import Generator, Iterable
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from importlib import resources
 from pathlib import Path, PurePath
-from typing import Annotated, Any, BinaryIO, Generator, Iterable, TypeVar
+from typing import Annotated, Any, BinaryIO, TypeVar
 
 import jinja2
 import networkx as nx
