@@ -693,6 +693,9 @@ def plan_workflow(
         Print the expected directory tree at the start of the simulation.
     target_host : WorkflowTarget
         Select the target host where the workflow will be run.
+    host_file : Path | None
+        Provide a custom host file for a new host environment.
+        Overrides the target host selection if present.
     source : Source | None
         If given, set the source of the realisation. For NSHM and
         GCMT, the realisation id corresponds to the rupture id and
