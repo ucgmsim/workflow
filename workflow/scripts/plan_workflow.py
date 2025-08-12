@@ -1,3 +1,5 @@
+"""Workflow planning tool."""
+
 import itertools
 import tomllib
 from collections import defaultdict
