@@ -1,16 +1,17 @@
-from collections import defaultdict
 import itertools
 import tomllib
+from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from importlib import resources
 from pathlib import Path, PurePath
-from typing import Annotated, Any, BinaryIO, Generator, Iterable
+from typing import Annotated, Any, BinaryIO, Generator, Iterable, TypeVar
 
 import jinja2
 import networkx as nx
 import printree
 import typer
+from jinja2.environment import TemplateStream
 
 import workflow
 from qcore import cli
@@ -22,6 +23,7 @@ app = typer.Typer()
 
 class Parameter(StrEnum):
     """Parameter names for cylc workflow templates."""
+
     event = auto()
     """The event parameter."""
     sample = auto()
@@ -297,7 +299,6 @@ def load_host_environment(environment_file: BinaryIO) -> defaultdict[str, StageC
     return host_environment
 
 
-
 class WorkflowTarget(StrEnum):
     """Enumeration of possible workflow targets."""
 
@@ -373,7 +374,10 @@ GROUP_STAGES = {
 }
 
 
-def union_all(sets: Iterable[set[Any]]) -> set[Any]:
+T = TypeVar("T")
+
+
+def union_all(sets: Iterable[set[T]]) -> set[T]:
     """Union an iterable of sets.
 
     Parameters
@@ -514,8 +518,84 @@ def resource_for_target_host(target_host: WorkflowTarget) -> BinaryIO:
     BinaryIO
          A handle to begin reading the environment definition.
     """
-    return resources.open_binary(workflow, 'templates', 'environments', f'{target_host}.toml')
+    return resources.open_binary(
+        workflow, "templates", "environments", f"{target_host}.toml"
+    )
 
+
+def build_targeted_workflow_graph(
+    stages: list[Stage], goals: Iterable[str], excluding: set[str]
+) -> nx.DiGraph:
+    """Build a workflow targetting `goals` while skipping stages in `excluding`.
+
+    Parameters
+    ----------
+    stages : list[Stage]
+        A list of all possible workflow stages.
+    goals : Iterable[str]
+        The goals for the workflow.
+    excluding : set[str]
+        The stages to skip.
+
+    Returns
+    -------
+    nx.DiGraph
+        A transitively reduced workflow digraph whose terminal nodes
+        are the elements of `goals`. The graph will not contain any
+        element of `excluding`.
+    """
+    workflow = workflow_graph(stages)
+    workflow.remove_nodes_from(excluding)
+    reachable = union_all(nx.ancestors(workflow, goal) for goal in goals) | set(goals)
+    unreachable = set(workflow.nodes()) - reachable
+    workflow.remove_nodes_from(unreachable)
+    return nx.transitive_reduction(workflow)
+
+
+def workflow_jinja_template(
+    realisations: list[tuple[str, int]],
+    workflow: nx.DiGraph,
+    stages: list[Stage],
+    host_environment: dict[str, StageConfig],
+) -> TemplateStream:
+    """Construct a jinja template stream for a workflow.
+
+
+
+    Parameters
+    ----------
+    realisations : list[tuple[str, int]]
+        The realisations in the workflow.
+    workflow : nx.DiGraph
+        The workflow digraph to execute.
+    stages : list[Stage]
+        The stage definitions in the workflow.
+    host_environment : dict[str, StageConfig]
+        The host environment to target.
+
+
+    Returns
+    -------
+    TemplateStream
+        A template stream that can be dumped to an output cylc file.
+    """
+    workflow_graph_template = workflow_plan_as_cylc_template(stages, workflow)
+    environment = jinja2.Environment(
+        loader=jinja2.PackageLoader("workflow"), trim_blocks=True, lstrip_blocks=True
+    )
+    template = environment.get_template("flow.cylc")
+    workflow_graph_string = "\n".join(
+        workflow_graph_template.format(
+            event="event", realisation=f"{event}_realisations"
+        )
+        for event, _ in realisations
+    )
+    return template.stream(
+        realisations=realisations,
+        workflow_graph=workflow_graph_string,
+        stages=stages,
+        host_environment=host_environment,
+    )
 
 
 @cli.from_docstring(app)
@@ -562,7 +642,8 @@ def plan_workflow(
         WorkflowTarget, typer.Option(rich_help_panel="Planning Workflows")
     ] = WorkflowTarget.NeSI,
     host_file: Annotated[
-        Path | None, typer.Option(rich_help_panel='Planning Workflows', exists=True, dir_okay=False)
+        Path | None,
+        typer.Option(rich_help_panel="Planning Workflows", exists=True, dir_okay=False),
     ] = None,
     source: Annotated[Source | None, typer.Option(rich_help_panel="Sources")] = None,
     defaults_version: Annotated[
@@ -602,29 +683,27 @@ def plan_workflow(
         Required if source is specified.
     """
     if source and not defaults_version:
-        print('Must specify a defaults version if source is specified.')
+        print("Must specify a defaults version if source is specified.")
         return
 
-
     if host_file:
-        with open(host_file, 'rb') as host_file_handle:
+        with open(host_file, "rb") as host_file_handle:
             host_environment = load_host_environment(host_file_handle)
     elif target_host:
         with resource_for_target_host(target_host) as host_file_handle:
             host_environment = load_host_environment(host_file_handle)
     else:
-        print('Must specify a host environment or provide a host environment file.')
+        print("Must specify a host environment or provide a host environment file.")
         return
 
     if defaults_version:
-        host_environment['root'].environment["DEFAULTS"] = defaults_version
+        host_environment["root"].environment["DEFAULTS"] = defaults_version
 
     realisations = [
         parse_realisation(realisation_id) for realisation_id in realisation_ids
     ]
     stages = load_workflow_stages()
 
-    workflow = workflow_graph(stages)
     source_stage_map = {
         Source.NSHM: {"nshm_to_realisation"},
         Source.GCMT: {"gcmt_to_realisation"},
@@ -634,41 +713,20 @@ def plan_workflow(
         "nshm_to_realisation",
         "gcmt_to_realisation",
     } - source_stage_map[source]
-    excluding.extend(
-        stage for group in excluding_groups for stage in GROUP_STAGES[group]
-    )
-    workflow.remove_nodes_from(sources_to_remove)
-    workflow.remove_nodes_from(excluding)
-    reachable = (
-        union_all(nx.ancestors(workflow, goal) for goal in goals)
-        | set(goals)
-        | union_all(GROUP_STAGES[group] for group in group_goal)
-    )
-    unreachable = set(workflow.nodes()) - reachable
-    workflow.remove_nodes_from(unreachable)
-    workflow = nx.transitive_reduction(workflow)
 
-    workflow_graph_template = workflow_plan_as_cylc_template(stages, workflow)
-    environment = jinja2.Environment(
-        loader=jinja2.PackageLoader("workflow"),
-        trim_blocks=True,
-        lstrip_blocks=True
+    workflow = build_targeted_workflow_graph(
+        stages,
+        set(goals) | union_all(GROUP_STAGES[group] for group in group_goal),
+        set(excluding)
+        | sources_to_remove
+        | union_all(GROUP_STAGES[group] for group in excluding_groups),
     )
-    template = environment.get_template("flow.cylc")
-    workflow_graph_string = "\n".join(
-        workflow_graph_template.format(
-            event="event", realisation=f"{event}_realisations"
-        )
-        for event, _ in realisations
-    )
+
     stage_lookup_map = {stage.id: stage for stage in stages}
     workflow_stages = [stage_lookup_map[stage] for stage in workflow.nodes()]
 
-    template.stream(
-        realisations=realisations,
-        workflow_graph=workflow_graph_string,
-        stages=workflow_stages,
-        host_environment=host_environment,
+    workflow_jinja_template(
+        realisations, workflow, workflow_stages, host_environment
     ).dump(str(flow_file))
 
     if show_required_files:
