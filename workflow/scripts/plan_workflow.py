@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from importlib import resources
 from pathlib import Path, PurePath
-from typing import Annotated, Any, Generator, Iterable
+from typing import Annotated, Any, BinaryIO, Generator, Iterable
 
 import jinja2
 import networkx as nx
@@ -275,24 +275,23 @@ def load_workflow_stages() -> list[Stage]:
         ]
 
 
-def load_host_environment(host: str) -> defaultdict[str, StageConfig]:
+def load_host_environment(environment_file: BinaryIO) -> defaultdict[str, StageConfig]:
     """Load a host environment dictionary from its defining toml file.
 
     Parameters
     ----------
-    host : str
-        The host to load.
+    environment_file : BinaryIO
+        The host environment to load.
 
     Returns
     -------
     defaultdict[str, StageConfig]
         A dictionary containing the loaded stage configs for the host.
     """
-    with resources.open_binary(workflow, "templates", "environments", f'{host}.toml') as f:
-        raw = tomllib.load(f)
-        host_environment = defaultdict(StageConfig)
-        for stage, config in raw.items():
-            host_environment[stage] = StageConfig(**config)
+    raw = tomllib.load(environment_file)
+    host_environment = defaultdict(StageConfig)
+    for stage, config in raw.items():
+        host_environment[stage] = StageConfig(**config)
 
     return host_environment
 
@@ -501,6 +500,23 @@ def print_required_files(stages: list[Stage]) -> None:
     printree.ptree(filetree)
 
 
+def resource_for_target_host(target_host: WorkflowTarget) -> BinaryIO:
+    """Open a binary host environment file for reading.
+
+    Parameters
+    ----------
+    target_host : WorkflowTarget-
+         The host to target
+
+    Returns
+    -------
+    BinaryIO
+         A handle to begin reading the environment definition.
+    """
+    return resources.open_binary(workflow, 'templates', 'environments', f'{target_host}.toml')
+
+
+
 @cli.from_docstring(app)
 def plan_workflow(
     realisation_ids: Annotated[list[str], typer.Argument()],
@@ -544,6 +560,9 @@ def plan_workflow(
     target_host: Annotated[
         WorkflowTarget, typer.Option(rich_help_panel="Planning Workflows")
     ] = WorkflowTarget.NeSI,
+    host_file: Annotated[
+        Path | None, typer.Option(rich_help_panel='Planning Workflows', exists=True, dir_okay=False)
+    ] = None,
     source: Annotated[Source | None, typer.Option(rich_help_panel="Sources")] = None,
     defaults_version: Annotated[
         DefaultsVersion | None, typer.Option(rich_help_panel="Sources")
@@ -581,18 +600,28 @@ def plan_workflow(
         The simulation defaults to apply for all realisations.
         Required if source is specified.
     """
-    realisations = [
-        parse_realisation(realisation_id) for realisation_id in realisation_ids
-    ]
-    stages = load_workflow_stages()
-    host_environment = load_host_environment(target_host)
-
     if source and not defaults_version:
         print('Must specify a defaults version if source is specified.')
         return
 
+
+    if host_file:
+        with open(host_file, 'rb') as host_file_handle:
+            host_environment = load_host_environment(host_file_handle)
+    elif target_host:
+        with resource_for_target_host(target_host) as host_file_handle:
+            host_environment = load_host_environment(host_file_handle)
+    else:
+        print('Must specify a host environment or provide a host environment file.')
+        return
+
     if defaults_version:
         host_environment['root'].environment["DEFAULTS"] = defaults_version
+
+    realisations = [
+        parse_realisation(realisation_id) for realisation_id in realisation_ids
+    ]
+    stages = load_workflow_stages()
 
     workflow = workflow_graph(stages)
     source_stage_map = {
