@@ -689,8 +689,6 @@ def plan_workflow(
         List of stages to exclude.
     excluding_groups : list[GroupIdentifier]
         List of stage groups to exclude.
-    show_required_files : bool
-        Print the expected directory tree at the start of the simulation.
     target_host : WorkflowTarget
         Select the target host where the workflow will be run.
     host_file : Path | None
@@ -703,6 +701,8 @@ def plan_workflow(
     defaults_version : DefaultsVersion | None
         The simulation defaults to apply for all realisations.
         Required if source is specified.
+    show_required_files : bool
+        Print the expected directory tree at the start of the simulation.
     """
     if source and not defaults_version:
         print("Must specify a defaults version if source is specified.")
