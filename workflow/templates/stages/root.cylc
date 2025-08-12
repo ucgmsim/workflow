@@ -1,0 +1,24 @@
+[[root]]
+{% if host_environment['root'].platform %}
+    platform = {{host_environment['root'].platform}}
+{% endif %}
+{% if host_environment['root'].pre_script %}
+    pre-script = """
+        {{host_environment['root'].pre_script}}
+    """
+{% endif %}
+{% if host_environment['root'].directives %}
+    [[[directives]]]
+{% for variable, value in host_environment['root'].directives.items() %}
+         {{variable}} = {{value}}
+{% endfor %}
+{% endif %}
+
+{% if host_environment['root'].environment %}
+    [[[environment]]]
+{% for variable, value in host_environment['root'].environment.items() %}
+        {{variable}} = {{value}}
+{% endfor %}
+{% endif %}
+
+{# deliberate blank line at end of root #}

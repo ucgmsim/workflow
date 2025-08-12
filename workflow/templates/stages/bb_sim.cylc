@@ -1,6 +1,2 @@
 {% extends "stage.cylc" %}
 {% block script %}apptainer exec -c --bind "$BIND" "$CONTAINER" bb-sim /share/realisation.json /share/stations.vs30 /share/LF/OutBin /share/realisation.hf /share/realisation.bb{% endblock %}
-{% block directives -%}
---cpus-per-task = 32
---time = 01:00:00
-{% endblock %}

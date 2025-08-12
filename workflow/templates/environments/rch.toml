@@ -1,0 +1,8 @@
+[root]
+platform = "rch-slurm"
+
+[root.environment]
+CONTAINER = "/scratch/projects/rch-quakecore/containers/runner_latest.sif"
+
+[im_calc.environment]
+KO_MATRIX_PATH = "/scratch/projects/rch-quakecore/ko_matrices"

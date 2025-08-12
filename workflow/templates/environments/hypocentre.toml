@@ -1,0 +1,8 @@
+[root]
+platform = "localhost"
+
+[root.environment]
+CONTAINER = "/mnt/hypo_scratch/containers/runner_latest.sif"
+
+[im_calc.environment]
+KO_MATRIX_PATH = "/mnt/hypo_scratch/ko_matrices"

@@ -1,3 +1,4 @@
+from collections import defaultdict
 import itertools
 import tomllib
 from dataclasses import dataclass, field
@@ -58,6 +59,14 @@ class Stage:
         """
         parameters = ", ".join("{" + parameter + "}" for parameter in self.parameters)
         return f"{self.id}<{parameters}>"
+
+
+@dataclass
+class StageConfig:
+    platform: str | None = None
+    pre_script: str | None = None
+    directives: dict[str, str] = field(default_factory=dict)
+    environment: dict[str, str] = field(default_factory=dict)
 
 
 def build_resource_graph(stages: list[Stage]) -> nx.DiGraph:
@@ -266,7 +275,7 @@ def load_workflow_stages() -> list[Stage]:
         ]
 
 
-def load_host_environment(host: str) -> dict[str, Any]:
+def load_host_environment(host: str) -> defaultdict[str, StageConfig]:
     """Load a host environment dictionary from its defining toml file.
 
     Parameters
@@ -276,11 +285,17 @@ def load_host_environment(host: str) -> dict[str, Any]:
 
     Returns
     -------
-    dict[str, Any]
-        A dictionary containing the loaded host environment variables.
+    defaultdict[str, StageConfig]
+        A dictionary containing the loaded stage configs for the host.
     """
-    with resources.open_binary(workflow, "templates", host, "environment.toml") as f:
-        return tomllib.load(f)
+    with resources.open_binary(workflow, "templates", "environments", f'{host}.toml') as f:
+        raw = tomllib.load(f)
+        host_environment = defaultdict(StageConfig)
+        for stage, config in raw.items():
+            host_environment[stage] = StageConfig(**config)
+
+    return host_environment
+
 
 
 class WorkflowTarget(StrEnum):
@@ -571,9 +586,13 @@ def plan_workflow(
     ]
     stages = load_workflow_stages()
     host_environment = load_host_environment(target_host)
-    default_environment = {}
+
+    if source and not defaults_version:
+        print('Must specify a defaults version if source is specified.')
+        return
+
     if defaults_version:
-        default_environment["DEFAULTS"] = defaults_version
+        host_environment['root'].environment["DEFAULTS"] = defaults_version
 
     workflow = workflow_graph(stages)
     source_stage_map = {
@@ -598,8 +617,13 @@ def plan_workflow(
     unreachable = set(workflow.nodes()) - reachable
     workflow.remove_nodes_from(unreachable)
     workflow = nx.transitive_reduction(workflow)
+
     workflow_graph_template = workflow_plan_as_cylc_template(stages, workflow)
-    environment = jinja2.Environment(loader=jinja2.PackageLoader("workflow"))
+    environment = jinja2.Environment(
+        loader=jinja2.PackageLoader("workflow"),
+        trim_blocks=True,
+        lstrip_blocks=True
+    )
     template = environment.get_template("flow.cylc")
     workflow_graph_string = "\n".join(
         workflow_graph_template.format(
@@ -609,13 +633,14 @@ def plan_workflow(
     )
     stage_lookup_map = {stage.id: stage for stage in stages}
     workflow_stages = [stage_lookup_map[stage] for stage in workflow.nodes()]
+
     template.stream(
         realisations=realisations,
         workflow_graph=workflow_graph_string,
-        target_host=target_host,
         stages=workflow_stages,
-        environment=default_environment | host_environment,
+        host_environment=host_environment,
     ).dump(str(flow_file))
+
     if show_required_files:
         print_required_files(workflow_stages)
 

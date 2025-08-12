@@ -1,9 +1,31 @@
 [[{{stage_node_identifier(stage)}}]]
-inherit = JOB
-{% block content -%}
-{% endblock -%}
-script = {% block script %}{% endblock %}
+    inherit = JOB
+{% if host_environment[stage.id].platform %}
+    platform = {{host_environment[stage.id].platform}}
+{% endif %}
+{% if host_environment[stage.id].pre_script %}
+    pre-script = """
+        {{host_environment[stage.id].pre_script}}
+    """
+{% endif %}
+    script = {% block script %}{% endblock %}
+{% for variable, value in host_environment[stage.id].settings %}
+{{variable}} = {{value}}
+{% endfor %}
+{% if host_environment[stage.id].directives %}
 
-[[[directives]]]
-{% block directives %}
-{% endblock %}
+
+    [[[directives]]]
+{% for directive, value in host_environment[stage.id].directives.items() %}
+         {{directive}} = {{value}}
+{% endfor %}
+{% endif %}
+
+{% if host_environment[stage.id].environment %}
+    [[[environment]]]
+{% for directive, value in host_environment[stage.id].environment.items() %}
+         {{directive}} = {{value}}
+{% endfor %}
+{% endif %}
+
+{# explicit blank line between stages #}

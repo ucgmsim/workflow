@@ -4,16 +4,17 @@
 
 [task parameters]
       event = {{ realisations | map(attribute=0) | join(", ") }}
-      {% for event, realisation in realisations -%}
+{% for event, realisation in realisations %}
       {{event}}_realisations = 1..{{realisation}}
-      {% endfor %}
+{% endfor %}
+
 [scheduling]
     [[graph]]
         R1 = """
         {{workflow_graph | indent(8, false)}}
         """
-    {% include target_host + '/queue.cylc' %}
-{% include target_host + '/root.cylc' %}
+    {% include 'stages/queue.cylc' %}
+
 [[JOB<event, realisation>]]
      [[[environment]]]
           EVENT = %(event)s
@@ -21,6 +22,7 @@
           TASK_SHARE = $CYLC_WORKFLOW_SHARE_DIR/share/%(event)s_%(realisation)s
           EVENT_SHARE = $CYLC_WORKFLOW_SHARE_DIR/share/%(event)s
           BIND = $PWD:/out:$TASK_SHARE:/share:$EVENT_SHARE:/event
+{% include 'stages/root.cylc' %}
 {% for stage in stages %}
-{% include target_host + '/' + stage.id + '.cylc' %}
+{% include 'stages/' + stage.id + '.cylc' %}
 {% endfor %}

@@ -1,3 +1,0 @@
-[[{{stage_node_identifier(stage)}}]]
-        platform = localhost
-        script = apptainer exec -c --bind "$BIND" "$CONTAINER" nshm2022-to-realisation /nshmdb.db "$EVENT" /share/realisation.json "$DEFAULTS"

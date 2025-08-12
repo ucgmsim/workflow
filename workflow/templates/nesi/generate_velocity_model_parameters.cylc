@@ -1,2 +1,0 @@
-[[{{stage_node_identifier(stage)}}]]
-        script = apptainer exec -c --bind "$BIND" "$CONTAINER" generate-velocity-model-parameters /share/realisation.json

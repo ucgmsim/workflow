@@ -1,6 +1,2 @@
 {% extends "stage.cylc" %}
 {% block script %}apptainer exec -c --bind "$BIND" "$CONTAINER" im-calc /share/realisation.json /share/realisation.bb /share/intensity_measures.h5 --num-processes 64 --psa-rotd-maximum-memory-allocation 40 --ko-directory /ko_matrices{% endblock %}
-{% block directives -%}
---cpus-per-task = 32
---time = 01:00:00
-{% endblock %}

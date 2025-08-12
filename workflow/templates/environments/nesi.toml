@@ -1,0 +1,54 @@
+[root]
+platform = "nesi-slurm"
+
+[root.environment]
+CONTAINER = "/nesi/project/nesi00213/containers/runner_latest.sif"
+
+[root.directives]
+--account = "nesi00213"
+--partition = "genoa"
+
+[bb_sim.directives]
+--cpus-per-task = 32
+--time = "01:00:00"
+
+[im_calc.environment]
+KO_MATRIX_PATH = "/nesi/project/nesi00213/ko_matrices"
+
+[copy_domain_parameters]
+platform = "localhost"
+
+[create_e3d_par]
+platform = "localhost"
+
+[emod3d]
+pre_script = "module load foss/2023a"
+[emod3d.directives]
+--ntasks = 160
+--mem-per-cpu = "2000MB"
+--nodes = 2
+--time = "06:00:00"
+
+
+[gcmt_to_realisation]
+platform = "localhost"
+
+[generate_station_coordinates]
+platform = "localhost"
+
+[generate_velocity_model.directives]
+--cpus-per-task = 32
+--time = "01:00:00"
+
+
+[hf_sim.directives]
+--cpus-per-task = 32
+--time = "01:00:00"
+
+[im_calc.directives]
+--cpus-per-task = 64
+--time = "01:00:00"
+--mem = "100G"
+
+[nshm_to_realisation.directives]
+platform = "localhost"
