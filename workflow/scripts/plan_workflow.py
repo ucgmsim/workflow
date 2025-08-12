@@ -67,10 +67,21 @@ class Stage:
 
 @dataclass
 class StageConfig:
+    """Per-host stage configuration for a workflow stage.
+
+    Hosts create stage configs for each stage to adjust available
+    environment variables, slurm or pbs directives, module loading,
+    and platforms.
+    """
+
     platform: str | None = None
+    """The default platform to target."""
     pre_script: str | None = None
+    """The pre-script to run (for loading modules, etc)."""
     directives: dict[str, str] = field(default_factory=dict)
+    """The slurm or pbs directives to supply with the job."""
     environment: dict[str, str] = field(default_factory=dict)
+    """The environment variables to make available to the script."""
 
 
 def build_resource_graph(stages: list[Stage]) -> nx.DiGraph:
@@ -353,6 +364,7 @@ class GroupIdentifier(StrEnum):
     LowFrequency = "low_frequency"
     """Alias for the low frequency workflow."""
     Domain = "domain"
+    """Alias for velocity model generation."""
 
 
 GROUP_STAGES = {
