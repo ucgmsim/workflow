@@ -105,7 +105,9 @@ def emod3d_duration_parameters(
 
 
 def emod3d_input_directories(
-    srf_file_ffp: Path, velocity_model_ffp: Path, stations_ffp: Path, grid_ffp: Path
+    srf_file_ffp: Path,
+    velocity_model_ffp: Path,
+    stations_ffp: Path,
 ) -> dict[str, Path]:
     """Create a dictionary of the input directories and files for EMOD3D.
 
@@ -117,8 +119,6 @@ def emod3d_input_directories(
         The path to the velocity model directory.
     stations_ffp : Path
         The path containing the station files.
-    grid_ffp : Path
-        The path to the grid and model parameter files.
 
     Raises
     ------
@@ -130,14 +130,9 @@ def emod3d_input_directories(
     dict[str, Path]
         A dictionary of all the configured input directories.
     """
-    # GRIDFILE & model_params: generated after VM gen,
     input_paths = {
         "faultfile": srf_file_ffp,
         "seiscords": stations_ffp / "stations.statcords",
-        "stat_file": stations_ffp / "stations.ll",
-        "grid_file": grid_ffp / "grid_file",
-        "model_params": grid_ffp / "model_params",
-        "vel_mod_params_dir": velocity_model_ffp,
         "vmoddir": velocity_model_ffp,
     }
     for key, path in input_paths.items():
@@ -167,8 +162,6 @@ def emod3d_outputs(metadata: RealisationMetadata, scratch_ffp: Path) -> dict[str
     """
     outputs = {
         "main_dump_dir": scratch_ffp / "OutBin",
-        "user_scratch": scratch_ffp,
-        "sim_dir": scratch_ffp,
         "seisdir": scratch_ffp / "SeismoBin",
         "restartdir": scratch_ffp / "Restart",
         "logdir": scratch_ffp / "Log",
@@ -183,7 +176,7 @@ def emod3d_outputs(metadata: RealisationMetadata, scratch_ffp: Path) -> dict[str
 
 
 def emod3d_metadata(
-    metadata: RealisationMetadata, emod3d_program: Path, emod3d_version: str
+    metadata: RealisationMetadata, emod3d_version: str
 ) -> dict[str, str | Path]:
     """Return a dictionary of the EMOD3D metadata parameters.
 
@@ -202,7 +195,6 @@ def emod3d_metadata(
         A dictionary containing the metadata parameters for EMOD3D.
     """
     return {
-        "wcc_prog_dir": emod3d_program,
         "version": f"{emod3d_version}-mpi",
         "name": metadata.name,
         "restartname": metadata.name,
@@ -242,18 +234,11 @@ def create_e3d_par(
     stations_ffp: Annotated[
         Path, typer.Argument(exists=True, readable=True, file_okay=False)
     ],
-    grid_ffp: Annotated[
-        Path, typer.Argument(exists=True, readable=True, file_okay=False)
-    ],
     output_ffp: Annotated[Path, typer.Argument(writable=True, file_okay=False)],
     scratch_ffp: Annotated[Path, typer.Option(writable=True, file_okay=False)] = Path(
         "/out"
     ),
-    defaults_version: Annotated[str, typer.Option()] = "22.2.2.1",
-    emod3d_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
-        "/EMOD3D/tools/emod3d-mpi_v3.0.8"
-    ),
-    emod3d_version: Annotated[str, typer.Option()] = "3.0.8",
+    emod3d_version: Annotated[str, typer.Option()] = "3.0.13",
 ) -> None:
     """Create EMOD3D parameter file from provided inputs.
 
@@ -273,8 +258,6 @@ def create_e3d_par(
         Path to the directory where the output parameter file (`e3d.par`) will be saved.
     scratch_ffp : Path, optional
         Path to the directory for intermediate output files when running EMOD3D.
-    defaults_version : str, optional
-        The version of EMOD3D defaults to use.
     emod3d_path : Path, optional
         Path to the EMOD3D binary.
     emod3d_version : str, optional
@@ -298,11 +281,9 @@ def create_e3d_par(
             min_vs=velocity_model_parameters.min_vs,
             dtts=emod3d_parameters.dtts,
         )
-        | emod3d_input_directories(
-            srf_file_ffp, velocity_model_ffp, stations_ffp, grid_ffp
-        )
+        | emod3d_input_directories(srf_file_ffp, velocity_model_ffp, stations_ffp)
         | emod3d_outputs(metadata, scratch_ffp)
-        | emod3d_metadata(metadata, emod3d_path, emod3d_version)
+        | emod3d_metadata(metadata, emod3d_version)
     )
     e3d_par_ffp = scratch_ffp / "e3d.par"
 

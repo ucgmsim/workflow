@@ -45,15 +45,11 @@ emod3d:
   qsfrac: 50.0
   read_restart: 0
   report: 100
-  restart_itinc: 20000
   scale: 1
   smodfile: vs3dfile.s
   span: 1
   stype: 2tri-p10-h20
   swap_bytes: 0
-  ts_inc: 1
-  ts_start: 0
-  ts_total: 218
   ts_xy: 1
   ts_xz: 0
   ts_yz: 0
@@ -115,11 +111,7 @@ velocity_model:
   topo_type: "SQUASHED_TAPERED"
   vs30: 500.0
   s_wave_velocity: 3500.0
-  pgv_interpolants:
-    [
-      [3.5, 1.0],
-      [8., 1.0],
-    ]
+  pgv_interpolants: [[3.5, 1.0], [8., 1.0]]
 velocity_model_1d:
   model:
     - thickness: 0.0500
@@ -321,7 +313,7 @@ velocity_model_1d:
       Qp: 430.00
       Qs: 215.00
     - thickness: 999.9999
-       
+
       Vp: 8.1000
       Vs: 4.6000
       rho: 3.3300
