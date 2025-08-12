@@ -50,5 +50,5 @@ platform = "localhost"
 --time = "01:00:00"
 --mem = "100G"
 
-[nshm_to_realisation.directives]
+[nshm_to_realisation]
 platform = "localhost"
