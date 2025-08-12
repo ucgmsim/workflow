@@ -241,7 +241,7 @@ def dfs_tree_cover(workflow_plan: nx.DiGraph) -> Generator[list[str], None, None
     roots = [
         node for node in workflow_plan.nodes() if workflow_plan.in_degree(node) == 0
     ]
-    return dfs_paths(workflow_plan, roots)
+    yield from dfs_paths(workflow_plan, roots)
 
 
 def workflow_plan_as_cylc_template(
