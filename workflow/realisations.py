@@ -776,7 +776,7 @@ class EMOD3DParameters(RealisationConfiguration):
     fmin: float
     """Minimum simulation frequency"""
     freesurf: int
-    """Damping boundary relatod, 0 for absorbing"""
+    """Damping boundary related, 0 for absorbing"""
     geoproj: int
     """Geographic projection to use"""
     intmem: int
@@ -817,8 +817,6 @@ class EMOD3DParameters(RealisationConfiguration):
     """Read from checkpoint files?"""
     report: int
     """Unknown!"""
-    restart_itinc: int
-    """Checkpoint iteration increment?"""
     scale: int
     """Unknown!"""
     smodfile: str
@@ -829,12 +827,6 @@ class EMOD3DParameters(RealisationConfiguration):
     """Unknown!"""
     swap_bytes: int
     """Endianness?"""
-    ts_inc: int
-    """Unknown!"""
-    ts_start: int
-    """Unknown!"""
-    ts_total: int
-    """Unknown!"""
     ts_xy: int
     """Unknown!"""
     ts_xz: int
