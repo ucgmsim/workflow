@@ -184,8 +184,6 @@ def emod3d_metadata(
     ----------
     metadata : RealisationMetadata
         The realisation metadata.
-    emod3d_program : Path
-        The path to the EMOD3D program.
     emod3d_version : str
         The version of EMOD3D to use.
 
@@ -252,14 +250,10 @@ def create_e3d_par(
         Path to the velocity model file.
     stations_ffp : Path
         Path to the station files used in the simulation.
-    grid_ffp : Path
-        Path to the directory containing grid coordinates.
     output_ffp : Path
         Path to the directory where the output parameter file (`e3d.par`) will be saved.
     scratch_ffp : Path, optional
         Path to the directory for intermediate output files when running EMOD3D.
-    emod3d_path : Path, optional
-        Path to the EMOD3D binary.
     emod3d_version : str, optional
         Version of the EMOD3D binary to use.
     """
