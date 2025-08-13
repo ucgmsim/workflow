@@ -1,2 +1,2 @@
 {% extends "stage.cylc" %}
-{% block script %}$EMOD3D "-args par=$TASK_SHARE/LF/e3d.par"{% endblock %}
+{% block script %}apptainer exec emod3d-mpi_v3.0.13 "-args par=$TASK_SHARE/LF/e3d.par"{% endblock %}
