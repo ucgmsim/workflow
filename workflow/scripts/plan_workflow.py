@@ -62,8 +62,13 @@ class Stage:
             The cylc stage identifier template. Comes in the form
             {id}<{parameters}>.
         """
+        if not self.parameters:
+            return self.id
         parameters = ", ".join("{" + parameter + "}" for parameter in self.parameters)
         return f"{self.id}<{parameters}>"
+
+
+COPY_INPUT_STAGE = Stage("copy_input")
 
 
 @dataclass
@@ -165,6 +170,13 @@ def workflow_graph(stages: list[Stage]) -> nx.DiGraph:
                 for neighbour in workflow_plan.successors(stage.follows)
             )
             workflow_plan.add_edge(stage.follows, stage.id)
+
+    workflow_plan.add_node(COPY_INPUT_STAGE.id)
+    workflow_plan.add_edges_from(
+        (COPY_INPUT_STAGE.id, node)
+        for node in workflow_plan.nodes()
+        if node != COPY_INPUT_STAGE.id
+    )
 
     return workflow_plan
 
@@ -282,7 +294,7 @@ def load_workflow_stages() -> list[Stage]:
     """
     with resources.open_binary(workflow, "templates", "stages.toml") as f:
         toml_parser = tomllib.load(f)
-        return [
+        config_stages = [
             Stage(
                 id,
                 parameters=kwargs.get("parameters", []),
@@ -294,6 +306,8 @@ def load_workflow_stages() -> list[Stage]:
             )
             for id, kwargs in toml_parser.items()
         ]
+    config_stages.append(COPY_INPUT_STAGE)
+    return config_stages
 
 
 def load_host_environment(environment_file: BinaryIO) -> defaultdict[str, StageConfig]:
