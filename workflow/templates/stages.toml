@@ -101,11 +101,8 @@ provides_files = ["realisation.stoch"]
 [generate_station_coordinates]
 parameters = ["event"]
 requires_config = ["domain"]
-provides_files = [
-  "stations/stations.ll",
-  "stations/stations.statcords",
-  "stations/stations.vs30",
-]
+requires_files = ["stations/stations_input.ll"]
+provides_files = ["stations/stations.ll", "stations/stations.statcords"]
 
 [emod3d]
 parameters = ["event", "realisation"]
