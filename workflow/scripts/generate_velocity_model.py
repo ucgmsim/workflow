@@ -110,7 +110,7 @@ def run_nzvm(
         None for inferred thread count.
     """
     environment = os.environ.copy()
-    if not num_threads and "OMP_NUM_THREADS" in environment:
+    if num_threads is None and "OMP_NUM_THREADS" in environment:
         environment.pop("OMP_NUM_THREADS")
     elif num_threads:
         environment["OMP_NUM_THREADS"] = str(num_threads)
