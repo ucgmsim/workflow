@@ -1,5 +1,5 @@
 [nshm_to_realisation]
-parameters = ["event", "realisation"]
+parameters = ["realisation"]
 provides_config = [
   "sources",
   "rupture_propagation",
@@ -9,7 +9,7 @@ provides_config = [
 ]
 
 [gcmt_to_realisation]
-parameters = ["event", "realisation"]
+parameters = ["realisation"]
 provides_config = [
   "sources",
   "rupture_propagation",
@@ -19,7 +19,7 @@ provides_config = [
 ]
 
 [create_e3d_par]
-parameters = ["event", "realisation"]
+parameters = ["realisation"]
 requires_files = [
   "realisation.srf",
   "Velocity_Model/rho3dfile.d",
@@ -33,14 +33,13 @@ provides_config = ["emod3d_parameters"]
 provides_files = ["LF/e3d.par"]
 
 [bb_sim]
-parameters = ["event", "realisation"]
+parameters = ["realisation"]
 requires_config = ["metadata", "domain"]
 requires_files = ["realisation.lf", "realisation.hf", "stations/stations.vs30"]
 provides_config = ["broadband_parameters"]
 provides_files = ["realisation.bb"]
 
 [generate_velocity_model]
-parameters = ["event"]
 requires_config = ["domain", "metadata"]
 provides_config = ["velocity_model_parameters"]
 provides_files = [
@@ -51,14 +50,14 @@ provides_files = [
 ]
 
 [hf_sim]
-parameters = ["event", "realisation"]
+parameters = ["realisation"]
 requires_config = ["metadata", "domain"]
 requires_files = ["stations/stations.ll", "realisation.stoch"]
 provides_config = ["hf_config"]
 provides_files = ["realisation.hf"]
 
 [im_calc]
-parameters = ["event", "realisation"]
+parameters = ["realisation"]
 requires_files = ["realisation.bb"]
 requires_config = [
   "broadband_parameters",
@@ -70,7 +69,6 @@ provides_config = ["intensity_measure_calculation_parameters"]
 provides_files = ["intensity_measures.h5"]
 
 [generate_velocity_model_parameters]
-parameters = ["event", "realisation"]
 requires_config = [
   "metadata",
   "sources",
@@ -81,7 +79,7 @@ requires_config = [
 provides_config = ["velocity_model_parameters", "domain"]
 
 [realisation_to_srf]
-parameters = ["event", "realisation"]
+parameters = ["realisation"]
 requires_config = [
   "metadata",
   "rupture_propagation",
@@ -93,19 +91,18 @@ provides_config = ["srf_config"]
 provides_files = ["realisation.srf"]
 
 [generate_stoch]
-parameters = ["event", "realisation"]
+parameters = ["realisation"]
 requires_files = ["realisation.srf"]
 requires_config = ["metadata", "sources"]
 provides_files = ["realisation.stoch"]
 
 [generate_station_coordinates]
-parameters = ["event"]
 requires_config = ["domain"]
 requires_files = ["stations/stations_input.ll"]
 provides_files = ["stations/stations.ll", "stations/stations.statcords"]
 
 [emod3d]
-parameters = ["event", "realisation"]
+parameters = ["realisation"]
 requires_files = [
   "LF/e3d.par",
   "Velocity_Model/rho3dfile.d",
@@ -119,18 +116,18 @@ requires_files = [
 provides_files = ["LF"]
 
 [lf_to_xarray]
-parameters = ['event', 'realisation']
-requires_files = ['LF']
-provides_files = ['realisation.lf']
+parameters = ["realisation"]
+requires_files = ["LF"]
+provides_files = ["realisation.lf"]
 
 [check_srf]
-parameters = ['event', 'realisation']
-follows = 'realisation_to_srf'
+parameters = ["realisation"]
+follows = "realisation_to_srf"
 
 [check_domain]
-parameters = ['event']
-follows = 'generate_velocity_model'
+parameters = ["realisation"]
+follows = "generate_velocity_model"
 
 [copy_domain_parameters]
-parameters = ['event', 'realisation']
-follows = 'check_domain'
+parameters = ["realisation"]
+follows = "check_domain"
