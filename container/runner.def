@@ -6,7 +6,7 @@ From: ubuntu:latest
     [ -d /tmp/Velocity-Model ] || wget "https://www.dropbox.com/scl/fi/mzf5t4tdnv3qsgtbpx824/Velocity-Model.tar.zst?rlkey=df1uej7hd7xd18jerh357gy53&st=e9n8z0aw&dl=1" -O /tmp/Velocity-Model.tar.zst && cd /tmp && tar xf /tmp/Velocity-Model.tar.zst
 %files
     /tmp/EMOD3D /EMOD3D
-
+    /tmp/Velocity-Model /Velocity-Model
 %post
     apt-get update && apt-get install -y \
                       build-essential \
@@ -45,7 +45,6 @@ From: ubuntu:latest
     find /EMOD3D -mindepth 1 -maxdepth 1 ! -name "tools" -exec rm -rf \{\} \;
 
 
-    git clone --depth 1 https://github.com/ucgmsim/Velocity-Model.git /Velocity-Model && \
     cd /Velocity-Model && \
     mkdir build && \
     cd build && \
