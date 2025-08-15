@@ -102,6 +102,15 @@ srf:
   resolution: 0.1
   genslip_dt: 0.05
   genslip_version: 5.4.2
+  # The following parameters are only used for the point source approximation.
+  point_source_params:
+    # Valid options for the slip time function (stype) are: 
+    # esg2006, urs, ucsb, ucsb2, ucsb-T, ucsb-varT1, cos, and seki
+    stype: "cos"
+    risetime: 0.5
+    risetimefac: 1.0
+    risetimedep: 0.0
+    inittime : 0.0
 velocity_model:
   min_vs: 0.5
   resolution: 0.2

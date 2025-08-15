@@ -6,6 +6,9 @@ the [Realisations page](https://github.com/ucgmsim/workflow/wiki/Realisations), 
 for a description of realisations and the schemas.
 """
 
+import dataclasses
+from enum import StrEnum
+
 import numpy as np
 import pandas as pd
 from schema import And, Literal, Optional, Or, Schema, Use
@@ -36,6 +39,59 @@ from workflow.defaults import DefaultsVersion
 # from the library.
 #
 # Accordingly, the most trivial of these functions lack docstrings.
+
+
+class Stype(StrEnum):
+    """Options for slip time function (stype) in generic_slip2srf."""
+
+    esg2006 = "esg2006"
+    urs = "urs"
+    ucsb = "ucsb"
+    ucsb2 = "ucsb2"
+    ucsb_T = "ucsb-T"  # noqa: N815
+    ucsb_varT1 = "ucsb-varT1"  # noqa: N815
+    cos = "cos"
+    seki = "seki"
+
+
+@dataclasses.dataclass
+class PointSourceParams:
+    """Parameters for point source approximation."""
+
+    stype: Stype
+    """Slip type for generic_slip2srf"""
+
+    risetime: float
+    """Rise time for generic_slip2srf"""
+
+    risetimefac: float
+    """Rise time factor for generic_slip2srf"""
+
+    risetimedep: float
+    """Rise time depth dependency for generic_slip2srf"""
+
+    inittime: float
+    """Initial time for generic_slip2srf"""
+
+    @classmethod
+    def from_dict(cls, params_dict: dict) -> "PointSourceParams":
+        """Create PointSourceParams from a dictionary.
+
+        This class method is necessary because the schema library passes validated
+        dictionaries to the Use() constructor, but dataclasses require keyword arguments
+        to be unpacked with **kwargs. This method handles the unpacking automatically.
+
+        Parameters
+        ----------
+        params_dict : dict
+            The dictionary containing parameters for PointSourceParams.
+
+        Returns
+        -------
+        PointSourceParams
+            A new instance created from the dictionary.
+        """
+        return cls(**params_dict)
 
 
 def _is_positive(x: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
@@ -214,6 +270,9 @@ POINT_SCHEMA = Schema(
             Literal("length", description="The pseudo-length of the point source"): And(
                 float, _is_positive
             ),
+            Literal("width", description="The pseudo-width of the point source"): And(
+                float, _is_positive
+            ),
             Literal(
                 "strike", description="The strike bearing of the point source"
             ): And(float, _is_valid_bearing),
@@ -228,6 +287,7 @@ POINT_SCHEMA = Schema(
             lambda schema: sources.Point.from_lat_lon_depth(
                 schema["coordinates"],
                 length_m=schema["length"],
+                width_m=schema["width"],
                 strike=schema["strike"],
                 dip=schema["dip"],
                 dip_dir=schema["dip_dir"],
@@ -284,6 +344,32 @@ SOURCE_SCHEMA = Schema(
     {"source_geometries": {str: Or(POINT_SCHEMA, PLANE_SCHEMA, FAULT_SCHEMA)}}
 )
 
+
+POINT_SOURCE_PARAMS_SCHEMA = Schema(
+    And(
+        {
+            Literal(
+                "stype", description="Slip time function for generic_slip2srf"
+            ): Use(Stype),
+            Literal("risetime", description="Rise time for generic_slip2srf"): And(
+                float, _is_positive
+            ),
+            Literal(
+                "risetimefac", description="Rise time factor for generic_slip2srf"
+            ): And(float, _is_positive),
+            Literal(
+                "risetimedep",
+                description="Rise time depth dependency for generic_slip2srf",
+            ): And(float, _is_non_negative),
+            Literal("inittime", description="Initial time for generic_slip2srf"): And(
+                float, _is_non_negative
+            ),
+        },
+        Use(PointSourceParams.from_dict),
+    )
+)
+
+
 SRF_SCHEMA = Schema(
     {
         Literal(
@@ -296,6 +382,12 @@ SRF_SCHEMA = Schema(
         Literal("resolution", description="Subdivision resolution."): And(
             float, _is_positive
         ),
+        Optional(
+            Literal(
+                "point_source_params",
+                description="Parameters for point source approximation, if applicable",
+            )
+        ): Or(None, POINT_SOURCE_PARAMS_SCHEMA),
     }
 )
 

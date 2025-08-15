@@ -17,7 +17,7 @@ import struct
 import sys
 from abc import ABC
 from pathlib import Path
-from typing import Any, ClassVar, Literal, Optional, Self, Union
+from typing import Any, ClassVar, Literal, Self, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -331,6 +331,7 @@ class SourceConfig(RealisationConfiguration):
                     "type": "point",
                     "coordinates": to_name_coordinate_dictionary(geometry.coordinates),
                     "length": geometry.length_m,
+                    "width": geometry.width_m,
                     "strike": geometry.strike,
                     "dip": geometry.dip,
                     "dip_dir": geometry.dip_dir,
@@ -362,6 +363,30 @@ class SRFConfig(RealisationConfiguration):
     """The version of genslip to use (currently supports "5.4.2")."""
     resolution: float
     """The resolution of the SRF geometry"""
+
+    point_source_params: schemas.PointSourceParams | None
+    """Parameters for point source approximation, if applicable."""
+
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the object to a dictionary representation.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the object.
+        """
+        config_dict = {
+            "genslip_dt": self.genslip_dt,
+            "genslip_version": self.genslip_version,
+            "resolution": self.resolution,
+        }
+        if self.point_source_params is not None:
+            config_dict["point_source_params"] = dataclasses.asdict(
+                self.point_source_params
+            )
+        return config_dict
 
 
 @dataclasses.dataclass
@@ -423,7 +448,7 @@ class RupturePropagationConfig(RealisationConfiguration):
     _config_key: ClassVar[str] = "rupture_propagation"
     _schema: ClassVar[Schema] = schemas.RUPTURE_PROPAGATION_SCHEMA
 
-    rupture_causality_tree: dict[str, Optional[str]]
+    rupture_causality_tree: dict[str, str | None]
     """A dict where the keys are faults and the values the parent fault (i.e. if fault a triggers fault b then rupture_causality_tree[fault b] = fault a)."""
     jump_points: dict[str, JumpPair]
     """A map from faults to pairs of fault-local coordinates representing jump points. If the rupture jumps from fault a at point a to point b on fault b then jump_points[fault a] = JumpPoint(point b, point a)."""
@@ -630,7 +655,7 @@ class RealisationMetadata(RealisationConfiguration):
     """The version of the realisation format (currently supports version "1")."""
     defaults_version: DefaultsVersion
     """The version of the scientific defaults to use."""
-    tag: Optional[str] = None
+    tag: str | None = None
     """Metadata tag for the realisation used to specify the origin or
     category of the realisation (e.g. NSHM, GCMT or custom)."""
 
@@ -690,9 +715,9 @@ class HFConfig(RealisationConfiguration):
     """C0 coefficient"""
     calpha: float
     """Ca coefficient"""
-    mom: Optional[float]
+    mom: float | None
     """Seismic moment for HF simulation (or None, to infer value)"""
-    rupv: Optional[float]
+    rupv: float | None
     """Rupture velocity (or binary default)"""
     site_specific: bool
     """Enable site-specific calculation"""
@@ -715,9 +740,9 @@ class HFConfig(RealisationConfiguration):
     """Log of path duration multiplier"""
     stress_parameter_adjustment_tect_type: Literal[0, 1, 2]
     """Adjustment option 0 = off, 1 = active tectonic, 2 = stable continent"""
-    stress_parameter_adjustment_target_magnitude: Optional[float]
+    stress_parameter_adjustment_target_magnitude: float | None
     """Target magnitude (or inferred if None)"""
-    stress_parameter_adjustment_fault_area: Optional[float]
+    stress_parameter_adjustment_fault_area: float | None
     """Target magnitude (or inferred if None)"""
     # these are used in stoch generation, rather than HF invocation
     stoch_dx: float

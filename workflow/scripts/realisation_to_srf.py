@@ -53,8 +53,8 @@ import typer
 from scipy.sparse import csr_array
 
 from qcore import cli, coordinates
-from source_modelling import gsf, rupture_propagation, srf
-from source_modelling.sources import IsSource
+from source_modelling import gsf, moment, rupture_propagation, srf
+from source_modelling.sources import IsSource, Point
 from workflow import log_utils, realisations, utils
 from workflow.log_utils import log_call
 from workflow.realisations import (
@@ -72,7 +72,8 @@ app = typer.Typer()
 
 
 def normalise_name(name: str) -> str:
-    """Normalise a name (fault name, realisation name) as a filename.
+    """
+    Normalise a name (fault name, realisation name) as a filename.
 
     Parameters
     ----------
@@ -85,6 +86,7 @@ def normalise_name(name: str) -> str:
         The normalised equivalent of this name. Normalised names are entirely
         lower case, and all non-alphanumeric characters are replaced with "_".
     """
+
     return re.sub(r"\W", "_", name.lower())
 
 
@@ -94,6 +96,8 @@ def generate_fault_gsf(
     rake: float,
     gsf_output_directory: Path,
     subdivision_resolution: float,
+    slip: float | None = None,
+    init_time: float | None = None,
 ) -> Path:
     """Write the fault geometry of a fault to a GSF file.
 
@@ -109,6 +113,11 @@ def generate_fault_gsf(
         The directory to output the GSF file to.
     subdivision_resolution : float
         The geometry resolution.
+    slip : float, optional
+        The slip value to write to the GSF file. If None, the slip will not be written.
+    init_time : float, optional
+        The initial time (INIT_TIME) to write to the GSF file.
+        If None, a default value of -1 will be set by `gsf.write_gsf()`.
 
     Returns
     -------
@@ -118,6 +127,10 @@ def generate_fault_gsf(
     gsf_output_filepath = gsf_output_directory / f"{normalise_name(name)}.gsf"
     gsf_df = gsf.source_to_gsf_dataframe(geometry, subdivision_resolution)
     gsf_df["loc_rake"] = rake
+    if slip is not None:
+        gsf_df["slip"] = slip
+    if init_time is not None:
+        gsf_df["init_time"] = init_time
     gsf.write_gsf(gsf_df, gsf_output_filepath)
     return gsf_output_filepath
 
@@ -358,6 +371,8 @@ class SRFEnvironmentContext:
 
     genslip_path: Path
     """Path to genslip binary"""
+    generic_slip2srf_path: Path
+    """Path to generic_slip2srf binary"""
     work_directory: Path
     """Directory to output component SRF files, geometry files"""
     seeds: Seeds
@@ -394,14 +409,24 @@ def generate_fault_srf(
         The SRF environment context to use.
     """
     fault = params.source_config.source_geometries[name]
-    resolution = params.srf_config.resolution
 
-    gsf_file_path = generate_fault_gsf(
-        name, fault, params.rakes.rakes[name], environment.gsf_directory, resolution
-    )
+    if isinstance(fault, Point):
+        generate_point_source_srf(name, params, environment)
+        # Return None here as no other code in this function should be run if generating a point source SRF.
+        return None
+
+    resolution = params.srf_config.resolution
 
     nx = sum(round(plane.length / resolution) for plane in fault.planes)
     ny = round(fault.planes[0].width / resolution)
+
+    gsf_file_path = generate_fault_gsf(
+        name,
+        fault,
+        params.rakes.rakes[name],
+        environment.gsf_directory,
+        resolution,
+    )
 
     genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
         params.rupture_propagation_config.hypocentres[name] - np.array([1 / 2, 0])
@@ -478,6 +503,8 @@ def generate_fault_srfs_multi(
     environment.srf_directory.mkdir(exist_ok=True)
     environment.gsf_directory.mkdir(exist_ok=True)
     params.velocity_model_1d.write_velocity_model(environment.velocity_model_path)
+
+    single_threaded = single_threaded or len(faults) == 1
     if single_threaded:
         for name in faults:
             generate_fault_srf(name, params, environment)
@@ -489,6 +516,99 @@ def generate_fault_srfs_multi(
                 ),
                 list(faults),
             )
+
+
+def generate_point_source_srf(
+    name: str,
+    params: SRFRealisationContext,
+    environment: SRFEnvironmentContext,
+) -> None:
+    """Generate an SRF file for a given fault.
+
+    Parameters
+    ----------
+    name : str
+        The name of the fault.
+    params : SRFRealisationContext
+        The SRF realisation context to use.
+    environment : SRFEnvironmentContext
+        The SRF environment context to use.
+
+    Returns
+    -------
+    None
+        This function does not return a value; it writes the SRF file to disk.
+    """
+
+    if params.srf_config.point_source_params is None:
+        raise ValueError(
+            f"Point source parameters are required for generating SRF for fault '{name}'"
+        )
+
+    fault = params.source_config.source_geometries[name]
+
+    resolution = params.srf_config.resolution
+
+    # Get magnitude and convert to seismic moment
+    magnitude = params.magnitudes.magnitudes[name]
+    moment_newton_metre = moment.magnitude_to_moment(magnitude)
+
+    velocity_model_df = params.velocity_model_1d.model
+    velocity_model_df["depth_km"] = velocity_model_df["thickness"].cumsum()
+
+    # Get the source depth
+    # divide by 1000 to convert depth from meters to kilometers
+    source_depth_km = params.source_config.source_geometries[name].centroid[2] / 1000
+
+    fault_area_km2 = (params.source_config.source_geometries[name].length_m / 1000) ** 2
+
+    slip = moment.point_source_slip(
+        moment_newton_metre, fault_area_km2, velocity_model_df, source_depth_km
+    )
+
+    gsf_file_path = generate_fault_gsf(
+        name,
+        fault,
+        params.rakes.rakes[name],
+        environment.gsf_directory,
+        resolution,
+        slip,
+        init_time=params.srf_config.point_source_params.inittime,
+    )
+
+    generic_slip2srf_cmd = [
+        str(environment.generic_slip2srf_path),
+        f"infile={gsf_file_path}",
+        f"outfile={environment.srf_directory / (normalise_name(name) + '.srf')}",
+        "outbin=0",
+        f"stype={params.srf_config.point_source_params.stype}",
+        f"dt={params.srf_config.genslip_dt}",
+        "plane_header=1",
+        f"risetime={params.srf_config.point_source_params.risetime}",
+        f"risetimefac={params.srf_config.point_source_params.risetimefac}",
+        f"risetimedep={params.srf_config.point_source_params.risetimedep}",
+    ]
+
+    logger = log_utils.get_logger(__name__)
+    logger.info("executing command", cmd=" ".join(generic_slip2srf_cmd))
+
+    # generic_slip2srf writes the file directly so there is no need to open a file handle
+    try:
+        proc = subprocess.run(
+            generic_slip2srf_cmd,
+            stderr=subprocess.PIPE,
+            check=True,
+        )
+
+    except subprocess.CalledProcessError as e:
+        logger.error(
+            "failed",
+            exception=e.output.decode("utf-8"),
+            code=e.returncode,
+            stderr=e.stderr.decode("utf-8"),
+        )
+        raise
+    logger.info("command completed", stderr=proc.stderr.decode("utf-8"))
 
 
 @cli.from_docstring(app)
@@ -504,12 +624,15 @@ def generate_srf(
     genslip_path: Annotated[Path, typer.Option(readable=True, dir_okay=False)] = Path(
         "/EMOD3D/tools/genslip_v5.4.2"
     ),
+    generic_slip2srf_path: Annotated[
+        Path, typer.Option(readable=True, dir_okay=False)
+    ] = Path("/EMOD3D/tools/generic_slip2srf"),
     single_threaded: Annotated[bool, typer.Option()] = False,
 ) -> None:
     """Generate an SRF file from a given realisation specification.
 
     This function reads the realisation metadata and configurations from the
-    specified YAML file. It then generates fault SRF files using the genslip
+    specified JSON file. It then generates fault SRF files using the genslip
     tool and stitches these files into a final SRF file. The SRF configuration
     is updated and written back to the realisation file. Finally, the resulting
     SRF file is copied to the specified output path.
@@ -517,13 +640,16 @@ def generate_srf(
     Parameters
     ----------
     realisation_ffp : Path
-        The filepath of the YAML file containing the realisation data.
+        The filepath of the JSON file containing the realisation data.
     output_srf_filepath : Path
         The filepath where the final SRF file will be saved.
     work_directory : Path, optional
         Path to output intermediate geometry and SRF files.
     genslip_path : Path, optional
         Path to the genslip binary.
+    generic_slip2srf_path : Path, optional
+        Path to the generic_slip2srf binary.
+
     single_threaded : bool, optional
         If True, generate each segment SRF on a single thread.
     """
@@ -531,6 +657,7 @@ def generate_srf(
     srf_config = SRFConfig.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
+
     seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
     rupture_propagation = RupturePropagationConfig.read_from_realisation(
         realisation_ffp
@@ -552,7 +679,10 @@ def generate_srf(
     )
 
     environment = SRFEnvironmentContext(
-        work_directory=work_directory, genslip_path=genslip_path, seeds=seeds
+        work_directory=work_directory,
+        genslip_path=genslip_path,
+        generic_slip2srf_path=generic_slip2srf_path,
+        seeds=seeds,
     )
 
     generate_fault_srfs_multi(
