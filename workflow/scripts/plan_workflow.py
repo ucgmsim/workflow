@@ -24,22 +24,13 @@ from workflow.defaults import DefaultsVersion
 app = typer.Typer()
 
 
-class Parameter(StrEnum):
-    """Parameter names for cylc workflow templates."""
-
-    event = auto()
-    """The event parameter."""
-    sample = auto()
-    """The sample parameter."""
-
-
 @dataclass
 class Stage:
     """A workflow stage."""
 
     id: str
     """The identifier of the stage, e.g. realisation_to_srf."""
-    parameters: list[Parameter] = field(default_factory=list)
+    parameters: list[str] = field(default_factory=list)
     """The cylc parameters that this stage takes."""
     requires_config: set[str] = field(default_factory=set)
     """The configuration blocks required for this workflow stage."""
@@ -62,7 +53,7 @@ class Stage:
             The cylc stage identifier template. Comes in the form
             {id}<{parameters}>.
         """
-        if not self.parameters:
+        if not len(self.parameters):
             return self.id
         parameters = ", ".join("{" + parameter + "}" for parameter in self.parameters)
         return f"{self.id}<{parameters}>"
@@ -617,12 +608,8 @@ def workflow_jinja_template(
         loader=jinja2.PackageLoader("workflow"), trim_blocks=True, lstrip_blocks=True
     )
     template = environment.get_template("flow.cylc")
-    workflow_graph_string = "\n".join(
-        workflow_graph_template.format(
-            event="event", realisation=f"{event}_realisations"
-        )
-        for event, _ in realisations
-    )
+    workflow_graph_string = workflow_graph_template.format(realisation=f"realisation")
+
     return template.stream(
         realisations=realisations,
         workflow_graph=workflow_graph_string,
@@ -633,7 +620,7 @@ def workflow_jinja_template(
 
 @cli.from_docstring(app)
 def plan_workflow(
-    realisation_ids: Annotated[list[str], typer.Argument()],
+    realisations: Annotated[int, typer.Argument(min=1)],
     flow_file: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
     goals: Annotated[
         list[str],
@@ -690,9 +677,8 @@ def plan_workflow(
 
     Parameters
     ----------
-    realisation_ids : list[str]
-        List of realisations to generate workflows for. Realisations
-        have the format event:realisation_count, such as Darfield:4.
+    realisations : int
+        Number of realisations for event.
     flow_file : Path
         Path to output flow file (e.g. ~/cylc-src/my-workflow/flow.cylc).
     goals : list[str]
@@ -735,9 +721,6 @@ def plan_workflow(
     if defaults_version:
         host_environment["root"].environment["DEFAULTS"] = defaults_version
 
-    realisations = [
-        parse_realisation(realisation_id) for realisation_id in realisation_ids
-    ]
     stages = load_workflow_stages()
 
     source_stage_map = {
