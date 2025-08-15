@@ -50,7 +50,8 @@ From: ubuntu:latest
     mkdir build && \
     cd build && \
     cmake ../ -DCMAKE_C_FLAGS="-fopenmp" -DCMAKE_CXX_FLAGS="-fopenmp"  && \
-    make -j $(nproc)
+    make -j $(nproc) && \
+    mv NZVM ..
 
     pip install "git+https://github.com/ucgmsim/workflow@bb_sim_new" --break-system-packages
 
