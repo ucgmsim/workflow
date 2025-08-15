@@ -1,12 +1,9 @@
 {% macro stage_node_identifier(stage) -%}
-{{stage.id}}<{{stage.parameters | join(", ")}}>
+{{stage.id}}{% if stage.parameters %}<{{stage.parameters | join(", ")}}>{% endif %}
 {%- endmacro -%}
 
 [task parameters]
-      event = {{ realisations | map(attribute=0) | join(", ") }}
-{% for event, realisation in realisations %}
-      {{event}}_realisations = 1..{{realisation}}
-{% endfor %}
+      realisation = 1..{{realisations}}
 
 [scheduling]
     [[graph]]
@@ -14,14 +11,12 @@
         {{workflow_graph | indent(8, false)}}
         """
     {% include 'stages/queue.cylc' %}
-
-[[JOB<event, realisation>]]
+[runtime]
+[[JOB<realisation>]]
      [[[environment]]]
-          EVENT = %(event)s
           REALISATION = %(realisation)s
-          TASK_SHARE = $CYLC_WORKFLOW_SHARE_DIR/share/%(event)s_%(realisation)s
-          EVENT_SHARE = $CYLC_WORKFLOW_SHARE_DIR/share/%(event)s
-          BIND = $PWD:/out:$TASK_SHARE:/share:$EVENT_SHARE:/event
+          TASK_SHARE = $CYLC_WORKFLOW_SHARE_DIR/R%(realisation)s/
+          APPTAINER_BINDPATH = "$PWD:/out,${TASK_SHARE}:/share,${EVENT_SHARE}:/event"
 {% include 'stages/root.cylc' %}
 {% for stage in stages %}
 {% include 'stages/' + stage.id + '.cylc' %}

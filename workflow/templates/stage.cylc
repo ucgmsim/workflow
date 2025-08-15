@@ -1,5 +1,7 @@
 [[{{stage_node_identifier(stage)}}]]
-    inherit = JOB
+{% if stage.parameters %}
+    inherit = "JOB<realisation>"
+{% endif %}
 {% if host_environment[stage.id].platform %}
     platform = {{host_environment[stage.id].platform}}
 {% endif %}
