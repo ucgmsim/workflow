@@ -1,2 +1,2 @@
 {% extends "stage.cylc" %}
-{% block script %}apptainer exec -c --bind "$BIND" "$CONTAINER" nshm2022-to-realisation /nshmdb.db "$EVENT" /share/realisation.json "$DEFAULTS"{% endblock %}
+{% block script %}apptainer exec -c "$CONTAINER" nshm2022-to-realisation /nshmdb.db "$EVENT" /share/realisation.json "$DEFAULTS"{% endblock %}

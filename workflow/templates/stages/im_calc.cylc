@@ -1,2 +1,2 @@
 {% extends "stage.cylc" %}
-{% block script %}apptainer exec -c --bind "$BIND:$KO_MATRIX_PATH:/ko_matrices" "$CONTAINER" im-calc /share/realisation.json /share/realisation.bb /share/intensity_measures.h5 --num-processes 64 --psa-rotd-maximum-memory-allocation 40 --ko-directory /ko_matrices{% endblock %}
+{% block script %}apptainer exec -c "$CONTAINER" im-calc /share/realisation.json /share/realisation.bb /share/intensity_measures.h5 --num-processes 64 --psa-rotd-maximum-memory-allocation 40 --ko-directory /ko_matrices{% endblock %}

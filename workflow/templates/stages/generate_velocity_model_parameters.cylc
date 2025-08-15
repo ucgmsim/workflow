@@ -1,2 +1,2 @@
 {% extends "stage.cylc" %}
-{% block script %}apptainer exec -c --bind "$BIND" "$CONTAINER" generate-velocity-model-parameters /share/realisation.json{% endblock %}
+{% block script %}apptainer exec -c "$CONTAINER" generate-velocity-model-parameters /share/realisation.json{% endblock %}

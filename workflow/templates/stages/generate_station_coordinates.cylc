@@ -1,2 +1,2 @@
 {% extends "stage.cylc" %}
-{% block script %}apptainer exec -c --bind "$BIND" "$CONTAINER" generate-station-coordinates /share/realisation.json /share/stations/stations_input.ll /share/stations/{% endblock %}
+{% block script %}apptainer exec -c "$CONTAINER" generate-station-coordinates /share/realisation.json /share/stations/stations_input.ll /share/stations/{% endblock %}

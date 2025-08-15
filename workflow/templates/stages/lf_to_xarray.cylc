@@ -1,2 +1,2 @@
 {% extends "stage.cylc" %}
-{% block script %}apptainer exec -c --bind "$BIND" "$CONTAINER" lf-to-xarray /share/LF /share/realisation.lf{% endblock %}
+{% block script %}apptainer exec -c "$CONTAINER" lf-to-xarray /share/LF /share/realisation.lf{% endblock %}

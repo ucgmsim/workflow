@@ -1,2 +1,2 @@
 {% extends "stage.cylc" %}
-{% block script %}apptainer exec -c --bind "$BIND" "$CONTAINER" check-domain /share/realisation.json /share/realisation.srf /event/Velocity_Model{% endblock %}
+{% block script %}apptainer exec -c "$CONTAINER" check-domain /share/realisation.json /share/realisation.srf /event/Velocity_Model{% endblock %}

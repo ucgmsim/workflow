@@ -1,4 +1,5 @@
 [[root]]
+
 {% if host_environment['root'].platform %}
     platform = {{host_environment['root'].platform}}
 {% endif %}
@@ -16,6 +17,9 @@
 
 {% if host_environment['root'].environment %}
     [[[environment]]]
+        EVENT_SHARE = "$CYLC_WORKFLOW_SHARE_DIR/event/"
+        TASK_SHARE = "$CYLC_WORKFLOW_SHARE_DIR/R1/"
+        APPTAINER_BINDPATH = "$PWD:/out,${TASK_SHARE}:/share,${EVENT_SHARE}:/event"
 {% for variable, value in host_environment['root'].environment.items() %}
         {{variable}} = {{value}}
 {% endfor %}
