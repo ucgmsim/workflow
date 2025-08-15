@@ -112,7 +112,7 @@ def run_nzvm(
     environment = os.environ.copy()
     if not num_threads and "OMP_NUM_THREADS" in environment:
         environment.pop("OMP_NUM_THREADS")
-    else:
+    elif num_threads:
         environment["OMP_NUM_THREADS"] = str(num_threads)
 
     subprocess.check_call(
