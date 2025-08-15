@@ -3,7 +3,7 @@ From: ubuntu:latest
 
 %setup
     [ -d /tmp/EMOD3D ] || git clone --depth 1 git@github.com:ucgmsim/EMOD3D.git /tmp/EMOD3D
-
+    [ -d /tmp/Velocity-Model ] || wget "https://www.dropbox.com/scl/fi/mzf5t4tdnv3qsgtbpx824/Velocity-Model.tar.zst?rlkey=df1uej7hd7xd18jerh357gy53&st=e9n8z0aw&dl=1" -O /tmp/Velocity-Model.tar.zst && cd /tmp && tar xf /tmp/Velocity-Model.tar.zst
 %files
     /tmp/EMOD3D /EMOD3D
 
