@@ -27,6 +27,10 @@ platform = "localhost"
 [generate_station_coordinates]
 platform = "localhost"
 
+[generate_velocity_model.directives]
+--cpus-per-task = 64
+--time = "03:00:00"
+
 [hf_sim.directives]
 --cpus-per-task = 32
 --time = "01:00:00"
