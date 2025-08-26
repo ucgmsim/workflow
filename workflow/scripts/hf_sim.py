@@ -325,7 +325,7 @@ def run_hf(
                 station["latitude"],
                 station["longitude"],
                 name,
-                station["seed"],
+                int(station["seed"]),
             )
             for name, station in stations.iterrows()
         ]
