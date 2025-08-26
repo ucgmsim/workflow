@@ -15,7 +15,7 @@
 [[JOB<realisation>]]
      [[[environment]]]
           REALISATION = %(realisation)s
-          TASK_SHARE = $CYLC_WORKFLOW_SHARE_DIR/R%(realisation)s/
+          TASK_SHARE = $CYLC_WORKFLOW_SHARE_DIR/R%(realisation)s
           APPTAINER_BINDPATH = "$PWD:/out,${TASK_SHARE}:/share,${EVENT_SHARE}:/event"
 {% include 'stages/root.cylc' %}
 {% for stage in stages %}
