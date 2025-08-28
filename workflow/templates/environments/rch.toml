@@ -16,7 +16,11 @@ platform = "localhost"
 
 [create_e3d_par]
 platform = "localhost"
+[create_e3d_par.environment]
+APPTAINER_BINDPATH = "$TASK_SHARE,$EVENT_SHARE"
 
+[emod3d]
+pre-script = module load foss/2024a
 [emod3d.directives]
 --ntasks = 160
 --mem-per-cpu = "2000MB"
