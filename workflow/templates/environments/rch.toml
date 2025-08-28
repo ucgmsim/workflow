@@ -2,7 +2,8 @@
 platform = "rch-slurm"
 
 [root.environment]
-CONTAINER = "/scratch/projects/rch-quakecore/containers/runner_latest.sif"
+CONTAINER = "/scratch/projects/rch-quakecore/containers/runner.sif"
+EMOD3D = /scratch/projects/rch-quakecore/EMOD3D/tools/emod3d-mpi_v3.0.13
 
 [im_calc.environment]
 KO_MATRIX_PATH = "/scratch/projects/rch-quakecore/ko_matrices"
