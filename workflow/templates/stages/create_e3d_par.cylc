@@ -1,2 +1,2 @@
 {% extends "stage.cylc" %}
-{% block script %}apptainer exec $CONTAINER create-e3d-par $TASK_SHARE/realisation.json $TASK_SHARE/realisation.srf $EVENT_SHARE/Velocity_Model $EVENT_SHARE/stations $TASK_SHARE/LF --scratch-ffp $TASK_SHARE/LF{% endblock %}
+{% block script %}apptainer exec -c $CONTAINER create-e3d-par $TASK_SHARE/realisation.json $TASK_SHARE/realisation.srf $EVENT_SHARE/Velocity_Model $EVENT_SHARE/stations $TASK_SHARE/LF{% endblock %}
