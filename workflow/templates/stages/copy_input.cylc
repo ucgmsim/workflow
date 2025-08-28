@@ -9,5 +9,5 @@
         mkdir -p "$CYLC_WORKFLOW_SHARE_DIR/R$r"
     done
 
-    rsync -a --ignore-existing "$CYLC_WORKFLOW_RUN_DIR/input/" "$CYLC_WORKFLOW_SHARE_DIR"
+    rsync -a --ignore-existing "$CYLC_WORKFLOW_RUN_DIR/input/" "$CYLC_WORKFLOW_RUN_DIR"
     """
