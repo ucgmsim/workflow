@@ -241,7 +241,7 @@ def run_hf(
         typer.Argument(exists=True),
     ],
     station_file: Annotated[Path, typer.Argument(exists=True)],
-    out_file: Annotated[Path, typer.Argument(file_okay=False)],
+    out_file: Annotated[Path, typer.Argument()],
     hf_sim_path: Annotated[Path, typer.Option()] = Path(
         "/EMOD3D/tools/hb_high_binmod_v6.0.3"
     ),
