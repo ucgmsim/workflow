@@ -143,7 +143,7 @@ def emod3d_input_directories(
     return input_paths
 
 
-def emod3d_outputs(metadata: RealisationMetadata, scratch_ffp: Path) -> dict[str, Path]:
+def emod3d_outputs(metadata: RealisationMetadata, output_ffp: Path) -> dict[str, Path]:
     """Create a dictionary of the output directories for EMOD3D.
 
     This function also creates all the directories if they do not already exist.
@@ -152,7 +152,7 @@ def emod3d_outputs(metadata: RealisationMetadata, scratch_ffp: Path) -> dict[str
     ----------
     metadata : RealisationMetadata
         The realisation metadata.
-    scratch_ffp : Path
+    output_ffp : Path
         The root directory of all output files for the run.
 
     Returns
@@ -161,17 +161,17 @@ def emod3d_outputs(metadata: RealisationMetadata, scratch_ffp: Path) -> dict[str
         A dictionary of all the configured output paths.
     """
     outputs = {
-        "main_dump_dir": scratch_ffp / "OutBin",
-        "seisdir": scratch_ffp / "SeismoBin",
-        "restartdir": scratch_ffp / "Restart",
-        "logdir": scratch_ffp / "Log",
-        "ts_out_dir": scratch_ffp / "TSFiles",
-        "slipout": scratch_ffp / "SlipOut",
+        "main_dump_dir": output_ffp / "OutBin",
+        "seisdir": output_ffp / "SeismoBin",
+        "restartdir": output_ffp / "Restart",
+        "logdir": output_ffp / "Log",
+        "ts_out_dir": output_ffp / "TSFiles",
+        "slipout": output_ffp / "SlipOut",
     }
     for directory in outputs.values():
         directory.mkdir(exist_ok=True)
 
-    outputs["ts_file"] = scratch_ffp / "OutBin" / f"{metadata.name}_xyts.e3d"
+    outputs["ts_file"] = output_ffp / "OutBin" / f"{metadata.name}_xyts.e3d"
     return outputs
 
 
@@ -220,22 +220,11 @@ def format_as_emod3d_value(value: int | float | str | Path) -> str:
 
 @cli.from_docstring(app)
 def create_e3d_par(
-    realisation_ffp: Annotated[
-        Path, typer.Argument(exists=True, readable=True, dir_okay=False)
-    ],
-    srf_file_ffp: Annotated[
-        Path, typer.Argument(exists=True, readable=True, dir_okay=False)
-    ],
-    velocity_model_ffp: Annotated[
-        Path, typer.Argument(exists=True, readable=True, file_okay=False)
-    ],
-    stations_ffp: Annotated[
-        Path, typer.Argument(exists=True, readable=True, file_okay=False)
-    ],
-    output_ffp: Annotated[Path, typer.Argument(writable=True, file_okay=False)],
-    scratch_ffp: Annotated[Path, typer.Option(writable=True, file_okay=False)] = Path(
-        "/out"
-    ),
+    realisation_ffp: Path,
+    srf_file_ffp: Path,
+    velocity_model_ffp: Path,
+    stations_ffp: Path,
+    output_ffp: Path,
     emod3d_version: Annotated[str, typer.Option()] = "3.0.13",
 ) -> None:
     """Create EMOD3D parameter file from provided inputs.
@@ -250,15 +239,12 @@ def create_e3d_par(
         Path to the velocity model file.
     stations_ffp : Path
         Path to the station files used in the simulation.
-    output_ffp : Path
-        Path to the directory where the output parameter file (`e3d.par`) will be saved.
-    scratch_ffp : Path, optional
-        Path to the directory for intermediate output files when running EMOD3D.
+    output_ffp : Path, optional
+        Path to the directory for output files when running EMOD3D.
     emod3d_version : str, optional
         Version of the EMOD3D binary to use.
     """
     output_ffp.mkdir(exist_ok=True)
-    scratch_ffp.mkdir(exist_ok=True)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     velocity_model_parameters = VelocityModelParameters.read_from_realisation(
         realisation_ffp
@@ -276,10 +262,10 @@ def create_e3d_par(
             dtts=emod3d_parameters.dtts,
         )
         | emod3d_input_directories(srf_file_ffp, velocity_model_ffp, stations_ffp)
-        | emod3d_outputs(metadata, scratch_ffp)
+        | emod3d_outputs(metadata, output_ffp)
         | emod3d_metadata(metadata, emod3d_version)
     )
-    e3d_par_ffp = scratch_ffp / "e3d.par"
+    e3d_par_ffp = output_ffp / "e3d.par"
 
     e3d_par_ffp.write_text(
         "\n".join(
