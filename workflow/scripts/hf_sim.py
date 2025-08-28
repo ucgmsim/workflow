@@ -350,8 +350,9 @@ def run_hf(
             "vref": (["station"], stations["vs"]),
         },
         coords={
-            "station": stations.index,
-            "time": time,
+            "station": ("station", stations.index.values),
+            "component": ("component", ["x", "y", "z"]),
+            "time": ("time", time),
             "lat": (["station"], stations["latitude"]),
             "lon": (["station"], stations["longitude"]),
         },
