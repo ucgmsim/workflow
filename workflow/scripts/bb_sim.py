@@ -55,6 +55,30 @@ app = typer.Typer()
 G = 1 / 981.0
 
 
+def align_waveforms(lf_waveform, hf_waveform, lf_start, hf_start, dt):
+    """Align LF and HF waveforms to a common time axis."""
+    lf_nt = lf_waveform.shape[1]
+    hf_nt = hf_waveform.shape[1]
+
+    lf_time = lf_start + np.arange(lf_nt) * dt
+    hf_time = hf_start + np.arange(hf_nt) * dt
+
+    start = min(lf_time[0], hf_time[0])
+    end = max(lf_time[-1], hf_time[-1])
+    common_time = np.arange(start, end + dt / 2, dt)
+
+    lf_aligned = np.zeros((lf_waveform.shape[0], common_time.size), dtype=np.float32)
+    hf_aligned = np.zeros((hf_waveform.shape[0], common_time.size), dtype=np.float32)
+
+    lf_indices = ((lf_time - start) / dt).round().astype(int)
+    hf_indices = ((hf_time - start) / dt).round().astype(int)
+
+    lf_aligned[:, lf_indices] = lf_waveform
+    hf_aligned[:, hf_indices] = hf_waveform
+
+    return lf_aligned, hf_aligned, common_time
+
+
 @cli.from_docstring(app)
 @log_utils.log_call()
 def combine_hf_and_lf(
@@ -87,6 +111,7 @@ def combine_hf_and_lf(
     broadband_config = BroadbandParameters.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
+    bb_dt = broadband_config.dt
 
     # load data stores
     lf = xr.open_dataset(low_frequency_waveform_file)
@@ -104,65 +129,26 @@ def combine_hf_and_lf(
     vs30_df = vs30_df.loc[common_stations]
     vs30_df["vref"] = 500.0
     vs30_df["vpga"] = 500.0
-    dt = bb_dt = broadband_config.dt
 
-    lf_start_sec = lf.attrs["start_sec"]
-    hf_start_sec = hf.attrs["start_sec"]
-    dt = lf.attrs["dt"]
-    hf_duration = lf_duration = len(lf.time.values) * dt
+    bb_waveforms = []
+    new_time_coords = None
 
-    bb_start_sec = min(lf_start_sec, hf_start_sec)
-    # Calculate time offsets for LF and HF relative to the broadband start time
-    lf_start_sec_offset = max(lf_start_sec - bb_start_sec, 0)
-    hf_start_sec_offset = max(hf_start_sec - bb_start_sec, 0)
-
-    # Convert time offsets to number of samples (padding at the beginning)
-    lf_start_padding_nt = int(np.round(lf_start_sec_offset / bb_dt))
-    hf_start_padding_nt = int(np.round(hf_start_sec_offset / bb_dt))
-
-    # Determine the latest end time for the combined broadband waveform
-    max_end_sec = max(lf_start_sec + lf_duration, hf_start_sec + hf_duration)
-
-    # Calculate the total duration needed for the combined waveform
-    bb_total_duration = max_end_sec - bb_start_sec
-
-    # Calculate the total number of samples for the combined waveform
-    bb_nt = int(np.round(bb_total_duration / bb_dt))
-
-    # Calculate padding at the end for LF and HF waveforms
-    # This ensures both padded waveforms have the same total length (bb_nt)
-    lf_end_padding_nt = bb_nt - (
-        lf_start_padding_nt + int(np.round(lf_duration / bb_dt))
-    )
-    hf_end_padding_nt = bb_nt - (
-        hf_start_padding_nt + int(np.round(hf_duration / bb_dt))
-    )
-
-    # Ensure padding values are non-negative
-    lf_end_padding_nt = max(0, lf_end_padding_nt)
-    hf_end_padding_nt = max(0, hf_end_padding_nt)
-
-    bb_waveform = np.empty_like(lf.waveform)
     for i, (lf_component, hf_component) in enumerate(zip(lf.component, hf.component)):
         hf_waveform_raw = hf.sel(component=hf_component).waveform.values
         lf_waveform_raw = lf.sel(component=lf_component).waveform.values
 
-        temp_lf_padded = np.zeros((lf_waveform_raw.shape[0], bb_nt), dtype=np.float32)
-        temp_hf_padded = np.zeros((hf_waveform_raw.shape[0], bb_nt), dtype=np.float32)
-
-        temp_lf_padded[
-            :, lf_start_padding_nt : lf_start_padding_nt + lf_waveform_raw.shape[1]
-        ] = lf_waveform_raw
-        temp_hf_padded[
-            :,
-            hf_start_padding_nt : hf_start_padding_nt + hf_waveform_raw.shape[1],
-        ] = hf_waveform_raw
+        temp_lf_padded, temp_hf_padded, new_time_coords = align_waveforms(
+            lf_waveform_raw,
+            hf_waveform_raw,
+            lf.attrs["start_sec"],
+            hf.attrs["start_sec"],
+            bb_dt,
+        )
+        bb_nt = temp_lf_padded.shape[1]
 
         vs30_df["pga"] = temp_hf_padded.max(axis=1) * G
 
-        hf_amp_val = siteamp_models.cb_amp_multi(
-            vs30_df,
-        )
+        hf_amp_val = siteamp_models.cb_amp_multi(vs30_df)
         hf_amp_fas_vals = siteamp_models.cb2014_to_fas_amplification_factors(
             hf_amp_val, bb_dt, bb_nt
         )
@@ -175,9 +161,11 @@ def combine_hf_and_lf(
         lf_filtered = timeseries.bwfilter(
             temp_lf_padded, bb_dt, 1.0, timeseries.Band.LOWPASS
         )
-        bb_waveform[i] = (hf_filtered + lf_filtered) * G
 
-    new_time_coords = np.arange(bb_nt) * bb_dt + bb_start_sec
+        bb_waveforms.append((hf_filtered + lf_filtered) * G)
+
+    bb_waveform = np.stack(bb_waveforms, dtype=np.float32)
+
     xr.Dataset(
         {"waveform": (["component", "station", "time"], bb_waveform)},
         coords={
