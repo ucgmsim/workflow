@@ -100,6 +100,7 @@ def combine_hf_and_lf(
     vs30_df = pd.read_csv(
         station_vs30_ffp, sep=r"\s+", header=None, names=["station", "vsite"]
     ).set_index("station")
+    vs30_df["vsite"] = vs30_df["vsite"].astype(np.float32)
     vs30_df = vs30_df.loc[common_stations]
     vs30_df["vref"] = 500.0
     vs30_df["vpga"] = 500.0
@@ -166,7 +167,7 @@ def combine_hf_and_lf(
             hf_amp_val, bb_dt, bb_nt
         )
         hf_waveform_amped = timeseries.ampdeamp(
-            temp_hf_padded, hf_amp_fas_vals, amp=True
+            temp_hf_padded, hf_amp_fas_vals, amplify=True
         )
         hf_filtered = timeseries.bwfilter(
             hf_waveform_amped, bb_dt, 1.0, timeseries.Band.HIGHPASS
