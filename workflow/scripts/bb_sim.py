@@ -161,7 +161,6 @@ def combine_hf_and_lf(
         lf_filtered = timeseries.bwfilter(
             temp_lf_padded, bb_dt, 1.0, timeseries.Band.LOWPASS
         )
-
         bb_waveforms.append((hf_filtered + lf_filtered) * G)
 
     bb_waveform = np.stack(bb_waveforms, dtype=np.float32)
@@ -169,12 +168,13 @@ def combine_hf_and_lf(
     xr.Dataset(
         {"waveform": (["component", "station", "time"], bb_waveform)},
         coords={
-            "station": common_stations,
-            "time": new_time_coords,
-            "x": lf.x.values,
-            "y": lf.y.values,
-            "lat": lf.lat.values,
-            "lon": lf.lon.values,
+            "component": ("component", ["x", "y", "z"]),
+            "station": ("station", common_stations),
+            "time": ("time", new_time_coords),
+            "x": ("station", lf.x.values),
+            "y": ("station", lf.y.values),
+            "latitude": ("station", lf.lat.values),
+            "longitude": ("station", lf.lon.values),
         },
         attrs={
             "units": "g",
