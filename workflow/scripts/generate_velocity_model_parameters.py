@@ -29,7 +29,6 @@ See the output of `generate-velocity-model-parameters --help` or `workflow.scrip
 from pathlib import Path
 from typing import Annotated
 
-import geopandas as gpd
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -38,13 +37,12 @@ import shapely
 import typer
 from shapely import Polygon
 
-from pygmt_helper import plotting
-from qcore import cli, coordinates
+from qcore import cli
 from qcore.uncertainties import mag_scaling
 from source_modelling import sources
 from velocity_modelling import bounding_box
 from velocity_modelling.bounding_box import BoundingBox
-from workflow import log_utils, realisations
+from workflow import log_utils, realisations, utils
 from workflow.realisations import (
     DomainParameters,
     Magnitudes,
@@ -56,33 +54,6 @@ from workflow.realisations import (
 )
 
 app = typer.Typer()
-
-
-def get_nz_outline_polygon() -> Polygon:
-    """Get the outline polygon of New Zealand.
-
-    Returns
-    -------
-    Polygon
-        The outline polygon of New Zealand.
-    """
-    coastline_path = plotting.GMT_DATA.fetch("data/Paths/coastline/NZ.gmt")
-
-    gpd_df = gpd.read_file(coastline_path)
-    island_polygons = [
-        Polygon(
-            coordinates.wgs_depth_to_nztm(
-                np.array(shapely.geometry.mapping(island)["coordinates"])[:, ::-1]
-            )
-        )
-        for island in gpd_df.geometry
-    ]
-    south_island, north_island = sorted(
-        island_polygons, key=lambda island: island.area, reverse=True
-    )[:2]
-    south_island = south_island.simplify(100)
-    north_island = north_island.simplify(100)
-    return shapely.union(south_island, north_island)
 
 
 @log_utils.log_call(exclude_args=["faults"])
@@ -155,9 +126,12 @@ def estimate_simulation_duration(
     )
 
     ds = np.exp(
-        oqw.run_gmm(oqw.constants.GMM.AS_16, oqw.constants.TectType.ACTIVE_SHALLOW, oq_dataframe, "Ds595")[
-            "Ds595_mean"
-        ].iloc[0]
+        oqw.run_gmm(
+            oqw.constants.GMM.AS_16,
+            oqw.constants.TectType.ACTIVE_SHALLOW,
+            oq_dataframe,
+            "Ds595",
+        )["Ds595_mean"].iloc[0]
     )
 
     log_utils.get_logger(__name__).debug(
@@ -490,7 +464,7 @@ def generate_velocity_model_parameters(
     model_domain = bounding_box.minimum_area_bounding_box_for_polygons_masked(
         must_include=fault_buffer_polygons,
         may_include=rrup_bounding_polygons,
-        mask=get_nz_outline_polygon(),
+        mask=utils.get_nz_outline_polygon(),
     )
 
     sim_duration = estimate_simulation_duration(

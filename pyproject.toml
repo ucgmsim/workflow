@@ -14,7 +14,6 @@ dependencies = [
   "im_calculation @ git+https://github.com/ucgmsim/IM_calculation.git",
   "nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB.git",
   "oq_wrapper @ git+https://github.com/ucgmsim/Empirical_Engine.git#subdirectory=oq_wrapper",
-  "pygmt_helper @ git+https://github.com/ucgmsim/pygmt_helper.git",
   "qcore @ git+https://github.com/ucgmsim/qcore.git",
   "source_modelling @ git+https://github.com/ucgmsim/source_modelling.git",
   "velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling.git",
