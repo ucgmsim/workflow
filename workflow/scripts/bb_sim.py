@@ -101,8 +101,8 @@ def combine_hf_and_lf(
         station_vs30_ffp, sep=r"\s+", header=None, names=["station", "vsite"]
     ).set_index("station")
     vs30_df = vs30_df.loc[common_stations]
-    vs30_df["vref"] = 500
-    vs30_df["vpga"] = 500
+    vs30_df["vref"] = 500.0
+    vs30_df["vpga"] = 500.0
     dt = bb_dt = broadband_config.dt
 
     lf_start_sec = lf.attrs["start_sec"]
