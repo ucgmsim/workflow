@@ -152,6 +152,8 @@ def calculate_instensity_measures(
             cores=utils.get_available_cores(),
         ),
     }
+    latitude = broadband.latitude.values
+    longitude = broadband.longitude.values
 
     rrup = (
         np.array(
@@ -160,7 +162,7 @@ def calculate_instensity_measures(
                     source.rrup_distance(np.append(station, 0))
                     for source in source_geometries.source_geometries.values()
                 )
-                for station in broadband[["latitude", "longitude"]].values()
+                for station in np.stack((latitude, longitude), axis=-1)
             ]
         )
         / 1000
@@ -172,7 +174,7 @@ def calculate_instensity_measures(
                     source.rjb_distance(np.append(station, 0))
                     for source in source_geometries.source_geometries.values()
                 )
-                for station in broadband[["latitude", "longitude"]].values()
+                for station in np.stack((latitude, longitude), axis=-1)
             ]
         )
         / 1000
@@ -180,8 +182,6 @@ def calculate_instensity_measures(
     hypocentre = source_geometries.source_geometries[
         rup_prop_config.initial_fault
     ].fault_coordinates_to_wgs_depth_coordinates(rup_prop_config.hypocentre)
-    latitude = broadband.latitude.values
-    longitude = broadband.longitude.values
 
     hyp = (
         coordinates.distance_between_wgs_depth_coordinates(
@@ -201,12 +201,16 @@ def calculate_instensity_measures(
     dataset = xr.Dataset(
         coords={
             "station": ("station", broadband.station.values),
-            "component": ("component", ["000", "090", "ver"]),
-            "rrup": ("rrup", rrup),
-            "rjb": ("rjb", rjb),
-            "hyp": ("hyp", hyp),
+            "component": (
+                "component",
+                ["000", "090", "ver", "geom", "rotd0", "rotd50", "rotd100"],
+            ),
+            "rrup": ("station", rrup),
+            "rjb": ("station", rjb),
+            "hyp": ("station", hyp),
             "epi": ("station", epi),
-        }
+        },
+        attrs={"hypo_lat": hypocentre[0], "hypo_lon": hypocentre[1]},
     )
 
     # Add each column of the DataFrame as a coordinate
