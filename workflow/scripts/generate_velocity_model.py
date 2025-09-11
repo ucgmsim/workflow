@@ -41,7 +41,7 @@ from typing import Annotated, Optional
 import typer
 
 from qcore import cli
-from workflow import log_utils, realisations
+from workflow import log_utils, realisations, utils
 from workflow.realisations import (
     DomainParameters,
     RealisationMetadata,
@@ -110,9 +110,10 @@ def run_nzvm(
         None for inferred thread count.
     """
     environment = os.environ.copy()
-    if not num_threads and "OMP_NUM_THREADS" in environment:
-        environment.pop("OMP_NUM_THREADS")
-    else:
+
+    if num_threads is None:
+        environment["OMP_NUM_THREADS"] = str(utils.get_available_cores())
+    elif num_threads:
         environment["OMP_NUM_THREADS"] = str(num_threads)
 
     subprocess.check_call(

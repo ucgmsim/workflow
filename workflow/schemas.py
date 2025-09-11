@@ -460,7 +460,7 @@ VELOCITY_MODEL_SCHEMA = Schema(
             description="The minimum velocity (km/s) produced in the velocity model.",
         ): And(float, _is_positive),
         Literal("version", "Velocity model version"): Or(
-            "2.02", "2.03", "2.06", "2.07"
+            "2.02", "2.03", "2.06", "2.07", "2.08"
         ),
         Literal("topo_type", "Velocity model topology type"): str,
         Literal("dt", "Velocity model timestep resolution"): And(float, _is_positive),
@@ -651,15 +651,11 @@ EMOD3D_PARAMETERS_SCHEMA = Schema(
         "qsfrac": float,
         "read_restart": int,
         "report": int,
-        "restart_itinc": int,
         "scale": int,
         "smodfile": str,
         "span": int,
         "stype": str,
         "swap_bytes": int,
-        "ts_inc": int,
-        "ts_start": int,
-        "ts_total": int,
         "ts_xy": int,
         "ts_xz": int,
         "ts_yz": int,

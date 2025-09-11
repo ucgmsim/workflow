@@ -33,44 +33,15 @@ import subprocess
 from pathlib import Path
 from typing import Annotated
 
-import geopandas as gpd
 import numpy as np
 import requests
 import shapely
 import typer
-from shapely import Polygon
 
-from pygmt_helper import plotting
 from qcore import cli, coordinates
+from workflow import utils
 
 app = typer.Typer()
-
-
-def get_nz_outline_polygon() -> Polygon:
-    """Get the outline polygon of New Zealand.
-
-    Returns
-    -------
-    Polygon
-        The outline polygon of New Zealand.
-    """
-    coastline_path = plotting.GMT_DATA.fetch("data/Paths/coastline/NZ.gmt")
-
-    gpd_df = gpd.read_file(coastline_path)
-    island_polygons = [
-        Polygon(
-            coordinates.wgs_depth_to_nztm(
-                np.array(shapely.geometry.mapping(island)["coordinates"])[:, ::-1]
-            )
-        )
-        for island in gpd_df.geometry
-    ]
-    south_island, north_island = sorted(
-        island_polygons, key=lambda island: island.area, reverse=True
-    )[:2]
-    south_island = south_island.simplify(100)
-    north_island = north_island.simplify(100)
-    return shapely.union(south_island, north_island)
 
 
 @cli.from_docstring(app)
@@ -98,7 +69,7 @@ def gcmt_auto_simulate(
             old_gcmt_solutions = json.load(old_gcmt_solutions_handle)
     else:
         old_gcmt_solutions = dict()
-    nz_polygon = get_nz_outline_polygon()
+    nz_polygon = utils.get_nz_outline_polygon()
     solutions_to_simulate = [
         gcmt_id
         for gcmt_id, solution in updated_gcmt_solutions.items()
@@ -123,7 +94,7 @@ def gcmt_auto_simulate(
     if not solutions_to_simulate:
         raise typer.Exit(code=0)
     now = datetime.datetime.now()
-    workflow_id = f'gcmt_{now.strftime("%Y%m%d_%H%M%S")}'
+    workflow_id = f"gcmt_{now.strftime('%Y%m%d_%H%M%S')}"
     cylc_directory = Path.home() / "cylc-src" / workflow_id
     cylc_directory.mkdir(exist_ok=True, parents=True)
 

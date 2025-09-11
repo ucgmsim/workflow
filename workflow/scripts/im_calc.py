@@ -31,7 +31,6 @@ import functools
 from pathlib import Path
 from typing import Annotated, Optional
 
-import h5py
 import numexpr as ne
 import numpy as np
 import pandas as pd
@@ -100,14 +99,12 @@ def calculate_instensity_measures(
     source_geometries = SourceConfig.read_from_realisation(realisation_ffp)
     rup_prop_config = RupturePropagationConfig.read_from_realisation(realisation_ffp)
 
-    with h5py.File(broadband_simulation_ffp, mode="r") as broadband_file:
-        waveforms = np.array(broadband_file["waveforms"]).astype(np.float32)
-
-    stations = pd.read_hdf(broadband_simulation_ffp, key="stations")
+    broadband = xr.open_dataset(broadband_simulation_ffp)
 
     if not simulated_stations:
-        stations = stations.filter(regex=r"^\w{4}$", axis=0)
-        waveforms = waveforms[stations["waveform_index"]]
+        broadband = broadband.where(
+            broadband.station.str.findall(r"^(\w{4})$"), drop=True
+        )
 
     intensity_measures = intensity_measure_parameters.ims
 
@@ -154,27 +151,29 @@ def calculate_instensity_measures(
             cores=utils.get_available_cores(),
         ),
     }
+    latitude = broadband.latitude.values
+    longitude = broadband.longitude.values
 
-    stations["rrup"] = (
+    rrup = (
         np.array(
             [
                 min(
                     source.rrup_distance(np.append(station, 0))
                     for source in source_geometries.source_geometries.values()
                 )
-                for station in stations[["latitude", "longitude"]].values
+                for station in np.stack((latitude, longitude), axis=-1)
             ]
         )
         / 1000
     )
-    stations["rjb"] = (
+    rjb = (
         np.array(
             [
                 min(
                     source.rjb_distance(np.append(station, 0))
                     for source in source_geometries.source_geometries.values()
                 )
-                for station in stations[["latitude", "longitude"]].values
+                for station in np.stack((latitude, longitude), axis=-1)
             ]
         )
         / 1000
@@ -182,46 +181,51 @@ def calculate_instensity_measures(
     hypocentre = source_geometries.source_geometries[
         rup_prop_config.initial_fault
     ].fault_coordinates_to_wgs_depth_coordinates(rup_prop_config.hypocentre)
-    stations["hyp"] = (
+
+    hyp = (
         coordinates.distance_between_wgs_depth_coordinates(
-            np.hstack(
-                (
-                    stations[["latitude", "longitude"]].values,
-                    np.zeros((len(stations), 1)),
-                )
-            ),
+            np.stack((latitude, longitude, np.zeros_like(latitude)), axis=-1),
             hypocentre,
         )
         / 1000
     )
-    stations["epi"] = (
+    epi = (
         coordinates.distance_between_wgs_depth_coordinates(
-            stations[["latitude", "longitude"]].values,
+            np.stack((latitude, longitude), axis=-1),
             hypocentre[:2],
         )
         / 1000
     )
 
-    station_metadata = stations[
-        list(set(im_reader.IM_METADATA) & set(stations.columns))
-    ]
-
-    dataset = xr.Dataset(coords={"station": station_metadata.index})
+    dataset = xr.Dataset(
+        coords={
+            "station": ("station", broadband.station.values),
+            "component": (
+                "component",
+                ["000", "090", "ver", "geom", "rotd0", "rotd50", "rotd100"],
+            ),
+            "rrup": ("station", rrup),
+            "rjb": ("station", rjb),
+            "hyp": ("station", hyp),
+            "epi": ("station", epi),
+        },
+        attrs={"hypo_lat": hypocentre[0], "hypo_lon": hypocentre[1]},
+    )
 
     # Add each column of the DataFrame as a coordinate
-    for column in station_metadata.columns:
-        dataset = dataset.assign_coords({column: ("station", station_metadata[column])})
-
+    # TODO: Refactor IM Calculation to use waveforms in (component, station, time) format
+    # Convert (component, station, time) to (station, time, component).
+    waveform = np.transpose(broadband.waveform.values, (1, 2, 0))
     for im_name in (pbar := tqdm.tqdm(intensity_measures)):
         pbar.set_description(im_name)
         im_fn = im_function_map[im_name]
-        result = im_fn(waveforms)
+        result = im_fn(waveform)
 
         if isinstance(result, pd.DataFrame):
-            result["station"] = stations.index.values
+            result["station"] = broadband.station.values
             result = result.set_index("station").to_xarray().to_array(dim="component")
         elif isinstance(result, xr.DataArray):
-            result = result.assign_coords(station=stations.index.values)
+            result = result.assign_coords(station=broadband.station)
         dataset[im_name] = result
 
     im_reader.write_intensity_measures(dataset, output_path)
