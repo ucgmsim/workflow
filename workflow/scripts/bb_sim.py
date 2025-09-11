@@ -39,6 +39,7 @@ from pathlib import Path
 from typing import Annotated
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import typer
 import xarray as xr
@@ -55,8 +56,40 @@ app = typer.Typer()
 G = 1 / 981.0
 
 
-def align_waveforms(lf_waveform, hf_waveform, lf_start, hf_start, dt):
-    """Align LF and HF waveforms to a common time axis."""
+def align_waveforms(
+    lf_waveform: npt.NDArray[np.floating],
+    hf_waveform: npt.NDArray[np.floating],
+    lf_start: float,
+    hf_start: float,
+    dt: float,
+) -> tuple[
+    npt.NDArray[np.floating], npt.NDArray[np.floating], npt.NDArray[np.floating]
+]:
+    """Align LF and HF waveforms to a common time axis.
+
+    Parameters
+    ----------
+    lf_waveform : array of floats
+        The low-frequency waveform to align.
+    hf_waveform : array of floats
+        The high-frequency waveform to align.
+    lf_start : float
+        The start of the LF simulation.
+    hf_start : float
+        The start of the HF simulation.
+    dt : float
+        The timestep for the simulation.
+
+    Returns
+    -------
+    array of floats
+        The aligned low-frequency results.
+    array of floats
+        The aligned high-frequency results.
+    array of floats
+        The new time values.
+    """
+
     lf_nt = lf_waveform.shape[1]
     hf_nt = hf_waveform.shape[1]
 
