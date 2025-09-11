@@ -239,7 +239,7 @@ def create_e3d_par(
         Path to the velocity model file.
     stations_ffp : Path
         Path to the station files used in the simulation.
-    output_ffp : Path, optional
+    output_ffp : Path
         Path to the directory for output files when running EMOD3D.
     emod3d_version : str, optional
         Version of the EMOD3D binary to use.
