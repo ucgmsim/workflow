@@ -16,6 +16,13 @@ NZ_COASTLINE_URL = "https://www.dropbox.com/scl/fi/zkohh794y0s2189t7b1hi/NZ.gmt?
 
 
 def read_nz_coastline() -> gpd.GeoDataFrame:
+    """Read the New Zealand coastline from NZ.gmt file.
+
+    Returns
+    -------
+    gpd.GeoDataFrame
+        The geodataframe representing the NZ coastline.
+    """
     with (
         tempfile.NamedTemporaryFile(mode="wb", suffix=".gmt") as f,
         urllib.request.urlopen(NZ_COASTLINE_URL) as source,

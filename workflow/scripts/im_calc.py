@@ -31,7 +31,6 @@ import functools
 from pathlib import Path
 from typing import Annotated, Optional
 
-import h5py
 import numexpr as ne
 import numpy as np
 import pandas as pd

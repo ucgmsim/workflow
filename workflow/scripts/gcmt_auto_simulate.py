@@ -33,7 +33,6 @@ import subprocess
 from pathlib import Path
 from typing import Annotated
 
-import geopandas as gpd
 import numpy as np
 import requests
 import shapely
