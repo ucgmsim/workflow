@@ -103,7 +103,7 @@ def calculate_instensity_measures(
 
     if not simulated_stations:
         broadband = broadband.where(
-            broadband.station.str.findall(r"^(\w{4})$"), drop=True
+            broadband.station.str.match(r"^(\w{4})$"), drop=True
         )
 
     intensity_measures = intensity_measure_parameters.ims
