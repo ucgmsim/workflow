@@ -114,10 +114,10 @@ def calculate_instensity_measures(
         )
 
     intensity_measures = override_ims or intensity_measure_parameters.ims
-
+    checkpoint_dataset = None
     if resume_from_checkpoint and output_path.exists():
         try:
-            im_dataset = xr.open_dataset(output_path, engine="h5netcdf")
+            checkpoint_dataset = xr.open_dataset(output_path, engine="h5netcdf")
             computed_ims = typing.cast(set[IM], set(im_dataset))
             intensity_measures = [
                 im for im in intensity_measures if im not in computed_ims
@@ -217,20 +217,23 @@ def calculate_instensity_measures(
         / 1000
     )
 
-    dataset = xr.Dataset(
-        coords={
-            "station": ("station", broadband.station.values),
-            "component": (
-                "component",
-                ["000", "090", "ver", "geom", "rotd0", "rotd50", "rotd100"],
-            ),
-            "rrup": ("station", rrup),
-            "rjb": ("station", rjb),
-            "hyp": ("station", hyp),
-            "epi": ("station", epi),
-        },
-        attrs={"hypo_lat": hypocentre[0], "hypo_lon": hypocentre[1]},
-    )
+    if checkpoint_dataset is not None:
+        dataset = checkpoint_dataset
+    else:
+        dataset = xr.Dataset(
+            coords={
+                "station": ("station", broadband.station.values),
+                "component": (
+                    "component",
+                    ["000", "090", "ver", "geom", "rotd0", "rotd50", "rotd100"],
+                ),
+                "rrup": ("station", rrup),
+                "rjb": ("station", rjb),
+                "hyp": ("station", hyp),
+                "epi": ("station", epi),
+            },
+            attrs={"hypo_lat": hypocentre[0], "hypo_lon": hypocentre[1]},
+        )
 
     # Add each column of the DataFrame as a coordinate
     # TODO: Refactor IM Calculation to use waveforms in (component, station, time) format
