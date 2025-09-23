@@ -70,7 +70,7 @@ def calculate_instensity_measures(
     ko_directory: Annotated[
         Path | None, typer.Option(exists=True, file_okay=False)
     ] = None,
-    ims: Annotated[list[IM] | None, typer.Option("-i", "--im")] = None,
+    override_ims: Annotated[list[IM] | None, typer.Option("-i", "--im")] = None,
     resume_from_checkpoint: Annotated[bool, typer.Option()] = True,
 ) -> None:
     """Calculate intensity measures for simulation data.
@@ -89,7 +89,7 @@ def calculate_instensity_measures(
         Maximum amount of memory allocated for rotated PSA calculation station buffer, in gigabytes.
     ko_directory : Path
         Directory containing the KO matrix files for FAS calculation. Not required for other IMs.
-    ims : list of str
+    override_ims : list of str
         Intensity measures to calculate. If not set, reads from the realisation file.
     resume_from_checkpoint : bool
         If set, check the output path and skip calculation for IMs already present.
@@ -113,7 +113,7 @@ def calculate_instensity_measures(
             broadband.station.str.match(r"^(\w{4})$"), drop=True
         )
 
-    intensity_measures = ims or intensity_measure_parameters.ims
+    intensity_measures = override_ims or intensity_measure_parameters.ims
 
     if resume_from_checkpoint and output_path.exists():
         try:
