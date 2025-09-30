@@ -71,7 +71,6 @@ def calculate_instensity_measures(
         Path | None, typer.Option(exists=True, file_okay=False)
     ] = None,
     override_ims: Annotated[list[IM] | None, typer.Option("-i", "--im")] = None,
-    resume_from_checkpoint: Annotated[bool, typer.Option()] = True,
 ) -> None:
     """Calculate intensity measures for simulation data.
 
@@ -91,8 +90,6 @@ def calculate_instensity_measures(
         Directory containing the KO matrix files for FAS calculation. Not required for other IMs.
     override_ims : list of str
         Intensity measures to calculate. If not set, reads from the realisation file.
-    resume_from_checkpoint : bool
-        If set, check the output path and skip calculation for IMs already present.
     """
     ne.set_num_threads(utils.get_available_cores())
 
@@ -114,19 +111,6 @@ def calculate_instensity_measures(
         )
 
     intensity_measures = override_ims or intensity_measure_parameters.ims
-    checkpoint_dataset = None
-    if resume_from_checkpoint and output_path.exists():
-        try:
-            checkpoint_dataset = xr.open_dataset(output_path, engine="h5netcdf")
-            computed_ims = typing.cast(set[IM], set(im_dataset))
-            intensity_measures = [
-                im for im in intensity_measures if im not in computed_ims
-            ]
-        except Exception as e:
-            print(
-                f"Could not resume from checkpoint due to error reading dataset: {e}. Will compute full set of specified IMs."
-            )
-            pass
 
     if IM.FAS in intensity_measures and not ko_directory:
         raise ValueError(
@@ -217,23 +201,20 @@ def calculate_instensity_measures(
         / 1000
     )
 
-    if checkpoint_dataset is not None:
-        dataset = checkpoint_dataset
-    else:
-        dataset = xr.Dataset(
-            coords={
-                "station": ("station", broadband.station.values),
-                "component": (
-                    "component",
-                    ["000", "090", "ver", "geom", "rotd0", "rotd50", "rotd100"],
-                ),
-                "rrup": ("station", rrup),
-                "rjb": ("station", rjb),
-                "hyp": ("station", hyp),
-                "epi": ("station", epi),
-            },
-            attrs={"hypo_lat": hypocentre[0], "hypo_lon": hypocentre[1]},
-        )
+    dataset = xr.Dataset(
+        coords={
+            "station": ("station", broadband.station.values),
+            "component": (
+                "component",
+                ["000", "090", "ver", "geom", "rotd0", "rotd50", "rotd100"],
+            ),
+            "rrup": ("station", rrup),
+            "rjb": ("station", rjb),
+            "hyp": ("station", hyp),
+            "epi": ("station", epi),
+        },
+        attrs={"hypo_lat": hypocentre[0], "hypo_lon": hypocentre[1]},
+    )
 
     # Add each column of the DataFrame as a coordinate
     # TODO: Refactor IM Calculation to use waveforms in (component, station, time) format
