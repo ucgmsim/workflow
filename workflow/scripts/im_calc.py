@@ -28,7 +28,6 @@ See the output of `im-calc --help`.
 """
 
 import functools
-import typing
 from pathlib import Path
 from typing import Annotated, Optional
 
