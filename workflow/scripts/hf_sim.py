@@ -98,7 +98,7 @@ def build_hf_input(
         f"{hf_config.nbu} {hf_config.ift} {hf_config.flo} {hf_config.fhi}",
         "{seed}",
         1,  # one station in the input
-        f"{domain_parameters.duration} {hf_config.dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",
+        f"{domain_parameters.duration} {hf_config.dt} {hf_config.fmax} {{kappa}} {hf_config.qfexp}",
         f"{hf_config.rvfac} {hf_config.rvfac_shal} {hf_config.rvfac_deep} {hf_config.czero} {hf_config.calpha}",
         f"{hf_config.mom or -1} {hf_config.rupv or -1}",
         stoch_ffp,
@@ -124,6 +124,7 @@ def build_hf_input(
 def hf_simulate_station(
     hf_sim_path: Path,
     hf_stdin_template: str,
+    station_kappa: float,
     station_latitude: float,
     station_longitude: float,
     station_name: str,
@@ -171,7 +172,10 @@ def hf_simulate_station(
         input_file.flush()
 
         hf_sim_input_str = hf_stdin_template.format(
-            station_input_file=input_file.name, output_file=output_file.name, seed=seed
+            station_input_file=input_file.name,
+            output_file=output_file.name,
+            seed=seed,
+            kappa=station_kappa,
         )
 
         logger = log_utils.get_logger(__name__)
@@ -292,9 +296,7 @@ def run_hf(
 
     stations = pd.read_csv(
         station_file,
-        delimiter=r"\s+",
         header=None,
-        names=["longitude", "latitude", "name"],
     ).set_index("name")
     station_hashes = np.array(
         [stable_hash(name) for name in stations.index], dtype=np.int32
@@ -322,6 +324,7 @@ def run_hf(
                 hf_simulate_station,
                 hf_sim_path,
                 hf_input_template,
+                station["kappa"],
                 station["latitude"],
                 station["longitude"],
                 name,
