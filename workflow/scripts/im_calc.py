@@ -31,6 +31,7 @@ import functools
 from pathlib import Path
 from typing import Annotated, Optional
 
+import geopandas as gpd
 import numexpr as ne
 import numpy as np
 import pandas as pd
@@ -51,6 +52,14 @@ from workflow.realisations import (
 )
 
 app = typer.Typer()
+
+
+def site_classification_dataset() -> pd.DataFrame:
+    df = gpd.read_parquet(
+        "/home/jake/src/alpine_simulations/datasets/whole_dataset_gdf.parquet"
+    )
+    df = df.set_index("station")
+    return df
 
 
 @cli.from_docstring(app)
@@ -196,10 +205,17 @@ def calculate_instensity_measures(
         )
         / 1000
     )
-
+    dataset = site_classification_dataset()
+    stations = broadband.station.values
+    site_class = dataset["class"].loc[stations].values
+    basin_distance = dataset["signed_distance"].loc[stations].values
+    basin = dataset["basin"].loc[stations].values
+    closest_basin = dataset["closest_basin"].loc[stations].values
+    district = dataset["district"].loc[stations].values
+    region = dataset["region"].loc[stations].values
     dataset = xr.Dataset(
         coords={
-            "station": ("station", broadband.station.values),
+            "station": ("station", stations),
             "component": (
                 "component",
                 ["000", "090", "ver", "geom", "rotd0", "rotd50", "rotd100"],
@@ -208,6 +224,14 @@ def calculate_instensity_measures(
             "rjb": ("station", rjb),
             "hyp": ("station", hyp),
             "epi": ("station", epi),
+            "longitude": ("station", broadband.longitude.values),
+            "latitude": ("station", broadband.latitude.values),
+            "class": ("station", site_class),
+            "basin": ("station", basin),
+            "basin_distance": ("station", basin_distance),
+            "closest_basin": ("station", closest_basin),
+            "district": ("station", district),
+            "region": ("station", region),
         },
         attrs={"hypo_lat": hypocentre[0], "hypo_lon": hypocentre[1]},
     )
