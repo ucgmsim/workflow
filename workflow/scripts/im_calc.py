@@ -69,6 +69,7 @@ def calculate_instensity_measures(
     ko_directory: Annotated[
         Path | None, typer.Option(exists=True, file_okay=False)
     ] = None,
+    override_ims: Annotated[list[IM] | None, typer.Option("-i", "--im")] = None,
 ) -> None:
     """Calculate intensity measures for simulation data.
 
@@ -86,6 +87,8 @@ def calculate_instensity_measures(
         Maximum amount of memory allocated for rotated PSA calculation station buffer, in gigabytes.
     ko_directory : Path
         Directory containing the KO matrix files for FAS calculation. Not required for other IMs.
+    override_ims : list of str
+        Intensity measures to calculate. If not set, reads from the realisation file.
     """
     ne.set_num_threads(utils.get_available_cores())
 
@@ -103,10 +106,10 @@ def calculate_instensity_measures(
 
     if not simulated_stations:
         broadband = broadband.where(
-            broadband.station.str.findall(r"^(\w{4})$"), drop=True
+            broadband.station.str.match(r"^(\w{4})$"), drop=True
         )
 
-    intensity_measures = intensity_measure_parameters.ims
+    intensity_measures = override_ims or intensity_measure_parameters.ims
 
     if IM.FAS in intensity_measures and not ko_directory:
         raise ValueError(
@@ -227,6 +230,6 @@ def calculate_instensity_measures(
         elif isinstance(result, xr.DataArray):
             result = result.assign_coords(station=broadband.station)
         dataset[im_name] = result
+        im_reader.write_intensity_measures(dataset, output_path)
 
-    im_reader.write_intensity_measures(dataset, output_path)
     realisations.append_log_entry(realisation_ffp)

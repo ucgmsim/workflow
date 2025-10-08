@@ -74,7 +74,7 @@ hf:
   dt: 0.005
   t_sec: 0.0
   sdrop: 50.0
-  rayset: [1, 2]
+  rayset: [1]
   no_siteamp: false
   fmax: 10.0
   kappa: 0.045
