@@ -75,12 +75,12 @@ def generate_stoch(
         for fault in source_config.source_geometries.values()
     ):
         srf_file = srf.read_srf(srf_ffp)
-        source = srf_file.headers.iloc[0]
-        srf_nstk = srf_file.headers["nstk"]
-        srf_len = srf_file.headers["len"]
+        source = srf_file.header.iloc[0]
+        srf_nstk = srf_file.header["nstk"]
+        srf_len = srf_file.header["len"]
         dx = srf_len / srf_nstk
-        srf_ndip = srf_file.headers["ndip"]
-        srf_wid = srf_file.headers["wid"]
+        srf_ndip = srf_file.header["ndip"]
+        srf_wid = srf_file.header["wid"]
         dy = srf_wid / srf_ndip
     else:
         min_length, min_width = min(
