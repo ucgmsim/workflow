@@ -296,7 +296,6 @@ def run_hf(
 
     stations = pd.read_csv(
         station_file,
-        header=None,
     ).set_index("name")
     station_hashes = np.array(
         [stable_hash(name) for name in stations.index], dtype=np.int32
