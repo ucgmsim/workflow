@@ -76,11 +76,11 @@ def generate_stoch(
     ):
         srf_file = srf.read_srf(srf_ffp)
         source = srf_file.header.iloc[0]
-        srf_nstk = srf_file.header["nstk"]
-        srf_len = srf_file.header["len"]
+        srf_nstk = int(source["nstk"])
+        srf_len = float(source["len"])
         dx = srf_len / srf_nstk
-        srf_ndip = srf_file.header["ndip"]
-        srf_wid = srf_file.header["wid"]
+        srf_ndip = int(source["ndip"])
+        srf_wid = float(source["wid"])
         dy = srf_wid / srf_ndip
     else:
         min_length, min_width = min(
