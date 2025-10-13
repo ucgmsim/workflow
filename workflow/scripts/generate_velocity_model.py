@@ -124,7 +124,12 @@ def run_nzvm(
     )
 
 
-def run_nzcvm(nzvm_config_ffp: Path) -> None:
+def run_nzcvm(
+    nzvm_config_ffp: Path,
+    work_directory: Path,
+    velocity_model_intermediate_path: Path,
+    num_threads: int,
+) -> None:
     """Run NZCVM executable with specified configuration.
 
     Parameters
@@ -132,9 +137,19 @@ def run_nzcvm(nzvm_config_ffp: Path) -> None:
     nzvm_config_ffp : Path
         Path to the NZVM-format configuration file.
     """
-    from velocity_modelling.scripts import nzcvm
+    from velocity_modelling.constants import WriteFormat
+    from velocity_modelling.scripts import generate_3d_model
+    from velocity_modelling.tools import convert_hdf5_to_emod3d
 
-    nzcvm.generate_velocity_model(nzvm_config_ffp)
+    generate_3d_model.generate_3d_model(
+        nzvm_config_ffp,
+        out_dir=work_directory,
+        output_format=WriteFormat.HDF5.name,
+        np_workers=num_threads,
+    )
+    hdf5_output_file = work_directory / "velocity_model.h5"
+    convert_hdf5_to_emod3d(hdf5_output_file, velocity_model_intermediate_path)
+    hdf5_output_file.unlink()
 
 
 @cli.from_docstring(app)
@@ -204,10 +219,17 @@ def generate_velocity_model(
         nzvm_config_path,
     )
     if use_nzcvm:
-        run_nzcvm(nzvm_config_path)
+        run_nzcvm(
+            nzvm_config_path,
+            work_directory,
+            velocity_model_intermediate_path,
+            num_threads,
+        )
     else:
         run_nzvm(velocity_model_bin_path, nzvm_config_path, num_threads)
+
     shutil.copytree(
         velocity_model_intermediate_path / "Velocity_Model", velocity_model_output
     )
+    shutil.rmtree(velocity_model_intermediate_path)
     realisations.append_log_entry(realisation_ffp)
