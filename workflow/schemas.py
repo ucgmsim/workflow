@@ -460,7 +460,7 @@ VELOCITY_MODEL_SCHEMA = Schema(
             description="The minimum velocity (km/s) produced in the velocity model.",
         ): And(float, _is_positive),
         Literal("version", "Velocity model version"): Or(
-            "2.02", "2.03", "2.06", "2.07", "2.08"
+            "2.02", "2.03", "2.06", "2.07", "2.08", "2.09"
         ),
         Literal("topo_type", "Velocity model topology type"): str,
         Literal("dt", "Velocity model timestep resolution"): And(float, _is_positive),
