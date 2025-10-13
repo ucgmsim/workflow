@@ -31,6 +31,7 @@ from typing import Annotated
 import typer
 
 from qcore import cli
+from source_modelling import sources, srf
 from workflow import log_utils, realisations
 from workflow.realisations import HFConfig, RealisationMetadata, SourceConfig
 
@@ -66,13 +67,28 @@ def generate_stoch(
     hf_config = HFConfig.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
-    sources = SourceConfig.read_from_realisation(realisation_ffp)
-    min_length, min_width = min(
-        (fault.length, fault.width) for fault in sources.source_geometries.values()
-    )
-    # If the stoch dx is greater than the length (resp. dy and width), we might get an empty stoch file
-    dx = min(hf_config.stoch_dx, min_length / 2)
-    dy = min(hf_config.stoch_dx, min_width / 2)
+
+    source_config = SourceConfig.read_from_realisation(realisation_ffp)
+
+    if all(
+        isinstance(fault, sources.Point)
+        for fault in source_config.source_geometries.values()
+    ):
+        srf_file = srf.read_srf(srf_ffp)
+        source = srf_file.header.iloc[0]
+        srf_nstk = int(source["nstk"])
+        srf_len = float(source["len"])
+        dx = srf_len / srf_nstk
+        srf_ndip = int(source["ndip"])
+        srf_wid = float(source["wid"])
+        dy = srf_wid / srf_ndip
+    else:
+        geometries = list(source_config.source_geometries.values())
+        min_length = min(fault.length for fault in geometries)
+        min_width = min(fault.width for fault in geometries)
+        # If the stoch dx is greater than the length (resp. dy and width), we might get an empty stoch file
+        dx = min(hf_config.stoch_dx, min_length / 2)
+        dy = min(hf_config.stoch_dy, min_width / 2)
 
     log_utils.log_check_call(
         [
