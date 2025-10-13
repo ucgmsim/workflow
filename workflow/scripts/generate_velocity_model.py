@@ -151,7 +151,6 @@ def run_nzcvm(
     convert_hdf5_to_emod3d.convert_hdf5_to_emod3d(
         hdf5_output_file, velocity_model_intermediate_path
     )
-    hdf5_output_file.unlink()
 
 
 @cli.from_docstring(app)
