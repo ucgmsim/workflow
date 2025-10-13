@@ -88,7 +88,7 @@ def generate_stoch(
         min_width = min(fault.width for fault in geometries)
         # If the stoch dx is greater than the length (resp. dy and width), we might get an empty stoch file
         dx = min(hf_config.stoch_dx, min_length / 2)
-        dy = min(hf_config.stoch_dx, min_width / 2)
+        dy = min(hf_config.stoch_dy, min_width / 2)
 
     log_utils.log_check_call(
         [
