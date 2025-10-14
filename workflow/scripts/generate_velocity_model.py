@@ -35,6 +35,7 @@ The velocity modelling repository contains some tools to plot velocity models. S
 import os
 import shutil
 import subprocess
+import typing
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -128,7 +129,7 @@ def run_nzcvm(
     nzvm_config_ffp: Path,
     work_directory: Path,
     velocity_model_intermediate_path: Path,
-    num_threads: int,
+    num_threads: int | None,
 ) -> None:
     """Run NZCVM executable with specified configuration.
 
@@ -141,6 +142,7 @@ def run_nzcvm(
     from velocity_modelling.scripts import generate_3d_model
     from velocity_modelling.tools import convert_hdf5_to_emod3d
 
+    num_threads = num_threads or utils.get_available_cores()
     generate_3d_model.generate_3d_model(
         nzvm_config_ffp,
         out_dir=work_directory,
@@ -202,7 +204,9 @@ def generate_velocity_model(
         raise ValueError(
             "If not using nzcvm, you must specify the path to the NZVM binary."
         )
-
+    # The following is safe because we checked above that
+    # velocity_model_bin_path is not None when use_nzcvm is passed.
+    velocity_model_bin_path = typing.cast(Path, velocity_model_bin_path)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     velocity_model_parameters = (
