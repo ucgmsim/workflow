@@ -7,6 +7,7 @@ import urllib.request
 
 import geopandas as gpd
 import numpy as np
+import psutil
 import shapely
 from shapely import Geometry, Polygon
 
@@ -73,4 +74,20 @@ def get_available_cores() -> int:
     if "SLURM_NPROCS" in os.environ:
         return int(os.environ["SLURM_NPROCS"])
 
-    return multiprocessing.cpu_count()
+    # A process's CPU affinity is the set of CPU cores that the
+    # current process is allowed to use. On a typical setup, the CPU
+    # affinity contains every core on the system so that
+    #
+    # len(psutil.Process().cpu_affinity()) == multiprocessing.cpu_count().
+    #
+    # On HPC clusters, slurm and PBS set the CPU affinity to schedule
+    # processes onto certain cores. This allows the scheduler to share
+    # nodes between jobs. Hence
+    #
+    # len(psutil.Process().cpu_affinity()) == cores allocated for job on node.
+    #
+    # CPU affinity is a kernel-level feature, and exposed to the
+    # process. This is hence the most reliable way to set CPU cores.
+    # It also means that using `taskset(1)` on any other system will
+    # be respected by workflow jobs.
+    return len(psutil.Process().cpu_affinity())
