@@ -59,7 +59,7 @@ def get_nz_outline_polygon() -> Geometry:
 
 
 def get_available_cores() -> int:
-    """Get the avaiable number of cores for a job.
+    """Get the available number of cores for a job.
 
     Returns
     -------
@@ -87,7 +87,7 @@ def get_available_cores() -> int:
     # len(psutil.Process().cpu_affinity()) == cores allocated for job on node.
     #
     # CPU affinity is a kernel-level feature, and exposed to the
-    # process. This is hence the most reliable way to set CPU cores.
-    # It also means that using `taskset(1)` on any other system will
-    # be respected by workflow jobs.
+    # process. This is the most reliable way to set CPU cores. It also
+    # means that using `taskset(1)` on any other system will be
+    # respected by workflow jobs.
     return len(psutil.Process().cpu_affinity())
