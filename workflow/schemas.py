@@ -207,17 +207,19 @@ def _corners_to_array(corners_spec: list[dict[str, float]]) -> np.ndarray:
     return np.array(corners_array)
 
 
+NUMBER = And(Or(float, int), Use(float))
+
 FAULT_LOCAL_COORDINATES_SCHEMA = Schema(
     And(
         {
             Literal(
                 "s",
                 description="The `s` coordinate (fraction of length, in range [0, 1])",
-            ): And(Use(float), _is_valid_local_coordinate),
+            ): And(NUMBER, _is_valid_local_coordinate),
             Literal(
                 "d",
                 description="The `d` coordinate (fraction of width, in range [0, 1])",
-            ): And(Use(float), _is_valid_local_coordinate),
+            ): And(NUMBER, _is_valid_local_coordinate),
         },
         Use(lambda local_coords: np.array([local_coords["s"], local_coords["d"]])),
     )
@@ -228,10 +230,10 @@ LAT_LON_SCHEMA = And(
     [
         {
             Literal("latitude", description="Latitude (in decimal degrees)"): And(
-                float, _is_valid_latitude
+                NUMBER, _is_valid_latitude
             ),
             Literal("longitude", description="Longitude (in decimal degrees)"): And(
-                float, _is_valid_longitude
+                NUMBER, _is_valid_longitude
             ),
         }
     ],
@@ -243,13 +245,13 @@ LAT_LON_SCHEMA = And(
 POINT_COORD_SCHEMA = And(
     {
         Literal("latitude", description="Latitude (in decimal degrees)"): And(
-            float, _is_valid_latitude
+            NUMBER, _is_valid_latitude
         ),
         Literal("longitude", description="Longitude (in decimal degrees)"): And(
-            float, _is_valid_longitude
+            NUMBER, _is_valid_longitude
         ),
         Literal("depth", description="Depth (in metres)"): And(
-            Use(float), _is_non_negative
+            NUMBER, _is_non_negative
         ),
     },
     Use(
@@ -270,20 +272,20 @@ POINT_SCHEMA = Schema(
                 "coordinates", description="The coordinates of the point source"
             ): POINT_COORD_SCHEMA,
             Literal("length", description="The pseudo-length of the point source"): And(
-                float, _is_positive
+                NUMBER, _is_positive
             ),
             Literal("width", description="The pseudo-width of the point source"): And(
-                float, _is_positive
+                NUMBER, _is_positive
             ),
             Literal(
                 "strike", description="The strike bearing of the point source"
-            ): And(Use(float), _is_valid_bearing),
+            ): And(NUMBER, _is_valid_bearing),
             Literal("dip", description="The dip angle of the point source"): And(
-                float, _is_valid_bearing
+                NUMBER, _is_valid_bearing
             ),
             Literal(
                 "dip_dir", description="The dip direction bearing of the point source"
-            ): And(Use(float), _is_valid_bearing),
+            ): And(NUMBER, _is_valid_bearing),
         },
         Use(
             lambda schema: sources.Point.from_lat_lon_depth(
@@ -354,17 +356,17 @@ POINT_SOURCE_PARAMS_SCHEMA = Schema(
                 "stype", description="Slip time function for generic_slip2srf"
             ): Use(Stype),
             Literal("risetime", description="Rise time for generic_slip2srf"): And(
-                float, _is_positive
+                NUMBER, _is_positive
             ),
             Literal(
                 "risetimefac", description="Rise time factor for generic_slip2srf"
-            ): And(Use(float), _is_positive),
+            ): And(NUMBER, _is_positive),
             Literal(
                 "risetimedep",
                 description="Rise time depth dependency for generic_slip2srf",
-            ): And(Use(float), _is_non_negative),
+            ): And(NUMBER, _is_non_negative),
             Literal("inittime", description="Initial time for generic_slip2srf"): And(
-                float, _is_non_negative
+                NUMBER, _is_non_negative
             ),
         },
         Use(PointSourceParams.from_dict),
@@ -377,12 +379,12 @@ SRF_SCHEMA = Schema(
         Literal(
             "genslip_dt",
             description="The timestep for genslip (used to specify the resolution for the `TINIT` values)",
-        ): And(Use(float), _is_positive),
+        ): And(NUMBER, _is_positive),
         Literal("genslip_version", description="The version of genslip to use"): Or(
             "5.4.2"
         ),
         Literal("resolution", description="Subdivision resolution."): And(
-            float, _is_positive
+            NUMBER, _is_positive
         ),
         Optional(
             Literal(
@@ -396,19 +398,19 @@ SRF_SCHEMA = Schema(
 DOMAIN_SCHEMA = Schema(
     {
         Literal("resolution", description="The simulation resolution (in km)"): And(
-            float, _is_positive
+            NUMBER, _is_positive
         ),
         Literal("domain", description="The corners of the simulation domain."): And(
             LAT_LON_SCHEMA, Use(BoundingBox.from_wgs84_coordinates)
         ),
         Literal("depth", description="The depth of the model (in km)"): And(
-            float, _is_positive
+            NUMBER, _is_positive
         ),
         Literal(
             "duration", description="The duration of the simulation (in seconds)"
-        ): And(Use(float), _is_positive),
+        ): And(NUMBER, _is_positive),
         Literal("dt", "The resolution of the domain in time (in seconds)."): And(
-            float, _is_positive
+            NUMBER, _is_positive
         ),
     }
 )
@@ -416,7 +418,7 @@ DOMAIN_SCHEMA = Schema(
 RAKE_SCHEMA = Schema(
     {
         Literal("rakes", description="The fault rakes"): {
-            str: And(Use(float), _is_valid_degrees)
+            str: And(NUMBER, _is_valid_degrees)
         },
     }
 )
@@ -426,7 +428,7 @@ MAGNITUDE_SCHEMA = Schema(
         Literal(
             "magnitudes",
             description="The total moment magnitude for the rupture on this fault",
-        ): {str: And(Use(float), _is_plausible_magnitude)},
+        ): {str: And(NUMBER, _is_plausible_magnitude)},
     }
 )
 
@@ -460,24 +462,22 @@ VELOCITY_MODEL_SCHEMA = Schema(
         Literal(
             "min_vs",
             description="The minimum velocity (km/s) produced in the velocity model.",
-        ): And(Use(float), _is_positive),
+        ): And(NUMBER, _is_positive),
         Literal("version", "Velocity model version"): Or(
             "2.02", "2.03", "2.06", "2.07", "2.08", "2.09"
         ),
         Literal("topo_type", "Velocity model topology type"): str,
-        Literal("dt", "Velocity model timestep resolution"): And(
-            Use(float), _is_positive
-        ),
+        Literal("dt", "Velocity model timestep resolution"): And(NUMBER, _is_positive),
         Literal("ds_multiplier", "Velocity model ds multiplier"): And(
-            float, _is_positive
+            NUMBER, _is_positive
         ),
         Literal("resolution", "Velocity model spatial resolution"): And(
-            float, _is_positive
+            NUMBER, _is_positive
         ),
-        Literal("vs30", "VS30 value"): And(Use(float), _is_positive),
-        Literal("s_wave_velocity", "S-wave velocity"): And(Use(float), _is_positive),
+        Literal("vs30", "VS30 value"): And(NUMBER, _is_positive),
+        Literal("s_wave_velocity", "S-wave velocity"): And(NUMBER, _is_positive),
         Literal("pgv_interpolants", "PGV interpolants to estimate domain size"): And(
-            [[And(Use(float), _is_positive)]], Use(np.array)
+            [[And(NUMBER, _is_positive)]], Use(np.array)
         ),
     }
 )
@@ -505,12 +505,12 @@ VELOCITY_MODEL_1D_SCHEMA = Schema(
         Literal("model", description="The 1D velocity model"): And(
             [
                 {
-                    "thickness": And(Use(float), _is_positive),
-                    "Vp": And(Use(float), _is_positive),
-                    "Vs": And(Use(float), _is_positive),
-                    "rho": And(Use(float), _is_positive),
-                    "Qp": And(Use(float), _is_positive),
-                    "Qs": And(Use(float), _is_positive),
+                    "thickness": And(NUMBER, _is_positive),
+                    "Vp": And(NUMBER, _is_positive),
+                    "Vs": And(NUMBER, _is_positive),
+                    "rho": And(NUMBER, _is_positive),
+                    "Qp": And(NUMBER, _is_positive),
+                    "Qs": And(NUMBER, _is_positive),
                 }
             ],
             Use(pd.DataFrame),
@@ -540,57 +540,57 @@ HF_CONFIG_SCHEMA = Schema(
     {
         Literal("nbu", description="Unknown!"): int,
         Literal("ift", description="Unknown!"): int,
-        Literal("flo", description="Unknown!"): float,
-        Literal("fhi", description="Unknown!"): float,
+        Literal("flo", description="Unknown!"): NUMBER,
+        Literal("fhi", description="Unknown!"): NUMBER,
         Literal("nl_skip", description="Skip empty lines in input?"): int,
-        Literal("vp_sig", description="Unknown!"): float,
-        Literal("vsh_sig", description="Unknown!"): float,
-        Literal("rho_sig", description="Unknown!"): float,
-        Literal("qs_sig", description="Unknown!"): float,
+        Literal("vp_sig", description="Unknown!"): NUMBER,
+        Literal("vsh_sig", description="Unknown!"): NUMBER,
+        Literal("rho_sig", description="Unknown!"): NUMBER,
+        Literal("qs_sig", description="Unknown!"): NUMBER,
         Literal("ic_flag", description="Unknown!"): bool,
         Literal("velocity_name", description="Unknown!"): str,
         Literal("dt", description="Time resolution for HF simulation"): And(
-            float, _is_positive
+            NUMBER, _is_positive
         ),
         Literal("t_sec", description="High frequency output start time."): And(
-            float, _is_non_negative
+            NUMBER, _is_non_negative
         ),
-        Literal("sdrop", description="Stress drop average (bars)"): float,
+        Literal("sdrop", description="Stress drop average (bars)"): NUMBER,
         Literal("rayset", description="ray types 1: direct, 2: moho"): [Or(1, 2)],
         Literal(
             "no_siteamp", description="Disable BJ97 site amplification factors"
         ): bool,
         Literal("fmax", description="Max simulation frequency"): And(
-            float, _is_positive
+            NUMBER, _is_positive
         ),
-        Literal("kappa", description="Unknown!"): float,
-        Literal("qfexp", description="Q frequency exponent"): float,
+        Literal("kappa", description="Unknown!"): NUMBER,
+        Literal("qfexp", description="Q frequency exponent"): NUMBER,
         Literal("rvfac", description="Rupture velocity factor (rupture : Vs)"): And(
-            float, _is_non_negative
+            NUMBER, _is_non_negative
         ),
-        Literal("rvfac_shal", description="rvfac shallow fault multiplier"): float,
-        Literal("rvfac_deep", description="rvfac deep fault multiplier"): float,
-        Literal("czero", description="C0 coefficient"): float,
-        Literal("calpha", description="Ca coefficient"): float,
+        Literal("rvfac_shal", description="rvfac shallow fault multiplier"): NUMBER,
+        Literal("rvfac_deep", description="rvfac deep fault multiplier"): NUMBER,
+        Literal("czero", description="C0 coefficient"): NUMBER,
+        Literal("calpha", description="Ca coefficient"): NUMBER,
         Literal("mom", description="Seimic moment (or null, to infer value)"): Or(
-            float, None
+            NUMBER, None
         ),
         Literal("rupv", description="Rupture velocity (or binary default)"): Or(
-            float, None
+            NUMBER, None
         ),
         Literal("site_specific", description="Enable site-specific calculation"): bool,
-        Literal("vs_moho", description="vs of moho layer"): float,
-        Literal("fa_sig1", "Fourier amplitude uncertainty (1)"): float,
-        Literal("fa_sig2", description="Fourier amplitude uncertainty (2)"): float,
+        Literal("vs_moho", description="vs of moho layer"): NUMBER,
+        Literal("fa_sig1", "Fourier amplitude uncertainty (1)"): NUMBER,
+        Literal("fa_sig2", description="Fourier amplitude uncertainty (2)"): NUMBER,
         Literal("rv_sig1", description="Rupture velocity uncertainty"): And(
-            float, _is_non_negative
+            NUMBER, _is_non_negative
         ),
         Literal(
             "path_dur",
             description="path duration model. 0: GP2010, 1: WUS modification trail/errol, 2: ENA modificiation trial/error"
             ", 11: WUS formutian of BT2014, 12: ENA formulation of BT2015. Models 11 and 12 overpredict for multiple rays.",
         ): Or(0, 1, 2, 11, 12),
-        Literal("dpath_pert", description="Log of path duration multiplier"): float,
+        Literal("dpath_pert", description="Log of path duration multiplier"): NUMBER,
         Literal(
             "stress_parameter_adjustment_tect_type",
             description="Adjustment option 0 = off, 1 = active tectonic, 2 = stable continent",
@@ -598,12 +598,12 @@ HF_CONFIG_SCHEMA = Schema(
         Literal(
             "stress_parameter_adjustment_target_magnitude",
             description="Target magnitude (or inferred if null)",
-        ): Or(Use(float), None),
+        ): Or(NUMBER, None),
         Literal(
             "stress_parameter_adjustment_fault_area", "Fault area (or inferred if null)"
-        ): Or(Use(float), None),
-        Literal("stoch_dx", description="Stoch file dx"): And(Use(float), _is_positive),
-        Literal("stoch_dy", description="Stoch file dy"): And(Use(float), _is_positive),
+        ): Or(NUMBER, None),
+        Literal("stoch_dx", description="Stoch file dx"): And(NUMBER, _is_positive),
+        Literal("stoch_dy", description="Stoch file dy"): And(NUMBER, _is_positive),
     }
 )
 
@@ -627,9 +627,9 @@ EMOD3D_PARAMETERS_SCHEMA = Schema(
         "enable_output_dump": int,
         "enable_restart": int,
         "ffault": int,
-        "fhi": float,
-        "fmax": float,
-        "fmin": float,
+        "fhi": NUMBER,
+        "fmax": NUMBER,
+        "fmin": NUMBER,
         "freesurf": int,
         "geoproj": int,
         "intmem": int,
@@ -649,10 +649,10 @@ EMOD3D_PARAMETERS_SCHEMA = Schema(
         "order": int,
         "pmodfile": str,
         "pointmt": int,
-        "qbndmax": float,
-        "qpfrac": float,
-        "qpqs_factor": float,
-        "qsfrac": float,
+        "qbndmax": NUMBER,
+        "qpfrac": NUMBER,
+        "qpqs_factor": NUMBER,
+        "qsfrac": NUMBER,
         "read_restart": int,
         "report": int,
         "scale": int,
@@ -663,7 +663,7 @@ EMOD3D_PARAMETERS_SCHEMA = Schema(
         "ts_xy": int,
         "ts_xz": int,
         "ts_yz": int,
-        "tzero": float,
+        "tzero": NUMBER,
         "vmodel_swapb": int,
         "xseis": int,
         "yseis": int,
@@ -675,16 +675,16 @@ EMOD3D_PARAMETERS_SCHEMA = Schema(
 BROADBAND_PARAMETERS_SCHEMA = Schema(
     {
         Literal("flo", description="low/high frequency cutoff"): And(
-            float, _is_non_negative
+            NUMBER, _is_non_negative
         ),
         Literal("dt", description="simulation time resolution"): And(
-            float, _is_positive
+            NUMBER, _is_positive
         ),
         Literal("fmidbot", description="fmidbot for site amplification"): And(
-            float, _is_non_negative
+            NUMBER, _is_non_negative
         ),
         Literal("fmin", description="fmin for site amplification"): And(
-            float, _is_non_negative
+            NUMBER, _is_non_negative
         ),
         "site_amp_version": str,
     }
@@ -697,10 +697,10 @@ INTENSITY_MEASURE_CALCUATION_PARAMETERS = Schema(
             And(str, Use(im_calculation.IM))
         ],
         Literal("valid_periods", description="Valid periods to calculate for"): And(
-            [And(Use(float), _is_positive)], Use(np.array)
+            [And(NUMBER, _is_positive)], Use(np.array)
         ),
         Literal("fas_frequencies", description="Fourier spectrum frequencies"): And(
-            [And(Use(float), _is_positive)], Use(np.array)
+            [And(NUMBER, _is_positive)], Use(np.array)
         ),
     }
 )
