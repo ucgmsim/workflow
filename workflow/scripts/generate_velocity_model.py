@@ -230,12 +230,11 @@ def generate_velocity_model(
             velocity_model_intermediate_path,
             num_threads,
         )
-        shutil.copytree(velocity_model_intermediate_path, velocity_model_output)
+        shutil.move(velocity_model_intermediate_path, velocity_model_output)
     else:
         run_nzvm(velocity_model_bin_path, nzvm_config_path, num_threads)
-        shutil.copytree(
+        shutil.move(
             velocity_model_intermediate_path / "Velocity_Model", velocity_model_output
         )
 
-    shutil.rmtree(velocity_model_intermediate_path)
     realisations.append_log_entry(realisation_ffp)
