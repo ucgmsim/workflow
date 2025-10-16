@@ -213,11 +213,11 @@ FAULT_LOCAL_COORDINATES_SCHEMA = Schema(
             Literal(
                 "s",
                 description="The `s` coordinate (fraction of length, in range [0, 1])",
-            ): And(float, _is_valid_local_coordinate),
+            ): And(Use(float), _is_valid_local_coordinate),
             Literal(
                 "d",
                 description="The `d` coordinate (fraction of width, in range [0, 1])",
-            ): And(float, _is_valid_local_coordinate),
+            ): And(Use(float), _is_valid_local_coordinate),
         },
         Use(lambda local_coords: np.array([local_coords["s"], local_coords["d"]])),
     )
@@ -248,7 +248,9 @@ POINT_COORD_SCHEMA = And(
         Literal("longitude", description="Longitude (in decimal degrees)"): And(
             float, _is_valid_longitude
         ),
-        Literal("depth", description="Depth (in metres)"): And(float, _is_non_negative),
+        Literal("depth", description="Depth (in metres)"): And(
+            Use(float), _is_non_negative
+        ),
     },
     Use(
         lambda latlon: np.array(
@@ -275,13 +277,13 @@ POINT_SCHEMA = Schema(
             ),
             Literal(
                 "strike", description="The strike bearing of the point source"
-            ): And(float, _is_valid_bearing),
+            ): And(Use(float), _is_valid_bearing),
             Literal("dip", description="The dip angle of the point source"): And(
                 float, _is_valid_bearing
             ),
             Literal(
                 "dip_dir", description="The dip direction bearing of the point source"
-            ): And(float, _is_valid_bearing),
+            ): And(Use(float), _is_valid_bearing),
         },
         Use(
             lambda schema: sources.Point.from_lat_lon_depth(
@@ -356,11 +358,11 @@ POINT_SOURCE_PARAMS_SCHEMA = Schema(
             ),
             Literal(
                 "risetimefac", description="Rise time factor for generic_slip2srf"
-            ): And(float, _is_positive),
+            ): And(Use(float), _is_positive),
             Literal(
                 "risetimedep",
                 description="Rise time depth dependency for generic_slip2srf",
-            ): And(float, _is_non_negative),
+            ): And(Use(float), _is_non_negative),
             Literal("inittime", description="Initial time for generic_slip2srf"): And(
                 float, _is_non_negative
             ),
@@ -375,7 +377,7 @@ SRF_SCHEMA = Schema(
         Literal(
             "genslip_dt",
             description="The timestep for genslip (used to specify the resolution for the `TINIT` values)",
-        ): And(float, _is_positive),
+        ): And(Use(float), _is_positive),
         Literal("genslip_version", description="The version of genslip to use"): Or(
             "5.4.2"
         ),
@@ -404,7 +406,7 @@ DOMAIN_SCHEMA = Schema(
         ),
         Literal(
             "duration", description="The duration of the simulation (in seconds)"
-        ): And(float, _is_positive),
+        ): And(Use(float), _is_positive),
         Literal("dt", "The resolution of the domain in time (in seconds)."): And(
             float, _is_positive
         ),
@@ -414,7 +416,7 @@ DOMAIN_SCHEMA = Schema(
 RAKE_SCHEMA = Schema(
     {
         Literal("rakes", description="The fault rakes"): {
-            str: And(float, _is_valid_degrees)
+            str: And(Use(float), _is_valid_degrees)
         },
     }
 )
@@ -424,7 +426,7 @@ MAGNITUDE_SCHEMA = Schema(
         Literal(
             "magnitudes",
             description="The total moment magnitude for the rupture on this fault",
-        ): {str: And(float, _is_plausible_magnitude)},
+        ): {str: And(Use(float), _is_plausible_magnitude)},
     }
 )
 
@@ -458,22 +460,24 @@ VELOCITY_MODEL_SCHEMA = Schema(
         Literal(
             "min_vs",
             description="The minimum velocity (km/s) produced in the velocity model.",
-        ): And(float, _is_positive),
+        ): And(Use(float), _is_positive),
         Literal("version", "Velocity model version"): Or(
             "2.02", "2.03", "2.06", "2.07", "2.08", "2.09"
         ),
         Literal("topo_type", "Velocity model topology type"): str,
-        Literal("dt", "Velocity model timestep resolution"): And(float, _is_positive),
+        Literal("dt", "Velocity model timestep resolution"): And(
+            Use(float), _is_positive
+        ),
         Literal("ds_multiplier", "Velocity model ds multiplier"): And(
             float, _is_positive
         ),
         Literal("resolution", "Velocity model spatial resolution"): And(
             float, _is_positive
         ),
-        Literal("vs30", "VS30 value"): And(float, _is_positive),
-        Literal("s_wave_velocity", "S-wave velocity"): And(float, _is_positive),
+        Literal("vs30", "VS30 value"): And(Use(float), _is_positive),
+        Literal("s_wave_velocity", "S-wave velocity"): And(Use(float), _is_positive),
         Literal("pgv_interpolants", "PGV interpolants to estimate domain size"): And(
-            [[And(float, _is_positive)]], Use(np.array)
+            [[And(Use(float), _is_positive)]], Use(np.array)
         ),
     }
 )
@@ -501,12 +505,12 @@ VELOCITY_MODEL_1D_SCHEMA = Schema(
         Literal("model", description="The 1D velocity model"): And(
             [
                 {
-                    "thickness": And(float, _is_positive),
-                    "Vp": And(float, _is_positive),
-                    "Vs": And(float, _is_positive),
-                    "rho": And(float, _is_positive),
-                    "Qp": And(float, _is_positive),
-                    "Qs": And(float, _is_positive),
+                    "thickness": And(Use(float), _is_positive),
+                    "Vp": And(Use(float), _is_positive),
+                    "Vs": And(Use(float), _is_positive),
+                    "rho": And(Use(float), _is_positive),
+                    "Qp": And(Use(float), _is_positive),
+                    "Qs": And(Use(float), _is_positive),
                 }
             ],
             Use(pd.DataFrame),
@@ -594,12 +598,12 @@ HF_CONFIG_SCHEMA = Schema(
         Literal(
             "stress_parameter_adjustment_target_magnitude",
             description="Target magnitude (or inferred if null)",
-        ): Or(float, None),
+        ): Or(Use(float), None),
         Literal(
             "stress_parameter_adjustment_fault_area", "Fault area (or inferred if null)"
-        ): Or(float, None),
-        Literal("stoch_dx", description="Stoch file dx"): And(float, _is_positive),
-        Literal("stoch_dy", description="Stoch file dy"): And(float, _is_positive),
+        ): Or(Use(float), None),
+        Literal("stoch_dx", description="Stoch file dx"): And(Use(float), _is_positive),
+        Literal("stoch_dy", description="Stoch file dy"): And(Use(float), _is_positive),
     }
 )
 
@@ -693,10 +697,10 @@ INTENSITY_MEASURE_CALCUATION_PARAMETERS = Schema(
             And(str, Use(im_calculation.IM))
         ],
         Literal("valid_periods", description="Valid periods to calculate for"): And(
-            [And(float, _is_positive)], Use(np.array)
+            [And(Use(float), _is_positive)], Use(np.array)
         ),
         Literal("fas_frequencies", description="Fourier spectrum frequencies"): And(
-            [And(float, _is_positive)], Use(np.array)
+            [And(Use(float), _is_positive)], Use(np.array)
         ),
     }
 )

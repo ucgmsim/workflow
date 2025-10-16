@@ -198,7 +198,7 @@ def combine_hf_and_lf(
 
     bb_waveform = np.stack(bb_waveforms, dtype=np.float32)
 
-    xr.Dataset(
+    dset = xr.Dataset(
         {"waveform": (["component", "station", "time"], bb_waveform)},
         coords={
             "component": ("component", ["x", "y", "z"]),
