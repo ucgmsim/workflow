@@ -208,10 +208,6 @@ def generate_velocity_model(
     None
         The function does not return any value. It writes the generated velocity model to the specified output directory.
     """
-    if not use_nzcvm and not velocity_model_bin_path:
-        raise ValueError(
-            "If not using nzcvm, you must specify the path to the NZVM binary."
-        )
     # The following is safe because we checked above that
     # velocity_model_bin_path is not None when use_nzcvm is passed.
     velocity_model_bin_path = typing.cast(Path, velocity_model_bin_path)
@@ -239,10 +235,14 @@ def generate_velocity_model(
             num_threads,
         )
         shutil.move(velocity_model_intermediate_path, velocity_model_output)
-    else:
+    elif velocity_model_bin_path:
         run_nzvm(velocity_model_bin_path, nzvm_config_path, num_threads)
         shutil.move(
             velocity_model_intermediate_path / "Velocity_Model", velocity_model_output
+        )
+    else:
+        raise ValueError(
+            "If not using nzcvm, you must specify the path to the NZVM binary."
         )
 
     realisations.append_log_entry(realisation_ffp)
