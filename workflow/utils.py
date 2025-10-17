@@ -1,6 +1,5 @@
 """Miscellaneous workflow utilities that couldn't go anywhere else."""
 
-import multiprocessing
 import os
 import tempfile
 import urllib.request

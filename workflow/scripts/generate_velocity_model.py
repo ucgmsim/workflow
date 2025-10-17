@@ -35,7 +35,6 @@ The velocity modelling repository contains some tools to plot velocity models. S
 import os
 import shutil
 import subprocess
-import typing
 from pathlib import Path
 from typing import Annotated, Optional
 
