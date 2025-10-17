@@ -231,11 +231,11 @@ def generate_velocity_model(
             velocity_model_intermediate_path,
             num_threads,
         )
-        velocity_model_output.unlink(missing_ok=True)
+        shutil.rmtree(velocity_model_output, ignore_errors=True)
         shutil.move(velocity_model_intermediate_path, velocity_model_output)
     elif velocity_model_bin_path:
         run_nzvm(velocity_model_bin_path, nzvm_config_path, num_threads)
-        velocity_model_output.unlink(missing_ok=True)
+        shutil.rmtree(velocity_model_output, ignore_errors=True)
         shutil.move(
             velocity_model_intermediate_path / "Velocity_Model", velocity_model_output
         )
