@@ -208,9 +208,6 @@ def generate_velocity_model(
     None
         The function does not return any value. It writes the generated velocity model to the specified output directory.
     """
-    # The following is safe because we checked above that
-    # velocity_model_bin_path is not None when use_nzcvm is passed.
-    velocity_model_bin_path = typing.cast(Path, velocity_model_bin_path)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     velocity_model_parameters = (
