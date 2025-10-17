@@ -131,13 +131,21 @@ def run_nzcvm(
     velocity_model_intermediate_path: Path,
     num_threads: int | None,
 ) -> None:
-    """Run NZCVM executable with specified configuration.
+    """Generate velocity model with New Zealand Community Velocity Model.
 
     Parameters
     ----------
     nzvm_config_ffp : Path
-        Path to the NZVM-format configuration file.
+        Path to NZVM config to generate from
+    work_directory : Path
+        Working directory to output HDF5 to
+    velocity_model_intermediate_path : Path
+        Output directory for EMOD3D files
+    num_threads : int | None
+        Number of threads to use (default is inferred by
+        `utils.get_available_cores`)
     """
+
     from velocity_modelling.constants import WriteFormat
     from velocity_modelling.scripts import generate_3d_model
     from velocity_modelling.tools import convert_hdf5_to_emod3d
