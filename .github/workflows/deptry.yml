@@ -10,7 +10,11 @@ jobs:
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
+          cache-dependency-glob: |
+            **/pyproject.toml
+
       # Install deptry
-      - run: uv sync --dev --all-extras
+      - run: uv venv
+      - run: uv pip install -e ".[test,dev]"
       # Run deptry to check that all dependencies are present.
       - run: uv run deptry .
