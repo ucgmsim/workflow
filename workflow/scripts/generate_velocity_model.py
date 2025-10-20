@@ -41,6 +41,9 @@ from typing import Annotated, Optional
 import typer
 
 from qcore import cli
+from velocity_modelling.constants import WriteFormat
+from velocity_modelling.scripts import generate_3d_model
+from velocity_modelling.tools import convert_hdf5_to_emod3d
 from workflow import log_utils, realisations, utils
 from workflow.realisations import (
     DomainParameters,
@@ -144,10 +147,6 @@ def run_nzcvm(
         Number of threads to use (default is inferred by
         `utils.get_available_cores`)
     """
-
-    from velocity_modelling.constants import WriteFormat
-    from velocity_modelling.scripts import generate_3d_model
-    from velocity_modelling.tools import convert_hdf5_to_emod3d
 
     num_threads = num_threads or utils.get_available_cores()
     generate_3d_model.generate_3d_model(
