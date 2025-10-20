@@ -53,7 +53,6 @@ from workflow.realisations import (
     HFVelocityModel1D,
     RealisationMetadata,
     Seeds,
-    VelocityModel1D,
 )
 
 app = typer.Typer()
