@@ -12,8 +12,40 @@ A custom grid can be generated using the 'virt_sites_cmds.py' script using the '
 For details/help on the command run 'python virt_sites_cmds.py gen-custom-grid-from-rel --help'
 **Note that you will need about 16Gb of free memory.**
 
-Running the custom grid generation will produce a parquet file with the columns 'site_id', 'lon', 'lat' and 'in_basin'.
-Note that the 'in_basin' column is False for all sites unless a velocity model version was specified.
+Running the custom grid generation will produce a parquet file with the following columns:
+
+| Column | Description | Notes |
+|--------|-------------|-------|
+| `site_id` | Unique identifier for each virtual site | Made up as follows `{4 character lat/lon hash}{2 character region code}` |
+| `lon` | Longitude coordinate in decimal degrees | |
+| `lat` | Latitude coordinate in decimal degrees | |
+| `nztm_x` | X coordinate in New Zealand Transverse Mercator (NZTM) projection | |
+| `nztm_y` | Y coordinate in New Zealand Transverse Mercator (NZTM) projection | |
+| `source` | Source of the site | Either `virtual` or `real` |
+| `basin` | Basin name | None if not in a basin |
+| `Z1.0` | Depth to 1.0 km/s shear-wave velocity (meters) | | 
+| `Z2.5` | Depth to 2.5 km/s shear-wave velocity (meters) | |
+| `vs30` | Time-averaged shear-wave velocity in the top 30 meters (m/s) | |
+
+Additionally, it will also produce a metadata file that contains the setting used to generate the custom grid:
+
+| Setting | Type | Description |
+|---------|------|-------------|
+| `land_only` | bool | Whether to include only land-based sites |
+| `region` | geojson | Geographic region for the grid |
+| `uniform_spacing` | int | Spacing between grid points |
+| `vel_model_version` | str | Version of the velocity model used |
+
+in addition to some additional information such as:
+
+| Field | Description |
+|----------------|-------------|
+| `num_sites` | Total number of sites in the grid |
+| `num_virtual_sites` | Number of virtual sites |
+| `num_real_sites` | Number of real sites |
+| `num_basin_sites` | Number of sites located within basins |
+| `sites_per_basin` | Number of sites per basin |
+
 
 ### Plot Generation
 
