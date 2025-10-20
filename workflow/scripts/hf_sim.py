@@ -307,7 +307,7 @@ def run_hf(
     stations["seed"] = np.int32(seeds.hf_seed) ^ station_hashes
     velocity_model_path = work_directory / "velocity_model"
     velocity_model.write_velocity_model(velocity_model_path)
-    nt = int(domain_parameters.duration / hf_config.dt)
+    nt = int(np.float32(domain_parameters.duration) / np.float32(hf_config.dt))
     waveform = np.empty((3, len(stations), nt), dtype=np.float32)
 
     hf_input_template = build_hf_input(
