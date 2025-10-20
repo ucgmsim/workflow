@@ -14,7 +14,7 @@ import xarray as xr
 
 from qcore import cli, coordinates
 from workflow.realisations import DomainParameters, SourceConfig
-from workflow.virt_sites_grid import (
+from workflow.site_gen import (
     GRID_DATA,
     CustomGrid,
     NZGMDBVersion,
@@ -142,10 +142,9 @@ def gen_custom_grid_from_rel(
 @cli.from_docstring(app)
 def gen_plot(
     site_df_ffp: Annotated[Path, typer.Argument()],
+    site_df_meta_ffp: Annotated[Path, typer.Argument()],
     output_ffp: Annotated[Path, typer.Argument()],
     rel_ffp: Annotated[Path | None, typer.Option()] = None,
-    vel_model_version: Annotated[str | None, typer.Option()] = None,
-    nzgmdb_site_ffp: Annotated[Path | None, typer.Option()] = None,
 ) -> None:
     """
     Generate a plot of the custom grid.
@@ -164,6 +163,7 @@ def gen_plot(
         If provided, the basin boundaries will be plotted.
     """
     site_df = pd.read_parquet(site_df_ffp)
+    metadata = yaml.load(site_df_meta_ffp.open("r"), Loader=yaml.FullLoader)
 
     fig = go.Figure()
 
@@ -207,7 +207,7 @@ def gen_plot(
             )
         )
 
-    if vel_model_version is not None:
+    if (vel_model_version := metadata.get("vel_model_version")) is not None:
         # Plot the basin boundaries
         basin_boundaries = get_basin_boundaries(vel_model_version)
         basin_line_properties = dict(color="red", width=1)

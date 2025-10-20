@@ -8,8 +8,8 @@ Instead a high density uniform "general" grid has been developed, and the code i
 
 ### Custom Grid Generation
 
-A custom grid can be generated using the 'virt_sites_cmds.py' script using the 'gen-custom-grid-from-rel' command.
-For details/help on the command run 'python virt_sites_cmds.py gen-custom-grid-from-rel --help'
+A custom grid can be generated using the `site_gen_cmds.py` script using the `gen-custom-grid-from-rel` command.
+For details/help on the command run `python site_gen_cmds.py gen-custom-grid-from-rel --help`
 **Note that you will need about 16Gb of free memory.**
 
 Running the custom grid generation will produce a parquet file with the following columns:
@@ -50,7 +50,7 @@ in addition to some additional information such as:
 ### Plot Generation
 
 Visualisation of the custom grid can be done using the 'gen-plot' command.
-For details/help 'run python virt_sites_cmds.py gen-plot --help'.
+For details/help run `python site_gen_cmds.py gen-plot --help`.
 
 Running this will produce a html file that can be viewed in any browser. 
 Note that for large domains and high density grids this might be slow to load.
