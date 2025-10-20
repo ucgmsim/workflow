@@ -16,7 +16,7 @@ Running the custom grid generation will produce a parquet file with the followin
 
 | Column | Description | Notes |
 |--------|-------------|-------|
-| `site_id` | Unique identifier for each virtual site | Made up as follows `{4 character lat/lon hash}{2 character region code}` |
+| `site_id` | Unique identifier for each virtual site |  `{4 character lat/lon hash}{2 character region code}`, e.g. "ijSBAOT", is a site in Otago as last two characters are "OT" |
 | `lon` | Longitude coordinate in decimal degrees | |
 | `lat` | Latitude coordinate in decimal degrees | |
 | `nztm_x` | X coordinate in New Zealand Transverse Mercator (NZTM) projection | |
@@ -26,6 +26,24 @@ Running the custom grid generation will produce a parquet file with the followin
 | `Z1.0` | Depth to 1.0 km/s shear-wave velocity (meters) | | 
 | `Z2.5` | Depth to 2.5 km/s shear-wave velocity (meters) | |
 | `vs30` | Time-averaged shear-wave velocity in the top 30 meters (m/s) | |
+
+Region code mapping:
+
+| Region | Code |
+|--------|------|
+| North Auckland | NA |
+| South Auckland | SA |
+| Hawkes Bay | HB |
+| Gisborne | GI |
+| Taranaki | TA |
+| Wellington | WE |
+| Nelson | NE |
+| Marlborough | MA |
+| Westland | WL |
+| Canterbury | CA |
+| Otago | OT |
+| Southland | SL |
+
 
 Additionally, it will also produce a metadata file that contains the setting used to generate the custom grid:
 
