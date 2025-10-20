@@ -83,13 +83,12 @@ def generate_stoch(
         srf_wid = float(source["wid"])
         dy = srf_wid / srf_ndip
     else:
-        min_length, min_width = min(
-            (fault.length, fault.width)
-            for fault in source_config.source_geometries.values()
-        )
+        geometries = list(source_config.source_geometries.values())
+        min_length = min(fault.length for fault in geometries)
+        min_width = min(fault.width for fault in geometries)
         # If the stoch dx is greater than the length (resp. dy and width), we might get an empty stoch file
         dx = min(hf_config.stoch_dx, min_length / 2)
-        dy = min(hf_config.stoch_dx, min_width / 2)
+        dy = min(hf_config.stoch_dy, min_width / 2)
 
     log_utils.log_check_call(
         [
