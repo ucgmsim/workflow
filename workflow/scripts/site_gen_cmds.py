@@ -2,7 +2,6 @@ import logging
 from pathlib import Path
 from typing import Annotated
 
-import yaml
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -11,6 +10,7 @@ import pygmt
 import shapely
 import typer
 import xarray as xr
+import yaml
 
 from qcore import cli, coordinates
 from workflow.realisations import DomainParameters, SourceConfig
@@ -24,7 +24,7 @@ from workflow.site_gen import (
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    format="%(asctime)s - %(name)s - %(funcName)s - %(levelname)s - %(message)s",
     handlers=[logging.StreamHandler()],
     force=True,
 )
@@ -81,21 +81,19 @@ def gen_general_grid(grid_spacing: str, output_ffp: Path) -> None:
 
 
 @cli.from_docstring(app)
-def gen_custom_grid_from_rel(
-    rel_ffp: Annotated[Path, typer.Argument()],
+def gen_custom_grid(
     uniform_grid_spacing: Annotated[int, typer.Argument()],
     output_ffp: Annotated[Path, typer.Argument()],
     basin_spacing: Annotated[int | None, typer.Option()] = None,
     vel_model_version: Annotated[str | None, typer.Option()] = None,
     nzgmdb_version: Annotated[NZGMDBVersion | None, typer.Option()] = None,
+    rel_ffp: Annotated[Path | None, typer.Option()] = None,
 ) -> None:
     """
-    Generate a custom grid from a realisation config.
+    Generate a NZ-wide custom grid.
 
     Parameters
     ----------
-    rel_ffp : Path
-        The path to the realisation config.
     uniform_grid_spacing : int
         The uniform grid spacing in metres.
         This must be a multiple of the general grid spacing.
@@ -112,15 +110,17 @@ def gen_custom_grid_from_rel(
         then this velocity model version will be used to set
         basin membership in the output site dataframe.
     """
-    domain_config = DomainParameters.read_from_realisation(rel_ffp)
+    custom_grid = CustomGrid().add_land_only_filter()
 
-    region = shapely.Polygon(domain_config.domain.corners)
-    custom_grid = (
-        CustomGrid()
-        .add_land_only_filter()
-        .add_region_filter(region)
-        .add_uniform_spacing_filter(uniform_grid_spacing)
-    )
+    # If a realisation file is provided, use its domain to filter the grid
+    if rel_ffp is not None:
+        domain_config = DomainParameters.read_from_realisation(rel_ffp)
+        region = shapely.Polygon(domain_config.domain.corners)
+        custom_grid.add_region_filter(region)
+
+    custom_grid.add_uniform_spacing_filter(uniform_grid_spacing)
+
+    # Add basin spacing filter if specified
     if basin_spacing is not None:
         if vel_model_version is None:
             raise ValueError(
@@ -128,12 +128,14 @@ def gen_custom_grid_from_rel(
             )
         custom_grid.add_basin_spacing_filter(vel_model_version, basin_spacing)
 
+    # Generate site dataframe and save
     site_df = custom_grid.get_site_df(
         nzgmdb_version=nzgmdb_version,
         vel_model_version=vel_model_version if not basin_spacing else None,
     )
     site_df.to_parquet(output_ffp)
 
+    # Save metadata
     metadata = custom_grid.get_metadata(site_df)
     with (output_ffp.parent / f"{output_ffp.stem}_metadata.yaml").open("w") as meta_ffp:
         yaml.dump(metadata, meta_ffp)
@@ -176,13 +178,21 @@ def gen_plot(
             marker=dict(color="blue", size=4, symbol="circle"),
             hoverinfo="skip",
             hovertemplate=(
-                    "Site ID: %{customdata[0]}<br>"
-                    "Lat: %{lat:.6f}<br>"
-                    "Lon: %{lon:.6f}<br>"
-                    "<extra></extra>"
+                "Site ID: %{customdata[0]}<br>"
+                "Lat: %{lat:.6f}<br>"
+                "Lon: %{lon:.6f}<br>"
+                "Z1.0: %{customdata[1]:.3f} km<br>"
+                "Z2.5: %{customdata[2]:.3f} km<br>"
+                "Vs30: %{customdata[3]:.1f} m/s<br>"
+                "<extra></extra>"
             ),
             customdata=np.asarray(
-                [site_df.loc[virt_sites_mask].index.values.astype(str)]
+                [
+                    site_df.loc[virt_sites_mask].index.values.astype(str),
+                    site_df.loc[virt_sites_mask, "Z1.0"].values,
+                    site_df.loc[virt_sites_mask, "Z2.5"].values,
+                    site_df.loc[virt_sites_mask, "Vs30"].values,
+                ]
             ).T,
         )
     )
@@ -199,10 +209,18 @@ def gen_plot(
                     "Site ID: %{customdata[0]}<br>"
                     "Lat: %{lat:.6f}<br>"
                     "Lon: %{lon:.6f}<br>"
+                    "Z1.0: %{customdata[1]:.3f} km<br>"
+                    "Z2.5: %{customdata[2]:.3f} km<br>"
+                    "Vs30: %{customdata[3]:.1f} m/s<br>"
                     "<extra></extra>"
                 ),
                 customdata=np.asarray(
-                    [site_df.loc[real_sites_mask].index.values.astype(str)]
+                    [
+                        site_df.loc[real_sites_mask].index.values.astype(str),
+                        site_df.loc[real_sites_mask, "Z1.0"].values,
+                        site_df.loc[real_sites_mask, "Z2.5"].values,
+                        site_df.loc[real_sites_mask, "Vs30"].values,
+                    ]
                 ).T,
             )
         )
@@ -284,5 +302,4 @@ def gen_plot(
 
 
 if __name__ == "__main__":
-    app()
     app()

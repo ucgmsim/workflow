@@ -1,8 +1,7 @@
-import time
-import base64
 import enum
-import hashlib
 import logging
+import string
+import time
 from pathlib import Path
 
 import geopandas as gpd
@@ -77,7 +76,9 @@ class GeneralGrid:
     def __init__(self, land_mask_grid: xr.DataArray, spacing: int) -> "GeneralGrid":
         """Initialize GeneralGrid."""
         self.land_mask_grid = land_mask_grid
-        self.site_ids = np.arange(land_mask_grid.size).reshape(land_mask_grid.shape)
+        self.site_ids = np.arange(land_mask_grid.size, dtype=np.uint32).reshape(
+            land_mask_grid.shape
+        )
         self.spacing = spacing
 
         self.grid_lat, self.grid_lon = xr.broadcast(
@@ -125,7 +126,7 @@ class CustomGrid:
         self._region = None
         self._in_basin_mask = None
         self._vel_model_version = None
-    
+
     @property
     def mask(self) -> np.ndarray:
         """
@@ -146,6 +147,7 @@ class CustomGrid:
             The region polygon in WGS84 coordinates.
         """
         logger.info("Adding region filter to custom grid...")
+        start_time = time.time()
         if self._region is not None:
             logger.error("Region filter has already been added.")
             raise
@@ -160,6 +162,7 @@ class CustomGrid:
             self.general_grid.grid_nztm_x.ravel(),
         ).reshape(self.general_grid.shape)
         self._and_mask &= region_mask
+        logger.info(f"Region filter added in {time.time() - start_time} seconds.")
 
         return self
 
@@ -175,6 +178,7 @@ class CustomGrid:
             The uniform grid spacing in metres.
         """
         logger.info("Adding uniform spacing filter...")
+        start_time = time.time()
         if self._uniform_spacing is not None:
             logger.error("Uniform spacing filter has already been added.")
             raise
@@ -191,20 +195,25 @@ class CustomGrid:
             )
             raise
         self._uniform_spacing = spacing
-    
+
         idx_interval = spacing // self.general_grid.spacing
         spacing_mask = np.zeros(self.general_grid.shape, dtype=bool)
         spacing_mask[::idx_interval, ::idx_interval] = True
         self._or_mask &= spacing_mask
 
+        logger.info(
+            f"Uniform spacing filter added in {time.time() - start_time} seconds."
+        )
         return self
 
     def add_land_only_filter(self) -> "CustomGrid":
         """Adds a land only filter, only land sites are kept."""
         logger.info("Adding land only filter...")
+        start_time = time.time()
         self._land_only = True
         self._and_mask &= self.general_grid.land_mask_grid.values.astype(bool)
 
+        logger.info(f"Land only filter added in {time.time() - start_time} seconds.")
         return self
 
     def add_basin_spacing_filter(
@@ -222,6 +231,7 @@ class CustomGrid:
             The grid spacing in metres to use within basins.
         """
         logger.info("Adding basin spacing filter...")
+        start_time = time.time()
         if (
             self._vel_model_version is not None
             and vel_model_version != self._vel_model_version
@@ -256,8 +266,11 @@ class CustomGrid:
         spacing_mask[::idx_interval, ::idx_interval] = True
 
         self._or_mask |= self._in_basin_mask & spacing_mask
+        logger.info(
+            f"Basin spacing filter added in {time.time() - start_time} seconds."
+        )
         return self
-    
+
     def get_metadata(self, site_df: pd.DataFrame = None) -> dict:
         """
         Gets the metadata dictionary for the custom grid.
@@ -272,11 +285,14 @@ class CustomGrid:
                 "num_sites": len(site_df),
                 "num_virtual_sites": len(site_df[site_df.source == "virtual"]),
                 "num_real_sites": len(site_df[site_df.source == "real"]),
-                "num_basin_sites": len(site_df[site_df.basin.notna()]),
             }
 
             # Number of sites per basin
-            site_metadata["sites_per_basin"] = site_df.groupby("basin").size().to_dict()
+            if "basin" in site_df.columns:
+                site_metadata["num_basin_sites"] = len(site_df[site_df.basin.notna()])
+                site_metadata["sites_per_basin"] = (
+                    site_df.groupby("basin").size().to_dict()
+                )
 
         metadata = site_metadata | {
             "land_only": self._land_only,
@@ -316,6 +332,9 @@ class CustomGrid:
             - region_name: The name of the region the site is in.
             - region_code: The code of the region the site is in.
             - territory_name: The name of the territory the site is in.
+            - basin: The basin the site is in (if any).
+            - Z1.0: The Z1.0 value for the site (if vel_model_version is provided).
+            - Z2.5: The Z2.5 value for the site (if vel_model_version is provided).
         """
         logger.info("Getting site dataframe...")
         site_df = pd.DataFrame(
@@ -331,6 +350,7 @@ class CustomGrid:
 
         # Add region
         logger.info("Adding region information...")
+        start = time.time()
         region_df = (
             gpd.read_parquet(GRID_DATA.fetch("nz_regions.parquet"))
             .to_crs(NZTM_CRS)
@@ -343,11 +363,15 @@ class CustomGrid:
             crs=NZTM_CRS,
         )
         joined = gpd.sjoin(site_points_df, region_df, how="left", predicate="within")
+        # Keep first region if in multiple regions
+        joined = joined.groupby(level=0).first()
         site_df["region_name"] = joined["name"]
         site_df["region_code"] = joined["code"]
+        logger.info(f"Took: {time.time() - start} ")
 
         # Add territory
         logger.info("Adding territory information...")
+        start = time.time()
         territory_df = (
             gpd.read_parquet(GRID_DATA.fetch("nz_territory.parquet"))
             .to_crs(NZTM_CRS)
@@ -360,9 +384,13 @@ class CustomGrid:
             predicate="within",
         )
         site_df["territory_name"] = joined["name"]
+        # Keep first territory if in multiple territories
+        site_df["territory_name"] = site_df["territory_name"].groupby(level=0).first()
+        logger.info(f"Took: {time.time() - start} ")
 
         # Add basin membership & Z-values
         if self._vel_model_version or vel_model_version:
+            start = time.time()
             if (
                 self._vel_model_version
                 and vel_model_version
@@ -390,30 +418,39 @@ class CustomGrid:
             # Keep first basin if in multiple basins
             joined = joined.groupby(level=0).first()
             site_df["basin"] = joined["basin"]
+            logger.info(f"Took: {time.time() - start} to add basin membership")
 
             # Get Z-values
-            logger.info("Adding Z-values...")
             start = time.time()
-            z_values =compute_station_thresholds(site_df, model_version=vel_model_version, show_progress=False)
-            logger.info(f"Took: {time.time() - start} to compute Z-values")
+            logger.info("Adding Z-values...")
+            logging.getLogger("nzcvm.threshold").setLevel(logging.WARNING)
+            z_values = compute_station_thresholds(
+                site_df,
+                model_version=vel_model_version,
+                show_progress=False,
+                include_sigma=False,
+                logger=logger,
+            )
             site_df["Z1.0"] = z_values["Z_1.0(km)"]
             site_df["Z2.5"] = z_values["Z_2.5(km)"]
+            logger.info(f"Took: {time.time() - start} to add Z-values")
 
         # Add site ids
-        logger.info("Adding site IDs...")
-        site_df["site_id"] = np.char.add(
-            latlon_ids(site_df.lat.values, site_df.lon.values, length=5),
+        logger.info("Adding site code...")
+        site_df["site_code"] = np.char.add(
+            encode_base62_fixed_array(site_df.index.values, length=5),
             site_df.region_code.astype(str).values,
         )
-        site_df = site_df.set_index("site_id")
+        site_df = site_df.set_index("site_code")
 
         # Add NZGMDB sites
         if nzgmdb_version is not None:
+            start = time.time()
             logger.info("Adding NZGMDB sites...")
             nzgmdb_site_df = pd.read_csv(
                 GRID_DATA.fetch(NZGMDB_VERSION_TO_TABLE_NAME[nzgmdb_version]),
                 index_col="sta",
-                usecols=["sta", "lat", "lon"],
+                usecols=["sta", "lat", "lon", "Vs30", "Z1.0", "Z2.5"],
             )
             nzgmdb_site_df["source"] = "real"
             nzgmdb_nztm_values = coordinates.wgs_depth_to_nztm(
@@ -421,8 +458,22 @@ class CustomGrid:
             )
             nzgmdb_site_df["nztm_x"] = nzgmdb_nztm_values[:, 1]
             nzgmdb_site_df["nztm_y"] = nzgmdb_nztm_values[:, 0]
+            # Convert Z1.0 to km
+            nzgmdb_site_df["Z1.0"] /= 1000
+
+            if self._region is not None:
+                region_nztm = shapely.transform(
+                    self._region, lambda x: coordinates.wgs_depth_to_nztm(x)
+                )
+                region_mask = shapely.contains_xy(
+                    region_nztm,
+                    nzgmdb_site_df["nztm_y"].values,
+                    nzgmdb_site_df["nztm_x"].values,
+                )
+                nzgmdb_site_df = nzgmdb_site_df[region_mask]
 
             site_df = pd.concat([site_df, nzgmdb_site_df], axis=0)
+            logger.info(f"Took: {time.time() - start} to add NZGMDB sites")
 
         site_df = site_df.astype({"source": "category"})
 
@@ -450,28 +501,21 @@ def get_basin_boundaries(vel_model_version: str) -> dict[str, shapely.Polygon]:
     return basin_boundaries
 
 
-def latlon_ids(lat: np.ndarray, lon: np.ndarray, length: int = 4) -> np.ndarray:
-    """Generate a short unique ID from latitude and longitude arrays.
+def encode_base62_fixed_array(nums: np.ndarray, length: int) -> np.ndarray:
+    """Vectorized Base62 encoder for many integers."""
+    alphabet = np.array(list(string.digits + string.ascii_letters))
+    alphabet_size = len(alphabet)
 
-    Parameters
-    ----------
-    lat : np.ndarray
-        Array of latitude values.
-    lon : np.ndarray
-        Array of longitude values.
-    length : int, optional
-        Length of the hash ID, by default 4.
+    if np.any(nums >= alphabet_size**length):
+        raise ValueError(f"Some numbers too large for {length}-char Base62 ID.")
 
-    Returns
-    -------
-    np.ndarray
-        Array of hash IDs.
-    """
+    # Create empty char array: shape (N, MAX_LEN)
+    out = np.empty((nums.size, length), dtype="<U1")
 
-    ids = np.empty(lat.shape, dtype=f"U{length}")
-    for i, (lat_val, lon_val) in enumerate(zip(lat.ravel(), lon.ravel())):
-        text = f"{lat_val:.6f},{lon_val:.6f}"
-        h = hashlib.sha256(text.encode())
-        ids[i] = base64.urlsafe_b64encode(h.digest()).decode()[:length]
+    n = nums.copy()
+    for i in range(length - 1, -1, -1):
+        n, rem = divmod(n, alphabet_size)
+        out[:, i] = alphabet[rem]
 
-    return ids
+    # Join per row to get array of strings
+    return np.apply_along_axis("".join, 1, out)
