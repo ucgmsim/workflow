@@ -2,6 +2,7 @@ import enum
 import logging
 import string
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import geopandas as gpd
@@ -107,6 +108,63 @@ class GeneralGrid:
         return cls(xr.load_dataarray(land_mask_grid_ffp, engine="h5netcdf"), 50)
 
 
+@dataclass
+class CustomGridConfig:
+    """Configuration for CustomGrid."""
+
+    land_only: bool | None = None
+    """Whether to only include land sites."""
+
+    region: shapely.Polygon | None = None
+    """Region polygon in WGS84 coordinates (lon/lat)."""
+
+    uniform_spacing: int | None = None
+    """Uniform grid spacing in metres."""
+
+    vel_model_version: str | None = None
+    """Velocity model version for basin spacing."""
+
+    basin_spacing: int | None = None
+    """Grid spacing in metres within basins."""
+
+    per_basin_spacing: dict[str, int] | None = None
+    """Per-basin specific spacing in metres."""
+
+    nzgmdb_version: NZGMDBVersion | None = None
+    """NZGMDB version for real stations."""
+
+    @classmethod
+    def from_dict(cls, config_dict: dict) -> "CustomGridConfig":
+        """Create CustomGridConfig from dictionary."""
+        return cls(
+            land_only=config_dict.get("land_only"),
+            region=config_dict.get("region"),
+            uniform_spacing=config_dict.get("uniform_spacing"),
+            vel_model_version=config_dict.get("vel_model_version"),
+            basin_spacing=config_dict.get("basin_spacing"),
+            per_basin_spacing=config_dict.get("per_basin_spacing"),
+            nzgmdb_version=NZGMDBVersion(config_dict.get("nzgmdb_version")),
+        )
+
+    def as_dict(self) -> dict:
+        """Convert CustomGridConfig to dictionary."""
+        return {
+            "land_only": self.land_only,
+            "region": (
+                shapely.geometry.mapping(self.region)
+                if self.region is not None
+                else None
+            ),
+            "uniform_spacing": self.uniform_spacing,
+            "vel_model_version": self.vel_model_version,
+            "basin_spacing": self.basin_spacing,
+            "per_basin_spacing": self.per_basin_spacing,
+            "nzgmdb_version": (
+                self.nzgmdb_version.value if self.nzgmdb_version is not None else None
+            ),
+        }
+
+
 class CustomGrid:
     """
     Represents a custom grid of virtual sites
@@ -118,14 +176,13 @@ class CustomGrid:
         logger.info("Loading general grid...")
         self.general_grid = GeneralGrid.load(GRID_DATA.fetch("general_grid.nc"))
 
+        self._reset()
+
+    def _reset(self) -> None:
+        """Resets the custom grid."""
         self._and_mask = np.ones(self.general_grid.shape, dtype=bool)
         self._or_mask = np.ones(self.general_grid.shape, dtype=bool)
-
-        self._land_only = None
-        self._uniform_spacing = None
-        self._region = None
-        self._in_basin_mask = None
-        self._vel_model_version = None
+        self.config = None
 
     @property
     def mask(self) -> np.ndarray:
@@ -135,7 +192,42 @@ class CustomGrid:
         """
         return self._and_mask & self._or_mask
 
-    def add_region_filter(self, region: shapely.Polygon) -> "CustomGrid":
+    def apply_config(self, config: CustomGridConfig) -> "CustomGrid":
+        """
+        Applies a CustomGridConfig to the CustomGrid.
+        Resets any previously applied filters.
+        """
+        self._reset()
+        self.config = config
+
+        if self.config.land_only:
+            self._add_land_only_filter()
+        if self.config.region is not None:
+            self._add_region_filter(self.config.region)
+        if self.config.uniform_spacing is not None:
+            self._add_uniform_spacing_filter(self.config.uniform_spacing)
+        if (
+            self.config.vel_model_version is not None
+            and self.config.basin_spacing is not None
+        ):
+            self._add_basin_spacing_filter(
+                self.config.vel_model_version, self.config.basin_spacing
+            )
+        if self.config.per_basin_spacing is not None:
+            # Group by spacing
+            basin_spacing_series = pd.Series(self.config.per_basin_spacing)
+            spacing_groups = basin_spacing_series.groupby(basin_spacing_series)
+
+            for spacing, basins in spacing_groups.groups.items():
+                self._add_basin_spacing_filter(
+                    self.config.vel_model_version,
+                    spacing,
+                    basins.tolist(),
+                )
+
+        return self
+
+    def _add_region_filter(self, region: shapely.Polygon) -> None:
         """
         Adds a region filter. Only sites within the region are kept.
         This is an AND filter, i.e., it removes sites outside the region.
@@ -144,29 +236,23 @@ class CustomGrid:
         Parameters
         ----------
         region : shapely.Polygon
-            The region polygon in WGS84 coordinates.
+            The region polygon in WGS84 coordinates (lon/lat).
         """
         logger.info("Adding region filter to custom grid...")
         start_time = time.time()
-        if self._region is not None:
-            logger.error("Region filter has already been added.")
-            raise
-        self._region = region
 
         # Convert to NZTM
-        region = shapely.transform(region, lambda x: coordinates.wgs_depth_to_nztm(x))
+        region_nztm = shapely.transform(region, lambda x: coordinates.wgs_depth_to_nztm(x[:, ::-1]))
 
         region_mask = shapely.contains_xy(
-            region,
+            region_nztm,
             self.general_grid.grid_nztm_y.ravel(),
             self.general_grid.grid_nztm_x.ravel(),
         ).reshape(self.general_grid.shape)
         self._and_mask &= region_mask
         logger.info(f"Region filter added in {time.time() - start_time} seconds.")
 
-        return self
-
-    def add_uniform_spacing_filter(self, spacing: int) -> "CustomGrid":
+    def _add_uniform_spacing_filter(self, spacing: int) -> None:
         """
         Adds a uniform spacing filter.
         This is an OR filter, i.e., it only adds sites.
@@ -179,9 +265,6 @@ class CustomGrid:
         """
         logger.info("Adding uniform spacing filter...")
         start_time = time.time()
-        if self._uniform_spacing is not None:
-            logger.error("Uniform spacing filter has already been added.")
-            raise
         if spacing < self.general_grid.spacing:
             logger.error(
                 "Uniform spacing must be greater than or"
@@ -194,7 +277,6 @@ class CustomGrid:
                 f" the general grid spacing {self.general_grid.spacing}."
             )
             raise
-        self._uniform_spacing = spacing
 
         idx_interval = spacing // self.general_grid.spacing
         spacing_mask = np.zeros(self.general_grid.shape, dtype=bool)
@@ -204,21 +286,17 @@ class CustomGrid:
         logger.info(
             f"Uniform spacing filter added in {time.time() - start_time} seconds."
         )
-        return self
 
-    def add_land_only_filter(self) -> "CustomGrid":
+    def _add_land_only_filter(self) -> None:
         """Adds a land only filter, only land sites are kept."""
         logger.info("Adding land only filter...")
         start_time = time.time()
-        self._land_only = True
         self._and_mask &= self.general_grid.land_mask_grid.values.astype(bool)
-
         logger.info(f"Land only filter added in {time.time() - start_time} seconds.")
-        return self
 
-    def add_basin_spacing_filter(
-        self, vel_model_version: str, spacing: int
-    ) -> "CustomGrid":
+    def _add_basin_spacing_filter(
+        self, vel_model_version: str, spacing: int, basins: list[str] | None = None
+    ) -> None:
         """
         Adds a basin spacing filter.
         Note that this is an OR filter, i.e., it only adds sites
@@ -230,17 +308,8 @@ class CustomGrid:
         spacing : int
             The grid spacing in metres to use within basins.
         """
-        logger.info("Adding basin spacing filter...")
+        logger.info(f"Adding basin {spacing} spacing filter for {basins if basins is not None else 'all'} basins...")
         start_time = time.time()
-        if (
-            self._vel_model_version is not None
-            and vel_model_version != self._vel_model_version
-        ):
-            raise ValueError(
-                "Basin spacing filter has already been added with a different velocity model version."
-            )
-        self._vel_model_version = vel_model_version
-
         if spacing < self.general_grid.spacing:
             raise ValueError(
                 "Basin spacing must be greater than or equal to the general grid spacing."
@@ -251,11 +320,15 @@ class CustomGrid:
             )
 
         basin_boundaries = get_basin_boundaries(vel_model_version)
+        if basins is not None:
+            basin_boundaries = {
+                k: v for k, v in basin_boundaries.items() if k in basins
+            }
         comb_basin_boundaries = shapely.union_all(list(basin_boundaries.values()))
         comb_basin_boundaries = shapely.transform(
             comb_basin_boundaries, lambda x: coordinates.wgs_depth_to_nztm(x[:, ::-1])
         )
-        self._in_basin_mask = shapely.contains_xy(
+        in_basin_mask = shapely.contains_xy(
             comb_basin_boundaries,
             self.general_grid.grid_nztm_y.ravel(),
             self.general_grid.grid_nztm_x.ravel(),
@@ -265,20 +338,15 @@ class CustomGrid:
         spacing_mask = np.zeros(self.general_grid.shape, dtype=bool)
         spacing_mask[::idx_interval, ::idx_interval] = True
 
-        self._or_mask |= self._in_basin_mask & spacing_mask
+        self._or_mask |= in_basin_mask & spacing_mask
         logger.info(
             f"Basin spacing filter added in {time.time() - start_time} seconds."
         )
-        return self
 
     def get_metadata(self, site_df: pd.DataFrame = None) -> dict:
         """
         Gets the metadata dictionary for the custom grid.
         """
-        region = None
-        if self._region is not None:
-            region = shapely.geometry.mapping(self._region)
-
         site_metadata = {}
         if site_df is not None:
             site_metadata = {
@@ -294,18 +362,11 @@ class CustomGrid:
                     site_df.groupby("basin").size().to_dict()
                 )
 
-        metadata = site_metadata | {
-            "land_only": self._land_only,
-            "region": region,
-            "uniform_spacing": self._uniform_spacing,
-            "vel_model_version": self._vel_model_version,
-        }
+        metadata = {"metadata": site_metadata, "config": self.config.as_dict()}
         return metadata
 
     def get_site_df(
         self,
-        nzgmdb_version: NZGMDBVersion | None = None,
-        vel_model_version: str | None = None,
     ) -> pd.DataFrame:
         """
         Gets the site dataframe for the custom grid.
@@ -389,21 +450,11 @@ class CustomGrid:
         logger.info(f"Took: {time.time() - start} ")
 
         # Add basin membership & Z-values
-        if self._vel_model_version or vel_model_version:
+        if self.config.vel_model_version:
             start = time.time()
-            if (
-                self._vel_model_version
-                and vel_model_version
-                and self._vel_model_version != vel_model_version
-            ):
-                err_msg = "Basin spacing filter has been added with a different velocity model version."
-                logger.error(err_msg)
-                raise ValueError(err_msg)
-            vel_model_version = self._vel_model_version or vel_model_version
-
             # Basin membership
             logger.info("Adding basin membership information...")
-            basin_boundaries = get_basin_boundaries(vel_model_version)
+            basin_boundaries = get_basin_boundaries(self.config.vel_model_version)
             basin_df = gpd.GeoDataFrame(
                 {"basin": list(basin_boundaries.keys())},
                 geometry=list(basin_boundaries.values()),
@@ -426,7 +477,7 @@ class CustomGrid:
             logging.getLogger("nzcvm.threshold").setLevel(logging.WARNING)
             z_values = compute_station_thresholds(
                 site_df,
-                model_version=vel_model_version,
+                model_version=self.config.vel_model_version,
                 show_progress=False,
                 include_sigma=False,
                 logger=logger,
@@ -444,11 +495,11 @@ class CustomGrid:
         site_df = site_df.set_index("site_code")
 
         # Add NZGMDB sites
-        if nzgmdb_version is not None:
+        if self.config.nzgmdb_version is not None:
             start = time.time()
             logger.info("Adding NZGMDB sites...")
             nzgmdb_site_df = pd.read_csv(
-                GRID_DATA.fetch(NZGMDB_VERSION_TO_TABLE_NAME[nzgmdb_version]),
+                GRID_DATA.fetch(NZGMDB_VERSION_TO_TABLE_NAME[self.config.nzgmdb_version]),
                 index_col="sta",
                 usecols=["sta", "lat", "lon", "Vs30", "Z1.0", "Z2.5"],
             )
@@ -461,9 +512,9 @@ class CustomGrid:
             # Convert Z1.0 to km
             nzgmdb_site_df["Z1.0"] /= 1000
 
-            if self._region is not None:
+            if self.config.region is not None:
                 region_nztm = shapely.transform(
-                    self._region, lambda x: coordinates.wgs_depth_to_nztm(x)
+                    self.config.region, lambda x: coordinates.wgs_depth_to_nztm(x[:, ::-1])
                 )
                 region_mask = shapely.contains_xy(
                     region_nztm,
