@@ -127,7 +127,7 @@ def gen_custom_grid(
     if config_ffp is not None:
         logger.info(f"Reading custom grid config from {config_ffp}...")
         config_dict = yaml.safe_load(config_ffp.open("r"))
-        grid_config = CustomGridConfig.from_dict(config_dict)
+        grid_config = CustomGridConfig.from_config(config_dict)
         rel_ffp = config_dict.get("rel_ffp")
     else:
         logger.info("Generating custom grid config from command line options...")
@@ -136,6 +136,7 @@ def gen_custom_grid(
             uniform_spacing=uniform_grid_spacing,
             vel_model_version=vel_model_version,
             basin_spacing=basin_spacing,
+            nzgmdb_version=nzgmdb_version,
         )
 
     # If a realisation file is provided, use its domain to filter the grid
@@ -172,15 +173,17 @@ def gen_plot(
         The path to the custom grid site dataframe file (parquet).
     output_ffp : Path
         The path to save the output HTML file.
-    rel_ffp : Path, optional
+    rel_ffp: Path, optional
         The path to the realisation config.
         If provided, the domain and source will be plotted.
-    vel_model_version : str, optional
-        The velocity model version to use for plotting basin boundaries.
-        If provided, the basin boundaries will be plotted.
     """
     site_df = pd.read_parquet(site_df_ffp)
-    config_dict = yaml.load(site_df_meta_ffp.open("r"), Loader=yaml.FullLoader)["config"]
+
+    with site_df_meta_ffp.open("r") as f:
+        config = CustomGridConfig.from_metadata(
+            yaml.load(f, Loader=yaml.FullLoader)["config"]
+        )
+    # config_dict = yaml.load(site_df_meta_ffp.open("r"), Loader=yaml.FullLoader)["config"]
 
     fig = go.Figure()
 
@@ -244,9 +247,9 @@ def gen_plot(
             )
         )
 
-    if (vel_model_version := config_dict.get("vel_model_version")) is not None:
+    if config.vel_model_version is not None:
         # Plot the basin boundaries
-        basin_boundaries = get_basin_boundaries(vel_model_version)
+        basin_boundaries = get_basin_boundaries(config.vel_model_version)
         basin_line_properties = dict(color="red", width=1)
         basin_fill_color = "rgba(255,0,0,0.05)"
 
@@ -276,7 +279,20 @@ def gen_plot(
                         hoverinfo="skip",
                     )
                 )
-
+    
+    if config.per_region_spacing is not None:
+        # Plot the regions with different spacing
+        for region_spacing in config.per_region_spacing:
+            fig.add_trace(
+                go.Scattermap(
+                    lon=np.array(region_spacing.region.exterior.xy[0]),
+                    lat=np.array(region_spacing.region.exterior.xy[1]),
+                    mode="lines",
+                    line=dict(color="orange", width=1),
+                    hoverinfo="skip",
+                )
+            )
+            
     if rel_ffp is not None:
         # Plot the domain
         domain_corners = DomainParameters.read_from_realisation(rel_ffp).domain.corners
@@ -313,7 +329,7 @@ def gen_plot(
         map=dict(zoom=6, center=dict(lat=site_df.lat.mean(), lon=site_df.lon.mean())),
         showlegend=False,
         title=(
-            f"Virtual Sites Grid - Velocity Model {vel_model_version} - "
+            f"Sites Grid - Velocity Model {config.vel_model_version} - "
             f"Total Sites: {len(site_df)}"
         ),
     )

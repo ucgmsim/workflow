@@ -10,7 +10,101 @@ Instead a high density uniform "general" grid has been developed, and the code i
 
 A custom grid can be generated using the `site_gen_cmds.py` script using the `gen-custom-grid-from-rel` command.
 For details/help on the command run `python site_gen_cmds.py gen-custom-grid-from-rel --help`
-**Note that you will need about 16Gb of free memory.**
+There are two options to generate the custom grid via the `gen-custom-grid-from-rel` either specify the spacing via the command line arguments, or pass a configuration yaml file. The configuration allows for more customization, such as specifying spacing per basin or custom defined region.
+
+An example configuration file might look something like this
+```yaml
+land_only: true
+uniform_spacing: 5000
+
+rel_ffp: null
+
+vel_model_version: "2.09"
+basin_spacing: 2500
+per_basin_spacing: 
+  Hanmer_v25p3: 1250
+per_region_spacing:
+  - name: "Christchurch"
+    geojson_ffp: "/home/claudy/dev/tmp_share/virt_sites/chch.json"
+    spacing: 1250
+
+nzgmdb_version: v4.3
+```
+This configuration will select NZ land sites, with a default spacing of 5km, in basin spacing of 2.5km. 
+Additionally, 1250m spacing is applied in Hanmer basin, and the custom Christchurch region defined via the geojson file. The geojson needs the following format:
+```json
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              172.64635288571822,
+              -43.46746584851593
+            ],
+            [
+              172.5764348336035,
+              -43.46875527988916
+            ],
+            [
+              172.48512720365642,
+              -43.510780173947616
+            ],
+            [
+              172.48164483335898,
+              -43.581684944518635
+            ],
+            [
+              172.51943709438905,
+              -43.605574705482184
+            ],
+            [
+              172.60676846169588,
+              -43.61039335808902
+            ],
+            [
+              172.74171895701926,
+              -43.575568637023046
+            ],
+            [
+              172.811825205922,
+              -43.54170866114695
+            ],
+            [
+              172.7825735380037,
+              -43.479415396924466
+            ],
+            [
+              172.75289631792998,
+              -43.449932811038906
+            ],
+            [
+              172.68739428988397,
+              -43.45477584526233
+            ],
+            [
+              172.6620601942388,
+              -43.46177619980023
+            ],
+            [
+              172.64635288571822,
+              -43.46746584851593
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      }
+    }
+  ]
+}
+```
+
+**Note that you will need about 20Gb of free memory to generate custom grids.**
+
 
 Running the custom grid generation will produce a parquet file with the following columns:
 
