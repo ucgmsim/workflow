@@ -30,14 +30,16 @@ import os
 from pathlib import Path
 from typing import Annotated
 
-import typer
+import numpy as np
 import tqdm
+import typer
 import xarray as xr
 
-from qcore import cli, xyts, coordinates
+from qcore import cli, coordinates, xyts
 from workflow.scripts import merge_ts_loop
 
 app = typer.Typer()
+
 
 def merge_ts_xyts(
     component_xyts_directory: Annotated[
@@ -54,7 +56,7 @@ def merge_ts_xyts(
         typer.Argument(dir_okay=False, writable=True),
     ],
     glob_pattern: str = "*xyts-*.e3d",
-):
+) -> None:
     """Merge XYTS files.
 
     Parameters
@@ -153,8 +155,8 @@ def merge_ts_hdf5(
         typer.Argument(dir_okay=False, writable=True),
     ],
     glob_pattern: str = "*xyts-*.e3d",
-    complevel: int = 4
-):
+    complevel: int = 4,
+) -> None:
     """Merge XYTS files.
 
     Parameters
@@ -188,25 +190,20 @@ def merge_ts_hdf5(
     xyts_proc_header_size = 72
 
     waveform_data = np.zeros((nt, ny, nx), dtype=np.uint16)
-    for xyts_file in tqdm.tqdm(component_xyts_files, units='files'):
+    for xyts_file in tqdm.tqdm(component_xyts_files, units="files"):
         x0 = xyts_file.x0
         y0 = xyts_file.y0
         x1 = x0 + xyts_file.local_nx
         y1 = y0 + xyts_file.local_ny
-        data = np.fromfile(xyts_file.xyts_path, dtype=np.float32, offset=xyts_proc_header_size).reshape(
-            (nt, components, xyts_file.local_ny, xyts_file.local_nx)
-        )
-        magnitude = np.linalg.norm(
-            data,
-            axis=1
-        ) / 0.1
-        np.rint(
-            magnitude,
-            out=waveform_data[:, y0:y1, x0:x1],
-            dtype=np.uint16
-        )
+        data = np.fromfile(
+            xyts_file.xyts_path, dtype=np.float32, offset=xyts_proc_header_size
+        ).reshape((nt, components, xyts_file.local_ny, xyts_file.local_nx))
+        magnitude = np.linalg.norm(data, axis=1) / 0.1
+        np.rint(magnitude, out=waveform_data[:, y0:y1, x0:x1], dtype=np.uint16)
 
-    proj = coordinates.SphericalProjection(mlon=top_left.mlon, mlat=top_left.mlat, mrot=top_left.mrot)
+    proj = coordinates.SphericalProjection(
+        mlon=top_left.mlon, mlat=top_left.mlat, mrot=top_left.mrot
+    )
     dx = top_left.hh
     dt = top_left.dt
     y, x = np.meshgrid(np.arange(ny), np.arange(nx))
@@ -214,43 +211,48 @@ def merge_ts_hdf5(
     time = np.arange(nt) * dt
     dset = xr.Dataset(
         {
-            'waveform': (('time', 'y', 'x'), waveform_data),
+            "waveform": (("time", "y", "x"), waveform_data),
         },
         coords={
-            'time': ('time', time),
-            'y': ('y', np.arange(ny)),
-            'x': ('x', np.arange(nx)),
-            'latitude': (('y', 'x'), lat),
-            'longitude': (('y', 'x'), lon),
+            "time": ("time", time),
+            "y": ("y", np.arange(ny)),
+            "x": ("x", np.arange(nx)),
+            "latitude": (("y", "x"), lat),
+            "longitude": (("y", "x"), lon),
         },
-        attrs = {
-            'dx': dx,
-            'dy': dx,
-            'dt': dt,
-            'mlon': top_left.mlon,
-            'mlat': top_left.mlat,
-            'mrot': top_left.mrot
+        attrs={
+            "dx": dx,
+            "dy": dx,
+            "dt": dt,
+            "mlon": top_left.mlon,
+            "mlat": top_left.mlat,
+            "mrot": top_left.mrot,
         },
     )
 
-    dset['waveform'].attrs.update({
-        'scale_factor': 0.1,
-        'add_offset': 0.0,
-        'units': 'cm/s',
-        '_FillValue': -9999,
-    })
+    dset["waveform"].attrs.update(
+        {
+            "scale_factor": 0.1,
+            "add_offset": 0.0,
+            "units": "cm/s",
+            "_FillValue": -9999,
+        }
+    )
 
     dset.to_netcdf(
         output,
-        engine='h5netcdf',
-        encoding={'waveform': {
-            'dtype': 'int16',
-            'compression': 'zlib',
-            'complevel': complevel,
-            'shuffle': True,
-            '_FillValue': -9999,
-        }},
+        engine="h5netcdf",
+        encoding={
+            "waveform": {
+                "dtype": "int16",
+                "compression": "zlib",
+                "complevel": complevel,
+                "shuffle": True,
+                "_FillValue": -9999,
+            }
+        },
     )
+
 
 @cli.from_docstring(app)
 def merge_ts(
@@ -269,7 +271,7 @@ def merge_ts(
     ],
     glob_pattern: str = "*xyts-*.e3d",
     hdf5: bool = True,
-    complevel: int = 4
+    complevel: int = 4,
 ) -> None:
     """Merge XYTS files.
 
