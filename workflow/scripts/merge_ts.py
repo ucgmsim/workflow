@@ -67,8 +67,6 @@ def merge_ts_xyts(
         The output xyts file.
     glob_pattern : str, optional
         Set a custom glob pattern for merging the xyts files, by default "*xyts-*.e3d".
-    hdf5 : bool, optional
-        If set, save output as a highly compressed HDF5 file.
     """
     component_xyts_files = sorted(
         [
