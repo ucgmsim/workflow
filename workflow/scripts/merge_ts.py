@@ -140,6 +140,7 @@ def merge_ts_xyts(
     os.close(merged_fd)
 
 
+@cli.from_docstring(app, name="hdf5")
 def merge_ts_hdf5(
     component_xyts_directory: Annotated[
         Path,
@@ -189,8 +190,8 @@ def merge_ts_hdf5(
 
     xyts_proc_header_size = 72
 
-    waveform_data = np.zeros((nt, ny, nx), dtype=np.uint16)
-    for xyts_file in tqdm.tqdm(component_xyts_files, units="files"):
+    waveform_data = np.empty((nt, ny, nx), dtype=np.uint16)
+    for xyts_file in tqdm.tqdm(component_xyts_files, unit="files"):
         x0 = xyts_file.x0
         y0 = xyts_file.y0
         x1 = x0 + xyts_file.local_nx
@@ -199,15 +200,20 @@ def merge_ts_hdf5(
             xyts_file.xyts_path, dtype=np.float32, offset=xyts_proc_header_size
         ).reshape((nt, components, xyts_file.local_ny, xyts_file.local_nx))
         magnitude = np.linalg.norm(data, axis=1) / 0.1
-        np.rint(magnitude, out=waveform_data[:, y0:y1, x0:x1], dtype=np.uint16)
+        np.round(magnitude, out=magnitude)
+        waveform_data[:, y0:y1, x0:x1] = magnitude.astype(np.uint16)
 
     proj = coordinates.SphericalProjection(
         mlon=top_left.mlon, mlat=top_left.mlat, mrot=top_left.mrot
     )
     dx = top_left.hh
     dt = top_left.dt
-    y, x = np.meshgrid(np.arange(ny), np.arange(nx))
+    y, x = np.meshgrid(
+        np.arange(ny, dtype=np.float64), np.arange(nx, dtype=np.float64), indexing="ij"
+    )
     lat, lon = proj.inverse(x.flatten(), y.flatten()).T
+    lat = lat.reshape(y.shape)
+    lon = lon.reshape(y.shape)
     time = np.arange(nt) * dt
     dset = xr.Dataset(
         {
@@ -248,13 +254,12 @@ def merge_ts_hdf5(
                 "compression": "zlib",
                 "complevel": complevel,
                 "shuffle": True,
-                "_FillValue": -9999,
             }
         },
     )
 
 
-@cli.from_docstring(app)
+@cli.from_docstring(app, name="xyts")
 def merge_ts(
     component_xyts_directory: Annotated[
         Path,
