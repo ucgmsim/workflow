@@ -275,7 +275,6 @@ def merge_ts(
         typer.Argument(dir_okay=False, writable=True),
     ],
     glob_pattern: str = "*xyts-*.e3d",
-    hdf5: bool = True,
     complevel: int = 4,
 ) -> None:
     """Merge XYTS files.
@@ -296,7 +295,4 @@ def merge_ts(
         between 1-9 (9 being the highest level of compression).
         Defaults to 4.
     """
-    if hdf5:
-        merge_ts_hdf5(component_xyts_directory, output, glob_pattern, complevel)
-    else:
-        merge_ts_xyts(component_xyts_directory, output, glob_pattern)
+    merge_ts_xyts(component_xyts_directory, output, glob_pattern)
