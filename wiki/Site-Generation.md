@@ -8,9 +8,9 @@ Instead a high density uniform "general" grid has been developed, and the code i
 
 ### Custom Grid Generation
 
-A custom grid can be generated using the `site_gen_cmds.py` script using the `gen-custom-grid-from-rel` command.
-For details/help on the command run `python site_gen_cmds.py gen-custom-grid-from-rel --help`
-There are two options to generate the custom grid via the `gen-custom-grid-from-rel` either specify the spacing via the command line arguments, or pass a configuration yaml file. The configuration allows for more customization, such as specifying spacing per basin or custom defined region.
+A custom grid can be generated using the `site_gen_cmds.py` script using the `gen-custom-grid` command.
+For details/help on the command run `python site_gen_cmds.py gen-custom-grid --help`
+There are two options to generate the custom grid via the `gen-custom-grid` either specify the spacing via the command line arguments, or pass a configuration yaml file. The configuration allows for more customization, such as specifying spacing per basin or custom defined region.
 
 An example configuration file might look something like this
 ```yaml
@@ -110,15 +110,15 @@ Running the custom grid generation will produce a parquet file with the followin
 
 | Column | Description | Notes |
 |--------|-------------|-------|
-| `site_id` | Unique identifier for each virtual site |  `{4 character lat/lon hash}{2 character region code}`, e.g. "ijSBAOT", is a site in Otago as last two characters are "OT" |
+| `site_id` | Unique identifier for each virtual site |  `{5 character base 62 encoding of integer site id}{2 character region code}` |
 | `lon` | Longitude coordinate in decimal degrees | |
 | `lat` | Latitude coordinate in decimal degrees | |
 | `nztm_x` | X coordinate in New Zealand Transverse Mercator (NZTM) projection | |
 | `nztm_y` | Y coordinate in New Zealand Transverse Mercator (NZTM) projection | |
 | `source` | Source of the site | Either `virtual` or `real` |
 | `basin` | Basin name | None if not in a basin |
-| `Z1.0` | Depth to 1.0 km/s shear-wave velocity (meters) | | 
-| `Z2.5` | Depth to 2.5 km/s shear-wave velocity (meters) | |
+| `Z1.0` | Depth to 1.0 km/s shear-wave velocity (km) | | 
+| `Z2.5` | Depth to 2.5 km/s shear-wave velocity (km) | |
 | `vs30` | Time-averaged shear-wave velocity in the top 30 meters (m/s) | |
 
 Region code mapping:

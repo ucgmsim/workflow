@@ -22,7 +22,7 @@ from velocity_modelling.threshold import compute_station_thresholds
 logger = logging.getLogger(__name__)
 
 NZTM_CRS = "EPSG:2193"
-WSG84_CRS = "EPSG:4326"
+WGS84_CRS = "EPSG:4326"
 
 
 class NZGMDBVersion(enum.StrEnum):
@@ -61,7 +61,7 @@ class GeneralGrid:
     Any custom grid is built off this grid.
     """
 
-    def __init__(self, land_mask_grid: xr.DataArray, spacing: int) -> "GeneralGrid":
+    def __init__(self, land_mask_grid: xr.DataArray, spacing: int) -> None:
         """Initialize GeneralGrid."""
         self.land_mask_grid = land_mask_grid
         self.site_ids = np.arange(land_mask_grid.size, dtype=np.uint32).reshape(
@@ -293,7 +293,7 @@ class CustomGrid:
     built from the general grid.
     """
 
-    def __init__(self, general_grid: GeneralGrid = None) -> "CustomGrid":
+    def __init__(self, general_grid: GeneralGrid = None) -> None:
         """Initialize CustomGrid."""
         if general_grid is None:
             logger.info("Loading general grid...")
@@ -306,7 +306,7 @@ class CustomGrid:
     def _reset(self) -> None:
         """Resets the custom grid."""
         self._and_mask = np.ones(self.general_grid.shape, dtype=bool)
-        self._or_mask = np.ones(self.general_grid.shape, dtype=bool)
+        self._or_mask = np.zeros(self.general_grid.shape, dtype=bool)
         self.config = None
 
     @property
@@ -413,7 +413,7 @@ class CustomGrid:
         idx_interval = spacing // self.general_grid.spacing
         spacing_mask = np.zeros(self.general_grid.shape, dtype=bool)
         spacing_mask[::idx_interval, ::idx_interval] = True
-        self._or_mask &= spacing_mask
+        self._or_mask |= spacing_mask
 
         logger.info(
             f"Uniform spacing filter added in {time.time() - start_time} seconds."
@@ -647,7 +647,7 @@ class CustomGrid:
             basin_df = gpd.GeoDataFrame(
                 {"basin": list(basin_boundaries.keys())},
                 geometry=list(basin_boundaries.values()),
-                crs=WSG84_CRS,
+                crs=WGS84_CRS,
             ).to_crs(NZTM_CRS)
             joined = gpd.sjoin(
                 site_points_df,

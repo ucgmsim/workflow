@@ -116,7 +116,6 @@ def gen_custom_grid(
 @cli.from_docstring(app)
 def gen_plot(
     site_df_ffp: Annotated[Path, typer.Argument()],
-    site_df_meta_ffp: Annotated[Path, typer.Argument()],
     output_ffp: Annotated[Path, typer.Argument()],
     rel_ffp: Annotated[Path | None, typer.Option()] = None,
 ) -> None:
@@ -135,11 +134,13 @@ def gen_plot(
     """
     site_df = pd.read_parquet(site_df_ffp)
 
+    site_df_meta_ffp = (
+        site_df_ffp.parent / f"{site_df_ffp.stem}_metadata.yaml"
+    )
     with site_df_meta_ffp.open("r") as f:
-        config = site_gen.CustomGridConfig.from_metadata(
+        config = site_gen.CustomGridConfig.from_config(
             yaml.load(f, Loader=yaml.FullLoader)["config"]
         )
-    # config_dict = yaml.load(site_df_meta_ffp.open("r"), Loader=yaml.FullLoader)["config"]
 
     fig = go.Figure()
 
