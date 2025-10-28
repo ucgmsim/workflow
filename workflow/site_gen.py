@@ -1,16 +1,16 @@
 import enum
+import json
 import logging
 import string
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
-
-import geojson
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import pooch
+import pygmt
 import shapely
 import xarray as xr
 
@@ -33,21 +33,6 @@ class NZGMDBVersion(enum.StrEnum):
 
 NZGMDB_VERSION_TO_TABLE_NAME = {
     NZGMDBVersion.V4p3: "nzgmdb_4p3_site_table.csv",
-}
-
-REGION_CODES = {
-    "North Auckland": "NAK",
-    "South Auckland": "SAK",
-    "Hawkes Bay": "HBY",
-    "Gisborne": "GIS",
-    "Taranaki": "TAR",
-    "Wellington": "WEL",
-    "Nelson": "NEL",
-    "Marlborough": "MAR",
-    "Westland": "WES",
-    "Canterbury": "CAN",
-    "Otago": "OTA",
-    "Southland": "STL",
 }
 
 GRID_DATA = pooch.create(
@@ -107,7 +92,64 @@ class GeneralGrid:
     def load(cls, land_mask_grid_ffp: Path) -> "GeneralGrid":
         """Load GeneralGrid from file."""
         logger.info(f"Loading general grid from {land_mask_grid_ffp}...")
-        return cls(xr.load_dataarray(land_mask_grid_ffp, engine="h5netcdf"), 50)
+        da = xr.load_dataarray(land_mask_grid_ffp, engine="h5netcdf")
+        return cls(da, int(da.attrs["spacing"]))
+
+
+def gen_general_land_mask_grid(spacing: int) -> xr.DataArray:
+    """
+    Generates the general land mask grid with given spacing.
+
+    Parameters
+    ----------
+    grid_spacing : str 
+        Grid spacing in metres
+
+
+    Notes
+    -----
+    Common grid spacing formats:
+        - To specify grid spacing of `x` units: `"{x}{unit}/{x}{unit}"`,
+        where `unit` can be metres (`e`) or kilometres (`k`).
+
+    Returns
+    -------
+    xr.DataArray
+        The land mask grid DataArray, with values of 1 for land
+        and 0 for ocean.
+    """
+    land_df = gpd.read_parquet(GRID_DATA.fetch("nz_coastline.parquet"))
+    # Combine into a single polygon
+    land_polygon = shapely.coverage_union_all(land_df.geometry)
+    land_polygon = shapely.transform(
+        land_polygon, lambda x: coordinates.wgs_depth_to_nztm(x[:, ::-1])
+    )
+
+    # Generate grid
+    logger.info("Generating grid...")
+    land_mask_grid = pygmt.grdlandmask(region="NZ", spacing=f"{spacing}e/{spacing}e").astype(bool)
+    land_mask_grid[:] = False
+    land_mask_grid.attrs = {"spacing": spacing}
+
+    # Use float32 for coords
+    land_mask_grid = land_mask_grid.assign_coords(
+        lat=land_mask_grid.lat.astype(np.float32),
+        lon=land_mask_grid.lon.astype(np.float32),
+    )
+
+    grid_lat, grid_lon = xr.broadcast(land_mask_grid.lat, land_mask_grid.lon)
+    grid_nztm = coordinates.wgs_depth_to_nztm(
+        np.vstack((grid_lat.values.ravel(), grid_lon.values.ravel())).T
+    )
+
+    # Apply land masking
+    logger.info("Applying land mask...")
+    mask = shapely.contains_xy(land_polygon, grid_nztm[:, 0], grid_nztm[:, 1]).reshape(
+        land_mask_grid.shape
+    )
+    land_mask_grid.values[mask] = 1
+
+    return land_mask_grid
 
 
 @dataclass
@@ -133,27 +175,26 @@ class RegionSpacingConfig:
 
     @classmethod
     def from_config(cls, config_dict: dict) -> "RegionSpacingConfig":
-        with open(config_dict["geojson_ffp"], "r") as f:
-            geojson_obj = geojson.load(f)
-            region_polygon = shapely.geometry.shape(
-                geojson_obj["features"][0]["geometry"]
+        """Create RegionSpacingConfig from configuration dictionary."""
+        if "geojson_ffp" not in config_dict and "region" not in config_dict:
+            raise ValueError(
+                "Either 'geojson_ffp' or 'region' must be provided in the config dictionary."
             )
+
+        if "geojson_ffp" in config_dict:
+            with open(config_dict["geojson_ffp"], "r") as f:
+                geojson_obj = json.load(f)
+                region_polygon = shapely.geometry.shape(
+                    geojson_obj["features"][0]["geometry"]
+                )
+        else:
+            region_polygon = shapely.geometry.shape(config_dict["region"])
 
         return RegionSpacingConfig(
             name=config_dict["name"],
             region=region_polygon,
             spacing=config_dict["spacing"],
         )
-    
-    @classmethod
-    def from_metadata(cls, metadata_dict: dict) -> "RegionSpacingConfig":
-        return cls(
-            name=metadata_dict["name"],
-            region=shapely.geometry.shape(metadata_dict["region"]),
-            spacing=metadata_dict["spacing"],
-        )
-
-
 
 @dataclass
 class CustomGridConfig:
@@ -183,50 +224,45 @@ class CustomGridConfig:
     nzgmdb_version: NZGMDBVersion | None = None
     """NZGMDB version for real stations."""
 
+
+    def __post_init__(self) -> None:
+        """Post-initialization checks."""
+        if self.basin_spacing is not None and self.vel_model_version is None:
+            raise ValueError(
+                "vel_model_version must be provided if basin_spacing is set."
+            )
+
     @classmethod
     def from_config(cls, config_dict: dict) -> "CustomGridConfig":
         """Create CustomGridConfig from dictionary."""
+        # Get the region polygon
+        region = config_dict.get("region")
+        if region is not None and isinstance(region, dict):
+            region = shapely.geometry.shape(region)
 
         # Get the per-region spacing
         per_region_spacing = None
         if (prs_configs := config_dict.get("per_region_spacing")) is not None:
-            per_region_spacing = [RegionSpacingConfig.from_config(config) for config in prs_configs]
+            per_region_spacing = [
+                RegionSpacingConfig.from_config(config) for config in prs_configs
+            ]
+
+        # Get the NZGMDB version
+        nzgmdb_version = config_dict.get("nzgmdb_version")
+        if nzgmdb_version is not None:
+            nzgmdb_version = NZGMDBVersion(nzgmdb_version)
 
         return cls(
             land_only=config_dict.get("land_only"),
-            region=config_dict.get("region"),
+            region=region,
             uniform_spacing=config_dict.get("uniform_spacing"),
             vel_model_version=config_dict.get("vel_model_version"),
             basin_spacing=config_dict.get("basin_spacing"),
             per_basin_spacing=config_dict.get("per_basin_spacing"),
             per_region_spacing=per_region_spacing,
-            nzgmdb_version=NZGMDBVersion(config_dict.get("nzgmdb_version")),
+            nzgmdb_version=nzgmdb_version,
         )
-    
-    @classmethod
-    def from_metadata(cls, metadata_dict: dict) -> "CustomGridConfig":
-        """Create CustomGridConfig from metadata dictionary."""
-        region_polygon = None
-        if (region_geojson := metadata_dict["region"]) is not None:
-            region_polygon = shapely.geometry.shape(region_geojson)
 
-        per_region_spacing = None
-        if (prs_metadata := metadata_dict["per_region_spacing"]) is not None:
-            per_region_spacing = [RegionSpacingConfig.from_metadata(prs) for prs in prs_metadata]
-            
-        return cls(
-            land_only=metadata_dict["land_only"],
-            region=region_polygon,
-            uniform_spacing=metadata_dict["uniform_spacing"],
-            vel_model_version=metadata_dict["vel_model_version"],
-            basin_spacing=metadata_dict["basin_spacing"],
-            per_basin_spacing=metadata_dict["per_basin_spacing"],
-            per_region_spacing=per_region_spacing,
-            nzgmdb_version=NZGMDBVersion(metadata_dict["nzgmdb_version"])
-            if metadata_dict["nzgmdb_version"] is not None
-            else None,
-        )
-        
     def as_dict(self) -> dict:
         """Convert CustomGridConfig to dictionary."""
         return {
@@ -257,10 +293,13 @@ class CustomGrid:
     built from the general grid.
     """
 
-    def __init__(self) -> "CustomGrid":
+    def __init__(self, general_grid: GeneralGrid = None) -> "CustomGrid":
         """Initialize CustomGrid."""
-        logger.info("Loading general grid...")
-        self.general_grid = GeneralGrid.load(GRID_DATA.fetch("general_grid.nc"))
+        if general_grid is None:
+            logger.info("Loading general grid...")
+            self.general_grid = GeneralGrid.load(GRID_DATA.fetch("general_grid.nc"))
+        else:
+            self.general_grid = general_grid
 
         self._reset()
 
@@ -357,17 +396,19 @@ class CustomGrid:
         logger.info("Adding uniform spacing filter...")
         start_time = time.time()
         if spacing < self.general_grid.spacing:
-            logger.error(
+            error_msg = (
                 "Uniform spacing must be greater than or"
                 " equal to the general grid spacing."
             )
-            raise
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         if spacing % self.general_grid.spacing != 0:
-            logger.error(
+            error_msg = (
                 f"Uniform spacing must be a multiple of"
                 f" the general grid spacing {self.general_grid.spacing}."
             )
-            raise
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         idx_interval = spacing // self.general_grid.spacing
         spacing_mask = np.zeros(self.general_grid.shape, dtype=bool)
@@ -534,6 +575,10 @@ class CustomGrid:
             - Z1.0: The Z1.0 value for the site (if vel_model_version is provided).
             - Z2.5: The Z2.5 value for the site (if vel_model_version is provided).
         """
+        if self.mask.sum() == 0:
+            logger.warning("Custom grid has no sites selected.")
+            return pd.DataFrame()
+
         logger.info("Getting site dataframe...")
         site_df = pd.DataFrame(
             {
@@ -561,6 +606,13 @@ class CustomGrid:
             crs=NZTM_CRS,
         )
         joined = gpd.sjoin(site_points_df, region_df, how="left", predicate="within")
+
+        # Deal with sites that are not in a region
+        joined["name"] = joined["name"].cat.add_categories("No Region")
+        joined["name"] = joined["name"].fillna("No Region")
+        joined["code"] = joined["code"].cat.add_categories("NR")
+        joined["code"] = joined["code"].fillna("NR")
+
         # Keep first region if in multiple regions
         joined = joined.groupby(level=0).first()
         site_df["region_name"] = joined["name"]
@@ -627,7 +679,7 @@ class CustomGrid:
         logger.info("Adding site code...")
         site_df["site_code"] = np.char.add(
             encode_base62_fixed_array(site_df.index.values, length=5),
-            site_df.region_code.astype(str).values,
+            site_df.region_code.values.astype(str),
         )
         site_df = site_df.set_index("site_code")
 

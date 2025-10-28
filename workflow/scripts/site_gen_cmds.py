@@ -2,25 +2,16 @@ import logging
 from pathlib import Path
 from typing import Annotated
 
-import geopandas as gpd
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-import pygmt
 import shapely
 import typer
-import xarray as xr
 import yaml
 
 from qcore import cli, coordinates
+from workflow import site_gen
 from workflow.realisations import DomainParameters, SourceConfig
-from workflow.site_gen import (
-    GRID_DATA,
-    CustomGrid,
-    CustomGridConfig,
-    NZGMDBVersion,
-    get_basin_boundaries,
-)
 
 # Configure logging
 logging.basicConfig(
@@ -37,45 +28,10 @@ app = typer.Typer()
 @app.command("gen-general-grid")
 def gen_general_grid(grid_spacing: str, output_ffp: Path) -> None:
     """Generate the general grid."""
-    x_spacing, y_spacing = grid_spacing.split("/")
-    if x_spacing != y_spacing:
-        raise ValueError("Currently only supports equal x and y spacing.")
-
-    try:
-        spacing = int(x_spacing.rstrip("e"))
-    except ValueError:
-        raise ValueError("Grid spacing must be an integer in metres.")
-
-    land_df = gpd.read_parquet(GRID_DATA.fetch("nz_coastline.parquet"))
-    # Combine into a single polygon
-    land_polygon = shapely.coverage_union_all(land_df.geometry)
-    land_polygon = shapely.transform(
-        land_polygon, lambda x: coordinates.wgs_depth_to_nztm(x[:, ::-1])
+    
+    land_mask_grid = site_gen.gen_general_land_mask_grid(
+        grid_spacing,
     )
-
-    # Generate grid
-    logger.info("Generating grid...")
-    land_mask_grid = pygmt.grdlandmask(region="NZ", spacing=grid_spacing).astype(bool)
-    land_mask_grid[:] = False
-    land_mask_grid.attrs = {"spacing": spacing}
-
-    # Use float32 for coords
-    land_mask_grid = land_mask_grid.assign_coords(
-        lat=land_mask_grid.lat.astype(np.float32),
-        lon=land_mask_grid.lon.astype(np.float32),
-    )
-
-    grid_lat, grid_lon = xr.broadcast(land_mask_grid.lat, land_mask_grid.lon)
-    grid_nztm = coordinates.wgs_depth_to_nztm(
-        np.vstack((grid_lat.values.ravel(), grid_lon.values.ravel())).T
-    )
-
-    # Apply land masking
-    logger.info("Applying land mask...")
-    mask = shapely.contains_xy(land_polygon, grid_nztm[:, 0], grid_nztm[:, 1]).reshape(
-        land_mask_grid.shape
-    )
-    land_mask_grid.values[mask] = 1
 
     logger.info(f"Saving to {output_ffp}...")
     land_mask_grid.to_netcdf(output_ffp)
@@ -88,7 +44,7 @@ def gen_custom_grid(
     uniform_grid_spacing: Annotated[int | None, typer.Option()] = None,
     basin_spacing: Annotated[int | None, typer.Option()] = None,
     vel_model_version: Annotated[str | None, typer.Option()] = None,
-    nzgmdb_version: Annotated[NZGMDBVersion | None, typer.Option()] = None,
+    nzgmdb_version: Annotated[site_gen.NZGMDBVersion | None, typer.Option()] = None,
     rel_ffp: Annotated[Path | None, typer.Option()] = None,
 ) -> None:
     """
@@ -127,11 +83,11 @@ def gen_custom_grid(
     if config_ffp is not None:
         logger.info(f"Reading custom grid config from {config_ffp}...")
         config_dict = yaml.safe_load(config_ffp.open("r"))
-        grid_config = CustomGridConfig.from_config(config_dict)
+        grid_config = site_gen.CustomGridConfig.from_config(config_dict)
         rel_ffp = config_dict.get("rel_ffp")
     else:
         logger.info("Generating custom grid config from command line options...")
-        grid_config = CustomGridConfig(
+        grid_config = site_gen.CustomGridConfig(
             land_only=True,
             uniform_spacing=uniform_grid_spacing,
             vel_model_version=vel_model_version,
@@ -145,7 +101,7 @@ def gen_custom_grid(
         region = shapely.Polygon(domain_config.domain.corners[:, ::-1])
         grid_config.region = region
 
-    custom_grid = CustomGrid().apply_config(grid_config)
+    custom_grid = site_gen.CustomGrid().apply_config(grid_config)
 
     # Generate site dataframe and save
     site_df = custom_grid.get_site_df()
@@ -180,7 +136,7 @@ def gen_plot(
     site_df = pd.read_parquet(site_df_ffp)
 
     with site_df_meta_ffp.open("r") as f:
-        config = CustomGridConfig.from_metadata(
+        config = site_gen.CustomGridConfig.from_metadata(
             yaml.load(f, Loader=yaml.FullLoader)["config"]
         )
     # config_dict = yaml.load(site_df_meta_ffp.open("r"), Loader=yaml.FullLoader)["config"]
@@ -249,7 +205,7 @@ def gen_plot(
 
     if config.vel_model_version is not None:
         # Plot the basin boundaries
-        basin_boundaries = get_basin_boundaries(config.vel_model_version)
+        basin_boundaries = site_gen.get_basin_boundaries(config.vel_model_version)
         basin_line_properties = dict(color="red", width=1)
         basin_fill_color = "rgba(255,0,0,0.05)"
 

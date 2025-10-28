@@ -137,6 +137,7 @@ Region code mapping:
 | Canterbury | CA |
 | Otago | OT |
 | Southland | SL |
+| No Region | NR |
 
 
 Additionally, it will also produce a metadata file that contains the setting used to generate the custom grid:
