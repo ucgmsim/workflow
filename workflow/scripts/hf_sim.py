@@ -50,9 +50,9 @@ from workflow import log_utils, realisations, utils
 from workflow.realisations import (
     DomainParameters,
     HFConfig,
+    HFVelocityModel1D,
     RealisationMetadata,
     Seeds,
-    VelocityModel1D,
 )
 
 app = typer.Typer()
@@ -283,7 +283,7 @@ def run_hf(
 
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
-    velocity_model = VelocityModel1D.read_from_realisation_or_defaults(
+    velocity_model = HFVelocityModel1D.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
     hf_config = HFConfig.read_from_realisation_or_defaults(
@@ -306,7 +306,7 @@ def run_hf(
     stations["seed"] = np.int32(seeds.hf_seed) ^ station_hashes
     velocity_model_path = work_directory / "velocity_model"
     velocity_model.write_velocity_model(velocity_model_path)
-    nt = int(domain_parameters.duration / hf_config.dt)
+    nt = int(np.float32(domain_parameters.duration) / np.float32(hf_config.dt))  # Match Fortran's single-precision for consistent nt calculation
     waveform = np.empty((3, len(stations), nt), dtype=np.float32)
 
     hf_input_template = build_hf_input(

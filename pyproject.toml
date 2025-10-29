@@ -44,6 +44,7 @@ dependencies = [
   "requests",  # For gcmt-to-realisation
   "schema",    # For loading realisations
   "structlog", # Logging.
+  "psutil",    # To get the CPU affinity for jobs
 ]
 
 [project.optional-dependencies]
