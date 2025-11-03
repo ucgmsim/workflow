@@ -44,6 +44,7 @@ dependencies = [
   "requests",  # For gcmt-to-realisation
   "schema",    # For loading realisations
   "structlog", # Logging.
+  "psutil",    # To get the CPU affinity for jobs
 ]
 
 [project.optional-dependencies]
@@ -74,6 +75,7 @@ plan-workflow = "workflow.scripts.plan_workflow:app"
 gcmt-auto-simulate = "workflow.scripts.gcmt_auto_simulate:app"
 import-realisation = "workflow.scripts.import_realisation:app"
 lf-to-xarray = "workflow.scripts.lf_to_xarray:app"
+merge-ts = "workflow.scripts.merge_ts:app"
 
 [tool.setuptools.package-dir]
 workflow = "workflow"

@@ -446,6 +446,19 @@ def test_logtrail_init_with_log_entries() -> None:
     assert trail.log == [entry1, entry2]
 
 
+def test_schemas_validate_float() -> None:
+    assert schemas.NUMBER.validate(1.0)
+
+
+def test_schemas_validate_int() -> None:
+    assert schemas.NUMBER.validate(1)
+
+
+def test_schemas_do_not_validate_strings() -> None:
+    with pytest.raises(schema.SchemaError):
+        schemas.NUMBER.validate("1")
+
+
 def test_logtrail_init_with_dicts_post_init() -> None:
     """Test LogTrail post_init conversion of dicts to LogEntry objects."""
     log_data = [
@@ -688,6 +701,7 @@ def test_sources(tmp_path: Path) -> None:
         realisations.BroadbandParameters,
         realisations.VelocityModel1D,
         realisations.IntensityMeasureCalculationParameters,
+        realisations.HFVelocityModel1D,
     ],
 )
 @pytest.mark.parametrize("defaults_version", list(defaults.DefaultsVersion))

@@ -41,6 +41,9 @@ from typing import Annotated, Optional
 import typer
 
 from qcore import cli
+from velocity_modelling.constants import WriteFormat
+from velocity_modelling.scripts import generate_3d_model
+from velocity_modelling.tools import convert_hdf5_to_emod3d
 from workflow import log_utils, realisations, utils
 from workflow.realisations import (
     DomainParameters,
@@ -124,17 +127,38 @@ def run_nzvm(
     )
 
 
-def run_nzcvm(nzvm_config_ffp: Path) -> None:
-    """Run NZCVM executable with specified configuration.
+def run_nzcvm(
+    nzvm_config_ffp: Path,
+    work_directory: Path,
+    velocity_model_intermediate_path: Path,
+    num_threads: int | None,
+) -> None:
+    """Generate velocity model with New Zealand Community Velocity Model.
 
     Parameters
     ----------
     nzvm_config_ffp : Path
-        Path to the NZVM-format configuration file.
+        Path to NZVM config to generate from
+    work_directory : Path
+        Working directory to output HDF5 to
+    velocity_model_intermediate_path : Path
+        Output directory for EMOD3D files
+    num_threads : int | None
+        Number of threads to use (default is inferred by
+        `utils.get_available_cores`)
     """
-    from velocity_modelling.scripts import nzcvm
 
-    nzcvm.generate_velocity_model(nzvm_config_ffp)
+    num_threads = num_threads or utils.get_available_cores()
+    generate_3d_model.generate_3d_model(
+        nzvm_config_ffp,
+        out_dir=work_directory,
+        output_format=WriteFormat.HDF5.name,
+        np_workers=num_threads,
+    )
+    hdf5_output_file = work_directory / "velocity_model.h5"
+    convert_hdf5_to_emod3d.convert_hdf5_to_emod3d(
+        hdf5_output_file, velocity_model_intermediate_path
+    )
 
 
 @cli.from_docstring(app)
@@ -182,11 +206,6 @@ def generate_velocity_model(
     None
         The function does not return any value. It writes the generated velocity model to the specified output directory.
     """
-    if not use_nzcvm and not velocity_model_bin_path:
-        raise ValueError(
-            "If not using nzcvm, you must specify the path to the NZVM binary."
-        )
-
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     velocity_model_parameters = (
@@ -203,11 +222,25 @@ def generate_velocity_model(
         velocity_model_intermediate_path,
         nzvm_config_path,
     )
+
     if use_nzcvm:
-        run_nzcvm(nzvm_config_path)
-    else:
+        run_nzcvm(
+            nzvm_config_path,
+            work_directory,
+            velocity_model_intermediate_path,
+            num_threads,
+        )
+        shutil.rmtree(velocity_model_output, ignore_errors=True)
+        shutil.move(velocity_model_intermediate_path, velocity_model_output)
+    elif velocity_model_bin_path:
         run_nzvm(velocity_model_bin_path, nzvm_config_path, num_threads)
-    shutil.copytree(
-        velocity_model_intermediate_path / "Velocity_Model", velocity_model_output
-    )
+        shutil.rmtree(velocity_model_output, ignore_errors=True)
+        shutil.move(
+            velocity_model_intermediate_path / "Velocity_Model", velocity_model_output
+        )
+    else:
+        raise ValueError(
+            "If not using nzcvm, you must specify the path to the NZVM binary."
+        )
+
     realisations.append_log_entry(realisation_ffp)
