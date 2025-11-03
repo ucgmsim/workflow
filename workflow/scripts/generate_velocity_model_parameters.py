@@ -32,7 +32,6 @@ from typing import Annotated
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import scipy as sp
 import shapely
 import typer
 from shapely import Polygon
@@ -199,134 +198,52 @@ def total_magnitude(magnitudes: npt.NDArray[np.float64]) -> float:
     return mag_scaling.mom2mag(np.sum(mag_scaling.mag2mom(magnitudes)))
 
 
-def pgv_from_rrup(
-    magnitude: float, rake: float, dip: float, rrup: float, ztor: float
-) -> float:
-    """
-    Compute the peak ground velocity (PGV) at a given distance from a rupture.
-
-    Parameters
-    ----------
-    magnitude : float
-            The magnitude of the rupture.
-    rake : float
-            The rake angle of the rupture.
-    dip : float
-            The dip angle of the rupture.
-    rrup : float
-            The distance from the rupture (in km).
-
-    Returns
-    -------
-    float
-            The peak ground velocity (cm/s) at the given distance from the rupture.
-    """
-    # import here rather than at the module level because openquake is slow to import
-    import oq_wrapper as oqw
-
-    vs30 = 500  # default Vs30 value
-    return np.exp(
-        oqw.run_gmm(
-            oqw.constants.GMM.CY_14,
-            oqw.constants.TectType.ACTIVE_SHALLOW,
-            pd.DataFrame(
-                {
-                    "mag": [magnitude],
-                    "rake": [rake],
-                    "vs30": [vs30],
-                    "vs30measured": [False],
-                    "dip": [dip],
-                    "z1pt0": [oqw.estimations.chiou_young_08_calc_z1p0(vs30)],
-                    # These calculations are done with a point-source
-                    # assumption. We don't know where our test point is so
-                    # estimating them from source geometry is impossible
-                    # since rjb depends on polygon-distance measurements.
-                    # We believe this is defensible for reasons:
-                    #
-                    # 1. At small Mw, we assume a point-source anyway so these calculations are essentially correct.
-                    # 2. At large Mw, PGV of 0.1cm/s will occur sufficiently far from the event that a point-source approximation is reasonable.
-                    "ztor": [ztor],
-                    "rrup": [rrup],
-                    "rjb": [np.sqrt(rrup**2 - ztor**2)],
-                    # We want to include any hanging-wall terms in the model
-                    # to err on the conservative side for our domains. In the
-                    # other case, we risk shrinking our domains unnecessarily.
-                    "rx": [rrup],
-                }
-            ),
-            "PGV",
-        )["PGV_mean"].iloc[0]
-    )
-
-
 @log_utils.log_call()
-def estimate_rrup(
-    magnitude: float, rake: float, dip: float, ztor: float, pgv_target: float
+def estimate_r_surface(
+    rrup_interpolants: npt.NDArray[np.float32], magnitude: float, ztor: float
 ) -> float:
     """
-    Estimate the rupture radius such that stations at this radius will
-    experience the target PGV.
+    Estimate an appropriate rupture radius for a rupture.
 
     Parameters
     ----------
     magnitude : float
         The magnitude of the rupture.
-    rake : float
-        The rake angle of the rupture.
-    dip : float
-        The dip angle of the rupture.
-    pgv_target : float
-        The target PGV value (cm/s).
 
     Returns
     -------
     float
-            The estimated rupture radius (in km).
-
-    Examples
-    --------
-    >>> # Estimate the rupture radius for a 7.5 magnitude earthquake
-    >>> # with a rake of 90 degrees, a dip of 45 degrees, and a target
-    >>> # PGV of 10 cm/s.
-    >>> estimate_rrup(7.5, 90, 45, 10)
-    60.86630588572306
+        The estimated rupture radius (in km).
     """
-    return sp.optimize.minimize_scalar(
-        lambda rrup: np.abs(
-            pgv_from_rrup(magnitude, rake, dip, rrup, ztor) - pgv_target
-        ),
-        bounds=(0, 1000),
-        method="bounded",
-    ).x
+    rrup = float(np.interp(magnitude, rrup_interpolants[0], rrup_interpolants[1]))
+    r_surface = np.sqrt(rrup**2 - ztor**2)
+    return r_surface
 
 
-def find_rrup_bounding_polygon(
+def find_r_surface_bounding_polygon(
     fault: sources.IsSource,
     magnitude: float,
-    rake: float,
-    pgv_target: float,
+    rrup_interpolants: npt.NDArray[np.floating],
 ) -> Polygon:
-    """Find the bounding polygon for the rrup distance of a fault.
+    """Find the bounding polygon for the r_surface distance of a fault.
 
-    The bounding polygon is computed by estimating rrup from the PGV
-    target, and then applying an rrup-width buffer to the fault
-    geometries.
+    The bounding polygon is computed by estimating rrup from the magnitude,
+    computing r_surface from the geometry and rrup, and then applying an
+    r_surface-width buffer to the fault geometries.
 
     Parameters
     ----------
     fault : sources.IsSource
         The fault geometry.
+    rrup_interpolants : array of floats
+        Interpolant nodes mapping magnitude to rrup.
     magnitude : float
         The magnitude of the rupture.
-    rake : float
-        The rake angle of the rupture.
-    pgv_target : float
-        The target PGV value (cm/s).
 
     Returns
     -------
     Polygon
-        The bounding polygon over the rrup distance of the fault in the realisation.
+        The bounding polygon over the r_surface distance of the fault in the realisation.
     """
 
     if isinstance(fault, sources.Point):
@@ -335,18 +252,15 @@ def find_rrup_bounding_polygon(
     else:
         ztor = fault.top_m
     ztor /= 1000.0
-    dip = fault.dip
-    rrup = estimate_rrup(
+    r_surface = estimate_r_surface(
+        rrup_interpolants,
         magnitude,
-        rake,
-        dip,
         ztor,
-        pgv_target,
     )
     logger = log_utils.get_logger(__name__)
-    logger.debug("computed rrup", rrups=rrup)
+    logger.debug("computed r_surface", r_surface=r_surface)
 
-    return shapely.buffer(fault.geometry, rrup * 1000)
+    return shapely.buffer(fault.geometry, r_surface * 1000)
 
 
 def dict_zip(*dicts: list[dict], strict: bool = True) -> dict:
@@ -382,37 +296,6 @@ def dict_zip(*dicts: list[dict], strict: bool = True) -> dict:
     result = {key: tuple(d[key] for d in dicts) for key in list(keys)}
 
     return result
-
-
-def pgv_target(
-    magnitudes: Magnitudes,
-    velocity_model_parameters: VelocityModelParameters,
-) -> float:
-    """Compute the PGV target for the realisation.
-
-    Parameters
-    ----------
-    magnitudes : Magnitudes
-        The magnitudes object.
-    velocity_model_parameters : VelocityModelParameters
-        The velocity model parameters containing PGV interpolants.
-
-    Returns
-    -------
-    float
-        The PGV target for the realisation.
-    """
-    total_magnitude = mag_scaling.mom2mag(
-        sum(
-            mag_scaling.mag2mom(magnitude)
-            for magnitude in magnitudes.magnitudes.values()
-        )
-    )
-    return np.interp(
-        total_magnitude,
-        velocity_model_parameters.pgv_interpolants[:, 0],
-        velocity_model_parameters.pgv_interpolants[:, 1],
-    )
 
 
 @cli.from_docstring(app)
@@ -455,7 +338,6 @@ def generate_velocity_model_parameters(
     magnitudes = Magnitudes.read_from_realisation(realisation_ffp)
     rakes = Rakes.read_from_realisation(realisation_ffp)
     rupture_magnitude = total_magnitude(np.array(list(magnitudes.magnitudes.values())))
-    realisation_pgv_target = pgv_target(magnitudes, velocity_model_parameters)
 
     initial_fault = source_config.source_geometries[rupture_propagation.initial_fault]
     if isinstance(initial_fault, sources.Point):
@@ -477,11 +359,12 @@ def generate_velocity_model_parameters(
     # corner in the source geometries.
     # These may be in the domain where they are over land.
     rrup_bounding_polygons = [
-        find_rrup_bounding_polygon(*args, pgv_target=realisation_pgv_target)
+        find_r_surface_bounding_polygon(
+            *args, rrup_interpolants=velocity_model_parameters.rrup_interpolants
+        )
         for args in dict_zip(
             source_config.source_geometries,
             magnitudes.magnitudes,
-            rakes.rakes,
         ).values()
     ]
 

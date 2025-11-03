@@ -367,7 +367,6 @@ class SRFConfig(RealisationConfiguration):
     point_source_params: schemas.PointSourceParams | None
     """Parameters for point source approximation, if applicable."""
 
-
     def to_dict(self) -> dict[str, Any]:
         """
         Convert the object to a dictionary representation.
@@ -590,8 +589,8 @@ class VelocityModelParameters(RealisationConfiguration):
     """The reference vs30 value for duration estimation."""
     s_wave_velocity: float
     """The s-wave velocity."""
-    pgv_interpolants: npt.NDArray[np.float32]
-    """Target PGV values at specific magnitudes, used to estimate domain size."""
+    rrup_interpolants: npt.NDArray[np.float32]
+    """Target RRup values at specific magnitudes, used to estimate domain size."""
 
     def to_dict(self) -> dict:
         """
@@ -603,7 +602,7 @@ class VelocityModelParameters(RealisationConfiguration):
             Dictionary representation of the object.
         """
         _dict = dataclasses.asdict(self)
-        _dict["pgv_interpolants"] = _dict["pgv_interpolants"].tolist()
+        _dict["rrup_interpolants"] = _dict["rrup_interpolants"].tolist()
         return _dict
 
 
