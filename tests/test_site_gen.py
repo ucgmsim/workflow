@@ -299,7 +299,7 @@ def test_uniform_valid_spacing(
 
 
 def test_basin_spacing(
-    general_grid: site_gen.GeneralGrid, canterbury_region_polygon: shapely.Polygon
+    general_grid: site_gen.GeneralGrid, canterbury_region_polygon: shapely.Polygon 
 ) -> None:
     uniform_spacing = general_grid.spacing * 2
     config = site_gen.CustomGridConfig(
@@ -329,8 +329,7 @@ def test_small_uniform_spacing_error(
         ValueError,
         match="Uniform spacing must be greater than or equal to the general grid spacing",
     ):
-        custom_grid = site_gen.CustomGrid(general_grid).apply_config(config)
-
+        site_gen.CustomGrid(general_grid).apply_config(config)
 
 @pytest.mark.parametrize("factor", [1.2, 1.5])
 def test_multiple_error_uniform_spacing(
@@ -344,8 +343,7 @@ def test_multiple_error_uniform_spacing(
         ValueError,
         match="Uniform spacing must be a multiple of the general grid spacing",
     ):
-        custom_grid = site_gen.CustomGrid(general_grid).apply_config(config)
-
+        site_gen.CustomGrid(general_grid).apply_config(config)
 
 @pytest.mark.parametrize("basin_spacing", [5_000, 10_000])
 def test_small_basin_spacing_error(
@@ -382,9 +380,41 @@ def test_multiple_error_basin_spacing(
     ):
         custom_grid = site_gen.CustomGrid(general_grid).apply_config(config)
 
+def test_site_dataframe(
+    general_grid: site_gen.GeneralGrid
+) -> None:
+    config = site_gen.CustomGridConfig(
+        uniform_spacing=general_grid.spacing * 2,
+        vel_model_version="2.09",
+        nzgmdb_version="v4.3",
+    )
 
-# Hypothesis-based property tests for encode_base62_fixed_array
+    custom_grid = site_gen.CustomGrid(general_grid).apply_config(config)
+    site_df = custom_grid.get_site_df()
 
+    assert (~site_df.region_name.isnull()).all()
+    assert (~site_df.region_code.isnull()).all()
+    assert site_df.source.isin(["virtual", "real"]).all()
+
+
+def test_site_dataframe_basin(
+    general_grid: site_gen.GeneralGrid, canterbury_region_polygon: shapely.Polygon
+) -> None:
+    config = site_gen.CustomGridConfig(
+        region=canterbury_region_polygon,
+        uniform_spacing=general_grid.spacing * 2,
+        vel_model_version="2.09",
+        nzgmdb_version="v4.3",
+    )
+
+    custom_grid = site_gen.CustomGrid(general_grid).apply_config(config)
+    site_df = custom_grid.get_site_df()
+
+    assert (site_df.basin == "Canterbury_v25p9").all()
+    
+        
+
+    
 
 @given(
     nums=st.lists(st.integers(min_value=0, max_value=62**4 - 1), min_size=2, max_size=500),

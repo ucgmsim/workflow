@@ -591,6 +591,41 @@ class CustomGrid:
             }
         ).set_index("general_site_id")
 
+        # Add NZGMDB sites
+        if self.config.nzgmdb_version is not None:
+            start = time.time()
+            logger.info("Adding NZGMDB sites...")
+            nzgmdb_site_df = pd.read_csv(
+                GRID_DATA.fetch(
+                    NZGMDB_VERSION_TO_TABLE_NAME[self.config.nzgmdb_version]
+                ),
+                index_col="sta",
+                usecols=["sta", "lat", "lon", "Vs30", "Z1.0", "Z2.5"],
+            )
+            nzgmdb_site_df["source"] = "real"
+            nzgmdb_nztm_values = coordinates.wgs_depth_to_nztm(
+                nzgmdb_site_df[["lat", "lon"]].values
+            )
+            nzgmdb_site_df["nztm_x"] = nzgmdb_nztm_values[:, 1]
+            nzgmdb_site_df["nztm_y"] = nzgmdb_nztm_values[:, 0]
+            # Convert Z1.0 to km
+            nzgmdb_site_df["Z1.0"] /= 1000
+
+            if self.config.region is not None:
+                region_nztm = shapely.transform(
+                    self.config.region,
+                    lambda x: coordinates.wgs_depth_to_nztm(x[:, ::-1]),
+                )
+                region_mask = shapely.contains_xy(
+                    region_nztm,
+                    nzgmdb_site_df["nztm_y"].values,
+                    nzgmdb_site_df["nztm_x"].values,
+                )
+                nzgmdb_site_df = nzgmdb_site_df[region_mask]
+
+            site_df = pd.concat([site_df, nzgmdb_site_df], axis=0)
+            logger.info(f"Took: {time.time() - start} to add NZGMDB sites")
+
         # Add region
         logger.info("Adding region information...")
         start = time.time()
@@ -677,47 +712,13 @@ class CustomGrid:
 
         # Add site ids
         logger.info("Adding site code...")
-        site_df["site_code"] = np.char.add(
-            encode_base62_fixed_array(site_df.index.values, length=5),
-            site_df.region_code.values.astype(str),
+        virt_mask = site_df.source == "virtual"
+        site_df.loc[virt_mask, "site_code"] = np.char.add(
+            encode_base62_fixed_array(site_df.loc[virt_mask].index.values.astype(int), length=5),
+            site_df.loc[virt_mask].region_code.values.astype(str),
         )
+        site_df.loc[~virt_mask, "site_code"] = site_df.loc[~virt_mask].index.values
         site_df = site_df.set_index("site_code")
-
-        # Add NZGMDB sites
-        if self.config.nzgmdb_version is not None:
-            start = time.time()
-            logger.info("Adding NZGMDB sites...")
-            nzgmdb_site_df = pd.read_csv(
-                GRID_DATA.fetch(
-                    NZGMDB_VERSION_TO_TABLE_NAME[self.config.nzgmdb_version]
-                ),
-                index_col="sta",
-                usecols=["sta", "lat", "lon", "Vs30", "Z1.0", "Z2.5"],
-            )
-            nzgmdb_site_df["source"] = "real"
-            nzgmdb_nztm_values = coordinates.wgs_depth_to_nztm(
-                nzgmdb_site_df[["lat", "lon"]].values
-            )
-            nzgmdb_site_df["nztm_x"] = nzgmdb_nztm_values[:, 1]
-            nzgmdb_site_df["nztm_y"] = nzgmdb_nztm_values[:, 0]
-            # Convert Z1.0 to km
-            nzgmdb_site_df["Z1.0"] /= 1000
-
-            if self.config.region is not None:
-                region_nztm = shapely.transform(
-                    self.config.region,
-                    lambda x: coordinates.wgs_depth_to_nztm(x[:, ::-1]),
-                )
-                region_mask = shapely.contains_xy(
-                    region_nztm,
-                    nzgmdb_site_df["nztm_y"].values,
-                    nzgmdb_site_df["nztm_x"].values,
-                )
-                nzgmdb_site_df = nzgmdb_site_df[region_mask]
-
-            site_df = pd.concat([site_df, nzgmdb_site_df], axis=0)
-            logger.info(f"Took: {time.time() - start} to add NZGMDB sites")
-
         site_df = site_df.astype({"source": "category"})
 
         # Sanity check
