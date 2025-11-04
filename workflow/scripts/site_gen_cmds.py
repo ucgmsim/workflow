@@ -1,3 +1,4 @@
+"""Commands for generating simulation site grids."""
 import logging
 from pathlib import Path
 from typing import Annotated
@@ -25,10 +26,18 @@ logger = logging.getLogger(__name__)
 app = typer.Typer()
 
 
-@app.command("gen-general-grid")
-def gen_general_grid(grid_spacing: str, output_ffp: Path) -> None:
-    """Generate the general grid."""
-    
+@cli.from_docstring(app)
+def gen_general_grid(grid_spacing: int, output_ffp: Path) -> None:
+    """
+    Generate the general grid.
+
+    Parameters
+    ----------
+    grid_spacing : int
+        The grid spacing in metres. 
+    output_ffp : Path
+        The path to save the output netCDF file.
+    """
     land_mask_grid = site_gen.gen_general_land_mask_grid(
         grid_spacing,
     )
@@ -128,15 +137,13 @@ def gen_plot(
         The path to the custom grid site dataframe file (parquet).
     output_ffp : Path
         The path to save the output HTML file.
-    rel_ffp: Path, optional
+    rel_ffp : Path, optional
         The path to the realisation config.
         If provided, the domain and source will be plotted.
     """
     site_df = pd.read_parquet(site_df_ffp)
 
-    site_df_meta_ffp = (
-        site_df_ffp.parent / f"{site_df_ffp.stem}_metadata.yaml"
-    )
+    site_df_meta_ffp = site_df_ffp.parent / f"{site_df_ffp.stem}_metadata.yaml"
     with site_df_meta_ffp.open("r") as f:
         config = site_gen.CustomGridConfig.from_config(
             yaml.load(f, Loader=yaml.FullLoader)["config"]
@@ -236,7 +243,7 @@ def gen_plot(
                         hoverinfo="skip",
                     )
                 )
-    
+
     if config.per_region_spacing is not None:
         # Plot the regions with different spacing
         for region_spacing in config.per_region_spacing:
@@ -249,7 +256,7 @@ def gen_plot(
                     hoverinfo="skip",
                 )
             )
-            
+
     if rel_ffp is not None:
         # Plot the domain
         domain_corners = DomainParameters.read_from_realisation(rel_ffp).domain.corners

@@ -16,6 +16,8 @@ jobs:
             **/pyproject.toml
       - run: uv venv
       - run: uv pip install -e ".[test,dev]"
+      - name: Download velocity data
+        run: nzcvm-data-helper ensure --no-full
       - name: Run tests
         run: uv run pytest --cov=workflow --cov-report=html tests
       - name: Upload coverage data

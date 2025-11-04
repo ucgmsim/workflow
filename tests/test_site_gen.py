@@ -6,7 +6,8 @@ import numpy as np
 import pytest
 import shapely
 import xarray as xr
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given
+from hypothesis import strategies as st
 from scipy.spatial import distance as sdist
 
 from workflow import site_gen

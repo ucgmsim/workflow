@@ -62,7 +62,16 @@ class GeneralGrid:
     """
 
     def __init__(self, land_mask_grid: xr.DataArray, spacing: int) -> None:
-        """Initialize GeneralGrid."""
+        """
+        Initialize GeneralGrid.
+
+        Parameters
+        ----------
+        land_mask_grid : xr.DataArray
+            The land mask grid as an xarray DataArray.
+        spacing : int
+            The grid spacing in metres.
+        """
         self.land_mask_grid = land_mask_grid
         self.site_ids = np.arange(land_mask_grid.size, dtype=np.uint32).reshape(
             land_mask_grid.shape
@@ -90,7 +99,19 @@ class GeneralGrid:
 
     @classmethod
     def load(cls, land_mask_grid_ffp: Path) -> "GeneralGrid":
-        """Load GeneralGrid from file."""
+        """
+        Load GeneralGrid from file.
+
+        Parameters
+        ----------
+        land_mask_grid_ffp : Path
+            The file path to the general grid file.
+
+        Returns
+        -------
+        GeneralGrid
+            The loaded GeneralGrid instance.
+        """
         logger.info(f"Loading general grid from {land_mask_grid_ffp}...")
         da = xr.load_dataarray(land_mask_grid_ffp, engine="h5netcdf")
         return cls(da, int(da.attrs["spacing"]))
@@ -102,21 +123,20 @@ def gen_general_land_mask_grid(spacing: int) -> xr.DataArray:
 
     Parameters
     ----------
-    grid_spacing : str 
+    spacing : int
         Grid spacing in metres
-
-
-    Notes
-    -----
-    Common grid spacing formats:
-        - To specify grid spacing of `x` units: `"{x}{unit}/{x}{unit}"`,
-        where `unit` can be metres (`e`) or kilometres (`k`).
 
     Returns
     -------
     xr.DataArray
         The land mask grid DataArray, with values of 1 for land
         and 0 for ocean.
+
+    Notes
+    -----
+    Common grid spacing formats:
+        - To specify grid spacing of `x` units: `"{x}{unit}/{x}{unit}"`,
+        where `unit` can be metres (`e`) or kilometres (`k`).
     """
     land_df = gpd.read_parquet(GRID_DATA.fetch("nz_coastline.parquet"))
     # Combine into a single polygon
@@ -127,7 +147,9 @@ def gen_general_land_mask_grid(spacing: int) -> xr.DataArray:
 
     # Generate grid
     logger.info("Generating grid...")
-    land_mask_grid = pygmt.grdlandmask(region="NZ", spacing=f"{spacing}e/{spacing}e").astype(bool)
+    land_mask_grid = pygmt.grdlandmask(
+        region="NZ", spacing=f"{spacing}e/{spacing}e"
+    ).astype(bool)
     land_mask_grid[:] = False
     land_mask_grid.attrs = {"spacing": spacing}
 
@@ -166,7 +188,14 @@ class RegionSpacingConfig:
     """Grid spacing in metres within the region."""
 
     def as_dict(self) -> dict:
-        """Convert RegionSpacingConfig to dictionary."""
+        """
+        Convert RegionSpacingConfig to dictionary.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the configuration.
+        """
         return {
             "name": self.name,
             "region": shapely.geometry.mapping(self.region),
@@ -175,7 +204,20 @@ class RegionSpacingConfig:
 
     @classmethod
     def from_config(cls, config_dict: dict) -> "RegionSpacingConfig":
-        """Create RegionSpacingConfig from configuration dictionary."""
+        """
+        Create RegionSpacingConfig from configuration dictionary.
+
+        Parameters
+        ----------
+        config_dict : dict
+            Configuration dictionary with keys 'name', 'spacing',
+            and either 'region' or 'geojson_ffp'.
+
+        Returns
+        -------
+        RegionSpacingConfig
+            The created RegionSpacingConfig instance.
+        """
         if "geojson_ffp" not in config_dict and "region" not in config_dict:
             raise ValueError(
                 "Either 'geojson_ffp' or 'region' must be provided in the config dictionary."
@@ -195,6 +237,7 @@ class RegionSpacingConfig:
             region=region_polygon,
             spacing=config_dict["spacing"],
         )
+
 
 @dataclass
 class CustomGridConfig:
@@ -224,7 +267,6 @@ class CustomGridConfig:
     nzgmdb_version: NZGMDBVersion | None = None
     """NZGMDB version for real stations."""
 
-
     def __post_init__(self) -> None:
         """Post-initialization checks."""
         if self.basin_spacing is not None and self.vel_model_version is None:
@@ -234,7 +276,19 @@ class CustomGridConfig:
 
     @classmethod
     def from_config(cls, config_dict: dict) -> "CustomGridConfig":
-        """Create CustomGridConfig from dictionary."""
+        """
+        Create CustomGridConfig from dictionary.
+
+        Parameters
+        ----------
+        config_dict : dict
+            Configuration dictionary containing CustomGridConfig settings.
+
+        Returns
+        -------
+        CustomGridConfig
+            The created CustomGridConfig instance.
+        """
         # Get the region polygon
         region = config_dict.get("region")
         if region is not None and isinstance(region, dict):
@@ -264,7 +318,14 @@ class CustomGridConfig:
         )
 
     def as_dict(self) -> dict:
-        """Convert CustomGridConfig to dictionary."""
+        """
+        Convert CustomGridConfig to dictionary.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the configuration.
+        """
         return {
             "land_only": self.land_only,
             "region": (
@@ -294,7 +355,19 @@ class CustomGrid:
     """
 
     def __init__(self, general_grid: GeneralGrid = None) -> None:
-        """Initialize CustomGrid."""
+        """
+        Initialize CustomGrid.
+
+        Parameters
+        ----------
+        general_grid : GeneralGrid, optional
+            The general grid to use. If None, it will be loaded from the
+            default location.
+
+        Returns
+        -------
+        None
+        """
         if general_grid is None:
             logger.info("Loading general grid...")
             self.general_grid = GeneralGrid.load(GRID_DATA.fetch("general_grid.nc"))
@@ -304,7 +377,9 @@ class CustomGrid:
         self._reset()
 
     def _reset(self) -> None:
-        """Resets the custom grid."""
+        """
+        Resets the custom grid.
+        """
         self._and_mask = np.ones(self.general_grid.shape, dtype=bool)
         self._or_mask = np.zeros(self.general_grid.shape, dtype=bool)
         self.config = None
@@ -321,6 +396,16 @@ class CustomGrid:
         """
         Applies a CustomGridConfig to the CustomGrid.
         Resets any previously applied filters.
+
+        Parameters
+        ----------
+        config : CustomGridConfig
+            The configuration to apply.
+
+        Returns
+        -------
+        CustomGrid
+            Returns self for method chaining.
         """
         self._reset()
         self.config = config
@@ -475,7 +560,7 @@ class CustomGrid:
     ) -> None:
         """
         Adds a basin spacing filter.
-        Note that this is an OR filter, i.e., it only adds sites
+        Note that this is an OR filter, i.e., it only adds sites.
 
         Parameters
         ----------
@@ -483,6 +568,12 @@ class CustomGrid:
             The velocity model version to use for basin spacing.
         spacing : int
             The grid spacing in metres to use within basins.
+        basins : list[str] | None, optional
+            The specific basins to apply the spacing to. If None, applies to all basins.
+
+        Returns
+        -------
+        None
         """
         logger.info(
             f"Adding basin {spacing} spacing filter for {basins if basins is not None else 'all'} basins..."
@@ -524,6 +615,16 @@ class CustomGrid:
     def get_metadata(self, site_df: pd.DataFrame = None) -> dict:
         """
         Gets the metadata dictionary for the custom grid.
+
+        Parameters
+        ----------
+        site_df : pd.DataFrame, optional
+            The site dataframe to generate metadata from.
+
+        Returns
+        -------
+        dict
+            Dictionary containing metadata and configuration information.
         """
         site_metadata = {}
         if site_df is not None:
@@ -549,20 +650,11 @@ class CustomGrid:
         """
         Gets the site dataframe for the custom grid.
 
-        Parameters
-        ----------
-        nzgmdb_version : NZGMDBVersion, optional
-            The NZGMDB version to include real stations from.
-        vel_model_version : str, optional
-            The velocity model version to use for basin membership
-            and Z-values. Is only used if the basin spacing filter
-            has not already been added to the custom grid.
-
         Returns
         -------
         pd.DataFrame
             The site dataframe with columns:
-            - site_id: The site ID.
+            - general_site_id: The site ID from the general grid.
             - lon: The site longitude.
             - lat: The site latitude.
             - nztm_x: The site NZTM X coordinate.
@@ -574,6 +666,12 @@ class CustomGrid:
             - basin: The basin the site is in (if any).
             - Z1.0: The Z1.0 value for the site (if vel_model_version is provided).
             - Z2.5: The Z2.5 value for the site (if vel_model_version is provided).
+            - site_code: The site code.
+
+        Notes
+        -----
+        Basin membership and Z-values are only added if vel_model_version
+        is set in the configuration.
         """
         if self.mask.sum() == 0:
             logger.warning("Custom grid has no sites selected.")
@@ -714,7 +812,9 @@ class CustomGrid:
         logger.info("Adding site code...")
         virt_mask = site_df.source == "virtual"
         site_df.loc[virt_mask, "site_code"] = np.char.add(
-            encode_base62_fixed_array(site_df.loc[virt_mask].index.values.astype(int), length=5),
+            encode_base62_fixed_array(
+                site_df.loc[virt_mask].index.values.astype(int), length=5
+            ),
             site_df.loc[virt_mask].region_code.values.astype(str),
         )
         site_df.loc[~virt_mask, "site_code"] = site_df.loc[~virt_mask].index.values
@@ -727,7 +827,19 @@ class CustomGrid:
 
 
 def get_basin_boundaries(vel_model_version: str) -> dict[str, shapely.Polygon]:
-    """Gets the basin boundaries for a given velocity model version."""
+    """
+    Gets the basin boundaries for a given velocity model version.
+
+    Parameters
+    ----------
+    vel_model_version : str
+        The velocity model version to load basin data for.
+
+    Returns
+    -------
+    dict[str, shapely.Polygon]
+        Dictionary mapping basin names to their boundary polygons.
+    """
     cvm_registry = CVMRegistry(vel_model_version, get_data_root())
     basin_data = cvm_registry.load_basin_data(cvm_registry.global_params["basins"])
 
@@ -746,7 +858,21 @@ def get_basin_boundaries(vel_model_version: str) -> dict[str, shapely.Polygon]:
 
 
 def encode_base62_fixed_array(nums: np.ndarray, length: int) -> np.ndarray:
-    """Vectorized Base62 encoder for many integers."""
+    """
+    Vectorized Base62 encoder for many integers.
+
+    Parameters
+    ----------
+    nums : np.ndarray
+        Array of integers to encode.
+    length : int
+        The fixed length for each encoded string.
+
+    Returns
+    -------
+    np.ndarray
+        Array of Base62 encoded strings of fixed length.
+    """
     alphabet = np.array(list(string.digits + string.ascii_letters))
     alphabet_size = len(alphabet)
 

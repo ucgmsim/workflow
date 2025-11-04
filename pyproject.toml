@@ -40,6 +40,11 @@ dependencies = [
   "tqdm",
   "typer",
 
+  # Plotting
+  "plotly",
+  "pygmt",
+  "pooch",
+
   # Misc.
   "requests",  # For gcmt-to-realisation
   "schema",    # For loading realisations
