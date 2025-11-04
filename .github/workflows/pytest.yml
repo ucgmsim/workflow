@@ -17,6 +17,7 @@ jobs:
       - run: uv venv
       - run: uv pip install -e ".[test,dev]"
       - name: Download velocity data
+        shell: bash -l -e {0}
         run: nzcvm-data-helper ensure --no-full
       - name: Run tests
         run: uv run pytest --cov=workflow --cov-report=html tests

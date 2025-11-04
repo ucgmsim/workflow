@@ -1,3 +1,4 @@
+"""Module for generating simulation site grids."""
 import enum
 import json
 import logging
@@ -59,19 +60,17 @@ class GeneralGrid:
     """
     Represents the general base grid of virtual sites.
     Any custom grid is built off this grid.
+
+    Parameters
+    ----------
+    land_mask_grid : xr.DataArray
+        The land mask grid as an xarray DataArray.
+    spacing : int
+        The grid spacing in metres.
     """
 
     def __init__(self, land_mask_grid: xr.DataArray, spacing: int) -> None:
-        """
-        Initialize GeneralGrid.
-
-        Parameters
-        ----------
-        land_mask_grid : xr.DataArray
-            The land mask grid as an xarray DataArray.
-        spacing : int
-            The grid spacing in metres.
-        """
+        """Initialize GeneralGrid."""
         self.land_mask_grid = land_mask_grid
         self.site_ids = np.arange(land_mask_grid.size, dtype=np.uint32).reshape(
             land_mask_grid.shape
@@ -94,7 +93,14 @@ class GeneralGrid:
 
     @property
     def shape(self) -> tuple[int, int]:
-        """Shape of the grid."""
+        """
+        Shape of the grid.
+
+        Returns
+        -------
+        tuple[int, int]
+            The shape of the grid.
+        """
         return self.land_mask_grid.shape
 
     @classmethod
@@ -352,22 +358,16 @@ class CustomGrid:
     """
     Represents a custom grid of virtual sites
     built from the general grid.
+
+    Parameters
+    ----------
+    general_grid : GeneralGrid, optional
+        The general grid to use. If None, it will be loaded from the
+        default location.
     """
 
     def __init__(self, general_grid: GeneralGrid = None) -> None:
-        """
-        Initialize CustomGrid.
-
-        Parameters
-        ----------
-        general_grid : GeneralGrid, optional
-            The general grid to use. If None, it will be loaded from the
-            default location.
-
-        Returns
-        -------
-        None
-        """
+        """Initialize CustomGrid."""
         if general_grid is None:
             logger.info("Loading general grid...")
             self.general_grid = GeneralGrid.load(GRID_DATA.fetch("general_grid.nc"))
@@ -389,6 +389,11 @@ class CustomGrid:
         """
         Site mask that gives the custom grid
         when applied to the the general grid.
+
+        Returns
+        -------
+        np.ndarray
+            The custom grid mask.
         """
         return self._and_mask & self._or_mask
 
@@ -570,10 +575,6 @@ class CustomGrid:
             The grid spacing in metres to use within basins.
         basins : list[str] | None, optional
             The specific basins to apply the spacing to. If None, applies to all basins.
-
-        Returns
-        -------
-        None
         """
         logger.info(
             f"Adding basin {spacing} spacing filter for {basins if basins is not None else 'all'} basins..."

@@ -361,7 +361,7 @@ def test_small_basin_spacing_error(
         ValueError,
         match="Basin spacing must be greater than or equal to the general grid spacing.",
     ):
-        custom_grid = site_gen.CustomGrid(general_grid).apply_config(config)
+        site_gen.CustomGrid(general_grid).apply_config(config)
 
 
 @pytest.mark.parametrize("factor", [1.2, 1.5])
@@ -379,7 +379,7 @@ def test_multiple_error_basin_spacing(
     with pytest.raises(
         ValueError, match="Basin spacing must be a multiple of the general grid spacing"
     ):
-        custom_grid = site_gen.CustomGrid(general_grid).apply_config(config)
+        site_gen.CustomGrid(general_grid).apply_config(config)
 
 def test_site_dataframe(
     general_grid: site_gen.GeneralGrid
