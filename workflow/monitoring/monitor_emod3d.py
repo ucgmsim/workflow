@@ -101,7 +101,7 @@ class ProgressUpdate:
     # (the first 100 timesteps are typically the slowest).
     tps: float | None = None
     """Timesteps per second (exponential weighted average)."""
-    seconds_remaining: float | None = None
+    seconds_remaining: int | None = None
     """Seconds remaining estimated from tps"""
 
 
@@ -141,7 +141,7 @@ def log_progress_update(event_path: Path) -> ProgressUpdate:
                 cumulative_time = now
                 tps = alpha * instant_tps + (1 - alpha) * tps
     if tps and nt and current:
-        seconds_remaining = (nt - current) / tps
+        seconds_remaining = round((nt - current) / tps)
     return ProgressUpdate(
         event_type=EventType.MODIFIED,
         path=event_path,
