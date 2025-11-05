@@ -178,7 +178,7 @@ async def track_rlog_progress(
                 case ProgressUpdate(event_type=EventType.MODIFIED):
                     task_id = progress_tasks[event.path]
 
-                    if event.nt and task_id not in started:
+                    if event.nt and event.current and task_id not in started:
                         progress.update(task_id, total=event.nt)
                         progress.start_task(task_id)
                         started.add(task_id)
@@ -186,7 +186,7 @@ async def track_rlog_progress(
                     progress.update(
                         task_id,
                         completed=event.current,
-                        tps=event.tps,
+                        tps=event.tps or 0.0,
                         elapsed_time=timedelta(seconds=event.cumulative_time or 0),
                     )
                 case ProgressUpdate(event_type=EventType.STALE):
