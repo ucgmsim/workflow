@@ -169,16 +169,12 @@ async def track_rlog_progress(
                     task_id = progress.add_task(
                         "",
                         filename=event.path.name[: -len(suffix)],
-                        completed=event.current or 0,
-                        total=event.nt,
-                        tps=event.tps or 0.0,
-                        elapsed_time=timedelta(seconds=event.cumulative_time)
-                        if event.cumulative_time
-                        else None,
+                        total=None,
+                        tps=0.0,
+                        elapsed_time=timedelta(seconds=0),
+                        start=False,
                     )
                     progress_tasks[event.path] = task_id
-                    if event.nt:
-                        started.add(task_id)
                 case ProgressUpdate(event_type=EventType.MODIFIED):
                     task_id = progress_tasks[event.path]
 
