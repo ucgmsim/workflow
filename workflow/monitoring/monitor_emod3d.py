@@ -105,9 +105,7 @@ async def monitor_files(
     stale_seconds: int,
 ) -> None:
     tracked: set[Path] = set()
-    for tracked_file in find_fresh_files(
-        root, time.time(), file_glob, stale_seconds
-    ):
+    for tracked_file in find_fresh_files(root, time.time(), file_glob, stale_seconds):
         await queue.put(ProgressUpdate(EventType.CREATED, tracked_file))
         tracked.add(tracked_file)
         await queue.put(log_progress_update(tracked_file))
@@ -120,9 +118,13 @@ async def monitor_files(
         for stale_file in tracked - fresh_files:
             await queue.put(ProgressUpdate(EventType.STALE, stale_file))
             tracked.discard(stale_file)
-        for tracked_file in fresh_files:
+        for updated_file in tracked & fresh_files:
+            if updated_file.stat().st_mtime > now - poll_interval:
+                await queue.put(log_progress_update(updated_file))
+        for tracked_file in fresh_files - tracked:
             await queue.put(ProgressUpdate(EventType.CREATED, tracked_file))
             tracked.add(tracked_file)
+
 
 async def track_rlog_progress(
     event_queue: asyncio.Queue[ProgressUpdate | None],
