@@ -123,6 +123,7 @@ async def monitor_files(
             except asyncio.TimeoutError:
                 await queue.put(None)
                 return
+            print(event)
 
             if event_path := event.path:
                 await queue.put(log_progress_update(event_path))
