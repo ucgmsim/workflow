@@ -121,6 +121,7 @@ async def monitor_files(
             tracked.discard(stale_file)
         for updated_file in tracked & fresh_files:
             if updated_file.stat().st_mtime > last_scan:
+                print("Updating for file", updated_file)
                 await queue.put(log_progress_update(updated_file))
         for tracked_file in fresh_files - tracked:
             await queue.put(ProgressUpdate(EventType.CREATED, tracked_file))
