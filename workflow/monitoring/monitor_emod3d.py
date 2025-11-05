@@ -122,6 +122,7 @@ async def monitor_files(
                 )
             except asyncio.TimeoutError:
                 await queue.put(None)
+                print('Bailing from file monitoring!')
                 return
             print(event)
 
