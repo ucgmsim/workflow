@@ -258,6 +258,7 @@ async def track_rlog_progress(
                         total=None,
                         tps=0.0,
                         elapsed_time=timedelta(seconds=0),
+                        time_remaining="-:--:--",
                         start=False,
                     )
                     progress_tasks[event.path] = task_id
