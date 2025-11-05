@@ -111,6 +111,7 @@ async def monitor_files(
         ):
             await queue.put(ProgressUpdate(EventType.CREATED, tracked_file))
             tracked[tracked_file] = inotify.add_watch(tracked_file.parent, Mask.MODIFY)
+            await queue.put(log_progress_update(tracked_file))
 
         last_scan = time.time()
         while True:
