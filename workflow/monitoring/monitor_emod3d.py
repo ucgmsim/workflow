@@ -42,6 +42,7 @@ STEP_REGEX = re.compile(
 def find_fresh_files(
     root: Path, now: float, file_glob: str, stale_seconds: int
 ) -> list[Path]:
+    """Find all files matching a given file glob in a directory modified after a given time."""
     return [
         f.resolve()
         for f in root.rglob(file_glob)
@@ -74,7 +75,6 @@ def log_progress_update(event_path: Path) -> ProgressUpdate:
     with open(event_path, "r") as fp:
         for line in fp:
             if m := NT_REGEX.match(line):
-                print(line)
                 nt = int(m.group("nt"))
             elif m := STEP_REGEX.match(line):
                 tps = tps or 0.0
@@ -111,6 +111,7 @@ async def monitor_files(
         await queue.put(log_progress_update(tracked_file))
 
     poll_interval = 5
+    last_scan = time.time()
     while True:
         await asyncio.sleep(poll_interval)
         now = time.time()
@@ -119,11 +120,12 @@ async def monitor_files(
             await queue.put(ProgressUpdate(EventType.STALE, stale_file))
             tracked.discard(stale_file)
         for updated_file in tracked & fresh_files:
-            if updated_file.stat().st_mtime > now - poll_interval:
+            if updated_file.stat().st_mtime > last_scan:
                 await queue.put(log_progress_update(updated_file))
         for tracked_file in fresh_files - tracked:
             await queue.put(ProgressUpdate(EventType.CREATED, tracked_file))
             tracked.add(tracked_file)
+        last_scan = now
 
 
 async def track_rlog_progress(
@@ -161,7 +163,6 @@ async def track_rlog_progress(
                     progress_tasks[event.path] = task_id
                 case ProgressUpdate(event_type=EventType.MODIFIED):
                     task_id = progress_tasks[event.path]
-                    print(event)
                     if event.nt and event.current and task_id not in started:
                         progress.update(task_id, total=event.nt)
                         progress.start_task(task_id)
