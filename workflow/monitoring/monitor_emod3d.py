@@ -112,13 +112,12 @@ async def monitor_files(
         tracked.add(tracked_file)
         await queue.put(log_progress_update(tracked_file))
 
-    last_scan = time.time()
     poll_interval = 5
     while True:
         await asyncio.sleep(poll_interval)
-
+        now = time.time()
         fresh_files = set(find_fresh_files(root, now, file_glob, stale_seconds))
-        for stale_file in set(tracked) - fresh_files:
+        for stale_file in tracked - fresh_files:
             await queue.put(ProgressUpdate(EventType.STALE, stale_file))
             tracked.discard(stale_file)
         for tracked_file in fresh_files:
