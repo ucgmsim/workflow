@@ -111,7 +111,7 @@ async def monitor_files(
             root, time.time(), file_glob, stale_seconds
         ):
             await queue.put(ProgressUpdate(EventType.CREATED, tracked_file))
-            tracked[tracked_file] = inotify.add_watch(tracked_file.parent, Mask.MODIFY)
+            tracked[tracked_file] = inotify.add_watch(tracked_file, Mask.MODIFY)
             await queue.put(log_progress_update(tracked_file))
 
         last_scan = time.time()
@@ -140,7 +140,7 @@ async def monitor_files(
                 for tracked_file in fresh_files:
                     await queue.put(ProgressUpdate(EventType.CREATED, tracked_file))
                     tracked[tracked_file] = inotify.add_watch(
-                        tracked_file.parent, Mask.MODIFY
+                        tracked_file, Mask.MODIFY
                     )
                 last_scan = now
 
