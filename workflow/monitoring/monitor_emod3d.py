@@ -13,7 +13,7 @@ from rich.progress import BarColumn, Progress, TextColumn, TimeRemainingColumn
 app = typer.Typer()
 
 
-NT_REGEX = re.compile(r"nt=\s*(?P<nt>\d+)", re.VERBOSE)
+NT_REGEX = re.compile(r"^\s+nt=\s*(?P<nt>\d+)\s*$")
 STEP_REGEX = re.compile(
     r"""
     ^\s*
@@ -27,7 +27,7 @@ STEP_REGEX = re.compile(
     \s+
     (?P<real_transfer>[\d.]+)   # %Real (Data Transfer)
     \s+
-    (?P<cpu_comp>[\d]+)\.        # CPU (Transfer & Computation)
+    (?P<cpu_comp>[\d.]+)        # CPU (Transfer & Computation)
     \s+
     (?P<real_comp>[\d.]+)       # %Real (Transfer & Computation)
     \s+
@@ -74,7 +74,8 @@ def log_progress_update(event_path: Path) -> ProgressUpdate:
     alpha = 0.3
     with open(event_path, "r") as fp:
         for line in fp:
-            if m := NT_REGEX.search(line):
+            if m := NT_REGEX.match(line):
+                print(line)
                 nt = int(m.group("nt"))
             elif m := STEP_REGEX.match(line):
                 tps = tps or 0.0
