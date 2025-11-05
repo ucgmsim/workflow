@@ -104,31 +104,28 @@ async def monitor_files(
     file_glob: str,
     stale_seconds: int,
 ) -> None:
-    tracked: set[Path] = set()
+    tracked: dict[Path, int] = {}
     for tracked_file in find_fresh_files(root, time.time(), file_glob, stale_seconds):
         await queue.put(ProgressUpdate(EventType.CREATED, tracked_file))
-        tracked.add(tracked_file)
+        tracked[tracked_file] = tracked_file.stat().st_size
         await queue.put(log_progress_update(tracked_file))
 
     poll_interval = 5
-    last_scan = time.time()
     while True:
         await asyncio.sleep(poll_interval)
         now = time.time()
         fresh_files = set(find_fresh_files(root, now, file_glob, stale_seconds))
-        print(fresh_files)
-        for stale_file in tracked - fresh_files:
+        tracked_files = set(tracked)
+        for stale_file in tracked_files - fresh_files:
             await queue.put(ProgressUpdate(EventType.STALE, stale_file))
-            tracked.discard(stale_file)
-        for updated_file in tracked & fresh_files:
-            print(updated_file, updated_file.stat().st_mtime - last_scan)
-            if updated_file.stat().st_mtime > last_scan:
-                print("Updating for file", updated_file)
+        for updated_file in tracked_files & fresh_files:
+            size = updated_file.stat().st_size
+            if tracked[updated_file] != size:
                 await queue.put(log_progress_update(updated_file))
-        for tracked_file in fresh_files - tracked:
+                tracked[updated_file] = size
+        for tracked_file in fresh_files - tracked_files:
             await queue.put(ProgressUpdate(EventType.CREATED, tracked_file))
-            tracked.add(tracked_file)
-        last_scan = now
+            tracked[tracked_file] = tracked_file.stat().st_size
 
 
 async def track_rlog_progress(
