@@ -101,6 +101,8 @@ class ProgressUpdate:
     # (the first 100 timesteps are typically the slowest).
     tps: float | None = None
     """Timesteps per second (exponential weighted average)."""
+    seconds_remaining: float | None = None
+    """Seconds remaining estimated from tps"""
 
 
 def log_progress_update(event_path: Path) -> ProgressUpdate:
@@ -138,7 +140,8 @@ def log_progress_update(event_path: Path) -> ProgressUpdate:
                 current = next_ts
                 cumulative_time = now
                 tps = alpha * instant_tps + (1 - alpha) * tps
-
+    if tps and nt and current:
+        seconds_remaining = (nt - current) / tps
     return ProgressUpdate(
         event_type=EventType.MODIFIED,
         path=event_path,
@@ -146,6 +149,7 @@ def log_progress_update(event_path: Path) -> ProgressUpdate:
         current=current,
         cumulative_time=cumulative_time,
         tps=tps,
+        seconds_remaining=seconds_remaining,
     )
 
 
@@ -239,8 +243,7 @@ async def track_rlog_progress(
         TextColumn("{task.completed}/{task.total}"),
         TextColumn("{task.fields[tps]:.2f} steps/s"),
         TextColumn("[blue]{task.fields[elapsed_time]}"),
-        TimeRemainingColumn(),
-        speed_estimate_period=stale_seconds,
+        TextColumn("[cyan]{task.fields[time_remaining]}"),
     )
     progress_tasks = {}
     started = set()
@@ -270,6 +273,9 @@ async def track_rlog_progress(
                         completed=event.current,
                         tps=event.tps or 0.0,
                         elapsed_time=timedelta(seconds=event.cumulative_time or 0),
+                        time_remaining=timedelta(seconds=event.seconds_remaining)
+                        if event.seconds_remaining
+                        else "-:--:---",
                     )
                 case ProgressUpdate(event_type=EventType.STALE):
                     task_id = progress_tasks.pop(event.path)
