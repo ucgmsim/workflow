@@ -50,6 +50,7 @@ dependencies = [
 [project.optional-dependencies]
 test = ["pytest"]
 dev = ["ruff", "deptry"]
+monitoring = ["rich", "asyncinotify"]
 
 [tool.deptry]
 pep621_dev_dependency_groups = ["test", "dev"]
@@ -76,6 +77,7 @@ plan-workflow = "workflow.scripts.plan_workflow:app"
 gcmt-auto-simulate = "workflow.scripts.gcmt_auto_simulate:app"
 import-realisation = "workflow.scripts.import_realisation:app"
 lf-to-xarray = "workflow.scripts.lf_to_xarray:app"
+monitor-lf = "workflow.monitoring.monitor_emod3d:app"
 
 [tool.setuptools.package-dir]
 workflow = "workflow"
