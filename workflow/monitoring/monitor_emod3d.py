@@ -118,6 +118,7 @@ async def monitor_files(
         tracked_files = set(tracked)
         for stale_file in tracked_files - fresh_files:
             await queue.put(ProgressUpdate(EventType.STALE, stale_file))
+            del tracked[stale_file]
         for updated_file in tracked_files & fresh_files:
             size = updated_file.stat().st_size
             if tracked[updated_file] != size:
