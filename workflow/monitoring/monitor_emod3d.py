@@ -116,10 +116,12 @@ async def monitor_files(
         await asyncio.sleep(poll_interval)
         now = time.time()
         fresh_files = set(find_fresh_files(root, now, file_glob, stale_seconds))
+        print(fresh_files)
         for stale_file in tracked - fresh_files:
             await queue.put(ProgressUpdate(EventType.STALE, stale_file))
             tracked.discard(stale_file)
         for updated_file in tracked & fresh_files:
+            print(updated_file, updated_file.stat().st_mtime - last_scan)
             if updated_file.stat().st_mtime > last_scan:
                 print("Updating for file", updated_file)
                 await queue.put(log_progress_update(updated_file))
