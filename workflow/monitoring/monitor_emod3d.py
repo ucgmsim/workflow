@@ -7,7 +7,6 @@ from enum import Enum, auto
 from pathlib import Path
 
 import typer
-from asyncinotify import Event, Inotify, Mask, Watch
 from rich.progress import BarColumn, Progress, TextColumn, TimeRemainingColumn
 
 app = typer.Typer()
@@ -105,45 +104,26 @@ async def monitor_files(
     file_glob: str,
     stale_seconds: int,
 ) -> None:
-    tracked: dict[Path, Watch] = {}
-    with Inotify() as inotify:
-        for tracked_file in find_fresh_files(
-            root, time.time(), file_glob, stale_seconds
-        ):
+    tracked: set[Path] = set()
+    for tracked_file in find_fresh_files(
+        root, time.time(), file_glob, stale_seconds
+    ):
+        await queue.put(ProgressUpdate(EventType.CREATED, tracked_file))
+        tracked.add(tracked_file)
+        await queue.put(log_progress_update(tracked_file))
+
+    last_scan = time.time()
+    poll_interval = 5
+    while True:
+        await asyncio.sleep(poll_interval)
+
+        fresh_files = set(find_fresh_files(root, now, file_glob, stale_seconds))
+        for stale_file in set(tracked) - fresh_files:
+            await queue.put(ProgressUpdate(EventType.STALE, stale_file))
+            tracked.discard(stale_file)
+        for tracked_file in fresh_files:
             await queue.put(ProgressUpdate(EventType.CREATED, tracked_file))
-            tracked[tracked_file] = inotify.add_watch(tracked_file, Mask.MODIFY | Mask.MOVE_SELF | Mask.CLOSE_WRITE)
-            await queue.put(log_progress_update(tracked_file))
-
-        last_scan = time.time()
-        while True:
-            try:
-                event: Event = await asyncio.wait_for(
-                    inotify.get(), timeout=stale_seconds
-                )
-            except asyncio.TimeoutError:
-                await queue.put(None)
-                print('Bailing from file monitoring!')
-                return
-            print(event)
-
-            if event_path := event.path:
-                await queue.put(log_progress_update(event_path))
-
-            now = time.time()
-            if now - last_scan > stale_seconds:
-                fresh_files = set(find_fresh_files(root, now, file_glob, stale_seconds))
-
-                for stale_file in set(tracked) - fresh_files:
-                    await queue.put(ProgressUpdate(EventType.STALE, stale_file))
-                    watch = tracked.pop(stale_file)
-                    inotify.rm_watch(watch)
-                for tracked_file in fresh_files:
-                    await queue.put(ProgressUpdate(EventType.CREATED, tracked_file))
-                    tracked[tracked_file] = inotify.add_watch(
-                        tracked_file, Mask.MODIFY
-                    )
-                last_scan = now
-
+            tracked.add(tracked_file)
 
 async def track_rlog_progress(
     event_queue: asyncio.Queue[ProgressUpdate | None],
