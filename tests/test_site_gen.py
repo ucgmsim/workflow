@@ -28,7 +28,7 @@ def test_general_grid(land_mask_grid: tuple[xr.DataArray, int]) -> None:
     land_mask_grid, spacing = land_mask_grid
     with tempfile.TemporaryDirectory() as tmpdir:
         ffp = f"{tmpdir}/general_grid.nc"
-        land_mask_grid.to_netcdf(ffp, engine="scipy")
+        land_mask_grid.to_netcdf(ffp, engine="h5netcdf")
         loaded_grid = site_gen.GeneralGrid.load(ffp)
 
         assert loaded_grid.land_mask_grid.spacing == spacing
