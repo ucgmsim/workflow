@@ -122,7 +122,7 @@ def log_call(
     return decorator
 
 
-def log_check_call(args: list[str], **kwargs: Any) -> None:
+def log_check_call(args: list[str], **kwargs: Any) -> str:
     """Execute a command, and log its output.
 
     Parameters
