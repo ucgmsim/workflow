@@ -66,6 +66,11 @@ def get_available_cores() -> int:
         Either the reported number of cores from the multiprocessing
         module, or the number of allocated cores if running in a slurm
         environment.
+
+    Raises
+    ------
+    RuntimeError
+        If the number of CPUs cannot be determined on the system.
     """
     if "SLURM_CPUS_ON_NODE" in os.environ:
         return int(os.environ["SLURM_CPUS_ON_NODE"])
@@ -92,5 +97,7 @@ def get_available_cores() -> int:
     process = psutil.Process()
     if hasattr(process, "cpu_affinity"):
         return len(process.cpu_affinity())
+    elif cpu_count := psutil.cpu_count():
+        return cpu_count
     else:
-        return psutil.cpu_count()
+        raise RuntimeError("Cannot determine CPU count.")
