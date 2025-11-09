@@ -2,9 +2,9 @@ name: Type Check
 
 on:
   push:
-    branches: [main]
+    branches: [pegasus]
   pull_request:
-    branches: [main]
+    branches: [pegasus]
 
 jobs:
   typecheck:
