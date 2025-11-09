@@ -499,8 +499,8 @@ def create_abstract_workflow_plan(
         realisations if len(realisations) < 100 else tqdm.tqdm(realisations)
     )
 
-    for realisation in realisation_iteration:
-        workflow_plan = realisation_workflow(*realisation)
+    for event, realisation in realisation_iteration:
+        workflow_plan = realisation_workflow(event, realisation)
         workflow_plan = nx.transitive_closure_dag(workflow_plan)
 
         for goal in goals:

@@ -8,7 +8,7 @@ import geopandas as gpd
 import numpy as np
 import psutil
 import shapely
-from shapely import Geometry, Polygon
+from shapely import Geometry, Polygon, geometry
 
 from qcore import coordinates
 
@@ -44,7 +44,7 @@ def get_nz_outline_polygon() -> Geometry:
     island_polygons = [
         Polygon(
             coordinates.wgs_depth_to_nztm(
-                np.array(shapely.geometry.mapping(island)["coordinates"])[:, ::-1]
+                np.array(geometry.mapping(island)["coordinates"])[:, ::-1]
             )
         )
         for island in gpd_df.geometry
@@ -89,4 +89,8 @@ def get_available_cores() -> int:
     # process. This is the most reliable way to set CPU cores. It also
     # means that using `taskset(1)` on any other system will be
     # respected by workflow jobs.
-    return len(psutil.Process().cpu_affinity())
+    process = psutil.Process()
+    if hasattr(process, "cpu_affinity"):
+        return len(process.cpu_affinity())
+    else:
+        return psutil.cpu_count()
