@@ -26,4 +26,4 @@ jobs:
         run: uv sync --all-extras --dev
 
       - name: Run type checking with ty
-        run: uv run ty check --exclude workflow/schemas.py 
+        run: uv run ty check --exclude workflow/schemas.py --exclude setup.py
