@@ -179,7 +179,7 @@ def _has_non_negative_depth(corners: np.ndarray) -> bool:
         Returns true if the last column of the corners is
         non-negative.
     """
-    return np.all(corners[:, -1] >= 0)
+    return bool(np.all(corners[:, -1] >= 0))
 
 
 def _corners_to_array(corners_spec: list[dict[str, float]]) -> np.ndarray:
@@ -464,7 +464,7 @@ VELOCITY_MODEL_SCHEMA = Schema(
             description="The minimum velocity (km/s) produced in the velocity model.",
         ): And(NUMBER, _is_positive),
         Literal("version", "Velocity model version"): Or(
-            "2.02", "2.03", "2.06", "2.07", "2.08", "2.09"
+            "2.02", "2.03", "2.06", "2.07", "2.08", "2.09", "2.09_no_basin"
         ),
         Literal("topo_type", "Velocity model topology type"): str,
         Literal("dt", "Velocity model timestep resolution"): And(NUMBER, _is_positive),

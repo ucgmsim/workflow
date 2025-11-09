@@ -38,7 +38,7 @@ from qcore import cli, coordinates, xyts
 
 app = typer.Typer()
 
-@cli.from_docstring(app, name="hdf5")
+@cli.from_docstring(app, name="hdf5")  # type: ignore
 def merge_ts_hdf5(
     component_xyts_directory: Annotated[
         Path,

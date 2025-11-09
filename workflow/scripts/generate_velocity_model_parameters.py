@@ -450,7 +450,8 @@ def generate_velocity_model_parameters(
     # corner in the source geometries.
     # These may be in the domain where they are over land.
     rrup_bounding_polygons = [
-        find_rrup_bounding_polygon(*args, pgv_target=realisation_pgv_target)
+        # The type error about existing assignment seems to be a bug.
+        find_rrup_bounding_polygon(*args, pgv_target=realisation_pgv_target)  # type: ignore
         for args in dict_zip(
             source_config.source_geometries,
             magnitudes.magnitudes,

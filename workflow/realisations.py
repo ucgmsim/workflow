@@ -10,12 +10,12 @@ module become an "everything" module.
 
 import dataclasses
 import datetime
-import importlib
 import json
 import random
 import struct
 import sys
 from abc import ABC
+from importlib import metadata
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Self, Union
 
@@ -366,7 +366,6 @@ class SRFConfig(RealisationConfiguration):
 
     point_source_params: schemas.PointSourceParams | None
     """Parameters for point source approximation, if applicable."""
-
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -963,8 +962,17 @@ class LogEntry:
         -------
         LogEntry
             A log entry for the utility.
+
+        Raises
+        ------
+        RuntimeError
+            If package metadata cannot be retrieved.
         """
-        version = importlib.metadata.version(__package__)
+        if not __package__:
+            raise RuntimeError(
+                "Cannot determine package name (__package__ is not set)."
+            )
+        version = metadata.version(__package__)
         return cls(
             utility=utility,
             version=version,
@@ -987,7 +995,7 @@ class LogTrail(RealisationConfiguration):
         if self.log is None:
             self.log = []
         if self.log and not isinstance(self.log[0], LogEntry):
-            self.log = [LogEntry(**log_entry) for log_entry in self.log]
+            self.log = [LogEntry(**log_entry) for log_entry in self.log]  # type: ignore
 
     def log_entry(self, utility: str, args: list[str]) -> None:
         """Add a log entry to the log trail.
