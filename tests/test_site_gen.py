@@ -300,7 +300,7 @@ def test_uniform_valid_spacing(
 
 
 def test_basin_spacing(
-    general_grid: site_gen.GeneralGrid, canterbury_region_polygon: shapely.Polygon 
+    general_grid: site_gen.GeneralGrid, canterbury_region_polygon: shapely.Polygon
 ) -> None:
     uniform_spacing = general_grid.spacing * 2
     config = site_gen.CustomGridConfig(
@@ -332,6 +332,7 @@ def test_small_uniform_spacing_error(
     ):
         site_gen.CustomGrid(general_grid).apply_config(config)
 
+
 @pytest.mark.parametrize("factor", [1.2, 1.5])
 def test_multiple_error_uniform_spacing(
     general_grid: site_gen.GeneralGrid, factor: float
@@ -345,6 +346,7 @@ def test_multiple_error_uniform_spacing(
         match="Uniform spacing must be a multiple of the general grid spacing",
     ):
         site_gen.CustomGrid(general_grid).apply_config(config)
+
 
 @pytest.mark.parametrize("basin_spacing", [5_000, 10_000])
 def test_small_basin_spacing_error(
@@ -381,9 +383,8 @@ def test_multiple_error_basin_spacing(
     ):
         site_gen.CustomGrid(general_grid).apply_config(config)
 
-def test_site_dataframe(
-    general_grid: site_gen.GeneralGrid
-) -> None:
+
+def test_site_dataframe(general_grid: site_gen.GeneralGrid) -> None:
     config = site_gen.CustomGridConfig(
         uniform_spacing=general_grid.spacing * 2,
         vel_model_version="2.09",
@@ -412,32 +413,33 @@ def test_site_dataframe_basin(
     site_df = custom_grid.get_site_df()
 
     assert (site_df.basin == "Canterbury_v25p9").all()
-    
-        
 
-    
 
 @given(
-    nums=st.lists(st.integers(min_value=0, max_value=62**4 - 1), min_size=2, max_size=500),
+    nums=st.lists(
+        st.integers(min_value=0, max_value=62**4 - 1), min_size=2, max_size=500
+    ),
     length=st.integers(min_value=3, max_value=5),
 )
 def test_encode_base62_combined_properties(nums: list[int], length: int) -> None:
     """Property: encoded strings should have fixed length, be unique, and use valid base62 characters."""
     nums_array = np.array(nums)
     assume(np.all(nums_array < 62**length))  # Ensure all inputs fit in the length
-    assume(np.unique(nums_array).size == len(nums_array))  # Ensure all inputs are unique
-    
+    assume(
+        np.unique(nums_array).size == len(nums_array)
+    )  # Ensure all inputs are unique
+
     result = site_gen.encode_base62_fixed_array(nums_array, length=length)
-    
+
     # The number of output codes should match the number of input numbers
     assert len(result) == len(nums)
 
     # All encoded strings should have the specified length
     assert all(len(code) == length for code in result)
-    
+
     # Different numbers should produce different codes (all inputs are unique)
     assert len(np.unique(result)) == len(nums)
-    
+
     # Encoded strings should only contain valid base62 characters
     alphabet = set(string.digits + string.ascii_letters)
     for code in result:
@@ -451,23 +453,27 @@ def test_encode_base62_boundary_values_property(length: int) -> None:
     """Property: test boundary values (0 and max) for a given length."""
     max_val = 62**length - 1
     nums = np.array([0, max_val])
-    
+
     result = site_gen.encode_base62_fixed_array(nums, length=length)
-    
+
     assert len(result) == 2
     assert all(len(code) == length for code in result)
     assert result[0] == "0" * length
+
 
 @given(
     too_large_num=st.integers(min_value=62**3, max_value=62**4),
     length=st.just(3),
 )
-def test_encode_base62_too_large_error_property(too_large_num: int, length: int) -> None:
+def test_encode_base62_too_large_error_property(
+    too_large_num: int, length: int
+) -> None:
     """Property: numbers too large for the specified length should raise ValueError."""
     nums = np.array([too_large_num])
-    
+
     with pytest.raises(ValueError, match="too large"):
         site_gen.encode_base62_fixed_array(nums, length=length)
+
 
 @given(
     num=st.integers(min_value=0, max_value=62**3 - 1),
@@ -475,7 +481,7 @@ def test_encode_base62_too_large_error_property(too_large_num: int, length: int)
 def test_encode_base62_same_input_same_output_property(num: int) -> None:
     """Property: encoding the same number multiple times should give the same result."""
     nums = np.array([num, num, num])
-    
+
     result = site_gen.encode_base62_fixed_array(nums, length=3)
-    
+
     assert result[0] == result[1] == result[2]

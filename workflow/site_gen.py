@@ -60,17 +60,20 @@ class GeneralGrid:
     """
     Represents the general base grid of virtual sites.
     Any custom grid is built off this grid.
-
-    Parameters
-    ----------
-    land_mask_grid : xr.DataArray
-        The land mask grid as an xarray DataArray.
-    spacing : int
-        The grid spacing in metres.
     """
 
     def __init__(self, land_mask_grid: xr.DataArray, spacing: int) -> None:
-        """Initialize GeneralGrid."""
+        """
+        Initialize GeneralGrid.
+
+        Parameters
+        ----------
+        land_mask_grid : xr.DataArray
+            The land mask grid as an xarray DataArray.
+        spacing : int
+            The grid spacing in metres.
+
+        """
         self.land_mask_grid = land_mask_grid
         self.site_ids = np.arange(land_mask_grid.size, dtype=np.uint32).reshape(
             land_mask_grid.shape
@@ -358,16 +361,18 @@ class CustomGrid:
     """
     Represents a custom grid of virtual sites
     built from the general grid.
-
-    Parameters
-    ----------
-    general_grid : GeneralGrid, optional
-        The general grid to use. If None, it will be loaded from the
-        default location.
     """
 
     def __init__(self, general_grid: GeneralGrid = None) -> None:
-        """Initialize CustomGrid."""
+        """
+        Initialize CustomGrid.
+
+        Parameters
+        ----------
+        general_grid : GeneralGrid, optional
+            The general grid to use. If None, it will be loaded from the
+            default location.
+        """
         if general_grid is None:
             logger.info("Loading general grid...")
             self.general_grid = GeneralGrid.load(GRID_DATA.fetch("general_grid.nc"))

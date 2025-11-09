@@ -155,34 +155,3 @@ def merge_ts_hdf5(
             }
         },
     )
-
-
-@cli.from_docstring(app, name="xyts")
-def merge_ts(
-    component_xyts_directory: Annotated[
-        Path,
-        typer.Argument(
-            dir_okay=True,
-            file_okay=False,
-            exists=True,
-            readable=True,
-        ),
-    ],
-    output: Annotated[
-        Path,
-        typer.Argument(dir_okay=False, writable=True),
-    ],
-    glob_pattern: str = "*xyts-*.e3d",
-) -> None:
-    """Merge XYTS files.
-
-    Parameters
-    ----------
-    component_xyts_directory : Path
-        The input xyts directory containing files to merge.
-    output : Path
-        The output xyts file.
-    glob_pattern : str, optional
-        Set a custom glob pattern for merging the xyts files, by default "*xyts-*.e3d".
-    """
-    merge_ts_xyts(component_xyts_directory, output, glob_pattern)
