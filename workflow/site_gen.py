@@ -60,6 +60,13 @@ class GeneralGrid:
     """
     Represents the general base grid of virtual sites.
     Any custom grid is built off this grid.
+
+    Parameters
+    ----------
+    land_mask_grid : xr.DataArray
+        The land mask grid as an xarray DataArray.
+    spacing : int
+        The grid spacing in metres.
     """
 
     def __init__(self, land_mask_grid: xr.DataArray, spacing: int) -> None:
@@ -72,7 +79,6 @@ class GeneralGrid:
             The land mask grid as an xarray DataArray.
         spacing : int
             The grid spacing in metres.
-
         """
         self.land_mask_grid = land_mask_grid
         self.site_ids = np.arange(land_mask_grid.size, dtype=np.uint32).reshape(
@@ -361,6 +367,12 @@ class CustomGrid:
     """
     Represents a custom grid of virtual sites
     built from the general grid.
+
+    Parameters
+    ----------
+    general_grid : GeneralGrid, optional
+        The general grid to use. If None, it will be loaded from the
+        default location.
     """
 
     def __init__(self, general_grid: GeneralGrid = None) -> None:
@@ -810,8 +822,8 @@ class CustomGrid:
                 include_sigma=False,
                 logger=logger,
             )
-            site_df["Z1.0"] = z_values["Z_1.0(km)"]
-            site_df["Z2.5"] = z_values["Z_2.5(km)"]
+            site_df["Z1.0"] = z_values["Z1.0(km)"]
+            site_df["Z2.5"] = z_values["Z2.5(km)"]
             logger.info(f"Took: {time.time() - start} to add Z-values")
 
         # Add site ids

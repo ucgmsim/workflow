@@ -31,15 +31,15 @@ def test_general_grid(land_mask_grid: tuple[xr.DataArray, int]) -> None:
         land_mask_grid.to_netcdf(ffp)
         loaded_grid = site_gen.GeneralGrid.load(ffp)
 
-    assert loaded_grid.land_mask_grid.spacing == spacing
-    assert loaded_grid.shape == land_mask_grid.shape
-    assert np.array_equal(loaded_grid.land_mask_grid.values, land_mask_grid.values)
-    assert np.array_equal(
-        loaded_grid.land_mask_grid.lat.values, land_mask_grid.lat.values
-    )
-    assert np.array_equal(
-        loaded_grid.land_mask_grid.lon.values, land_mask_grid.lon.values
-    )
+        assert loaded_grid.land_mask_grid.spacing == spacing
+        assert loaded_grid.shape == land_mask_grid.shape
+        assert np.array_equal(loaded_grid.land_mask_grid.values, land_mask_grid.values)
+        assert np.array_equal(
+            loaded_grid.land_mask_grid.lat.values, land_mask_grid.lat.values
+        )
+        assert np.array_equal(
+            loaded_grid.land_mask_grid.lon.values, land_mask_grid.lon.values
+        )
 
 
 @pytest.fixture(scope="module")
