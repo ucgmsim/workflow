@@ -1,4 +1,5 @@
 """Module for generating simulation site grids."""
+
 import enum
 import json
 import logging
@@ -284,7 +285,9 @@ class CustomGridConfig:
 
     def __post_init__(self) -> None:
         """Post-initialization checks."""
-        if self.basin_spacing is not None and self.vel_model_version is None:
+        if (
+            self.basin_spacing is not None or self.per_basin_spacing is not None
+        ) and self.vel_model_version is None:
             raise ValueError(
                 "vel_model_version must be provided if basin_spacing is set."
             )
@@ -375,7 +378,7 @@ class CustomGrid:
         default location.
     """
 
-    def __init__(self, general_grid: GeneralGrid = None) -> None:
+    def __init__(self, general_grid: GeneralGrid | None = None) -> None:
         """
         Initialize CustomGrid.
 
@@ -432,30 +435,33 @@ class CustomGrid:
         self._reset()
         self.config = config
 
+        # Land filter
         if self.config.land_only:
             self._add_land_only_filter()
+        # Region filter
         if self.config.region is not None:
             self._add_region_filter(self.config.region)
+        # Uniform spacing
         if self.config.uniform_spacing is not None:
             self._add_uniform_spacing_filter(self.config.uniform_spacing)
-        if (
-            self.config.vel_model_version is not None
-            and self.config.basin_spacing is not None
-        ):
-            self._add_basin_spacing_filter(
-                self.config.vel_model_version, self.config.basin_spacing
-            )
-        if self.config.per_basin_spacing is not None:
-            # Group by spacing
-            basin_spacing_series = pd.Series(self.config.per_basin_spacing)
-            spacing_groups = basin_spacing_series.groupby(basin_spacing_series)
-
-            for spacing, basins in spacing_groups.groups.items():
+        # Basin spacing
+        if self.config.vel_model_version is not None:
+            if self.config.basin_spacing is not None:
                 self._add_basin_spacing_filter(
-                    self.config.vel_model_version,
-                    spacing,
-                    basins.tolist(),
+                    self.config.vel_model_version, self.config.basin_spacing
                 )
+            if self.config.per_basin_spacing is not None:
+                # Group by spacing
+                basin_spacing_series = pd.Series(self.config.per_basin_spacing)
+                spacing_groups = basin_spacing_series.groupby(basin_spacing_series)
+
+                for spacing, basins in spacing_groups.groups.items():
+                    self._add_basin_spacing_filter(
+                        self.config.vel_model_version,
+                        spacing,
+                        basins.tolist(),
+                    )
+        # Per-region spacing
         if self.config.per_region_spacing is not None:
             for region_spacing_config in self.config.per_region_spacing:
                 self._add_region_spacing_filter(region_spacing_config)
@@ -659,7 +665,7 @@ class CustomGrid:
                     site_df.groupby("basin").size().to_dict()
                 )
 
-        metadata = {"metadata": site_metadata, "config": self.config.as_dict()}
+        metadata = {"site_metadata": site_metadata, "config": self.config.as_dict()}
         return metadata
 
     def get_site_df(
@@ -691,6 +697,9 @@ class CustomGrid:
         Basin membership and Z-values are only added if vel_model_version
         is set in the configuration.
         """
+        if self.config is None:
+            raise ValueError("CustomGridConfig must be applied before getting site df.")
+
         if self.mask.sum() == 0:
             logger.warning("Custom grid has no sites selected.")
             return pd.DataFrame()

@@ -1,8 +1,12 @@
 import json
 import string
 import tempfile
+from pathlib import Path
+from unittest.mock import patch
 
+import geopandas as gpd
 import numpy as np
+import pandas as pd
 import pytest
 import shapely
 import xarray as xr
@@ -10,24 +14,31 @@ from hypothesis import assume, given
 from hypothesis import strategies as st
 from scipy.spatial import distance as sdist
 
+from qcore import coordinates
 from workflow import site_gen
 
 
 @pytest.fixture(scope="module", params=[50_000, 25_000])
-def land_mask_grid(request: pytest.FixtureRequest) -> tuple[xr.DataArray, int]:
+def land_mask_grid_spacing_tuple(
+    request: pytest.FixtureRequest,
+) -> tuple[xr.DataArray, int]:
     spacing = request.param
     return site_gen.gen_general_land_mask_grid(spacing), spacing
 
 
 @pytest.fixture
-def general_grid(land_mask_grid: tuple[xr.DataArray, int]) -> site_gen.GeneralGrid:
-    return site_gen.GeneralGrid(land_mask_grid[0], land_mask_grid[1])
+def general_grid(
+    land_mask_grid_spacing_tuple: tuple[xr.DataArray, int],
+) -> site_gen.GeneralGrid:
+    return site_gen.GeneralGrid(
+        land_mask_grid_spacing_tuple[0], land_mask_grid_spacing_tuple[1]
+    )
 
 
-def test_general_grid(land_mask_grid: tuple[xr.DataArray, int]) -> None:
-    land_mask_grid, spacing = land_mask_grid
+def test_general_grid(land_mask_grid_spacing_tuple: tuple[xr.DataArray, int]) -> None:
+    land_mask_grid, spacing = land_mask_grid_spacing_tuple
     with tempfile.TemporaryDirectory() as tmpdir:
-        ffp = f"{tmpdir}/general_grid.nc"
+        ffp = Path(f"{tmpdir}/general_grid.nc")
         land_mask_grid.to_netcdf(ffp, engine="h5netcdf")
         loaded_grid = site_gen.GeneralGrid.load(ffp)
 
@@ -101,6 +112,20 @@ def water_region_polygon() -> shapely.Polygon:
     return polygon
 
 
+@pytest.fixture(scope="module")
+def central_south_island_region_polygon() -> shapely.Polygon:
+    polygon = shapely.Polygon(
+        [
+            (169.07901872038428, -42.23259539489639),
+            (169.07901872038428, -44.678482592421624),
+            (174.25821453531285, -44.678482592421624),
+            (174.25821453531285, -42.23259539489639),
+            (169.07901872038428, -42.23259539489639),
+        ]
+    )
+    return polygon
+
+
 def test_region_spacing_config_region_file(
     chch_region_polygon: shapely.Polygon,
 ) -> None:
@@ -128,6 +153,17 @@ def test_region_spacing_config_region_file(
         assert shapely.equals_exact(region_spacing_config.region, chch_region_polygon)
 
 
+def test_region_spacing_config_no_region_specified() -> None:
+    # Create region spacing config with no region specified
+    config_dict = {"name": "chch", "spacing": 1000}
+
+    with pytest.raises(
+        ValueError,
+        match="Either 'geojson_ffp' or 'region' must be provided in the config dictionary.",
+    ):
+        site_gen.RegionSpacingConfig.from_config(config_dict)
+
+
 def test_region_spacing_config_region_metadata(
     chch_region_polygon: shapely.Polygon,
 ) -> None:
@@ -143,6 +179,16 @@ def test_region_spacing_config_region_metadata(
     assert region_spacing_config.name == "chch"
     assert region_spacing_config.spacing == 1000
     assert shapely.equals_exact(region_spacing_config.region, chch_region_polygon)
+
+
+def test_custom_grid_config_no_vel_model_version() -> None:
+    config_dict = {"basin_spacing": 2500}
+
+    with pytest.raises(
+        ValueError,
+        match="vel_model_version must be provided if basin_spacing is set.",
+    ):
+        site_gen.CustomGridConfig.from_config(config_dict)
 
 
 def test_custom_grid_config(chch_region_polygon: shapely.Polygon) -> None:
@@ -215,6 +261,19 @@ def test_custom_grid_config(chch_region_polygon: shapely.Polygon) -> None:
         assert shapely.equals_exact(
             per_region_config_1.region, per_region_config_2.region
         )
+
+
+def test_custom_grid_init_without_general_grid(
+    general_grid: site_gen.GeneralGrid,
+) -> None:
+    with patch.object(
+        site_gen.GeneralGrid,
+        "load",
+        return_value=general_grid,
+    ) as mock_load:
+        custom_grid = site_gen.CustomGrid()
+        mock_load.assert_called_once()
+        assert custom_grid.general_grid == general_grid
 
 
 def test_custom_grid_land_region_filtering(
@@ -320,9 +379,115 @@ def test_basin_spacing(
     assert np.all(min_distances < uniform_spacing)
 
 
+def test_per_basin_spacing(
+    general_grid: site_gen.GeneralGrid,
+    central_south_island_region_polygon: shapely.Polygon,
+) -> None:
+    uniform_spacing = general_grid.spacing * 2
+    config = site_gen.CustomGridConfig(
+        region=central_south_island_region_polygon,
+        uniform_spacing=uniform_spacing,
+        per_basin_spacing={"Canterbury_v25p9": general_grid.spacing},
+        vel_model_version="2.09",
+    )
+
+    custom_grid = site_gen.CustomGrid(general_grid).apply_config(config)
+    site_df = custom_grid.get_site_df()
+
+    cant_basin_sites = site_df[site_df.basin == "Canterbury_v25p9"]
+    distances = sdist.squareform(
+        sdist.pdist(cant_basin_sites[["nztm_x", "nztm_y"]].values)
+    )
+    np.fill_diagonal(distances, np.inf)
+    min_distances = distances.min(axis=1)
+    assert np.allclose(min_distances, general_grid.spacing, rtol=0.12)
+
+    other_sites = site_df[site_df.basin != "Canterbury_v25p9"]
+    distances = sdist.squareform(sdist.pdist(other_sites[["nztm_x", "nztm_y"]].values))
+    np.fill_diagonal(distances, np.inf)
+    min_distances = distances.min(axis=1)
+    assert np.allclose(min_distances, uniform_spacing, rtol=0.12)
+
+
+def test_custom_grid_metadata(general_grid: site_gen.GeneralGrid) -> None:
+    config = site_gen.CustomGridConfig(
+        uniform_spacing=general_grid.spacing,
+    )
+
+    custom_grid = site_gen.CustomGrid(general_grid)
+    custom_grid.config = config
+
+    # Create fake site dataframe
+    site_df = pd.DataFrame(data=["real", "virtual"], columns=["source"])
+    site_df["basin"] = ["basin_test", None]
+
+    metadata = custom_grid.get_metadata(site_df)
+    site_metadata = metadata["site_metadata"]
+    config = metadata["config"]
+    assert site_metadata["num_sites"] == 2
+    assert site_metadata["num_real_sites"] == 1
+    assert site_metadata["num_virtual_sites"] == 1
+    assert site_metadata["num_basin_sites"] == 1
+    assert site_metadata["sites_per_basin"]["basin_test"] == 1
+    assert config["uniform_spacing"] == general_grid.spacing
+
+
+def test_per_region_spacing(
+    general_grid: site_gen.GeneralGrid,
+    central_south_island_region_polygon: shapely.Polygon,
+    canterbury_region_polygon: shapely.Polygon,
+) -> None:
+    uniform_spacing = general_grid.spacing * 2
+    config = site_gen.CustomGridConfig(
+        region=central_south_island_region_polygon,
+        uniform_spacing=uniform_spacing,
+        per_region_spacing=[
+            site_gen.RegionSpacingConfig(
+                name="Canterbury",
+                region=canterbury_region_polygon,
+                spacing=general_grid.spacing,
+            )
+        ],
+    )
+
+    custom_grid = site_gen.CustomGrid(general_grid).apply_config(config)
+    site_df = custom_grid.get_site_df()
+
+    # Get sites within Christchurch region
+    canterbury_region_polygon_nztm = shapely.transform(
+        canterbury_region_polygon,
+        lambda x: coordinates.wgs_depth_to_nztm(x[:, ::-1])[:, ::-1],
+    )
+    geo_site_df = gpd.GeoDataFrame(
+        site_df,
+        geometry=gpd.points_from_xy(site_df.nztm_x, site_df.nztm_y),
+        crs=site_gen.NZTM_CRS,
+    )
+    canterbury_sites = geo_site_df[
+        geo_site_df.geometry.within(canterbury_region_polygon_nztm)
+    ]
+
+    # Check spacing within Canterbury region
+    distances = sdist.squareform(
+        sdist.pdist(canterbury_sites[["nztm_x", "nztm_y"]].values)
+    )
+    np.fill_diagonal(distances, np.inf)
+    min_distances = distances.min(axis=1)
+    assert np.allclose(min_distances, general_grid.spacing, rtol=0.12)
+
+    # Check spacing outside Canterbury region
+    non_canterbury_sites = geo_site_df.drop(canterbury_sites.index)
+    distances = sdist.squareform(
+        sdist.pdist(non_canterbury_sites[["nztm_x", "nztm_y"]].values)
+    )
+    np.fill_diagonal(distances, np.inf)
+    min_distances = distances.min(axis=1)
+    assert np.allclose(min_distances, uniform_spacing, rtol=0.12)
+
+
 @pytest.mark.parametrize("uniform_spacing", [5_000, 10_000])
 def test_small_uniform_spacing_error(
-    general_grid: site_gen.GeneralGrid, uniform_spacing: float
+    general_grid: site_gen.GeneralGrid, uniform_spacing: int
 ) -> None:
     config = site_gen.CustomGridConfig(uniform_spacing=uniform_spacing)
 
@@ -338,7 +503,7 @@ def test_multiple_error_uniform_spacing(
     general_grid: site_gen.GeneralGrid, factor: float
 ) -> None:
     config = site_gen.CustomGridConfig(
-        uniform_spacing=general_grid.spacing * factor,
+        uniform_spacing=int(general_grid.spacing * factor),
     )
 
     with pytest.raises(
@@ -388,7 +553,7 @@ def test_site_dataframe(general_grid: site_gen.GeneralGrid) -> None:
     config = site_gen.CustomGridConfig(
         uniform_spacing=general_grid.spacing * 2,
         vel_model_version="2.09",
-        nzgmdb_version="v4.3",
+        nzgmdb_version=site_gen.NZGMDBVersion.V4p3,
     )
 
     custom_grid = site_gen.CustomGrid(general_grid).apply_config(config)
@@ -406,7 +571,7 @@ def test_site_dataframe_basin(
         region=canterbury_region_polygon,
         uniform_spacing=general_grid.spacing * 2,
         vel_model_version="2.09",
-        nzgmdb_version="v4.3",
+        nzgmdb_version=site_gen.NZGMDBVersion.V4p3,
     )
 
     custom_grid = site_gen.CustomGrid(general_grid).apply_config(config)
