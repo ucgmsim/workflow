@@ -98,7 +98,9 @@ def generate_rupture_propagation(
         )
 
     rupture_causality_tree = rupture_propagation.sample_rupture_propagation(
-        faults, initial_source=initial_fault, strategy=strategy
+        faults,
+        initial_source=initial_fault,
+        strategy=strategy,  # type: ignore
     )
 
     rupture_propagation_config = realisations.RupturePropagationConfig(
