@@ -371,7 +371,7 @@ def generate_realisation(
     rupture_causality_tree = rupture_propagation.sample_rupture_propagation(
         faults,
         initial_source=initial_fault,
-        strategy=str(strategy),
+        strategy=str(strategy),  # type: ignore
         jump_impossibility_limit_distance=round(jump_cutoff * 1000),
     )
     magnitudes = Magnitudes(magnitudes)

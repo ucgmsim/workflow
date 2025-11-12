@@ -8,7 +8,7 @@ import geopandas as gpd
 import numpy as np
 import psutil
 import shapely
-from shapely import Geometry, Polygon
+from shapely import Geometry, Polygon, geometry
 
 from qcore import coordinates
 
@@ -44,7 +44,7 @@ def get_nz_outline_polygon() -> Geometry:
     island_polygons = [
         Polygon(
             coordinates.wgs_depth_to_nztm(
-                np.array(shapely.geometry.mapping(island)["coordinates"])[:, ::-1]
+                np.array(geometry.mapping(island)["coordinates"])[:, ::-1]
             )
         )
         for island in gpd_df.geometry
@@ -66,6 +66,11 @@ def get_available_cores() -> int:
         Either the reported number of cores from the multiprocessing
         module, or the number of allocated cores if running in a slurm
         environment.
+
+    Raises
+    ------
+    RuntimeError
+        If the number of CPUs cannot be determined on the system.
     """
     if "SLURM_CPUS_ON_NODE" in os.environ:
         return int(os.environ["SLURM_CPUS_ON_NODE"])
@@ -89,4 +94,10 @@ def get_available_cores() -> int:
     # process. This is the most reliable way to set CPU cores. It also
     # means that using `taskset(1)` on any other system will be
     # respected by workflow jobs.
-    return len(psutil.Process().cpu_affinity())
+    process = psutil.Process()
+    if hasattr(process, "cpu_affinity"):
+        return len(process.cpu_affinity())
+    elif cpu_count := psutil.cpu_count():
+        return cpu_count
+    else:
+        raise RuntimeError("Cannot determine CPU count.")

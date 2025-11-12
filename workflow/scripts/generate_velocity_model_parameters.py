@@ -360,8 +360,10 @@ def generate_velocity_model_parameters(
     # These may be in the domain where they are over land.
     rrup_bounding_polygons = [
         find_r_surface_bounding_polygon(
-            *args, rrup_interpolants=velocity_model_parameters.rrup_interpolants
+            *args,
+            rrup_interpolants=velocity_model_parameters.rrup_interpolants,  # type: ignore
         )
+        # The type error about existing assignment seems to be a bug.
         for args in dict_zip(
             source_config.source_geometries,
             magnitudes.magnitudes,

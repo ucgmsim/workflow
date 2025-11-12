@@ -66,9 +66,9 @@ def emod3d_domain_parameters(
         "ny": domain_parameters.ny,
         "nz": domain_parameters.nz,
         "h": domain_parameters.resolution,
-        "modellat": domain_parameters.domain.origin[0],
-        "modellon": domain_parameters.domain.origin[1],
-        "modelrot": domain_parameters.domain.great_circle_bearing,
+        "modellat": float(domain_parameters.domain.origin[0]),
+        "modellon": float(domain_parameters.domain.origin[1]),
+        "modelrot": float(domain_parameters.domain.great_circle_bearing),
     }
 
 
