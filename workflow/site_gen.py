@@ -871,7 +871,7 @@ def get_basin_boundaries(vel_model_version: str) -> dict[str, shapely.Polygon]:
         Dictionary mapping basin names to their boundary polygons.
     """
     cvm_registry = CVMRegistry(vel_model_version, get_data_root())
-    basin_data = cvm_registry.load_basin_data(cvm_registry.global_params["basins"])
+    basin_data = cvm_registry.load_basin_data(cvm_registry.global_params["basins"]) # type: ignore
 
     basin_boundaries = {}
     for cur_basin_data in basin_data:

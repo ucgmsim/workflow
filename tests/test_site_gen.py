@@ -9,11 +9,11 @@ import numpy as np
 import pandas as pd
 import pytest
 import shapely
-from shapely import geometry
 import xarray as xr
 from hypothesis import assume, given
 from hypothesis import strategies as st
 from scipy.spatial import distance as sdist
+from shapely import geometry
 
 from qcore import coordinates
 from workflow import site_gen
