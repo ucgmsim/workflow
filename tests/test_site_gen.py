@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import shapely
+from shapely import geometry
 import xarray as xr
 from hypothesis import assume, given
 from hypothesis import strategies as st
@@ -131,7 +132,7 @@ def test_region_spacing_config_region_file(
 ) -> None:
     # Save region as geojson dict
     with tempfile.TemporaryDirectory() as tmpdir:
-        geojson_dict = shapely.geometry.mapping(chch_region_polygon)
+        geojson_dict = geometry.mapping(chch_region_polygon)
         geojson_ffp = f"{tmpdir}/chch_region.geojson"
 
         with open(geojson_ffp, "w") as f:
@@ -170,7 +171,7 @@ def test_region_spacing_config_region_metadata(
     # Create region spacing config from metadata dict
     metadata_dict = {
         "name": "chch",
-        "region": shapely.geometry.mapping(chch_region_polygon),
+        "region": geometry.mapping(chch_region_polygon),
         "spacing": 1000,
     }
 
@@ -194,7 +195,7 @@ def test_custom_grid_config_no_vel_model_version() -> None:
 def test_custom_grid_config(chch_region_polygon: shapely.Polygon) -> None:
     # Create the custom grid config dict
     with tempfile.TemporaryDirectory() as tmpdir:
-        geojson_dict = shapely.geometry.mapping(chch_region_polygon)
+        geojson_dict = geometry.mapping(chch_region_polygon)
         geojson_ffp = f"{tmpdir}/chch_region.geojson"
 
         with open(geojson_ffp, "w") as f:
@@ -229,6 +230,7 @@ def test_custom_grid_config(chch_region_polygon: shapely.Polygon) -> None:
         assert custom_grid_config_1.vel_model_version == "2.09"
         assert custom_grid_config_1.basin_spacing == 2500
         assert custom_grid_config_1.per_basin_spacing == {"Hanmer_v25p3": 1250}
+        assert custom_grid_config_1.per_region_spacing is not None
         assert len(custom_grid_config_1.per_region_spacing) == 1
         per_region_config_1 = custom_grid_config_1.per_region_spacing[0]
         assert per_region_config_1.name == "Christchurch"
@@ -254,6 +256,7 @@ def test_custom_grid_config(chch_region_polygon: shapely.Polygon) -> None:
             custom_grid_config_1.per_basin_spacing
             == custom_grid_config_2.per_basin_spacing
         )
+        assert custom_grid_config_2.per_region_spacing is not None
         assert len(custom_grid_config_2.per_region_spacing) == 1
         per_region_config_2 = custom_grid_config_2.per_region_spacing[0]
         assert per_region_config_1.name == per_region_config_2.name
@@ -515,7 +518,7 @@ def test_multiple_error_uniform_spacing(
 
 @pytest.mark.parametrize("basin_spacing", [5_000, 10_000])
 def test_small_basin_spacing_error(
-    general_grid: site_gen.GeneralGrid, basin_spacing: float
+    general_grid: site_gen.GeneralGrid, basin_spacing: int
 ) -> None:
     uniform_spacing = general_grid.spacing * 2
     config = site_gen.CustomGridConfig(
@@ -536,7 +539,7 @@ def test_multiple_error_basin_spacing(
     general_grid: site_gen.GeneralGrid, factor: float
 ) -> None:
     uniform_spacing = general_grid.spacing * 2
-    basin_spacing = general_grid.spacing * factor
+    basin_spacing = int(general_grid.spacing * factor)
     config = site_gen.CustomGridConfig(
         uniform_spacing=uniform_spacing,
         basin_spacing=basin_spacing,

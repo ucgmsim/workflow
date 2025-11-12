@@ -15,6 +15,7 @@ import pooch
 import pygmt
 import shapely
 import xarray as xr
+from shapely import geometry
 
 from qcore import coordinates
 from velocity_modelling.constants import get_data_root
@@ -111,7 +112,7 @@ class GeneralGrid:
         tuple[int, int]
             The shape of the grid.
         """
-        return self.land_mask_grid.shape
+        return self.land_mask_grid.shape  # type: ignore
 
     @classmethod
     def load(cls, land_mask_grid_ffp: Path) -> "GeneralGrid":
@@ -214,7 +215,7 @@ class RegionSpacingConfig:
         """
         return {
             "name": self.name,
-            "region": shapely.geometry.mapping(self.region),
+            "region": geometry.mapping(self.region),
             "spacing": self.spacing,
         }
 
@@ -242,11 +243,9 @@ class RegionSpacingConfig:
         if "geojson_ffp" in config_dict:
             with open(config_dict["geojson_ffp"], "r") as f:
                 geojson_obj = json.load(f)
-                region_polygon = shapely.geometry.shape(
-                    geojson_obj["features"][0]["geometry"]
-                )
+                region_polygon = geometry.shape(geojson_obj["features"][0]["geometry"])
         else:
-            region_polygon = shapely.geometry.shape(config_dict["region"])
+            region_polygon = geometry.shape(config_dict["region"])
 
         return RegionSpacingConfig(
             name=config_dict["name"],
@@ -310,7 +309,7 @@ class CustomGridConfig:
         # Get the region polygon
         region = config_dict.get("region")
         if region is not None and isinstance(region, dict):
-            region = shapely.geometry.shape(region)
+            region = geometry.shape(region)
 
         # Get the per-region spacing
         per_region_spacing = None
@@ -347,9 +346,7 @@ class CustomGridConfig:
         return {
             "land_only": self.land_only,
             "region": (
-                shapely.geometry.mapping(self.region)
-                if self.region is not None
-                else None
+                geometry.mapping(self.region) if self.region is not None else None
             ),
             "uniform_spacing": self.uniform_spacing,
             "vel_model_version": self.vel_model_version,
@@ -458,7 +455,7 @@ class CustomGrid:
                 for spacing, basins in spacing_groups.groups.items():
                     self._add_basin_spacing_filter(
                         self.config.vel_model_version,
-                        spacing,
+                        spacing,  # type: ignore
                         basins.tolist(),
                     )
         # Per-region spacing
@@ -636,7 +633,7 @@ class CustomGrid:
             f"Basin spacing filter added in {time.time() - start_time} seconds."
         )
 
-    def get_metadata(self, site_df: pd.DataFrame = None) -> dict:
+    def get_metadata(self, site_df: pd.DataFrame | None = None) -> dict:
         """
         Gets the metadata dictionary for the custom grid.
 
@@ -650,6 +647,11 @@ class CustomGrid:
         dict
             Dictionary containing metadata and configuration information.
         """
+        if self.config is None:
+            raise ValueError(
+                "CustomGridConfig must be applied before getting metadata."
+            )
+
         site_metadata = {}
         if site_df is not None:
             site_metadata = {
@@ -690,6 +692,7 @@ class CustomGrid:
             - basin: The basin the site is in (if any).
             - Z1.0: The Z1.0 value for the site (if vel_model_version is provided).
             - Z2.5: The Z2.5 value for the site (if vel_model_version is provided).
+            - Vs30: Time-averaged shear-wave velocity in the top 30 meters (m/s) (for real sites only).
             - site_code: The site code.
 
         Notes
