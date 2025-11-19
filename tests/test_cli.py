@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 import pytest
+from typer import Typer
 from typer.testing import CliRunner
 
 from workflow.scripts import (
@@ -53,6 +54,10 @@ from workflow.scripts import (
 def test_invocation_of_script(script: Callable) -> None:
     """Basic check that the scripts can be invoked."""
     runner = CliRunner()
-    result = runner.invoke(script.app, ["--help"])
+    # The following satisifies the type checker.
+    app = getattr(script, "app", None)
+    assert isinstance(app, Typer)
+
+    result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
     assert "Usage" in result.output

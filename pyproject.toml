@@ -49,8 +49,8 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest"]
-dev = ["ruff", "deptry"]
-monitoring = ["rich", "asyncinotify"]
+monitoring = ["rich"]
+dev = ["ruff", "deptry", "ty"]
 
 [tool.deptry]
 pep621_dev_dependency_groups = ["test", "dev"]
