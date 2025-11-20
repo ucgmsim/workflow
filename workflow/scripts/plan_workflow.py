@@ -144,9 +144,7 @@ class Stage:
     @property
     def parent(self) -> Self:  # numpydoc ignore=RT01
         """Stage: the parent stage of this stage."""
-        cpy = deepcopy(self)
-        cpy.sample = None
-        return cpy
+        return dataclasses.replace(self, sample=None)
 
     @property
     def directory(self) -> PurePath | None:  # numpydoc ignore=RT01
