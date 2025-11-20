@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from rich.progress import BarColumn, Progress, TextColumn, TimeRemainingColumn
+from rich.progress import BarColumn, Progress, TextColumn
 
 from qcore import cli
 
@@ -122,6 +122,7 @@ def log_progress_update(event_path: Path) -> ProgressUpdate:
     current = None
     cumulative_time = None
     tps = None
+    seconds_remaining = None
     # An alpha = 0.3 means that 30% of the average tps value is represented
     # by the time to compute the last 100 timesteps.
     alpha = 0.3
@@ -211,7 +212,8 @@ async def monitor_files(
                 tracked[updated_file] = mtime
         for tracked_file in fresh_files - tracked_files:
             await queue.put(ProgressUpdate(EventType.CREATED, tracked_file))
-            tracked[tracked_file] = tracked_file.stat().st_size
+            tracked[tracked_file] = tracked_file.stat().st_mtime
+            await queue.put(log_progress_update(tracked_file))
 
 
 async def track_rlog_progress(
