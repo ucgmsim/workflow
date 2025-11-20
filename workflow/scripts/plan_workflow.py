@@ -7,7 +7,6 @@ to generate a base Cylc workflow to modify and extend.
 import dataclasses
 import tempfile
 from collections.abc import Iterable
-from copy import deepcopy
 from enum import StrEnum
 from pathlib import Path, PurePath
 from typing import Annotated, Any, Optional, Self
