@@ -7,6 +7,7 @@ to generate a base Cylc workflow to modify and extend.
 import dataclasses
 import tempfile
 from collections.abc import Iterable
+from copy import deepcopy
 from enum import StrEnum
 from pathlib import Path, PurePath
 from typing import Annotated, Any, Optional, Self
@@ -143,7 +144,9 @@ class Stage:
     @property
     def parent(self) -> Self:  # numpydoc ignore=RT01
         """Stage: the parent stage of this stage."""
-        return self.__class__(self.identifier, self.event, None)
+        cpy = deepcopy(self)
+        cpy.sample = None
+        return cpy
 
     @property
     def directory(self) -> PurePath | None:  # numpydoc ignore=RT01

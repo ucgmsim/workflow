@@ -317,7 +317,7 @@ def find_rrup_bounding_polygon(
     rrup = estimate_rrup(
         magnitude,
         rake,
-        np.mean([plane.dip for plane in fault.planes]),
+        fault.dip,
         pgv_target,
     )
     logger = log_utils.get_logger(__name__)
