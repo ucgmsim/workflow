@@ -92,7 +92,7 @@ def a_to_mw_leonard(area: float, rake: float) -> float:
 
 def default_magnitude_estimation(
     faults: dict[str, Fault],
-    components: DisjointSet,
+    components: DisjointSet[str],
     avg_rake: float,
 ) -> dict[str, float]:
     """Estimate the magnitudes for a set of faults based on their areas and average rake.

@@ -278,11 +278,13 @@ def estimate_rrup(
     >>> estimate_rrup(7.5, 90, 45, 10)
     60.86630588572306
     """
-    return sp.optimize.minimize_scalar(
-        lambda rrup: np.abs(pgv_from_rrup(magnitude, rake, dip, rrup) - pgv_target),
-        bounds=(0, 1000),
-        method="bounded",
-    ).x
+    return float(
+        sp.optimize.minimize_scalar(
+            lambda rrup: np.abs(pgv_from_rrup(magnitude, rake, dip, rrup) - pgv_target),
+            bounds=(0, 1000),
+            method="bounded",
+        ).x
+    )
 
 
 def find_rrup_bounding_polygon(
@@ -465,7 +467,7 @@ def generate_velocity_model_parameters(
     model_domain = bounding_box.minimum_area_bounding_box_for_polygons_masked(
         must_include=fault_buffer_polygons,
         may_include=rrup_bounding_polygons,
-        mask=utils.get_nz_outline_polygon(),
+        mask=utils.get_nz_outline_polygon(),  # type: ignore
     )
 
     sim_duration = estimate_simulation_duration(
