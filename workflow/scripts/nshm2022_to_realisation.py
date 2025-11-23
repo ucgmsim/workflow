@@ -120,7 +120,8 @@ def default_magnitude_estimation(
     estimated_moment = mag_scaling.mag2mom(estimated_mw)
     roots = {components[fault_name] for fault_name in faults}
     component_areas = {
-        root: sum(faults[name].area() for name in components.subset(root))
+        # TODO: Remove type ignore after scipy stubs 1.16.3.1
+        root: sum(faults[name].area() for name in components.subset(root))  # type: ignore[invalid-argument-type]
         for root in roots
     }
     total_component_area = sum(
