@@ -27,6 +27,7 @@ import subprocess
 import traceback
 import uuid
 from collections.abc import Callable, Iterable
+from types import FunctionType
 from typing import Any
 
 import structlog
@@ -82,7 +83,7 @@ def log_call(
         (with it's return value if include_result is True).
     """
 
-    def decorator(f: Callable) -> Callable:  # numpydoc ignore=GL08
+    def decorator(f: FunctionType) -> Callable:  # numpydoc ignore=GL08
         @functools.wraps(f)
         def wrapper(
             *args: list[Any], **kwargs: dict[str, Any]
@@ -140,9 +141,17 @@ def log_check_call(args: list[str], **kwargs: Any) -> str:
     ------
     CalledProcessError
         If the process fails. The contents of this error is as in `subprocess.check_output`.
+    RuntimeError
+        If the caller or caller's parent stackframe cannot be traversed to annotate logging output.
     """
     cmd_uuid = str(uuid.uuid4())
-    name = inspect.currentframe().f_back.f_globals["__name__"]
+    current_frame = inspect.currentframe()
+    if not current_frame:
+        raise RuntimeError("Could not get the current frame.")
+    parent_frame = current_frame.f_back
+    if not parent_frame:
+        raise RuntimeError("Could not traverse to parent of current frame.")
+    name = parent_frame.f_globals["__name__"]
     logger = get_logger(name).bind(command=args[0], id=cmd_uuid)
 
     logger.info("executing", args=args[1:])
@@ -150,6 +159,7 @@ def log_check_call(args: list[str], **kwargs: Any) -> str:
         kwargs["stderr"] = subprocess.PIPE
         output = subprocess.check_output(args, **kwargs).decode("utf-8")
         logger.info("completed", stdout=output)
+        return output
     except subprocess.CalledProcessError as e:
         logger.error(
             "failed",

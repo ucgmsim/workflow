@@ -476,7 +476,7 @@ def test_logtrail_init_with_dicts_post_init() -> None:
         },
     ]
     # Pass raw list of dicts
-    trail = realisations.LogTrail(log=log_data)
+    trail = realisations.LogTrail(log=log_data)  # type: ignore
     assert len(trail.log) == 2
     assert isinstance(trail.log[0], realisations.LogEntry)
     assert isinstance(trail.log[1], realisations.LogEntry)

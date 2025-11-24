@@ -49,7 +49,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest"]
-dev = ["ruff", "deptry"]
+dev = ["ruff", "deptry", "ty"]
 
 [tool.deptry]
 pep621_dev_dependency_groups = ["test", "dev"]

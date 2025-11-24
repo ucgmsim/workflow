@@ -36,7 +36,7 @@ import typer
 import xarray as xr
 
 from qcore import cli, coordinates, xyts
-from workflow.scripts import merge_ts_loop
+from workflow.scripts import merge_ts_loop  # type: ignore
 
 app = typer.Typer()
 
@@ -138,7 +138,7 @@ def merge_ts_xyts(
     os.close(merged_fd)
 
 
-@cli.from_docstring(app, name="hdf5")
+@cli.from_docstring(app, name="hdf5")  # type: ignore
 def merge_ts_hdf5(
     component_xyts_directory: Annotated[
         Path,
@@ -257,7 +257,7 @@ def merge_ts_hdf5(
     )
 
 
-@cli.from_docstring(app, name="xyts")
+@cli.from_docstring(app, name="xyts")  # type: ignore
 def merge_ts(
     component_xyts_directory: Annotated[
         Path,
