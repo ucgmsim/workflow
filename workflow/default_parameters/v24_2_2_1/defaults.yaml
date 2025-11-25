@@ -102,6 +102,17 @@ srf:
   resolution: 0.1
   genslip_dt: 0.05
   genslip_version: 5.4.2
+  side_taper: 0.02
+  bot_taper: 0.02
+  top_taper: 0.0
+  alpha_rough: 0.0
+  gwid: []
+  rvfac_seg: []
+  seg_delay: false
+  ymag_exp: null
+  xmag_exp: null
+  kx_corner: null
+  ky_corner: null
   # The following parameters are only used for the point source approximation.
   point_source_params:
     # Valid options for the slip time function (stype) are:

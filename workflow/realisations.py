@@ -367,6 +367,21 @@ class SRFConfig(RealisationConfiguration):
     point_source_params: schemas.PointSourceParams | None
     """Parameters for point source approximation, if applicable."""
 
+    side_taper: float
+    bot_taper: float
+    top_taper: float
+
+    alpha_rough: float
+    gwid: list[float]
+    rvfac_seg: list[float]
+    seg_delay: bool
+
+    # Subduction settings
+    ymag_exp: float | None = None
+    xmag_exp: float | None = None
+    kx_corner: float | None = None
+    ky_corner: float | None = None
+
     def to_dict(self) -> dict[str, Any]:
         """
         Convert the object to a dictionary representation.
@@ -376,11 +391,7 @@ class SRFConfig(RealisationConfiguration):
         dict
             Dictionary representation of the object.
         """
-        config_dict = {
-            "genslip_dt": self.genslip_dt,
-            "genslip_version": self.genslip_version,
-            "resolution": self.resolution,
-        }
+        config_dict = dataclasses.asdict(self)
         if self.point_source_params is not None:
             config_dict["point_source_params"] = dataclasses.asdict(
                 self.point_source_params

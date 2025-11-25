@@ -104,6 +104,17 @@ def test_srf_config_example(tmp_path: Path) -> None:
             risetimedep=0.0,
             inittime=0.0,
         ),
+        side_taper=0.02,
+        bot_taper=0.02,
+        top_taper=0.0,
+        alpha_rough=0.0,
+        gwid=[],
+        rvfac_seg=[],
+        seg_delay=False,
+        ymag_exp=None,
+        xmag_exp=None,
+        kx_corner=None,
+        ky_corner=None,
     )
 
     realisation_ffp = tmp_path / "realisation.json"
@@ -134,6 +145,17 @@ def test_srf_config_example(tmp_path: Path) -> None:
                     "risetimedep": 0.0,
                     "inittime": 0.0,
                 },
+                "side_taper": 0.02,
+                "bot_taper": 0.02,
+                "top_taper": 0.0,
+                "alpha_rough": 0.0,
+                "gwid": [],
+                "rvfac_seg": [],
+                "seg_delay": False,
+                "ymag_exp": None,
+                "xmag_exp": None,
+                "kx_corner": None,
+                "ky_corner": None,
             },
         }
 

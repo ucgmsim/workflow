@@ -433,32 +433,37 @@ def generate_fault_srf(
     )
     genslip_cmd = [
         str(environment.genslip_path),
+        "plane_header=1",
+        "srf_version=1.0",
         "read_erf=0",
         "write_srf=1",
         "read_gsf=1",
         "write_gsf=0",
+        "ns=1",
+        "nh=1",
         f"infile={gsf_file_path}",
         f"mag={params.magnitudes.magnitudes[name]}",
         f"nstk={nx}",
         f"ndip={ny}",
-        "ns=1",
-        "nh=1",
         f"seed={environment.seeds.genslip_seed}",
         f"velfile={environment.velocity_model_path}",
         f"shypo={genslip_hypocentre_coords[0]}",
         f"dhypo={genslip_hypocentre_coords[1]}",
         f"dt={params.srf_config.genslip_dt}",
-        "plane_header=1",
-        "srf_version=1.0",
-        "seg_delay={0}",
-        "rvfac_seg=-1",
-        "gwid=-1",
-        "side_taper=0.02",
-        "bot_taper=0.02",
-        "top_taper=0.0",
-        "rup_delay=0",
-        "alpha_rough=0.0",
+        f"side_taper={params.srf_config.side_taper}",
+        f"bot_taper={params.srf_config.bot_taper}",
+        f"top_taper={params.srf_config.top_taper}",
+        f"alpha_rough={params.srf_config.alpha_rough}",
+        f"gwid={params.srf_config.gwid or -1}",
+        f"rvfac_seg={params.srf_config.rvfac_seg or -1}",
+        f"seg_delay={int(params.srf_config.seg_delay)}",
     ]
+
+    genslip_cmd.extend(
+        f"{key}={getattr(params.srf_config, key)}"
+        for key in ["ymag_exp", "xmag_exp", "kx_corner", "ky_corner"]
+        if getattr(params.srf_config, key) is not None
+    )
 
     srf_file_path = environment.srf_directory / (normalise_name(name) + ".srf")
     with open(srf_file_path, "w", encoding="utf-8") as srf_file_handle:
