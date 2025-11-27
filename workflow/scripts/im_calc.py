@@ -139,7 +139,7 @@ def calculate_instensity_measures(
             periods=np.array(
                 intensity_measure_parameters.valid_periods, dtype=np.float32
             ),
-            dt=broadband_parameters.dt,
+            dt=np.float32(broadband_parameters.dt),
             psa_rotd_maximum_memory_allocation=psa_rotd_maximum_memory_allocation * 1e9
             if psa_rotd_maximum_memory_allocation
             else None,
