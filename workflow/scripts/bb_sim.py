@@ -181,6 +181,7 @@ def combine_hf_and_lf(
 
         vs30_df["pga"] = np.abs(temp_hf_padded).max(axis=1) * G
 
+        assert isinstance(vs30_df, pd.DataFrame)
         hf_amp_val = siteamp_models.cb_amp_multi(vs30_df)
         hf_amp_fas_vals = siteamp_models.cb2014_to_fas_amplification_factors(
             hf_amp_val, bb_dt, bb_nt
