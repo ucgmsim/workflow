@@ -28,6 +28,7 @@ See the output of `im-calc --help`.
 """
 
 import functools
+import os
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -90,7 +91,7 @@ def calculate_instensity_measures(
     override_ims : list of str
         Intensity measures to calculate. If not set, reads from the realisation file.
     """
-    ne.set_num_threads(utils.get_available_cores())
+    ne.set_num_threads(min(utils.get_available_cores(), ne.MAX_THREADS))
 
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     broadband_parameters = BroadbandParameters.read_from_realisation(realisation_ffp)
