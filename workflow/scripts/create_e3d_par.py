@@ -64,6 +64,9 @@ def emod3d_domain_parameters(
         A dictionary containing the EMOD3D domain parameters.
     """
 
+    # The C NZVM code always rounds 0.5 up to 1.0 but Python does not always
+    # round in the same way. So we manually replicate the C rounding behaviour
+    # here for consistency.
     nx = int((domain_parameters.domain.extent_x / resolution.resolution) + 0.5)
     ny = int((domain_parameters.domain.extent_y / resolution.resolution) + 0.5)
     nz = int((domain_parameters.depth / resolution.resolution) + 0.5)

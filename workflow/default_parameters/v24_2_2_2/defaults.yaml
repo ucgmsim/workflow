@@ -101,6 +101,7 @@ hf:
   stoch_dy: 2.0
 srf:
   genslip_version: 5.4.2
+  resolution: 0.1
   # The following parameters are only used for the point source approximation.
   point_source_params:
     # Valid options for the slip time function (stype) are:

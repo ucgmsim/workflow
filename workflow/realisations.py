@@ -375,6 +375,9 @@ class SRFConfig(RealisationConfiguration):
     genslip_version: str
     """The version of genslip to use (currently supports "5.4.2")."""
 
+    resolution: float
+    """The resolution of the SRF discretisation (different, in general, from the simulation resolution)."""
+
     point_source_params: schemas.PointSourceParams | None
     """Parameters for point source approximation, if applicable."""
 
@@ -387,9 +390,7 @@ class SRFConfig(RealisationConfiguration):
         dict
             Dictionary representation of the object.
         """
-        config_dict = {
-            "genslip_version": self.genslip_version,
-        }
+        config_dict = dataclasses.asdict(self)
         if self.point_source_params is not None:
             config_dict["point_source_params"] = dataclasses.asdict(
                 self.point_source_params
@@ -530,30 +531,6 @@ class DomainParameters(RealisationConfiguration):
     """The depth of the domain (in metres)."""
     duration: float
     """The simulation duration (in seconds)."""
-
-    @property
-    def nx(self) -> int:  # numpydoc ignore=RT01
-        """int: The number of x coordinate positions in the discretised domain."""
-        # The C NZVM code always rounds 0.5 up to 1.0 but Python does not always
-        # round in the same way. So we manually replicate the C rounding behaviour
-        # here for consistency.
-        return int((self.domain.extent_x / self.resolution) + 0.5)
-
-    @property
-    def ny(self) -> int:  # numpydoc ignore=RT01
-        """int: The number of y coordinate positions in the discretised domain."""
-        # The C NZVM code always rounds 0.5 up to 1.0 but Python does not always
-        # round in the same way. So we manually replicate the C rounding behaviour
-        # here for consistency.
-        return int((self.domain.extent_y / self.resolution) + 0.5)
-
-    @property
-    def nz(self) -> int:  # numpydoc ignore=RT01
-        """int: The number of z coordinate positions in the discretised domain."""
-        # The C NZVM code always rounds 0.5 up to 1.0 but Python does not always
-        # round in the same way. So we manually replicate the C rounding behaviour
-        # here for consistency.
-        return int((self.depth / self.resolution) + 0.5)
 
     def to_dict(self) -> dict:
         """

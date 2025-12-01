@@ -420,7 +420,7 @@ def generate_fault_srf(
         # Return None here as no other code in this function should be run if generating a point source SRF.
         return None
 
-    resolution = params.resolution.resolution
+    resolution = params.srf_config.resolution
 
     if isinstance(fault, Fault):
         nx = sum(round(plane.length / resolution) for plane in fault.planes)
