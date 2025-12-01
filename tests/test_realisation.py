@@ -55,6 +55,53 @@ def test_bounding_box_example(tmp_path: Path) -> None:
     ).all()
 
 
+def test_domain_parameters_discretisation() -> None:
+    """Test domain parameter discretisation to nx, ny, nz"""
+    domain_parameters = realisations.DomainParameters(
+        domain=bounding_box.BoundingBox.from_centroid_bearing_extents(
+            centroid=np.array([-43.53092, 172.63701]),
+            bearing=0.0,
+            extent_x=100.0,
+            extent_y=100.0,
+        ),
+        depth=40.0,
+        duration=60.0,
+    )
+    assert domain_parameters.nx(0.1) == 1000
+    assert domain_parameters.ny(0.1) == 1000
+    assert domain_parameters.nz(0.1) == 400
+
+    domain_parameters = realisations.DomainParameters(
+        domain=bounding_box.BoundingBox.from_centroid_bearing_extents(
+            centroid=np.array([-43.53092, 172.63701]),
+            bearing=0.0,
+            extent_x=100.5,
+            extent_y=100.5,
+        ),
+        depth=40.5,
+        duration=60.0,
+    )
+    # NOTE: different behaviour to round()
+    assert domain_parameters.nx(1) == 101
+    assert domain_parameters.ny(1) == 101
+    assert domain_parameters.nz(1) == 41
+
+    domain_parameters = realisations.DomainParameters(
+        domain=bounding_box.BoundingBox.from_centroid_bearing_extents(
+            centroid=np.array([-43.53092, 172.63701]),
+            bearing=0.0,
+            extent_x=100.04,
+            extent_y=100.09,
+        ),
+        depth=40.03,
+        duration=60.0,
+    )
+
+    assert domain_parameters.nx(0.1) == 1000
+    assert domain_parameters.ny(0.1) == 1001
+    assert domain_parameters.nz(0.1) == 400
+
+
 def test_srf_config_example(tmp_path: Path) -> None:
     domain_parameters = realisations.DomainParameters(
         domain=bounding_box.BoundingBox.from_centroid_bearing_extents(

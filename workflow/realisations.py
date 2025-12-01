@@ -532,6 +532,54 @@ class DomainParameters(RealisationConfiguration):
     duration: float
     """The simulation duration (in seconds)."""
 
+    def nx(self, resolution: float) -> int:
+        """Calculate the number of point in the x-direction in the simulation domain.
+
+        Parameters
+        ----------
+        resolution : float
+            The simulation resolution in km, e.g. 0.1 for 100m.
+
+        Returns
+        -------
+        int
+            The number of points in the x-direction in the simulation domain.
+        """
+        # The C NZVM code always rounds 0.5 up to 1.0 but Python does not always
+        # round in the same way. So we manually replicate the C rounding behaviour
+        # here for consistency.
+        return int((self.domain.extent_x / resolution) + 0.5)
+
+    def ny(self, resolution: float) -> int:
+        """Calculate the number of point in the y-direction in the simulation domain.
+
+        Parameters
+        ----------
+        resolution : float
+            The simulation resolution in km, e.g. 0.1 for 100m.
+
+        Returns
+        -------
+        int
+            The number of points in the y-direction in the simulation domain.
+        """
+        return int((self.domain.extent_y / resolution) + 0.5)
+
+    def nz(self, resolution: float) -> int:
+        """Calculate the number of point in the z-direction in the simulation domain.
+
+        Parameters
+        ----------
+        resolution : float
+            The simulation resolution in km, e.g. 0.1 for 100m.
+
+        Returns
+        -------
+        int
+            The number of points in the z-direction in the simulation domain.
+        """
+        return int((self.depth / resolution) + 0.5)
+
     def to_dict(self) -> dict:
         """
         Convert the object to a dictionary representation.
