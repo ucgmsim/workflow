@@ -567,6 +567,35 @@ def test_seeds() -> None:
     )
 
 
+def test_seeds_from_random(tmp_path: Path) -> None:
+    """Test read from realisation or random"""
+    realisation_file = tmp_path / "test_realisation.json"
+    # Create a file with unrelated content
+    initial_content = {"other_key": "some_value"}
+    with open(realisation_file, "w") as f:
+        json.dump(initial_content, f)
+
+    seeds = realisations.Seeds.read_from_realisation_or_random(realisation_file)
+    assert all(
+        0 <= seed <= 2 ** (struct.Struct("i").size * 8 - 1) - 1
+        for seed in seeds.to_dict().values()
+    )
+
+    realisation_file = tmp_path / "test_realisation_1.json"
+    # Create a file with unrelated content
+    seeds = realisations.Seeds(
+        nshm_to_realisation_seed=0,
+        rupture_propagation_seed=0,
+        genslip_seed=0,
+        srfgen_seed=0,
+        hf_seed=0,
+    )
+    seeds.write_to_realisation(realisation_file)
+
+    seeds_read = realisations.Seeds.read_from_realisation_or_random(realisation_file)
+    assert seeds == seeds_read
+
+
 def test_velocity_model_1d(tmp_path: Path) -> None:
     velocity_model_1d = realisations.VelocityModel1D(
         model=pd.DataFrame(

@@ -658,7 +658,7 @@ def generate_srf(
         realisation_ffp, metadata.defaults_version
     )
 
-    seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
+    seeds = Seeds.read_from_realisation_or_random(realisation_ffp)
     rupture_propagation = RupturePropagationConfig.read_from_realisation(
         realisation_ffp
     )

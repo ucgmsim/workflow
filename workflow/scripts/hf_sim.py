@@ -279,7 +279,7 @@ def run_hf(
     None
         The function does not return any value. It writes the HF output directly to `out_file`.
     """
-    seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
+    seeds = Seeds.read_from_realisation_or_random(realisation_ffp)
 
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
@@ -306,7 +306,9 @@ def run_hf(
     stations["seed"] = np.int32(seeds.hf_seed) ^ station_hashes
     velocity_model_path = work_directory / "velocity_model"
     velocity_model.write_velocity_model(velocity_model_path)
-    nt = int(np.float32(domain_parameters.duration) / np.float32(hf_config.dt))  # Match Fortran's single-precision for consistent nt calculation
+    nt = int(
+        np.float32(domain_parameters.duration) / np.float32(hf_config.dt)
+    )  # Match Fortran's single-precision for consistent nt calculation
     waveform = np.empty((3, len(stations), nt), dtype=np.float32)
 
     hf_input_template = build_hf_input(
