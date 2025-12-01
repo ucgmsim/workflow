@@ -379,7 +379,7 @@ SRF_SCHEMA = Schema(
         Literal("genslip_version", description="The version of genslip to use"): Or(
             "5.4.2"
         ),
-        Literal("resolution", description="The version of genslip to use"): And(
+        Literal("resolution", description="The resolution of the SRF discretisation."): And(
             NUMBER, _is_positive
         ),
         Optional(
