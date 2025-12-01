@@ -387,10 +387,12 @@ def pgv_target(
             for magnitude in magnitudes.magnitudes.values()
         )
     )
-    return np.interp(
-        total_magnitude,
-        velocity_model_parameters.pgv_interpolants[:, 0],
-        velocity_model_parameters.pgv_interpolants[:, 1],
+    return float(
+        np.interp(
+            total_magnitude,
+            velocity_model_parameters.pgv_interpolants[:, 0],
+            velocity_model_parameters.pgv_interpolants[:, 1],
+        )
     )
 
 
