@@ -294,7 +294,7 @@ def run_hf(
         station_file,
         delimiter=r"\s+",
         header=None,
-        names=["longitude", "latitude", "name"],
+        names=["longitude", "latitude", "name"],  # type: ignore[invalid-argument-type]
     ).set_index("name")
     station_hashes = np.array(
         [stable_hash(name) for name in stations.index], dtype=np.int32
