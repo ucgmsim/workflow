@@ -224,6 +224,22 @@ class RealisationConfiguration(ABC):
 
 
 @dataclasses.dataclass
+class Resolution(RealisationConfiguration):
+    """Configuration for spatial/temporal resolution."""
+
+    _config_key: ClassVar[str] = "resolution"
+    _schema: ClassVar[Schema] = schemas.RESOLUTION_SCHEMA
+
+    resolution: float
+    """Simulation spatial resolution."""
+
+    @property
+    def dt(self) -> float:
+        """float: Simulation temporal resolution."""
+        return self.resolution / 20
+
+
+@dataclasses.dataclass
 class Seeds(RealisationConfiguration):
     """Configuration block for random seeds."""
 
@@ -356,13 +372,8 @@ class SRFConfig(RealisationConfiguration):
     _config_key: ClassVar[str] = "srf"
     _schema: ClassVar[Schema] = schemas.SRF_SCHEMA
 
-    genslip_dt: float
-    """The timestep for genslip (used to specify the resolution for the `TINIT` values)."""
-
     genslip_version: str
     """The version of genslip to use (currently supports "5.4.2")."""
-    resolution: float
-    """The resolution of the SRF geometry"""
 
     point_source_params: schemas.PointSourceParams | None
     """Parameters for point source approximation, if applicable."""
@@ -377,9 +388,7 @@ class SRFConfig(RealisationConfiguration):
             Dictionary representation of the object.
         """
         config_dict = {
-            "genslip_dt": self.genslip_dt,
             "genslip_version": self.genslip_version,
-            "resolution": self.resolution,
         }
         if self.point_source_params is not None:
             config_dict["point_source_params"] = dataclasses.asdict(
@@ -515,16 +524,12 @@ class DomainParameters(RealisationConfiguration):
     _config_key: ClassVar[str] = "domain"
     _schema: ClassVar[Schema] = schemas.DOMAIN_SCHEMA
 
-    resolution: float
-    """The simulation resoultion in kilometres."""
     domain: BoundingBox
     """The bounding box for the domain."""
     depth: float
     """The depth of the domain (in metres)."""
     duration: float
     """The simulation duration (in seconds)."""
-    dt: float
-    """The resolution of the domain in time (in seconds)."""
 
     @property
     def nx(self) -> int:  # numpydoc ignore=RT01
@@ -579,12 +584,8 @@ class VelocityModelParameters(RealisationConfiguration):
     """The velocity model version."""
     topo_type: str
     """The topology type of the velocity model."""
-    dt: float
-    """The velocity model time resolution."""
     ds_multiplier: float
     """The ds multiplier used to adjust simulation duration."""
-    resolution: float
-    """The resolution of the velocity model (in kilometres)."""
     vs30: float
     """The reference vs30 value for duration estimation."""
     s_wave_velocity: float
@@ -677,8 +678,6 @@ class HFConfig(RealisationConfiguration):
     _config_key: ClassVar[str] = "hf"
     _schema: ClassVar[Schema] = schemas.HF_CONFIG_SCHEMA
 
-    dt: float
-    """High frequency time resolution."""
     nbu: int
     """Unknown!"""
     ift: int
@@ -891,8 +890,6 @@ class BroadbandParameters(RealisationConfiguration):
 
     flo: float
     """low/high frequency cutoff."""
-    dt: float
-    """simulation time resolution."""
     fmidbot: float
     """fmidbot for site amplification"""
     fmin: float

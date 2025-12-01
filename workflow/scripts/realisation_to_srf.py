@@ -61,6 +61,7 @@ from workflow.realisations import (
     Magnitudes,
     Rakes,
     RealisationMetadata,
+    Resolution,
     RupturePropagationConfig,
     Seeds,
     SourceConfig,
@@ -353,6 +354,8 @@ def stitch_srf_files(
 class SRFRealisationContext:
     """Realisation configuration for the entire SRF generation process."""
 
+    resolution: Resolution
+    """The spatial/temporal resolution"""
     source_config: SourceConfig
     """The sources to generate"""
     rupture_propagation_config: RupturePropagationConfig
@@ -417,7 +420,7 @@ def generate_fault_srf(
         # Return None here as no other code in this function should be run if generating a point source SRF.
         return None
 
-    resolution = params.srf_config.resolution
+    resolution = params.resolution.resolution
 
     if isinstance(fault, Fault):
         nx = sum(round(plane.length / resolution) for plane in fault.planes)
@@ -452,7 +455,7 @@ def generate_fault_srf(
         f"velfile={environment.velocity_model_path}",
         f"shypo={genslip_hypocentre_coords[0]}",
         f"dhypo={genslip_hypocentre_coords[1]}",
-        f"dt={params.srf_config.genslip_dt}",
+        f"dt={params.resolution.dt}",
         "plane_header=1",
         "srf_version=1.0",
         "seg_delay={0}",
@@ -552,7 +555,7 @@ def generate_point_source_srf(
 
     fault = params.source_config.source_geometries[name]
 
-    resolution = params.srf_config.resolution
+    resolution = params.resolution.resolution
 
     # Get magnitude and convert to seismic moment
     magnitude = params.magnitudes.magnitudes[name]
@@ -590,7 +593,7 @@ def generate_point_source_srf(
         f"outfile={environment.srf_directory / (normalise_name(name) + '.srf')}",
         "outbin=0",
         f"stype={params.srf_config.point_source_params.stype}",
-        f"dt={params.srf_config.genslip_dt}",
+        f"dt={params.resolution.dt}",
         "plane_header=1",
         f"risetime={params.srf_config.point_source_params.risetime}",
         f"risetimefac={params.srf_config.point_source_params.risetimefac}",
@@ -676,8 +679,12 @@ def generate_srf(
     rakes = Rakes.read_from_realisation(realisation_ffp)
     magnitudes = Magnitudes.read_from_realisation(realisation_ffp)
     source_config = SourceConfig.read_from_realisation(realisation_ffp)
+    resolution = Resolution.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
 
     params = SRFRealisationContext(
+        resolution=resolution,
         source_config=source_config,
         rupture_propagation_config=rupture_propagation,
         magnitudes=magnitudes,
