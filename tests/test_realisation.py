@@ -55,19 +55,6 @@ def test_bounding_box_example(tmp_path: Path) -> None:
     ).all()
 
 
-def test_domain_parameters_properties() -> None:
-    domain_parameters = realisations.DomainParameters(
-        domain=bounding_box.BoundingBox.from_centroid_bearing_extents(
-            centroid=np.array([-43.53092, 172.63701]),
-            bearing=45.0,
-            extent_x=100.0,
-            extent_y=100.0,
-        ),
-        depth=40.0,
-        duration=60.0,
-    )
-
-
 def test_srf_config_example(tmp_path: Path) -> None:
     domain_parameters = realisations.DomainParameters(
         domain=bounding_box.BoundingBox.from_centroid_bearing_extents(
@@ -580,6 +567,25 @@ def test_intensity_measure_calculation_parameters(tmp_path: Path) -> None:
     )
 
 
+def test_resolution(tmp_path: Path) -> None:
+    resolution = realisations.Resolution(resolution=0.1)
+    assert resolution.dt == 0.005
+
+    resolution_200m = realisations.Resolution(resolution=0.2)
+    assert resolution_200m.dt == 0.01
+
+    resolution_400m = realisations.Resolution(resolution=0.4)
+    assert resolution_400m.dt == 0.02
+
+    realisation_path = tmp_path / "realisation.json"
+
+    resolution.write_to_realisation(realisation_path)
+    with open(realisation_path, "r") as realisation_handle:
+        assert json.load(realisation_handle) == {"resolution": {"resolution": 0.1}}
+
+    assert realisations.Resolution.read_from_realisation(realisation_path) == resolution
+
+
 def test_sources(tmp_path: Path) -> None:
     realisation_ffp = tmp_path / "realisation.json"
     source_json = {
@@ -639,6 +645,7 @@ def test_sources(tmp_path: Path) -> None:
         realisations.VelocityModel1D,
         realisations.IntensityMeasureCalculationParameters,
         realisations.HFVelocityModel1D,
+        realisations.Resolution,
     ],
 )
 @pytest.mark.parametrize("defaults_version", list(defaults.DefaultsVersion))
