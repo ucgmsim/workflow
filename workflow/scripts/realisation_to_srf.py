@@ -54,7 +54,7 @@ from scipy.sparse import csr_array
 
 from qcore import cli, coordinates
 from source_modelling import gsf, moment, rupture_propagation, srf
-from source_modelling.sources import IsSource, Point
+from source_modelling.sources import Fault, IsSource, Point
 from workflow import log_utils, realisations, utils
 from workflow.log_utils import log_call
 from workflow.realisations import (
@@ -327,18 +327,20 @@ def stitch_srf_files(
         process_fault(fault_name)
 
     # Combine SRF file components
+    combined_slipt_array = concatenate_slip_values(
+        (
+            fault_srf.slipt1_array
+            if fault_srf.slipt1_array is not None
+            else csr_array((len(fault_srf.points), 1))
+        )
+        for fault_srf in srf_file_map.values()
+    )
+    assert combined_slipt_array is not None
     combined_srf = srf.SrfFile(
         version="1.0",
         header=pd.concat([fault_srf.header for fault_srf in srf_file_map.values()]),
         points=pd.concat([fault_srf.points for fault_srf in srf_file_map.values()]),
-        slipt1_array=concatenate_slip_values(
-            (
-                fault_srf.slipt1_array
-                if fault_srf.slipt1_array is not None
-                else csr_array((len(fault_srf.points), 1))
-            )
-            for fault_srf in srf_file_map.values()
-        ),
+        slipt1_array=combined_slipt_array,
     )
 
     # Write the combined SRF file
@@ -417,8 +419,11 @@ def generate_fault_srf(
 
     resolution = params.srf_config.resolution
 
-    nx = sum(round(plane.length / resolution) for plane in fault.planes)
-    ny = round(fault.planes[0].width / resolution)
+    if isinstance(fault, Fault):
+        nx = sum(round(plane.length / resolution) for plane in fault.planes)
+    else:
+        nx = round(fault.length / resolution)
+    ny = round(fault.width / resolution)
 
     gsf_file_path = generate_fault_gsf(
         name,
@@ -560,7 +565,10 @@ def generate_point_source_srf(
     # divide by 1000 to convert depth from meters to kilometers
     source_depth_km = params.source_config.source_geometries[name].centroid[2] / 1000
 
-    fault_area_km2 = (params.source_config.source_geometries[name].length_m / 1000) ** 2
+    fault_area_km2 = (
+        params.source_config.source_geometries[name].length
+        * params.source_config.source_geometries[name].width
+    )
 
     slip = moment.point_source_slip(
         moment_newton_metre, fault_area_km2, velocity_model_df, source_depth_km
