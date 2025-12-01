@@ -55,6 +55,8 @@ def emod3d_domain_parameters(
 
     Parameters
     ----------
+    resolution : Resolution
+        The realisation resolution parameters.
     domain_parameters : DomainParameters
         The realisation domain parameters.
 
@@ -88,6 +90,8 @@ def emod3d_duration_parameters(
 
     Parameters
     ----------
+    resolution : Resolution
+        The realisation resolution parameters.
     domain_parameters : DomainParameters
         The domain parameters.
     min_vs : float

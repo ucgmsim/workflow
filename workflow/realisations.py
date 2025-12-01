@@ -234,7 +234,7 @@ class Resolution(RealisationConfiguration):
     """Simulation spatial resolution."""
 
     @property
-    def dt(self) -> float:
+    def dt(self) -> float:  # numpydoc ignore=RT01
         """float: Simulation temporal resolution."""
         return self.resolution / 20
 

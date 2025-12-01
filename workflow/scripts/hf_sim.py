@@ -75,6 +75,8 @@ def build_hf_input(
         The path to the stoch file.
     velocity_model : Path
         The path to the velocity model.
+    resolution : Resolution
+        HF simulation resolution.
     hf_config : HFConfig
         The high-frequency config.
     seeds : Seeds

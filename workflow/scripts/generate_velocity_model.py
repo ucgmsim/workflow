@@ -66,6 +66,8 @@ def write_nzvm_config(
 
     Parameters
     ----------
+    resolution : Resolution
+        Resolution parameters extracted from realisation JSON.
     domain_parameters : DomainParameters
         Domain parameters extracted from realisation JSON.
     velocity_model_parameters : VelocityModelParameters
