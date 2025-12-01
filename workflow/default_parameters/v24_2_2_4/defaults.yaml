@@ -100,7 +100,6 @@ hf:
   stoch_dx: 2.0
   stoch_dy: 2.0
 srf:
-  resolution: 0.1
   genslip_version: 5.4.2
   # The following parameters are only used for the point source approximation.
   point_source_params:
