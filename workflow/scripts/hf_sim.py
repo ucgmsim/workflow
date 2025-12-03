@@ -283,7 +283,7 @@ def run_hf(
     None
         The function does not return any value. It writes the HF output directly to `out_file`.
     """
-    seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
+    seeds = Seeds.read_from_realisation_or_random(realisation_ffp)
 
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
@@ -301,7 +301,7 @@ def run_hf(
         station_file,
         delimiter=r"\s+",
         header=None,
-        names=["longitude", "latitude", "name"],
+        names=["longitude", "latitude", "name"],  # type: ignore[invalid-argument-type]
     ).set_index("name")
     station_hashes = np.array(
         [stable_hash(name) for name in stations.index], dtype=np.int32
