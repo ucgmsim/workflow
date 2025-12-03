@@ -329,7 +329,7 @@ def generate_realisation(
         )
         raise typer.Exit(code=1)
     faults_info = db.get_rupture_fault_info(rupture_id)
-    seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
+    seeds = Seeds.read_from_realisation_or_random(realisation_ffp)
     np.random.seed(seed=seeds.nshm_to_realisation_seed)
     source_config = SourceConfig(faults)
 

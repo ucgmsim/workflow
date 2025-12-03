@@ -154,9 +154,11 @@ def combine_hf_and_lf(
     )
     hf = hf.sel(station=common_stations)
     lf = lf.sel(station=common_stations)
-
     vs30_df = pd.read_csv(
-        station_vs30_ffp, sep=r"\s+", header=None, names=["station", "vsite"]
+        station_vs30_ffp,
+        sep=r"\s+",
+        header=None,
+        names=["station", "vsite"],  # type: ignore[invalid-argument-type]
     ).set_index("station")
     vs30_df["vsite"] = vs30_df["vsite"].astype(np.float32)
     vs30_df = vs30_df.loc[common_stations]
@@ -218,8 +220,6 @@ def combine_hf_and_lf(
         engine="h5netcdf",
         encoding={
             "waveform": {
-                "compression": "zlib",  # Use zlib compression.
-                "complevel": 5,  # Compress to level 5 (of 9).
                 "fletcher32": True,  # Add Fletcher-32 checksums for long-term storage.
             }
         },

@@ -242,8 +242,8 @@ class Seeds(RealisationConfiguration):
     """HF seed."""
 
     @classmethod
-    def read_from_realisation_or_defaults(
-        cls, realisation_ffp: Path, *args: list[Any]
+    def read_from_realisation_or_random(
+        cls, realisation_ffp: Path
     ) -> Self:  # *args is to maintain compat with superclass (remove this and see the error in mypy).
         """Read seeds configuration from a realisation file or generate random seeds if not present.
 
@@ -256,8 +256,6 @@ class Seeds(RealisationConfiguration):
         ----------
         realisation_ffp : Path
             The realisation filepath to read from.
-        *args : list
-            Ignored arguments.
 
         Returns
         -------
