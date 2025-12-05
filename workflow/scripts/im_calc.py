@@ -218,11 +218,18 @@ def calculate_instensity_measures(
     # Add each column of the DataFrame as a coordinate
     # TODO: Refactor IM Calculation to use waveforms in (component, station, time) format
     # Convert (component, station, time) to (station, time, component).
-    waveform = np.transpose(broadband.waveform.values, (1, 2, 0))
+    # This hack is a stop-gap while the intensity measures get refactored
+    waveform_component_wise = broadband.waveform.values
+    waveform = np.transpose(waveform_component_wise.copy(), (1, 2, 0))
+
     for im_name in (pbar := tqdm.tqdm(intensity_measures)):
         pbar.set_description(im_name)
         im_fn = im_function_map[im_name]
-        result = im_fn(waveform)
+        if im_name in {IM.pSA, IM.FAS}:
+            # These IMs take (component, station, time) shape arrays
+            result = im_fn(waveform_component_wise)
+        else:
+            result = im_fn(waveform)
 
         if isinstance(result, pd.DataFrame):
             result["station"] = broadband.station.values
