@@ -136,7 +136,7 @@ def calculate_instensity_measures(
         IM.pSA: functools.partial(
             ims.pseudo_spectral_acceleration,
             periods=np.array(
-                intensity_measure_parameters.valid_periods, dtype=np.float32
+                intensity_measure_parameters.valid_periods, dtype=np.float64
             ),
             dt=resolution.dt,
             psa_rotd_maximum_memory_allocation=psa_rotd_maximum_memory_allocation * 1e9
@@ -219,13 +219,13 @@ def calculate_instensity_measures(
     # TODO: Refactor IM Calculation to use waveforms in (component, station, time) format
     # Convert (component, station, time) to (station, time, component).
     # This hack is a stop-gap while the intensity measures get refactored
-    waveform_component_wise = broadband.waveform.values
+    waveform_component_wise = broadband.waveform.values.astype(np.float64)
     waveform = np.transpose(waveform_component_wise.copy(), (1, 2, 0))
 
     for im_name in (pbar := tqdm.tqdm(intensity_measures)):
         pbar.set_description(im_name)
         im_fn = im_function_map[im_name]
-        if im_name in {IM.pSA, IM.FAS}:
+        if im_name in {IM.pSA}:
             # These IMs take (component, station, time) shape arrays
             result = im_fn(waveform_component_wise)
         else:
