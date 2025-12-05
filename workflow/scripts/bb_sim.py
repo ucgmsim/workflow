@@ -49,6 +49,7 @@ from workflow import log_utils, realisations
 from workflow.realisations import (
     BroadbandParameters,
     RealisationMetadata,
+    Resolution,
 )
 
 app = typer.Typer()
@@ -144,7 +145,10 @@ def combine_hf_and_lf(
     broadband_config = BroadbandParameters.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
-    bb_dt = broadband_config.dt
+    resolution = Resolution.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
+    bb_dt = resolution.dt
 
     # load data stores
     lf = xr.open_dataset(low_frequency_waveform_file)
@@ -186,16 +190,18 @@ def combine_hf_and_lf(
         assert isinstance(vs30_df, pd.DataFrame)
         hf_amp_val = siteamp_models.cb_amp_multi(vs30_df)
         hf_amp_fas_vals = siteamp_models.cb2014_to_fas_amplification_factors(
-            hf_amp_val, bb_dt, bb_nt
+            hf_amp_val,
+            bb_dt,
+            bb_nt,
         )
         hf_waveform_amped = timeseries.ampdeamp(
             temp_hf_padded, hf_amp_fas_vals, amplify=True
         )
         hf_filtered = timeseries.bwfilter(
-            hf_waveform_amped, bb_dt, 1.0, timeseries.Band.HIGHPASS
+            hf_waveform_amped, bb_dt, broadband_config.flo, timeseries.Band.HIGHPASS
         )
         lf_filtered = timeseries.bwfilter(
-            temp_lf_padded, bb_dt, 1.0, timeseries.Band.LOWPASS
+            temp_lf_padded, bb_dt, broadband_config.flo, timeseries.Band.LOWPASS
         )
         bb_waveforms.append((hf_filtered + lf_filtered) * G)
 
