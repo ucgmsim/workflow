@@ -483,11 +483,9 @@ def generate_velocity_model_parameters(
     )
 
     domain_parameters = DomainParameters(
-        resolution=velocity_model_parameters.resolution,
         domain=model_domain,
         depth=max_depth,
         duration=sim_duration,
-        dt=velocity_model_parameters.dt,
     )
     domain_parameters.write_to_realisation(realisation_ffp)
     realisations.append_log_entry(realisation_ffp)

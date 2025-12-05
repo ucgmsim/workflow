@@ -224,6 +224,22 @@ class RealisationConfiguration(ABC):
 
 
 @dataclasses.dataclass
+class Resolution(RealisationConfiguration):
+    """Configuration for spatial/temporal resolution."""
+
+    _config_key: ClassVar[str] = "resolution"
+    _schema: ClassVar[Schema] = schemas.RESOLUTION_SCHEMA
+
+    resolution: float
+    """Simulation spatial resolution."""
+
+    @property
+    def dt(self) -> float:  # numpydoc ignore=RT01
+        """float: Simulation temporal resolution."""
+        return self.resolution / 20
+
+
+@dataclasses.dataclass
 class Seeds(RealisationConfiguration):
     """Configuration block for random seeds."""
 
@@ -354,13 +370,11 @@ class SRFConfig(RealisationConfiguration):
     _config_key: ClassVar[str] = "srf"
     _schema: ClassVar[Schema] = schemas.SRF_SCHEMA
 
-    genslip_dt: float
-    """The timestep for genslip (used to specify the resolution for the `TINIT` values)."""
-
     genslip_version: str
     """The version of genslip to use (currently supports "5.4.2")."""
+
     resolution: float
-    """The resolution of the SRF geometry"""
+    """The resolution of the SRF discretisation (different, in general, from the simulation resolution)."""
 
     point_source_params: schemas.PointSourceParams | None
     """Parameters for point source approximation, if applicable."""
@@ -374,11 +388,7 @@ class SRFConfig(RealisationConfiguration):
         dict
             Dictionary representation of the object.
         """
-        config_dict = {
-            "genslip_dt": self.genslip_dt,
-            "genslip_version": self.genslip_version,
-            "resolution": self.resolution,
-        }
+        config_dict = dataclasses.asdict(self)
         if self.point_source_params is not None:
             config_dict["point_source_params"] = dataclasses.asdict(
                 self.point_source_params
@@ -513,40 +523,60 @@ class DomainParameters(RealisationConfiguration):
     _config_key: ClassVar[str] = "domain"
     _schema: ClassVar[Schema] = schemas.DOMAIN_SCHEMA
 
-    resolution: float
-    """The simulation resoultion in kilometres."""
     domain: BoundingBox
     """The bounding box for the domain."""
     depth: float
     """The depth of the domain (in metres)."""
     duration: float
     """The simulation duration (in seconds)."""
-    dt: float
-    """The resolution of the domain in time (in seconds)."""
 
-    @property
-    def nx(self) -> int:  # numpydoc ignore=RT01
-        """int: The number of x coordinate positions in the discretised domain."""
+    def nx(self, resolution: float) -> int:
+        """Calculate the number of point in the x-direction in the simulation domain.
+
+        Parameters
+        ----------
+        resolution : float
+            The simulation resolution in km, e.g. 0.1 for 100m.
+
+        Returns
+        -------
+        int
+            The number of points in the x-direction in the simulation domain.
+        """
         # The C NZVM code always rounds 0.5 up to 1.0 but Python does not always
         # round in the same way. So we manually replicate the C rounding behaviour
         # here for consistency.
-        return int((self.domain.extent_x / self.resolution) + 0.5)
+        return int((self.domain.extent_x / resolution) + 0.5)
 
-    @property
-    def ny(self) -> int:  # numpydoc ignore=RT01
-        """int: The number of y coordinate positions in the discretised domain."""
-        # The C NZVM code always rounds 0.5 up to 1.0 but Python does not always
-        # round in the same way. So we manually replicate the C rounding behaviour
-        # here for consistency.
-        return int((self.domain.extent_y / self.resolution) + 0.5)
+    def ny(self, resolution: float) -> int:
+        """Calculate the number of point in the y-direction in the simulation domain.
 
-    @property
-    def nz(self) -> int:  # numpydoc ignore=RT01
-        """int: The number of z coordinate positions in the discretised domain."""
-        # The C NZVM code always rounds 0.5 up to 1.0 but Python does not always
-        # round in the same way. So we manually replicate the C rounding behaviour
-        # here for consistency.
-        return int((self.depth / self.resolution) + 0.5)
+        Parameters
+        ----------
+        resolution : float
+            The simulation resolution in km, e.g. 0.1 for 100m.
+
+        Returns
+        -------
+        int
+            The number of points in the y-direction in the simulation domain.
+        """
+        return int((self.domain.extent_y / resolution) + 0.5)
+
+    def nz(self, resolution: float) -> int:
+        """Calculate the number of point in the z-direction in the simulation domain.
+
+        Parameters
+        ----------
+        resolution : float
+            The simulation resolution in km, e.g. 0.1 for 100m.
+
+        Returns
+        -------
+        int
+            The number of points in the z-direction in the simulation domain.
+        """
+        return int((self.depth / resolution) + 0.5)
 
     def to_dict(self) -> dict:
         """
@@ -577,12 +607,8 @@ class VelocityModelParameters(RealisationConfiguration):
     """The velocity model version."""
     topo_type: str
     """The topology type of the velocity model."""
-    dt: float
-    """The velocity model time resolution."""
     ds_multiplier: float
     """The ds multiplier used to adjust simulation duration."""
-    resolution: float
-    """The resolution of the velocity model (in kilometres)."""
     vs30: float
     """The reference vs30 value for duration estimation."""
     s_wave_velocity: float
@@ -675,8 +701,6 @@ class HFConfig(RealisationConfiguration):
     _config_key: ClassVar[str] = "hf"
     _schema: ClassVar[Schema] = schemas.HF_CONFIG_SCHEMA
 
-    dt: float
-    """High frequency time resolution."""
     nbu: int
     """Unknown!"""
     ift: int
@@ -889,8 +913,6 @@ class BroadbandParameters(RealisationConfiguration):
 
     flo: float
     """low/high frequency cutoff."""
-    dt: float
-    """simulation time resolution."""
     fmidbot: float
     """fmidbot for site amplification"""
     fmin: float

@@ -376,14 +376,10 @@ POINT_SOURCE_PARAMS_SCHEMA = Schema(
 
 SRF_SCHEMA = Schema(
     {
-        Literal(
-            "genslip_dt",
-            description="The timestep for genslip (used to specify the resolution for the `TINIT` values)",
-        ): And(NUMBER, _is_positive),
         Literal("genslip_version", description="The version of genslip to use"): Or(
             "5.4.2"
         ),
-        Literal("resolution", description="Subdivision resolution."): And(
+        Literal("resolution", description="The resolution of the SRF discretisation."): And(
             NUMBER, _is_positive
         ),
         Optional(
@@ -397,9 +393,6 @@ SRF_SCHEMA = Schema(
 
 DOMAIN_SCHEMA = Schema(
     {
-        Literal("resolution", description="The simulation resolution (in km)"): And(
-            NUMBER, _is_positive
-        ),
         Literal("domain", description="The corners of the simulation domain."): And(
             LAT_LON_SCHEMA, Use(BoundingBox.from_wgs84_coordinates)
         ),
@@ -409,9 +402,6 @@ DOMAIN_SCHEMA = Schema(
         Literal(
             "duration", description="The duration of the simulation (in seconds)"
         ): And(NUMBER, _is_positive),
-        Literal("dt", "The resolution of the domain in time (in seconds)."): And(
-            NUMBER, _is_positive
-        ),
     }
 )
 
@@ -467,11 +457,7 @@ VELOCITY_MODEL_SCHEMA = Schema(
             "2.02", "2.03", "2.06", "2.07", "2.08", "2.09", "2.09_no_basin"
         ),
         Literal("topo_type", "Velocity model topology type"): str,
-        Literal("dt", "Velocity model timestep resolution"): And(NUMBER, _is_positive),
         Literal("ds_multiplier", "Velocity model ds multiplier"): And(
-            NUMBER, _is_positive
-        ),
-        Literal("resolution", "Velocity model spatial resolution"): And(
             NUMBER, _is_positive
         ),
         Literal("vs30", "VS30 value"): And(NUMBER, _is_positive),
@@ -549,9 +535,6 @@ HF_CONFIG_SCHEMA = Schema(
         Literal("qs_sig", description="Unknown!"): NUMBER,
         Literal("ic_flag", description="Unknown!"): bool,
         Literal("velocity_name", description="Unknown!"): str,
-        Literal("dt", description="Time resolution for HF simulation"): And(
-            NUMBER, _is_positive
-        ),
         Literal("t_sec", description="High frequency output start time."): And(
             NUMBER, _is_non_negative
         ),
@@ -677,9 +660,6 @@ BROADBAND_PARAMETERS_SCHEMA = Schema(
         Literal("flo", description="low/high frequency cutoff"): And(
             NUMBER, _is_non_negative
         ),
-        Literal("dt", description="simulation time resolution"): And(
-            NUMBER, _is_positive
-        ),
         Literal("fmidbot", description="fmidbot for site amplification"): And(
             NUMBER, _is_non_negative
         ),
@@ -732,5 +712,13 @@ LOG_TRAIL_SCHEMA = Schema(
             "log",
             description="The utilities executed on this realisation.",
         ): [LOG_ENTRY_SCHEMA],
+    }
+)
+
+RESOLUTION_SCHEMA = Schema(
+    {
+        Literal("resolution", description="Simulation spatial resolution."): And(
+            NUMBER, _is_positive
+        )
     }
 )
