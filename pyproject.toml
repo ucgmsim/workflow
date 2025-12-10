@@ -50,7 +50,7 @@ dependencies = [
 [project.optional-dependencies]
 test = ["pytest"]
 types = ["pandas-stubs", "types-geopandas", "types-requests", "scipy-stubs"]
-dev = ["ruff", "deptry", "ty"]
+dev = ["ruff", "deptry", "ty", "numpydoc"]
 
 [tool.deptry]
 pep621_dev_dependency_groups = ["test", "dev"]
