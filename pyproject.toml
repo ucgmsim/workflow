@@ -7,16 +7,17 @@ name = "workflow"
 authors = [{ name = "QuakeCoRE" }]
 description = "Next generation workflow powered by cylc."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 dynamic = ["version"]
 dependencies = [
   # UCGMSim Dependencies
   "im_calculation @ git+https://github.com/ucgmsim/IM_calculation.git",
-  "nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB.git",
-  "oq_wrapper @ git+https://github.com/ucgmsim/Empirical_Engine.git#subdirectory=oq_wrapper",
-  "qcore @ git+https://github.com/ucgmsim/qcore.git",
-  "source_modelling @ git+https://github.com/ucgmsim/source_modelling.git",
   "velocity_modelling @ git+https://github.com/ucgmsim/velocity_modelling.git",
+  "nshmdb",
+  "oq_wrapper",
+  "qcore-utils",
+  "source_modelling",
+
 
   # Data Formats
   "geopandas",
