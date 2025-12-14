@@ -439,6 +439,17 @@ def generate_fault_srf(
     genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
         params.rupture_propagation_config.hypocentres[name] - np.array([1 / 2, 0])
     )
+    gwid = (
+        ",".join([str(x) for x in params.srf_config.gwid])
+        if params.srf_config.gwid
+        else -1
+    )
+    rvfac_seg = (
+        ",".join([str(x) for x in params.srf_config.rvfac_seg])
+        if params.srf_config.rvfac_seg
+        else -1
+    )
+
     genslip_cmd = [
         str(environment.genslip_path),
         "plane_header=1",
@@ -462,8 +473,8 @@ def generate_fault_srf(
         f"bot_taper={params.srf_config.bot_taper}",
         f"top_taper={params.srf_config.top_taper}",
         f"alpha_rough={params.srf_config.alpha_rough}",
-        f"gwid={params.srf_config.gwid or -1}",
-        f"rvfac_seg={params.srf_config.rvfac_seg or -1}",
+        f"gwid={gwid}",
+        f"rvfac_seg={rvfac_seg}",
         f"seg_delay={int(params.srf_config.seg_delay)}",
     ]
 
