@@ -40,6 +40,7 @@ from workflow.realisations import (
     DomainParameters,
     EMOD3DParameters,
     RealisationMetadata,
+    Resolution,
     VelocityModelParameters,
 )
 
@@ -47,12 +48,15 @@ app = typer.Typer()
 
 
 def emod3d_domain_parameters(
+    resolution: Resolution,
     domain_parameters: DomainParameters,
 ) -> dict[str, int | float]:
     """Create a dictionary of the EMOD3D domain parameters.
 
     Parameters
     ----------
+    resolution : Resolution
+        The realisation resolution parameters.
     domain_parameters : DomainParameters
         The realisation domain parameters.
 
@@ -61,11 +65,15 @@ def emod3d_domain_parameters(
     dict[str, int | float]
         A dictionary containing the EMOD3D domain parameters.
     """
+
+    nx = domain_parameters.nx(resolution.resolution)
+    ny = domain_parameters.ny(resolution.resolution)
+    nz = domain_parameters.nz(resolution.resolution)
     return {
-        "nx": domain_parameters.nx,
-        "ny": domain_parameters.ny,
-        "nz": domain_parameters.nz,
-        "h": domain_parameters.resolution,
+        "nx": nx,
+        "ny": ny,
+        "nz": nz,
+        "h": resolution.resolution,
         "modellat": float(domain_parameters.domain.origin[0]),
         "modellon": float(domain_parameters.domain.origin[1]),
         "modelrot": float(domain_parameters.domain.great_circle_bearing),
@@ -73,12 +81,17 @@ def emod3d_domain_parameters(
 
 
 def emod3d_duration_parameters(
-    domain_parameters: DomainParameters, min_vs: float, dtts: float
+    resolution: Resolution,
+    domain_parameters: DomainParameters,
+    min_vs: float,
+    dtts: float,
 ) -> dict[str, int | float]:
     """Create a dictionary of the EMOD3D duration parameters.
 
     Parameters
     ----------
+    resolution : Resolution
+        The realisation resolution parameters.
     domain_parameters : DomainParameters
         The domain parameters.
     min_vs : float
@@ -91,15 +104,15 @@ def emod3d_duration_parameters(
     dict[str, int | float]
         A dictionary containing the EMOD3D duration parameters.
     """
-    flo = min_vs / (5 * domain_parameters.resolution)
+    flo = min_vs / (5 * resolution.resolution)
     extended_simulation_duration = domain_parameters.duration + 3 / flo
-    nt = int(np.round(extended_simulation_duration / domain_parameters.dt))
+    nt = int(np.round(extended_simulation_duration / resolution.dt))
     return {
         "nt": nt,
         "dump_itinc": nt,
         "flo": flo,
-        "dt": domain_parameters.dt,
-        "ts_total": int(extended_simulation_duration / (domain_parameters.dt * dtts)),
+        "dt": resolution.dt,
+        "ts_total": int(extended_simulation_duration / (resolution.dt * dtts)),
         "restart_itinc": round(nt / 3),
     }
 
@@ -250,13 +263,17 @@ def create_e3d_par(
         realisation_ffp
     )
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
+    resolution = Resolution.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
     emod3d_parameters = EMOD3DParameters.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
     e3d_par_values = (
         emod3d_parameters.to_dict()
-        | emod3d_domain_parameters(domain_parameters)
+        | emod3d_domain_parameters(resolution, domain_parameters)
         | emod3d_duration_parameters(
+            resolution,
             domain_parameters,
             min_vs=velocity_model_parameters.min_vs,
             dtts=emod3d_parameters.dtts,

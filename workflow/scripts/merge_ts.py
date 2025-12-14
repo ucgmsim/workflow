@@ -97,23 +97,23 @@ def merge_ts_xyts(
     # If output doesn't exist when we os.open it, we'll get an error.
     output.touch()
     merged_fd = os.open(output, os.O_WRONLY)
-
+    # The following type: ignores can be removed once qcore updates
     xyts_header: bytes = (
-        top_left.x0.tobytes()
-        + top_left.y0.tobytes()
-        + top_left.z0.tobytes()
-        + top_left.t0.tobytes()
-        + top_left.nx.tobytes()
-        + top_left.ny.tobytes()
-        + top_left.nz.tobytes()
-        + top_left.nt.tobytes()
-        + top_left.dx.tobytes()
-        + top_left.dy.tobytes()
-        + top_left.hh.tobytes()
-        + top_left.dt.tobytes()
-        + top_left.mrot.tobytes()
-        + top_left.mlat.tobytes()
-        + top_left.mlon.tobytes()
+        top_left.x0.tobytes()  # type: ignore
+        + top_left.y0.tobytes()  # type: ignore
+        + top_left.z0.tobytes()  # type: ignore
+        + top_left.t0.tobytes()  # type: ignore
+        + top_left.nx.tobytes()  # type: ignore
+        + top_left.ny.tobytes()  # type: ignore
+        + top_left.nz.tobytes()  # type: ignore
+        + top_left.nt.tobytes()  # type: ignore
+        + top_left.dx.tobytes()  # type: ignore
+        + top_left.dy.tobytes()  # type: ignore
+        + top_left.hh.tobytes()  # type: ignore
+        + top_left.dt.tobytes()  # type: ignore
+        + top_left.mrot.tobytes()  # type: ignore
+        + top_left.mlat.tobytes()  # type: ignore
+        + top_left.mlon.tobytes()  # type: ignore
     )
 
     written = os.write(merged_fd, xyts_header)

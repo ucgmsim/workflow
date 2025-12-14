@@ -48,6 +48,7 @@ from workflow import log_utils, realisations, utils
 from workflow.realisations import (
     DomainParameters,
     RealisationMetadata,
+    Resolution,
     VelocityModelParameters,
 )
 
@@ -55,6 +56,7 @@ app = typer.Typer()
 
 
 def write_nzvm_config(
+    resolution: Resolution,
     domain_parameters: DomainParameters,
     velocity_model_parameters: VelocityModelParameters,
     output_path: Path,
@@ -64,6 +66,8 @@ def write_nzvm_config(
 
     Parameters
     ----------
+    resolution : Resolution
+        Resolution parameters extracted from realisation JSON.
     domain_parameters : DomainParameters
         Domain parameters extracted from realisation JSON.
     velocity_model_parameters : VelocityModelParameters
@@ -87,8 +91,8 @@ def write_nzvm_config(
                     f"EXTENT_Y={domain_parameters.domain.extent_y}",
                     "EXTENT_ZMIN=0",  # TODO: CHANGE THIS
                     f"EXTENT_ZMAX={domain_parameters.depth}",
-                    f"EXTENT_Z_SPACING={domain_parameters.resolution}",
-                    f"EXTENT_LATLON_SPACING={domain_parameters.resolution}",
+                    f"EXTENT_Z_SPACING={resolution.resolution}",
+                    f"EXTENT_LATLON_SPACING={resolution.resolution}",
                     f"MIN_VS={velocity_model_parameters.min_vs}",
                     f"TOPO_TYPE={velocity_model_parameters.topo_type}",
                     "",
@@ -213,10 +217,14 @@ def generate_velocity_model(
             realisation_ffp, metadata.defaults_version
         )
     )
+    resolution = Resolution.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
     nzvm_config_path = work_directory / "nzvm.cfg"
     velocity_model_intermediate_path = work_directory / "Velocity_Model"
 
     write_nzvm_config(
+        resolution,
         domain_parameters,
         velocity_model_parameters,
         velocity_model_intermediate_path,

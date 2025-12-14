@@ -21,7 +21,6 @@ from workflow.realisations import SourceConfig
 
 def test_bounding_box_example(tmp_path: Path) -> None:
     domain_parameters = realisations.DomainParameters(
-        resolution=0.1,  # a 0.1km resolution
         domain=bounding_box.BoundingBox.from_centroid_bearing_extents(
             centroid=np.array([-43.53092, 172.63701]),
             bearing=45.0,
@@ -30,14 +29,12 @@ def test_bounding_box_example(tmp_path: Path) -> None:
         ),
         depth=40.0,
         duration=60.0,
-        dt=0.005,
     )
     realisation_ffp = tmp_path / "realisation.json"
     domain_parameters.write_to_realisation(realisation_ffp)
     with open(realisation_ffp, "r") as realisation_handle:
         assert json.load(realisation_handle) == {
             "domain": {
-                "resolution": 0.1,
                 "domain": [
                     {"latitude": -43.524793866326725, "longitude": 171.76204128885567},
                     {"latitude": -44.16756820707226, "longitude": 172.63312824122775},
@@ -46,7 +43,6 @@ def test_bounding_box_example(tmp_path: Path) -> None:
                 ],
                 "depth": 40.0,
                 "duration": 60.0,
-                "dt": 0.005,
             }
         }
     domain_parameters_read = realisations.DomainParameters.read_from_realisation(
@@ -54,35 +50,60 @@ def test_bounding_box_example(tmp_path: Path) -> None:
     )
     assert domain_parameters_read.depth == domain_parameters.depth
     assert domain_parameters_read.duration == domain_parameters.duration
-    assert domain_parameters_read.dt == domain_parameters.dt
-    assert domain_parameters_read.resolution == domain_parameters.resolution
     assert (
         domain_parameters_read.domain.corners == domain_parameters.domain.corners
     ).all()
 
 
-def test_domain_parameters_properties() -> None:
+def test_domain_parameters_discretisation() -> None:
+    """Test domain parameter discretisation to nx, ny, nz"""
     domain_parameters = realisations.DomainParameters(
-        resolution=0.1,  # a 0.1km resolution
         domain=bounding_box.BoundingBox.from_centroid_bearing_extents(
             centroid=np.array([-43.53092, 172.63701]),
-            bearing=45.0,
+            bearing=0.0,
             extent_x=100.0,
             extent_y=100.0,
         ),
         depth=40.0,
         duration=60.0,
-        dt=0.005,
+    )
+    assert domain_parameters.nx(0.1) == 1000
+    assert domain_parameters.ny(0.1) == 1000
+    assert domain_parameters.nz(0.1) == 400
+
+    domain_parameters = realisations.DomainParameters(
+        domain=bounding_box.BoundingBox.from_centroid_bearing_extents(
+            centroid=np.array([-43.53092, 172.63701]),
+            bearing=0.0,
+            extent_x=100.5,
+            extent_y=100.5,
+        ),
+        depth=40.5,
+        duration=60.0,
+    )
+    # NOTE: different behaviour to round()
+    assert domain_parameters.nx(1) == 101
+    assert domain_parameters.ny(1) == 101
+    assert domain_parameters.nz(1) == 41
+
+    domain_parameters = realisations.DomainParameters(
+        domain=bounding_box.BoundingBox.from_centroid_bearing_extents(
+            centroid=np.array([-43.53092, 172.63701]),
+            bearing=0.0,
+            extent_x=100.04,
+            extent_y=100.09,
+        ),
+        depth=40.03,
+        duration=60.0,
     )
 
-    assert domain_parameters.nx == 1000
-    assert domain_parameters.ny == 1000
-    assert domain_parameters.nz == 400
+    assert domain_parameters.nx(0.1) == 1000
+    assert domain_parameters.ny(0.1) == 1001
+    assert domain_parameters.nz(0.1) == 400
 
 
 def test_srf_config_example(tmp_path: Path) -> None:
     domain_parameters = realisations.DomainParameters(
-        resolution=0.1,  # a 0.1km resolution
         domain=bounding_box.BoundingBox.from_centroid_bearing_extents(
             centroid=np.array([-43.53092, 172.63701]),
             bearing=45.0,
@@ -91,10 +112,8 @@ def test_srf_config_example(tmp_path: Path) -> None:
         ),
         depth=40.0,
         duration=60.0,
-        dt=0.005,
     )
     srf_config = realisations.SRFConfig(
-        genslip_dt=1.0,
         genslip_version="5.4.2",
         resolution=0.1,
         point_source_params=schemas.PointSourceParams(
@@ -123,7 +142,6 @@ def test_srf_config_example(tmp_path: Path) -> None:
     with open(realisation_ffp, "r") as realisation_handle:
         assert json.load(realisation_handle) == {
             "domain": {
-                "resolution": 0.1,
                 "domain": [
                     {"latitude": -43.524793866326725, "longitude": 171.76204128885567},
                     {"latitude": -44.16756820707226, "longitude": 172.63312824122775},
@@ -132,12 +150,10 @@ def test_srf_config_example(tmp_path: Path) -> None:
                 ],
                 "depth": 40.0,
                 "duration": 60.0,
-                "dt": 0.005,
             },
             "srf": {
-                "genslip_dt": 1.0,
-                "resolution": 0.1,
                 "genslip_version": "5.4.2",
+                "resolution": 0.1,
                 "point_source_params": {
                     "stype": "cos",
                     "risetime": 0.5,
@@ -162,49 +178,12 @@ def test_srf_config_example(tmp_path: Path) -> None:
     assert realisations.SRFConfig.read_from_realisation(realisation_ffp) == srf_config
 
 
-def test_bad_domain_parameters(tmp_path: Path) -> None:
-    bad_json = tmp_path / "bad_domain_parameters.json"
-    bad_json.write_text(
-        json.dumps(
-            {
-                "domain": {
-                    "resolution": 0,  # Set to 0
-                    "domain": [
-                        {
-                            "latitude": -43.524793866326725,
-                            "longitude": 171.76204128885567,
-                        },
-                        {
-                            "latitude": -42.894200350955856,
-                            "longitude": 172.64076673694242,
-                        },
-                        {
-                            "latitude": -43.53034935969409,
-                            "longitude": 173.51210368762364,
-                        },
-                        {
-                            "latitude": -44.16756820707226,
-                            "longitude": 172.63312824122775,
-                        },
-                    ],
-                    "depth": 40.0,
-                    "duration": 60.0,
-                    "dt": 0.005,
-                }
-            }
-        )
-    )
-    with pytest.raises(schema.SchemaError):
-        realisations.DomainParameters.read_from_realisation(bad_json)
-
-
 def test_bad_config_key(tmp_path: Path) -> None:
     bad_json = tmp_path / "bad_domain_parameters.json"
     bad_json.write_text(
         json.dumps(
             {
                 "not the correct domain key": {
-                    "resolution": 0.1,
                     "domain": [
                         {
                             "latitude": -43.524793866326725,
@@ -225,7 +204,6 @@ def test_bad_config_key(tmp_path: Path) -> None:
                     ],
                     "depth": 40.0,
                     "duration": 60.0,
-                    "dt": 0.005,
                 }
             }
         )
@@ -263,9 +241,7 @@ def test_velocity_model(tmp_path: Path) -> None:
         min_vs=1.0,
         version="2.06",
         topo_type="SQUASHED_TAPERED",
-        dt=0.05,
         ds_multiplier=1.2,
-        resolution=0.1,
         vs30=300.0,
         s_wave_velocity=3500.0,
         pgv_interpolants=np.ones(shape=(2, 2), dtype=np.float32),
@@ -278,9 +254,7 @@ def test_velocity_model(tmp_path: Path) -> None:
                 "min_vs": 1.0,
                 "version": "2.06",
                 "topo_type": "SQUASHED_TAPERED",
-                "dt": 0.05,
                 "ds_multiplier": 1.2,
-                "resolution": 0.1,
                 "vs30": 300.0,
                 "s_wave_velocity": 3500.0,
                 "pgv_interpolants": [[1, 1], [1, 1]],
@@ -398,7 +372,7 @@ def test_hf_config(tmp_path: Path) -> None:
     hf_config.write_to_realisation(test_realisation)
     assert realisations.HFConfig.read_from_realisation(test_realisation) == hf_config
     # Test that realisation parameters override defaults.
-    hf_config.dt = 0.1
+    hf_config.czero = 2.0
     hf_config.write_to_realisation(test_realisation)
     assert (
         realisations.HFConfig.read_from_realisation_or_defaults(
@@ -430,14 +404,13 @@ def test_emod3d(tmp_path: Path) -> None:
 def test_broadband_parameters(tmp_path: Path) -> None:
     test_realisation = tmp_path / "realisation.json"
     broadband_parameters = realisations.BroadbandParameters(
-        flo=0.5, dt=0.005, fmidbot=0.5, fmin=0.25, site_amp_version="2014"
+        flo=0.5, fmidbot=0.5, fmin=0.25, site_amp_version="2014"
     )
     broadband_parameters.write_to_realisation(test_realisation)
     with open(test_realisation, "r") as realisation_handle:
         assert json.load(realisation_handle) == {
             "bb": {
                 "flo": 0.5,
-                "dt": 0.005,
                 "fmidbot": 0.5,
                 "fmin": 0.25,
                 "site_amp_version": "2014",
@@ -589,6 +562,35 @@ def test_seeds() -> None:
     )
 
 
+def test_seeds_from_random(tmp_path: Path) -> None:
+    """Test read from realisation or random"""
+    realisation_file = tmp_path / "test_realisation.json"
+    # Create a file with unrelated content
+    initial_content = {"other_key": "some_value"}
+    with open(realisation_file, "w") as f:
+        json.dump(initial_content, f)
+
+    seeds = realisations.Seeds.read_from_realisation_or_random(realisation_file)
+    assert all(
+        0 <= seed <= 2 ** (struct.Struct("i").size * 8 - 1) - 1
+        for seed in seeds.to_dict().values()
+    )
+
+    realisation_file = tmp_path / "test_realisation_1.json"
+    # Create a file with unrelated content
+    seeds = realisations.Seeds(
+        nshm_to_realisation_seed=0,
+        rupture_propagation_seed=0,
+        genslip_seed=0,
+        srfgen_seed=0,
+        hf_seed=0,
+    )
+    seeds.write_to_realisation(realisation_file)
+
+    seeds_read = realisations.Seeds.read_from_realisation_or_random(realisation_file)
+    assert seeds == seeds_read
+
+
 def test_velocity_model_1d(tmp_path: Path) -> None:
     velocity_model_1d = realisations.VelocityModel1D(
         model=pd.DataFrame(
@@ -665,6 +667,25 @@ def test_intensity_measure_calculation_parameters(tmp_path: Path) -> None:
     )
 
 
+def test_resolution(tmp_path: Path) -> None:
+    resolution = realisations.Resolution(resolution=0.1)
+    assert resolution.dt == 0.005
+
+    resolution_200m = realisations.Resolution(resolution=0.2)
+    assert resolution_200m.dt == 0.01
+
+    resolution_400m = realisations.Resolution(resolution=0.4)
+    assert resolution_400m.dt == 0.02
+
+    realisation_path = tmp_path / "realisation.json"
+
+    resolution.write_to_realisation(realisation_path)
+    with open(realisation_path, "r") as realisation_handle:
+        assert json.load(realisation_handle) == {"resolution": {"resolution": 0.1}}
+
+    assert realisations.Resolution.read_from_realisation(realisation_path) == resolution
+
+
 def test_sources(tmp_path: Path) -> None:
     realisation_ffp = tmp_path / "realisation.json"
     source_json = {
@@ -724,6 +745,7 @@ def test_sources(tmp_path: Path) -> None:
         realisations.VelocityModel1D,
         realisations.IntensityMeasureCalculationParameters,
         realisations.HFVelocityModel1D,
+        realisations.Resolution,
     ],
 )
 @pytest.mark.parametrize("defaults_version", list(defaults.DefaultsVersion))

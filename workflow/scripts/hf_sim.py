@@ -52,6 +52,7 @@ from workflow.realisations import (
     HFConfig,
     HFVelocityModel1D,
     RealisationMetadata,
+    Resolution,
     Seeds,
 )
 
@@ -61,6 +62,7 @@ app = typer.Typer()
 def build_hf_input(
     stoch_ffp: Path,
     velocity_model: Path,
+    resolution: Resolution,
     hf_config: HFConfig,
     seeds: Seeds,
     domain_parameters: DomainParameters,
@@ -73,6 +75,8 @@ def build_hf_input(
         The path to the stoch file.
     velocity_model : Path
         The path to the velocity model.
+    resolution : Resolution
+        HF simulation resolution.
     hf_config : HFConfig
         The high-frequency config.
     seeds : Seeds
@@ -98,7 +102,7 @@ def build_hf_input(
         f"{hf_config.nbu} {hf_config.ift} {hf_config.flo} {hf_config.fhi}",
         "{seed}",
         1,  # one station in the input
-        f"{domain_parameters.duration} {hf_config.dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",
+        f"{domain_parameters.duration} {resolution.dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",
         f"{hf_config.rvfac} {hf_config.rvfac_shal} {hf_config.rvfac_deep} {hf_config.czero} {hf_config.calpha}",
         f"{hf_config.mom or -1} {hf_config.rupv or -1}",
         stoch_ffp,
@@ -279,7 +283,7 @@ def run_hf(
     None
         The function does not return any value. It writes the HF output directly to `out_file`.
     """
-    seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
+    seeds = Seeds.read_from_realisation_or_random(realisation_ffp)
 
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
@@ -289,12 +293,15 @@ def run_hf(
     hf_config = HFConfig.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
+    resolution = Resolution.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
 
     stations = pd.read_csv(
         station_file,
         delimiter=r"\s+",
         header=None,
-        names=["longitude", "latitude", "name"],
+        names=["longitude", "latitude", "name"],  # type: ignore[invalid-argument-type]
     ).set_index("name")
     station_hashes = np.array(
         [stable_hash(name) for name in stations.index], dtype=np.int32
@@ -306,11 +313,13 @@ def run_hf(
     stations["seed"] = np.int32(seeds.hf_seed) ^ station_hashes
     velocity_model_path = work_directory / "velocity_model"
     velocity_model.write_velocity_model(velocity_model_path)
-    nt = int(np.float32(domain_parameters.duration) / np.float32(hf_config.dt))  # Match Fortran's single-precision for consistent nt calculation
+    nt = int(
+        np.float32(domain_parameters.duration) / np.float32(resolution.dt)
+    )  # Match Fortran's single-precision for consistent nt calculation
     waveform = np.empty((3, len(stations), nt), dtype=np.float32)
 
     hf_input_template = build_hf_input(
-        stoch_ffp, velocity_model_path, hf_config, seeds, domain_parameters
+        stoch_ffp, velocity_model_path, resolution, hf_config, seeds, domain_parameters
     )
 
     stations["epicentre_distance"] = np.nan
@@ -359,7 +368,7 @@ def run_hf(
         attrs={
             "start_sec": start_sec,
             "nt": nt,
-            "dt": hf_config.dt,
+            "dt": resolution.dt,
             "units": "cm/s^2",
         },
     ).to_netcdf(out_file, engine="h5netcdf")

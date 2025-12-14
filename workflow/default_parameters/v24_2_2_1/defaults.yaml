@@ -1,3 +1,5 @@
+resolution:
+  resolution: 0.1
 emod3d:
   all_in_one: 1
   bfilt: 4
@@ -71,7 +73,6 @@ hf:
   qs_sig: 0.0
   ic_flag: true
   velocity_name: "-1"
-  dt: 0.005
   t_sec: 0.0
   sdrop: 50.0
   rayset: [1]
@@ -99,8 +100,6 @@ hf:
   stoch_dx: 2.0
   stoch_dy: 2.0
 srf:
-  resolution: 0.1
-  genslip_dt: 0.05
   genslip_version: 5.4.2
   side_taper: 0.02
   bot_taper: 0.02
@@ -113,6 +112,7 @@ srf:
   xmag_exp: null
   kx_corner: null
   ky_corner: null
+  resolution: 0.1
   # The following parameters are only used for the point source approximation.
   point_source_params:
     # Valid options for the slip time function (stype) are:
@@ -124,9 +124,7 @@ srf:
     inittime: 0.0
 velocity_model:
   min_vs: 0.5
-  resolution: 0.1
   ds_multiplier: 1.2
-  dt: 0.005
   version: "2.07"
   topo_type: "SQUASHED_TAPERED"
   vs30: 500.0
@@ -340,7 +338,6 @@ velocity_model_1d:
       Qs: 230.00
 bb:
   flo: 1.0
-  dt: 0.005
   fmidbot: 0.5
   fmin: 0.25
   site_amp_version: "2014"

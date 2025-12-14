@@ -36,7 +36,7 @@ import typer
 from qcore import cli
 from source_modelling import srf
 from workflow import log_utils, realisations
-from workflow.realisations import DomainParameters
+from workflow.realisations import DomainParameters, Resolution
 
 app = typer.Typer()
 
@@ -68,6 +68,7 @@ def check_domain(
     srf_geometry = srf_file.geometry
 
     domain = DomainParameters.read_from_realisation(realisation_ffp)
+    resolution = Resolution.read_from_realisation(realisation_ffp)
     logger = log_utils.get_logger(__name__)
 
     if not shapely.contains_properly(domain.domain.polygon, srf_geometry):
@@ -82,7 +83,10 @@ def check_domain(
         )
         raise typer.Exit(code=1)
 
-    velocity_model_estimated_size = 4 * domain.nx * domain.ny * domain.nz
+    nx = domain.nx(resolution.resolution)
+    ny = domain.ny(resolution.resolution)
+    nz = domain.nz(resolution.resolution)
+    velocity_model_estimated_size = 4 * nx * ny * nz
     if any(
         (velocity_model / velocity_model_component).stat().st_size
         != velocity_model_estimated_size

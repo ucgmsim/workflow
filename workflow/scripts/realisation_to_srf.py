@@ -54,13 +54,14 @@ from scipy.sparse import csr_array
 
 from qcore import cli, coordinates
 from source_modelling import gsf, moment, rupture_propagation, srf
-from source_modelling.sources import IsSource, Point
+from source_modelling.sources import Fault, IsSource, Point
 from workflow import log_utils, realisations, utils
 from workflow.log_utils import log_call
 from workflow.realisations import (
     Magnitudes,
     Rakes,
     RealisationMetadata,
+    Resolution,
     RupturePropagationConfig,
     Seeds,
     SourceConfig,
@@ -327,18 +328,20 @@ def stitch_srf_files(
         process_fault(fault_name)
 
     # Combine SRF file components
+    combined_slipt_array = concatenate_slip_values(
+        (
+            fault_srf.slipt1_array
+            if fault_srf.slipt1_array is not None
+            else csr_array((len(fault_srf.points), 1))
+        )
+        for fault_srf in srf_file_map.values()
+    )
+    assert combined_slipt_array is not None
     combined_srf = srf.SrfFile(
         version="1.0",
         header=pd.concat([fault_srf.header for fault_srf in srf_file_map.values()]),
         points=pd.concat([fault_srf.points for fault_srf in srf_file_map.values()]),
-        slipt1_array=concatenate_slip_values(
-            (
-                fault_srf.slipt1_array
-                if fault_srf.slipt1_array is not None
-                else csr_array((len(fault_srf.points), 1))
-            )
-            for fault_srf in srf_file_map.values()
-        ),
+        slipt1_array=combined_slipt_array,
     )
 
     # Write the combined SRF file
@@ -351,6 +354,8 @@ def stitch_srf_files(
 class SRFRealisationContext:
     """Realisation configuration for the entire SRF generation process."""
 
+    resolution: Resolution
+    """The spatial/temporal resolution"""
     source_config: SourceConfig
     """The sources to generate"""
     rupture_propagation_config: RupturePropagationConfig
@@ -417,8 +422,11 @@ def generate_fault_srf(
 
     resolution = params.srf_config.resolution
 
-    nx = sum(round(plane.length / resolution) for plane in fault.planes)
-    ny = round(fault.planes[0].width / resolution)
+    if isinstance(fault, Fault):
+        nx = sum(round(plane.length / resolution) for plane in fault.planes)
+    else:
+        nx = round(fault.length / resolution)
+    ny = round(fault.width / resolution)
 
     gsf_file_path = generate_fault_gsf(
         name,
@@ -449,7 +457,7 @@ def generate_fault_srf(
         f"velfile={environment.velocity_model_path}",
         f"shypo={genslip_hypocentre_coords[0]}",
         f"dhypo={genslip_hypocentre_coords[1]}",
-        f"dt={params.srf_config.genslip_dt}",
+        f"dt={params.resolution.dt}",
         f"side_taper={params.srf_config.side_taper}",
         f"bot_taper={params.srf_config.bot_taper}",
         f"top_taper={params.srf_config.top_taper}",
@@ -552,7 +560,7 @@ def generate_point_source_srf(
 
     fault = params.source_config.source_geometries[name]
 
-    resolution = params.srf_config.resolution
+    resolution = params.resolution.resolution
 
     # Get magnitude and convert to seismic moment
     magnitude = params.magnitudes.magnitudes[name]
@@ -565,7 +573,10 @@ def generate_point_source_srf(
     # divide by 1000 to convert depth from meters to kilometers
     source_depth_km = params.source_config.source_geometries[name].centroid[2] / 1000
 
-    fault_area_km2 = (params.source_config.source_geometries[name].length_m / 1000) ** 2
+    fault_area_km2 = (
+        params.source_config.source_geometries[name].length
+        * params.source_config.source_geometries[name].width
+    )
 
     slip = moment.point_source_slip(
         moment_newton_metre, fault_area_km2, velocity_model_df, source_depth_km
@@ -587,7 +598,7 @@ def generate_point_source_srf(
         f"outfile={environment.srf_directory / (normalise_name(name) + '.srf')}",
         "outbin=0",
         f"stype={params.srf_config.point_source_params.stype}",
-        f"dt={params.srf_config.genslip_dt}",
+        f"dt={params.resolution.dt}",
         "plane_header=1",
         f"risetime={params.srf_config.point_source_params.risetime}",
         f"risetimefac={params.srf_config.point_source_params.risetimefac}",
@@ -663,7 +674,7 @@ def generate_srf(
         realisation_ffp, metadata.defaults_version
     )
 
-    seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
+    seeds = Seeds.read_from_realisation_or_random(realisation_ffp)
     rupture_propagation = RupturePropagationConfig.read_from_realisation(
         realisation_ffp
     )
@@ -673,8 +684,12 @@ def generate_srf(
     rakes = Rakes.read_from_realisation(realisation_ffp)
     magnitudes = Magnitudes.read_from_realisation(realisation_ffp)
     source_config = SourceConfig.read_from_realisation(realisation_ffp)
+    resolution = Resolution.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
 
     params = SRFRealisationContext(
+        resolution=resolution,
         source_config=source_config,
         rupture_propagation_config=rupture_propagation,
         magnitudes=magnitudes,
