@@ -382,11 +382,13 @@ def dict_zip(*dicts: Mapping[K, Any], strict: bool = True) -> dict[K, tuple[Any,
         return {}
 
     keys: set[K] = set(dicts[0].keys())
-    for dict in dicts[1:]:
-        keys = keys.intersection(dict.keys())
 
-    if strict and len(keys) != len(dicts[0]):
+    if strict and any(set(d) != keys for d in dicts[1:]):
         raise ValueError("Keys in dictionaries are not all the same.")
+    else:
+        for dict in dicts[1:]:
+            keys = keys.intersection(dict.keys())
+
     result = {key: tuple(d[key] for d in dicts) for key in list(keys)}
     return result
 
