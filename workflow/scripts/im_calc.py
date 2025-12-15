@@ -43,9 +43,9 @@ from IM.im_calculation import IM
 from qcore import cli, coordinates
 from workflow import realisations, utils
 from workflow.realisations import (
-    BroadbandParameters,
     IntensityMeasureCalculationParameters,
     RealisationMetadata,
+    Resolution,
     RupturePropagationConfig,
     SourceConfig,
 )
@@ -93,7 +93,9 @@ def calculate_instensity_measures(
     ne.set_num_threads(utils.get_available_cores())
 
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
-    broadband_parameters = BroadbandParameters.read_from_realisation(realisation_ffp)
+    resolution = Resolution.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
     intensity_measure_parameters = (
         IntensityMeasureCalculationParameters.read_from_realisation_or_defaults(
             realisation_ffp, metadata.defaults_version
@@ -116,29 +118,27 @@ def calculate_instensity_measures(
             "FAS calculation requires KO directory. Please provide a valid KO directory."
         )
 
-    nyquist_frequency = 1 / (2 * broadband_parameters.dt)
+    nyquist_frequency = 1 / (2 * resolution.dt)
 
     im_function_map = {
         IM.PGA: ims.peak_ground_acceleration,
-        IM.PGV: functools.partial(ims.peak_ground_velocity, dt=broadband_parameters.dt),
-        IM.CAV: functools.partial(
-            ims.cumulative_absolute_velocity, dt=broadband_parameters.dt
-        ),
-        IM.AI: functools.partial(ims.arias_intensity, dt=broadband_parameters.dt),
+        IM.PGV: functools.partial(ims.peak_ground_velocity, dt=resolution.dt),
+        IM.CAV: functools.partial(ims.cumulative_absolute_velocity, dt=resolution.dt),
+        IM.AI: functools.partial(ims.arias_intensity, dt=resolution.dt),
         IM.Ds575: functools.partial(
             ims.ds575,
-            dt=broadband_parameters.dt,
+            dt=resolution.dt,
         ),
         IM.Ds595: functools.partial(
             ims.ds595,
-            dt=broadband_parameters.dt,
+            dt=resolution.dt,
         ),
         IM.pSA: functools.partial(
             ims.pseudo_spectral_acceleration,
             periods=np.array(
                 intensity_measure_parameters.valid_periods, dtype=np.float32
             ),
-            dt=broadband_parameters.dt,
+            dt=resolution.dt,
             psa_rotd_maximum_memory_allocation=psa_rotd_maximum_memory_allocation * 1e9
             if psa_rotd_maximum_memory_allocation
             else None,
@@ -146,7 +146,7 @@ def calculate_instensity_measures(
         ),
         IM.FAS: functools.partial(
             ims.fourier_amplitude_spectra,
-            dt=broadband_parameters.dt,
+            dt=resolution.dt,
             freqs=intensity_measure_parameters.fas_frequencies[
                 intensity_measure_parameters.fas_frequencies <= nyquist_frequency
             ],

@@ -83,7 +83,11 @@ def check_srf(
     )
     mu = velocity_model["mu"].iloc[indices].values
     srf_magnitude = mag_scaling.mom2mag(
-        (srf_file.points["area"].values * srf_file.points["slip"].values * mu).sum()
+        (
+            np.array(srf_file.points["area"].values)
+            * np.array(srf_file.points["slip"].values)
+            * mu
+        ).sum()
     )
     logger = log_utils.get_logger("__name__")
 

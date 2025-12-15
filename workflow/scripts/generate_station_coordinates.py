@@ -75,10 +75,15 @@ def generate_fd_files(
 
     # retrieve in station names, latitudes and longitudes
     stations = pd.read_csv(
-        stat_file, delimiter=r"\s+", comment="#", names=["lon", "lat", "name"]
+        stat_file,
+        delimiter=r"\s+",
+        comment="#",
+        names=["lon", "lat", "name"],  # type: ignore[invalid-argument-type]
     )
 
-    x, y = proj(lat=stations["lat"].values, lon=stations["lon"].values).T
+    x, y = proj(
+        lat=stations["lat"].to_numpy(float), lon=stations["lon"].to_numpy(float)
+    ).T
 
     cx = nx // 2 * domain_parameters.resolution
     cy = ny // 2 * domain_parameters.resolution
