@@ -143,7 +143,7 @@ class Stage:
     @property
     def parent(self) -> Self:  # numpydoc ignore=RT01
         """Stage: the parent stage of this stage."""
-        return self.__class__(self.identifier, self.event, None)
+        return dataclasses.replace(self, sample=None)
 
     @property
     def directory(self) -> PurePath | None:  # numpydoc ignore=RT01

@@ -92,7 +92,9 @@ def a_to_mw_leonard(area: float, rake: float) -> float:
 
 def default_magnitude_estimation(
     faults: dict[str, Fault],
-    components: DisjointSet,
+    # NOTE: this must be in quotes because the runtime class DisjointSet is
+    # not generic, just the stub implementation.
+    components: "DisjointSet[str]",
     avg_rake: float,
 ) -> dict[str, float]:
     """Estimate the magnitudes for a set of faults based on their areas and average rake.
@@ -327,7 +329,7 @@ def generate_realisation(
         )
         raise typer.Exit(code=1)
     faults_info = db.get_rupture_fault_info(rupture_id)
-    seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
+    seeds = Seeds.read_from_realisation_or_random(realisation_ffp)
     np.random.seed(seed=seeds.nshm_to_realisation_seed)
     source_config = SourceConfig(faults)
 

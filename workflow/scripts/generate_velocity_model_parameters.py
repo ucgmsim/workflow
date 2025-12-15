@@ -376,7 +376,7 @@ def generate_velocity_model_parameters(
     model_domain = bounding_box.minimum_area_bounding_box_for_polygons_masked(
         must_include=fault_buffer_polygons,
         may_include=rrup_bounding_polygons,
-        mask=utils.get_nz_outline_polygon(),
+        mask=utils.get_nz_outline_polygon(),  # type: ignore
     )
 
     sim_duration = estimate_simulation_duration(
@@ -390,11 +390,9 @@ def generate_velocity_model_parameters(
     )
 
     domain_parameters = DomainParameters(
-        resolution=velocity_model_parameters.resolution,
         domain=model_domain,
         depth=max_depth,
         duration=sim_duration,
-        dt=velocity_model_parameters.dt,
     )
     domain_parameters.write_to_realisation(realisation_ffp)
     realisations.append_log_entry(realisation_ffp)

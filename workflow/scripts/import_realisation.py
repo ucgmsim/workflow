@@ -52,24 +52,24 @@ def convert_realisation(
         Defaults version to use for the new realisation.
     """
     old_realisation = pd.read_csv(old_realisation_path).iloc[0]
-    name = old_realisation["name"]
+    name = old_realisation["name"].item()
     metadata = RealisationMetadata(
         name=name, version="1", defaults_version=defaults_version
     )
     planes: list[Plane] = []
-    dip = old_realisation["dip"]
-    dip_dir = old_realisation["dip_dir"]
-    for i in range(old_realisation["plane_count"]):
+    dip = old_realisation["dip"].item()
+    dip_dir = old_realisation["dip_dir"].item()
+    for i in range(old_realisation["plane_count"].item()):
         centroid = np.array(
             [
-                old_realisation[f"clat_subfault_{i}"],
-                old_realisation[f"clon_subfault_{i}"],
+                old_realisation[f"clat_subfault_{i}"].item(),
+                old_realisation[f"clon_subfault_{i}"].item(),
             ]
         )
-        strike = old_realisation[f"strike_subfault_{i}"]
-        dtop = old_realisation[f"dtop_subfault_{i}"]
-        length = old_realisation[f"length_subfault_{i}"]
-        width = old_realisation[f"width_subfault_{i}"]
+        strike = old_realisation[f"strike_subfault_{i}"].item()
+        dtop = old_realisation[f"dtop_subfault_{i}"].item()
+        length = old_realisation[f"length_subfault_{i}"].item()
+        width = old_realisation[f"width_subfault_{i}"].item()
         planes.append(
             Plane.from_centroid_strike_dip(
                 centroid, dip, length, width, dtop=dtop, strike=strike, dip_dir=dip_dir
@@ -78,8 +78,8 @@ def convert_realisation(
     fault = Fault(planes)
     shypo = old_realisation["shypo"] / fault.length + 1 / 2
     dhypo = old_realisation["dhypo"] / fault.width
-    magnitudes = Magnitudes({name: old_realisation["magnitude"]})
-    rakes = Rakes({name: old_realisation["rake"]})
+    magnitudes = Magnitudes({name: old_realisation["magnitude"].item()})
+    rakes = Rakes({name: old_realisation["rake"].item()})
     sources = SourceConfig(source_geometries={name: fault})
     rupture_propagation_config = RupturePropagationConfig(
         rupture_causality_tree={name: None},  # Trivial rupture propagation tree
