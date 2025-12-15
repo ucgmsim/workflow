@@ -250,7 +250,7 @@ def pgv_from_rrup(
                     # 2. At large Mw, PGV of 0.1cm/s will occur sufficiently far from the event that a point-source approximation is reasonable.
                     "ztor": [ztor],
                     "rrup": [rrup],
-                    "rjb": [np.sqrt(rrup**2 - ztor**2)],
+                    "rjb": [np.sqrt(np.maximum(0, rrup**2 - ztor**2))],
                     # We want to include any hanging-wall terms in the model
                     # to err on the conservative side for our domains. In the
                     # other case, we risk shrinking our domains unnecessarily.
