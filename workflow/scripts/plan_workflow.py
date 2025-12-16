@@ -52,7 +52,6 @@ class StageIdentifier(StrEnum):
     LowFrequency = "emod3d"
     Broadband = "bb_sim"
     IntensityMeasureCalculation = "im_calc"
-    MergeTimeslices = "merge_ts"
     NSHMToRealisation = "nshm_to_realisation"
 
 
