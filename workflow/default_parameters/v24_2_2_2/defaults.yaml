@@ -81,9 +81,6 @@ hf:
   fmax: 10.0
   kappa: 0.045
   qfexp: 0.6
-  rvfac: 0.8
-  rvfac_shal: 0.7
-  rvfac_deep: 0.7
   czero: 2.1
   calpha: -99.0
   mom: null
@@ -100,13 +97,17 @@ hf:
   stress_parameter_adjustment_fault_area: null
   stoch_dx: 2.0
   stoch_dy: 2.0
+rupture_velocity:
+  rvfrac: 0.8
+  rvfrac_shal: 0.7
+  rvfrac_deep: 0.7
 srf:
   side_taper: 0.02
   bot_taper: 0.02
   top_taper: 0.0
   alpha_rough: 0.0
   gwid: []
-  rvfac_seg: []
+  rvfrac_seg: []
   seg_delay: false
   ymag_exp: null
   xmag_exp: null

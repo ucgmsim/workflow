@@ -53,6 +53,7 @@ from workflow.realisations import (
     HFVelocityModel1D,
     RealisationMetadata,
     Resolution,
+    RuptureVelocity,
     Seeds,
 )
 
@@ -64,6 +65,7 @@ def build_hf_input(
     velocity_model: Path,
     resolution: Resolution,
     hf_config: HFConfig,
+    rupture_velocity: RuptureVelocity,
     seeds: Seeds,
     domain_parameters: DomainParameters,
 ) -> str:
@@ -79,6 +81,8 @@ def build_hf_input(
         HF simulation resolution.
     hf_config : HFConfig
         The high-frequency config.
+    rupture_velocity : RuptureVelocity
+        The rupture velocity settings.
     seeds : Seeds
         The seeds.
     domain_parameters : DomainParameters
@@ -103,7 +107,7 @@ def build_hf_input(
         "{seed}",
         1,  # one station in the input
         f"{domain_parameters.duration} {resolution.dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",
-        f"{hf_config.rvfac} {hf_config.rvfac_shal} {hf_config.rvfac_deep} {hf_config.czero} {hf_config.calpha}",
+        f"{rupture_velocity.rvfrac} {rupture_velocity.rvfrac_shal} {rupture_velocity.rvfrac_deep} {hf_config.czero} {hf_config.calpha}",
         f"{hf_config.mom or -1} {hf_config.rupv or -1}",
         stoch_ffp,
         velocity_model,
@@ -293,6 +297,9 @@ def run_hf(
     hf_config = HFConfig.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
+    rupture_velocity = RuptureVelocity.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
     resolution = Resolution.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
@@ -319,7 +326,13 @@ def run_hf(
     waveform = np.empty((3, len(stations), nt), dtype=np.float32)
 
     hf_input_template = build_hf_input(
-        stoch_ffp, velocity_model_path, resolution, hf_config, seeds, domain_parameters
+        stoch_ffp,
+        velocity_model_path,
+        resolution,
+        hf_config,
+        rupture_velocity,
+        seeds,
+        domain_parameters,
     )
 
     stations["epicentre_distance"] = np.nan

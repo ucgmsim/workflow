@@ -127,7 +127,7 @@ def test_srf_config_example(tmp_path: Path) -> None:
         top_taper=0.0,
         alpha_rough=0.0,
         gwid=[],
-        rvfac_seg=[],
+        rvfrac_seg=[],
         seg_delay=False,
         slip_sigma=1.0,
         risetime_coef=1.6,
@@ -168,7 +168,7 @@ def test_srf_config_example(tmp_path: Path) -> None:
                 "slip_sigma": 1.0,
                 "risetime_coef": 1.6,
                 "gwid": [],
-                "rvfac_seg": [],
+                "rvfrac_seg": [],
                 "seg_delay": False,
                 "ymag_exp": None,
                 "xmag_exp": None,
@@ -748,6 +748,7 @@ def test_sources(tmp_path: Path) -> None:
         realisations.IntensityMeasureCalculationParameters,
         realisations.HFVelocityModel1D,
         realisations.Resolution,
+        realisations.RuptureVelocity,
     ],
 )
 @pytest.mark.parametrize("defaults_version", list(defaults.DefaultsVersion))
