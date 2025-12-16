@@ -332,7 +332,7 @@ def run_hf(
                 hf_sim_path,
                 hf_input_template,
                 station["latitude"],
-                station["longitude"],
+                station["longitude"],  # type: ignore[invalid-argument-type]
                 name,
                 int(station["seed"]),
             )
@@ -350,7 +350,7 @@ def run_hf(
     stations["vs"] = vs
 
     start_sec = 0.0
-    time = start_sec + np.arange(nt) * hf_config.dt
+    time = start_sec + np.arange(nt) * resolution.dt
     xr.Dataset(
         {
             "waveform": (["component", "station", "time"], waveform),
