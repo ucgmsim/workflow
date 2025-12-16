@@ -246,10 +246,9 @@ def station_seeds(seed: int, stations: Iterable[str]) -> npt.NDArray[np.int32]:
     ----------
     seed : int
         The root seed.
-    stations : Sequence[str]
-        The sequence of stations to seed. The order and number of stations
-        should not matter. The station seeds are based on their name
-        only.
+    stations : Iterable[str]
+        The stations to seed. The order and number of stations should
+        not matter. The station seeds are based on their name only.
 
     Returns
     -------
@@ -318,7 +317,7 @@ def create_hf_dataset(
     * **attributes**: global metadata includes 'units' (fixed to cm/s^2),
       'nt', and 'dt'.
     """
-    waveform = np.asanyarray(waveform)
+    waveform = np.asarray(waveform)
     nt = waveform.shape[-1]
     time = np.arange(nt) * dt
     return xr.Dataset(
