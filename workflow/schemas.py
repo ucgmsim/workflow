@@ -378,32 +378,69 @@ POINT_SOURCE_PARAMS_SCHEMA = Schema(
     )
 )
 
-
 SRF_SCHEMA = Schema(
     {
-        Literal("genslip_version", description="The version of genslip to use"): Or(
-            "5.4.2"
-        ),
-        Literal("resolution", description="The resolution of the SRF discretisation."): And(
-            NUMBER, _is_positive
-        ),
+        Literal(
+            "resolution", description="The resolution of the SRF discretisation."
+        ): And(NUMBER, _is_positive),
         Optional(
             Literal(
                 "point_source_params",
                 description="Parameters for point source approximation, if applicable",
             )
         ): Or(None, POINT_SOURCE_PARAMS_SCHEMA),
-        Literal("side_taper"): And(NUMBER, _is_proportion),
-        Literal("bot_taper"): And(NUMBER, _is_proportion),
-        Literal("top_taper"): And(NUMBER, _is_proportion),
-        Literal("alpha_rough"): And(NUMBER, _is_proportion),
-        Literal("gwid"): [And(NUMBER, _is_positive)],
-        Literal("rvfac_seg"): [And(NUMBER, _is_proportion)],
-        Literal("seg_delay"): bool,
-        Literal("ymag_exp"): Or(NUMBER, None),
-        Literal("xmag_exp"): Or(NUMBER, None),
-        Literal("kx_corner"): Or(NUMBER, None),
-        Literal("ky_corner"): Or(NUMBER, None),
+        Literal(
+            "side_taper",
+            description="Side slip tapering, proportion of along-strike 0-1.",
+        ): And(NUMBER, _is_proportion),
+        Literal(
+            "bot_taper",
+            description="Bottom slip tapering proportion of down-dip 0-1.",
+        ): And(NUMBER, _is_proportion),
+        Literal(
+            "top_taper",
+            description="Top slip tapering proportion of down-dip 0-1.",
+        ): And(NUMBER, _is_proportion),
+        Literal(
+            "alpha_rough",
+            description="Roughness (0.0 = smooth)",
+        ): And(NUMBER, _is_proportion),
+        Literal(
+            "gwid",
+            description="Width of delay zone around segment boundaries",
+        ): [And(NUMBER, _is_positive)],
+        Literal(
+            "rvfac_seg",
+            description="Rupture speed reduction (proportion) at segment boundaries.",
+        ): [And(NUMBER, _is_proportion)],
+        Literal(
+            "seg_delay",
+            description="If true, delay rupture across slip boundaries according to specifications of rvfac_seg and gwid.",
+        ): bool,
+        Literal(
+            "ymag_exp",
+            description="Corner magnitude exponent for along-strike slip correlation length. See genslip_v5.6.2c:1385",
+        ): Or(NUMBER, None),
+        Literal(
+            "xmag_exp",
+            description="Corner magnitude exponent for down-dip slip correlation length. See genslip_v5.6.2c:1385",
+        ): Or(NUMBER, None),
+        Literal(
+            "kx_corner",
+            description="Corner wavenumber for along-strike slip correlation length. See genslip_v5.6.2c:1385",
+        ): Or(NUMBER, None),
+        Literal(
+            "ky_corner",
+            description="Corner wavenumber for down-dip slip correlation length. See genslip_v5.6.2c:1385",
+        ): Or(NUMBER, None),
+        Literal(
+            "slip_sigma",
+            description="The stddev of slip distribution.",
+        ): And(NUMBER, _is_non_negative),
+        Literal(
+            "risetime_coef",
+            description="Risetime scaling coefficient.",
+        ): And(NUMBER, _is_positive),
     }
 )
 
