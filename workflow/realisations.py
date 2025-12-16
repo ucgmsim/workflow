@@ -393,6 +393,12 @@ class SRFConfig(RealisationConfiguration):
     seg_delay: bool
     """If true, delay rupture across slip boundaries according to specifications of rvfac_seg and gwid."""
 
+    slip_sigma: float
+    """The stddev of slip distribution."""
+
+    risetime_coef: float
+    """Risetime scaling coefficient."""
+
     ymag_exp: float | None = None
     """Corner magnitude exponent for along-strike slip correlation length. See genslip_v5.6.2c:1385"""
     xmag_exp: float | None = None
@@ -401,12 +407,6 @@ class SRFConfig(RealisationConfiguration):
     """Corner wavenumber for along-strike slip correlation length. See genslip_v5.6.2c:1385"""
     ky_corner: float | None = None
     """Corner wavenumber for down-dip slip correlation length. See genslip_v5.6.2c:1385"""
-
-    slip_sigma: float
-    """The stddev of slip distribution."""
-
-    risetime_coef: float
-    """Risetime scaling coefficient."""
 
     def to_dict(self) -> dict[str, Any]:
         """

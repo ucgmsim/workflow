@@ -399,6 +399,95 @@ class SRFEnvironmentContext:
         return self.work_directory / "velocity_model"
 
 
+def _build_genslip_command(
+    genslip_path: Path,
+    gsf_file_path: Path,
+    nx: int,
+    ny: int,
+    seed: int,
+    velocity_model_path: Path,
+    shypo: float,
+    dhypo: float,
+    magnitude: float,
+    dt: float,
+    srf_config: SRFConfig,
+) -> list[str]:
+    """Build a genslip command to run.
+
+    Parameters
+    ----------
+    genslip_path : Path
+        Path to genslip executable.
+    gsf_file_path : Path
+        GSF file to read.
+    nx : int
+        Number of points along-strike.
+    ny : int
+        Number of points down-dip
+    seed : int
+        Genslip seed.
+    velocity_model_path : Path
+        Path to 1D velocity model.
+    shypo : float
+        Along-strike hypocentre.
+    dhypo : float
+        Down-dip hypocentre.
+    magnitude : float
+        SRF magnitude.
+    dt : float
+        Time resolution for SVFs.
+    srf_config : SRFConfig
+        Parameters for SRF generation.
+
+
+    Returns
+    -------
+    list[str]
+        An argument list suitable to execute genslip with
+        `subprocess.run`. First element is the genslip path,
+        subsequent arguments are key=value pairs.
+    """
+    cmd = [
+        str(genslip_path),
+        "plane_header=1",
+        "srf_version=1.0",
+        "read_erf=0",
+        "write_srf=1",
+        "read_gsf=1",
+        "write_gsf=0",
+        "ns=1",
+        "nh=1",
+        f"infile={gsf_file_path}",
+        f"nstk={nx}",
+        f"ndip={ny}",
+        f"seed={seed}",
+        f"velfile={velocity_model_path}",
+        f"shypo={shypo}",
+        f"dhypo={dhypo}",
+        f"mag={magnitude}",
+        f"dt={dt}",
+    ]
+    skipped_fields = {"point_source_params"}
+    for field in dataclasses.fields(srf_config):
+        key = field.name
+        value = getattr(srf_config, key)
+
+        if value is None or value == [] or key in skipped_fields:
+            continue
+        if isinstance(value, list):
+            serialised_value = ",".join([str(v) for v in value])
+        elif isinstance(value, bool):
+            serialised_value = "1" if value else "0"
+        elif dataclasses.is_dataclass(value):
+            continue
+        else:
+            serialised_value = str(value)
+
+        cmd.append(f"{key}={serialised_value}")
+
+    return cmd
+
+
 def generate_fault_srf(
     name: str, params: SRFRealisationContext, environment: SRFEnvironmentContext
 ) -> None:
@@ -439,49 +528,19 @@ def generate_fault_srf(
     genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
         params.rupture_propagation_config.hypocentres[name] - np.array([1 / 2, 0])
     )
-    gwid = (
-        ",".join([str(x) for x in params.srf_config.gwid])
-        if params.srf_config.gwid
-        else -1
-    )
-    rvfac_seg = (
-        ",".join([str(x) for x in params.srf_config.rvfac_seg])
-        if params.srf_config.rvfac_seg
-        else -1
-    )
 
-    genslip_cmd = [
-        str(environment.genslip_path),
-        "plane_header=1",
-        "srf_version=1.0",
-        "read_erf=0",
-        "write_srf=1",
-        "read_gsf=1",
-        "write_gsf=0",
-        "ns=1",
-        "nh=1",
-        f"infile={gsf_file_path}",
-        f"mag={params.magnitudes.magnitudes[name]}",
-        f"nstk={nx}",
-        f"ndip={ny}",
-        f"seed={environment.seeds.genslip_seed}",
-        f"velfile={environment.velocity_model_path}",
-        f"shypo={genslip_hypocentre_coords[0]}",
-        f"dhypo={genslip_hypocentre_coords[1]}",
-        f"dt={params.resolution.dt}",
-        f"side_taper={params.srf_config.side_taper}",
-        f"bot_taper={params.srf_config.bot_taper}",
-        f"top_taper={params.srf_config.top_taper}",
-        f"alpha_rough={params.srf_config.alpha_rough}",
-        f"gwid={gwid}",
-        f"rvfac_seg={rvfac_seg}",
-        f"seg_delay={int(params.srf_config.seg_delay)}",
-    ]
-
-    genslip_cmd.extend(
-        f"{key}={getattr(params.srf_config, key)}"
-        for key in ["ymag_exp", "xmag_exp", "kx_corner", "ky_corner"]
-        if getattr(params.srf_config, key) is not None
+    genslip_cmd = _build_genslip_command(
+        genslip_path=environment.genslip_path,
+        gsf_file_path=gsf_file_path,
+        nx=nx,
+        ny=ny,
+        seed=environment.seeds.genslip_seed,
+        velocity_model_path=environment.velocity_model_path,
+        shypo=genslip_hypocentre_coords[0],
+        dhypo=genslip_hypocentre_coords[1],
+        magnitude=params.magnitudes.magnitudes[name],
+        dt=params.resolution.dt,
+        srf_config=params.srf_config,
     )
 
     srf_file_path = environment.srf_directory / (normalise_name(name) + ".srf")
