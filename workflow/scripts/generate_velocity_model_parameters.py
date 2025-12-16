@@ -26,8 +26,9 @@ For More Help
 See the output of `generate-velocity-model-parameters --help` or `workflow.scripts.generate_velocity_model_parameters`.
 """
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any, TypeVar
 
 import numpy as np
 import numpy.typing as npt
@@ -199,25 +200,29 @@ def total_magnitude(magnitudes: npt.NDArray[np.float64]) -> float:
     return mag_scaling.mom2mag(np.sum(mag_scaling.mag2mom(magnitudes)))
 
 
-def pgv_from_rrup(magnitude: float, rake: float, dip: float, rrup: float) -> float:
+def pgv_from_rrup(
+    magnitude: float, rake: float, dip: float, rrup: float, ztor: float
+) -> float:
     """
     Compute the peak ground velocity (PGV) at a given distance from a rupture.
 
     Parameters
     ----------
     magnitude : float
-            The magnitude of the rupture.
+        The magnitude of the rupture.
     rake : float
-            The rake angle of the rupture.
+        The rake angle of the rupture.
     dip : float
-            The dip angle of the rupture.
+        The dip angle of the rupture.
     rrup : float
-            The distance from the rupture (in km).
+        The distance from the rupture (in km).
+    ztor : float
+        The distance to the top of the fault geometry.
 
     Returns
     -------
     float
-            The peak ground velocity (cm/s) at the given distance from the rupture.
+        The peak ground velocity (cm/s) at the given distance from the rupture.
     """
     # import here rather than at the module level because openquake is slow to import
     import oq_wrapper as oqw
@@ -235,9 +240,20 @@ def pgv_from_rrup(magnitude: float, rake: float, dip: float, rrup: float) -> flo
                     "vs30measured": [False],
                     "dip": [dip],
                     "z1pt0": [oqw.estimations.chiou_young_08_calc_z1p0(vs30)],
-                    "ztor": [0],
+                    # These calculations are done with a point-source
+                    # assumption. We don't know where our test point is so
+                    # estimating them from source geometry is impossible
+                    # since rjb depends on polygon-distance measurements.
+                    # We believe this is defensible for reasons:
+                    #
+                    # 1. At small Mw, we assume a point-source anyway so these calculations are essentially correct.
+                    # 2. At large Mw, PGV of 0.1cm/s will occur sufficiently far from the event that a point-source approximation is reasonable.
+                    "ztor": [ztor],
                     "rrup": [rrup],
-                    "rjb": [rrup],
+                    "rjb": [np.sqrt(np.maximum(0, rrup**2 - ztor**2))],
+                    # We want to include any hanging-wall terms in the model
+                    # to err on the conservative side for our domains. In the
+                    # other case, we risk shrinking our domains unnecessarily.
                     "rx": [rrup],
                 }
             ),
@@ -248,7 +264,7 @@ def pgv_from_rrup(magnitude: float, rake: float, dip: float, rrup: float) -> flo
 
 @log_utils.log_call()
 def estimate_rrup(
-    magnitude: float, rake: float, dip: float, pgv_target: float
+    magnitude: float, rake: float, dip: float, ztor: float, pgv_target: float
 ) -> float:
     """
     Estimate the rupture radius such that stations at this radius will
@@ -262,6 +278,8 @@ def estimate_rrup(
         The rake angle of the rupture.
     dip : float
         The dip angle of the rupture.
+    ztor : float
+        The distance to the top of the fault geometry.
     pgv_target : float
         The target PGV value (cm/s).
 
@@ -280,7 +298,9 @@ def estimate_rrup(
     """
     return float(
         sp.optimize.minimize_scalar(
-            lambda rrup: np.abs(pgv_from_rrup(magnitude, rake, dip, rrup) - pgv_target),
+            lambda rrup: np.abs(
+                pgv_from_rrup(magnitude, rake, dip, rrup, ztor) - pgv_target
+            ),
             bounds=(0, 1000),
             method="bounded",
         ).x
@@ -316,6 +336,12 @@ def find_rrup_bounding_polygon(
         The bounding polygon over the rrup distance of the fault in the realisation.
     """
 
+    if isinstance(fault, sources.Point):
+        # TODO: backport this into source modelling
+        ztor = fault.centroid[2] - fault.width_m / 2 * np.sin(np.radians(fault.dip))
+    else:
+        ztor = fault.top_m
+    ztor /= 1000.0
     rrup = estimate_rrup(
         magnitude,
         rake,
@@ -328,7 +354,10 @@ def find_rrup_bounding_polygon(
     return shapely.buffer(fault.geometry, rrup * 1000)
 
 
-def dict_zip(*dicts: list[dict], strict: bool = True) -> dict:
+K = TypeVar("K")
+
+
+def dict_zip(*dicts: Mapping[K, Any], strict: bool = True) -> dict[K, tuple[Any, ...]]:
     """
     Takes the product of one or more dictionaries.
 
@@ -352,14 +381,15 @@ def dict_zip(*dicts: list[dict], strict: bool = True) -> dict:
     if not dicts:
         return {}
 
-    keys = set(dicts[0].keys())
-    for dict in dicts[1:]:
-        keys = keys.intersection(dict.keys())
+    keys: set[K] = set(dicts[0].keys())
 
-    if strict and len(keys) != len(dicts[0]):
+    if strict and any(set(d) != keys for d in dicts[1:]):
         raise ValueError("Keys in dictionaries are not all the same.")
-    result = {key: tuple(d[key] for d in dicts) for key in list(keys)}
+    else:
+        for dict in dicts[1:]:
+            keys = keys.intersection(dict.keys())
 
+    result = {key: tuple(d[key] for d in dicts) for key in list(keys)}
     return result
 
 
@@ -439,10 +469,14 @@ def generate_velocity_model_parameters(
     realisation_pgv_target = pgv_target(magnitudes, velocity_model_parameters)
 
     initial_fault = source_config.source_geometries[rupture_propagation.initial_fault]
-    max_depth = get_max_depth(
-        rupture_magnitude,
-        initial_fault.planes[0].bottom_m / 1000,
-    )
+    if isinstance(initial_fault, sources.Point):
+        # TODO: backport this into source modelling
+        bottom_m = initial_fault.centroid[2] + initial_fault.width_m / 2 * np.sin(
+            np.radians(initial_fault.dip)
+        )
+    else:
+        bottom_m = initial_fault.bottom_m
+    max_depth = get_max_depth(rupture_magnitude, bottom_m / 1000.0)
 
     # This polygon includes all the faults corners + a 2km buffer (which must be in the simulation domain).
     fault_buffer_polygons = [
