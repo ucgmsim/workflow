@@ -48,7 +48,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = [
+    "hypothesis>=6.148.3",
+    "pytest",
+]
 types = ["pandas-stubs", "types-geopandas", "types-requests", "scipy-stubs"]
 dev = ["ruff", "deptry", "ty", "numpydoc"]
 

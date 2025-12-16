@@ -36,11 +36,13 @@ import concurrent.futures
 import hashlib
 import subprocess
 import tempfile
+from collections.abc import Iterable
 from concurrent.futures.thread import ThreadPoolExecutor
 from pathlib import Path
 from typing import Annotated
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import typer
 import xarray as xr
@@ -66,7 +68,6 @@ def build_hf_input(
     resolution: Resolution,
     hf_config: HFConfig,
     rupture_velocity: RuptureVelocity,
-    seeds: Seeds,
     domain_parameters: DomainParameters,
 ) -> str:
     """Build a high-frequency input template string.
@@ -83,8 +84,6 @@ def build_hf_input(
         The high-frequency config.
     rupture_velocity : RuptureVelocity
         The rupture velocity settings.
-    seeds : Seeds
-        The seeds.
     domain_parameters : DomainParameters
         The simulation domain parameters.
 
@@ -240,6 +239,111 @@ def stable_hash(station: str) -> int:
     )
 
 
+def station_seeds(seed: int, stations: Iterable[str]) -> npt.NDArray[np.int32]:
+    """Create a list of per-station seeds in an order-invariant fashion with a root seed.
+
+    Parameters
+    ----------
+    seed : int
+        The root seed.
+    stations : Sequence[str]
+        The sequence of stations to seed. The order and number of stations
+        should not matter. The station seeds are based on their name
+        only.
+
+    Returns
+    -------
+    npt.NDArray[np.int32]
+        A list of station seeds.
+    """
+    station_hashes = np.array([stable_hash(name) for name in stations], dtype=np.int32)
+    # Rather than add (which could overflow and cause annoying numpy
+    # warnings), we just xor the hf seed with the station hashes.
+    # Since this is invertible, we ensure that the same hf seed gives
+    # the same station seeds.
+    return np.int32(seed) ^ station_hashes
+
+
+def create_hf_dataset(
+    # array-like used here to reduce the number of times we have to
+    # change the types if the downstream function inputs change.
+    waveform: npt.ArrayLike,
+    latitude: npt.ArrayLike,
+    longitude: npt.ArrayLike,
+    names: npt.ArrayLike,
+    epicentre_distance: npt.ArrayLike,
+    seed: npt.ArrayLike,
+    vref: npt.ArrayLike,
+    dt: float,
+    start_sec: float,
+) -> xr.Dataset:
+    """
+    Create a structured xarray Dataset for HF simulation data.
+
+    Parameters
+    ----------
+    waveform : ArrayLike
+        The waveform data. Expected shape is (3, n_stations, nt),
+        representing the three components (x, y, z).
+    latitude : ArrayLike
+        Latitude coordinates for each station. Shape (n_stations,).
+    longitude : ArrayLike
+        Longitude coordinates for each station. Shape (n_stations,).
+    names : ArrayLike
+        Names/IDs for each station. Shape (n_stations,). Used as the
+        primary index for the 'station' dimension.
+    epicentre_distance : ArrayLike
+        Distance from the station to the epicentre. Shape (n_stations,).
+    seed : ArrayLike
+        Random seed values associated with each station. Shape (n_stations,).
+    vref : ArrayLike
+        Reference velocity (Vs30 or similar) for each station. Shape (n_stations,).
+    dt : float
+        Time step increment in seconds.
+    start_sec : float
+        The start time of the simulation in seconds.
+
+    Returns
+    -------
+    xr.Dataset
+        A dataset containing the waveforms and associated station metadata,
+        indexed by station, component, and time.
+
+    Notes
+    -----
+    The dataset follows specific dimensional mapping:
+    * **waveform**: mapped to (component, station, time).
+    * **coordinates**: 'lat' and 'lon' are non-index coordinates tied to
+      the 'station' dimension.
+    * **attributes**: global metadata includes 'units' (fixed to cm/s^2),
+      'nt', and 'dt'.
+    """
+    waveform = np.asanyarray(waveform)
+    nt = waveform.shape[-1]
+    time = np.arange(nt) * dt
+    return xr.Dataset(
+        {
+            "waveform": (["component", "station", "time"], waveform),
+            "epicentre_distance": (["station"], epicentre_distance),
+            "seed": (["station"], seed),
+            "vref": (["station"], vref),
+        },
+        coords={
+            "station": ("station", names),
+            "component": ("component", ["x", "y", "z"]),
+            "time": ("time", time),
+            "lat": (["station"], latitude),
+            "lon": (["station"], longitude),
+        },
+        attrs={
+            "start_sec": start_sec,
+            "nt": nt,
+            "dt": dt,
+            "units": "cm/s^2",
+        },
+    )
+
+
 @cli.from_docstring(app)
 @log_utils.log_call()
 def run_hf(
@@ -310,14 +414,7 @@ def run_hf(
         header=None,
         names=["longitude", "latitude", "name"],  # type: ignore[invalid-argument-type]
     ).set_index("name")
-    station_hashes = np.array(
-        [stable_hash(name) for name in stations.index], dtype=np.int32
-    )
-    # Rather than add (which could overflow and cause annoying numpy
-    # warnings), we just xor the hf seed with the station hashes.
-    # Since this is invertible, we ensure that the same hf seed gives
-    # the same station seeds.
-    stations["seed"] = np.int32(seeds.hf_seed) ^ station_hashes
+    stations["seed"] = station_seeds(seeds.hf_seed, stations.index)
     velocity_model_path = work_directory / "velocity_model"
     velocity_model.write_velocity_model(velocity_model_path)
     nt = int(
@@ -331,10 +428,8 @@ def run_hf(
         resolution,
         hf_config,
         rupture_velocity,
-        seeds,
         domain_parameters,
     )
-
     stations["epicentre_distance"] = np.nan
 
     with ThreadPoolExecutor(max_workers=utils.get_available_cores()) as executor:
@@ -362,27 +457,16 @@ def run_hf(
     vs = velocity_model.model["Vs"].iloc[0] * 1000
     stations["vs"] = vs
 
-    start_sec = 0.0
-    time = start_sec + np.arange(nt) * resolution.dt
-    xr.Dataset(
-        {
-            "waveform": (["component", "station", "time"], waveform),
-            "epicentre_distance": (["station"], stations["epicentre_distance"]),
-            "seed": (["station"], stations["seed"]),
-            "vref": (["station"], stations["vs"]),
-        },
-        coords={
-            "station": ("station", stations.index.values),
-            "component": ("component", ["x", "y", "z"]),
-            "time": ("time", time),
-            "lat": (["station"], stations["latitude"]),
-            "lon": (["station"], stations["longitude"]),
-        },
-        attrs={
-            "start_sec": start_sec,
-            "nt": nt,
-            "dt": resolution.dt,
-            "units": "cm/s^2",
-        },
-    ).to_netcdf(out_file, engine="h5netcdf")
+    ds = create_hf_dataset(
+        waveform=waveform,
+        latitude=stations["latitude"],
+        longitude=stations["longitude"],
+        names=stations.index,
+        epicentre_distance=stations["epicentre_distance"],
+        seed=stations["seed"],
+        vref=stations["vs"],
+        dt=resolution.dt,
+        start_sec=hf_config.t_sec,
+    )
+    ds.to_netcdf(out_file, engine="h5netcdf")
     realisations.append_log_entry(realisation_ffp)
