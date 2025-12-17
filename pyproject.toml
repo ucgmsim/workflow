@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm", "cython"]
+requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -23,12 +23,6 @@ dependencies = [
   "pandas[parquet, hdf5]",
   "pyyaml",
   "xarray[io]",
-
-  # Workflow Planner
-  "jinja2",
-  "networkx",
-  "printree",
-  "pyvis",
 
   # Numerics
   "numexpr",
