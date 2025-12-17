@@ -22,7 +22,6 @@ from workflow.scripts import (
     import_realisation,
     lf_to_xarray,
     nshm2022_to_realisation,
-    plan_workflow,
     realisation_to_srf,
 )
 
@@ -47,7 +46,6 @@ from workflow.scripts import (
         im_calc,
         import_realisation,
         nshm2022_to_realisation,
-        plan_workflow,
         realisation_to_srf,
     ],
 )
