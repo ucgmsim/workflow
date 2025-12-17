@@ -73,11 +73,12 @@ def test_build_hf_input_serialisation() -> None:
 
     assert lines[1] == "50.0"  # sdrop
     assert lines[2] == "{station_input_file}"  # placeholder for station file
-    assert lines[3] == "{output_file}"  # placehoder for output file
+    assert lines[3] == "{output_file}"  # placeholder for output file
     assert lines[4] == "2 1 2"  # rayset count + rays
     assert lines[5] == "1"  # int(not no_siteamp) -> int(not False) -> 1
     assert lines[7] == "{seed}"  # seed placeholder
     assert lines[9] == "100.0 0.005 20.0 0.045 0.6"  # Domain and resolution parameters
+    assert lines[10] == "0.8 0.7 0.9 2.5 0.0"
     assert lines[11] == "-1 1.2"  # mom (None -> -1) and rupv
     assert lines[12] == str(stoch_ffp)  # Stoch file path
     assert lines[15] == "0 0.1 0.1 0.1 0.1 1"  # Sigs and ic_flag (True -> 1)
@@ -99,7 +100,7 @@ def test_station_seeds() -> None:
     seed = hf_sim.station_seeds(0, ["station"])
     assert seed.dtype == np.int32
     assert seed.shape == (1,)
-    # Seeds should be referentially transparent: i.e. depend only on the seed and station na
+    # Seeds should be referentially transparent: i.e. depend only on the seed and station name
     seed_1 = hf_sim.station_seeds(0, ["station"])
     assert seed.item() == seed_1.item()
 
