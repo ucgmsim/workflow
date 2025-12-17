@@ -426,9 +426,117 @@ def pgv_target(
     )
 
 
+def generate_velocity_model_parameters(
+    source_config: SourceConfig,
+    velocity_model_parameters: VelocityModelParameters,
+    rupture_propagation: RupturePropagationConfig,
+    rakes: Rakes,
+    magnitudes: Magnitudes,
+) -> DomainParameters:
+    """Generate model domain extents, maximum depth, and simulation duration for a realisation.
+
+    Parameters
+    ----------
+    source_config : SourceConfig
+        Source configuration containing a mapping of fault/source geometries.
+    velocity_model_parameters : VelocityModelParameters
+        Velocity-model configuration and controls. Used to compute
+        the PGV target for rrup bounding polygons.
+    rupture_propagation : RupturePropagationConfig
+        Rupture propagation settings.
+    rakes : Rakes
+        Mapping of fault identifiers to rake angles (degrees). Used in
+        the GMPE that estimates domain parameters.
+    magnitudes : Magnitudes
+        Mapping of fault identifiers to magnitudes (Mw). Used to compute the
+        total rupture magnitude and rrup bounding polygons.
+
+    Returns
+    -------
+    DomainParameters
+        The domain geometry for simulation.
+
+    See Also
+    --------
+    total_magnitude
+    pgv_target
+    get_max_depth
+    find_rrup_bounding_polygon
+    bounding_box.minimum_area_bounding_box_for_polygons_masked
+    estimate_simulation_duration
+
+    Notes
+    -----
+    - Fault polygons are buffered by 2,000 meters and must be fully included
+      in the final domain.
+    - Rrup bounding polygons represent areas within rupture distance of any
+      source-geometry corner; they may be included when they overlap land.
+    - The domain computation is masked by the New Zealand outline `utils.get_nz_outline_polygon`,
+      ensuring only land areas are considered for optional inclusion.
+    - Depth is computed from the total rupture magnitude and the initial fault's
+      bottom depth.
+    """
+
+    rupture_magnitude = total_magnitude(np.array(list(magnitudes.magnitudes.values())))
+    realisation_pgv_target = pgv_target(magnitudes, velocity_model_parameters)
+
+    initial_fault = source_config.source_geometries[rupture_propagation.initial_fault]
+    if isinstance(initial_fault, sources.Point):
+        # TODO: backport this into source modelling
+        bottom_m = initial_fault.centroid[2] + initial_fault.width_m / 2 * np.sin(
+            np.radians(initial_fault.dip)
+        )
+    else:
+        bottom_m = initial_fault.bottom_m
+    max_depth = get_max_depth(rupture_magnitude, bottom_m / 1000.0)
+
+    # This polygon includes all the faults corners + a 2km buffer (which must be in the simulation domain).
+    fault_buffer_polygons = [
+        shapely.buffer(fault.geometry, 2000)
+        for fault in source_config.source_geometries.values()
+    ]
+    # This polygon includes all areas within rrup distance of any
+    # corner in the source geometries.
+    # These may be in the domain where they are over land.
+    rrup_bounding_polygons = [
+        # The type error about existing assignment seems to be a bug.
+        find_rrup_bounding_polygon(*args, pgv_target=realisation_pgv_target)  # type: ignore
+        for args in dict_zip(
+            source_config.source_geometries,
+            magnitudes.magnitudes,
+            rakes.rakes,
+        ).values()
+    ]
+
+    # The domain is the minimum area bounding box containing all of
+    # the fault corners, and all points on land within rrup distance
+    # of a fault corner.
+    model_domain = bounding_box.minimum_area_bounding_box_for_polygons_masked(
+        must_include=fault_buffer_polygons,
+        may_include=rrup_bounding_polygons,
+        mask=utils.get_nz_outline_polygon(),  # type: ignore
+    )
+
+    sim_duration = estimate_simulation_duration(
+        model_domain,
+        rupture_magnitude,
+        list(source_config.source_geometries.values()),
+        np.fromiter(rakes.rakes.values(), float),
+        velocity_model_parameters.ds_multiplier,
+        velocity_model_parameters.vs30,
+        velocity_model_parameters.s_wave_velocity,
+    )
+
+    return DomainParameters(
+        domain=model_domain,
+        depth=max_depth,
+        duration=sim_duration,
+    )
+
+
 @cli.from_docstring(app)
 @log_utils.log_call()
-def generate_velocity_model_parameters(
+def main(
     realisation_ffp: Annotated[Path, typer.Argument()],
 ) -> None:
     """Generate velocity model parameters for a given realisation file.
@@ -465,61 +573,14 @@ def generate_velocity_model_parameters(
     )
     magnitudes = Magnitudes.read_from_realisation(realisation_ffp)
     rakes = Rakes.read_from_realisation(realisation_ffp)
-    rupture_magnitude = total_magnitude(np.array(list(magnitudes.magnitudes.values())))
-    realisation_pgv_target = pgv_target(magnitudes, velocity_model_parameters)
 
-    initial_fault = source_config.source_geometries[rupture_propagation.initial_fault]
-    if isinstance(initial_fault, sources.Point):
-        # TODO: backport this into source modelling
-        bottom_m = initial_fault.centroid[2] + initial_fault.width_m / 2 * np.sin(
-            np.radians(initial_fault.dip)
-        )
-    else:
-        bottom_m = initial_fault.bottom_m
-    max_depth = get_max_depth(rupture_magnitude, bottom_m / 1000.0)
-
-    # This polygon includes all the faults corners + a 2km buffer (which must be in the simulation domain).
-    fault_buffer_polygons = [
-        shapely.buffer(fault.geometry, 2000)
-        for fault in source_config.source_geometries.values()
-    ]
-    rakes = Rakes.read_from_realisation(realisation_ffp)
-    # This polygon includes all areas within rrup distance of any
-    # corner in the source geometries.
-    # These may be in the domain where they are over land.
-    rrup_bounding_polygons = [
-        # The type error about existing assignment seems to be a bug.
-        find_rrup_bounding_polygon(*args, pgv_target=realisation_pgv_target)  # type: ignore
-        for args in dict_zip(
-            source_config.source_geometries,
-            magnitudes.magnitudes,
-            rakes.rakes,
-        ).values()
-    ]
-
-    # The domain is the minimum area bounding box containing all of
-    # the fault corners, and all points on land within rrup distance
-    # of a fault corner.
-    model_domain = bounding_box.minimum_area_bounding_box_for_polygons_masked(
-        must_include=fault_buffer_polygons,
-        may_include=rrup_bounding_polygons,
-        mask=utils.get_nz_outline_polygon(),  # type: ignore
+    domain_parameters = generate_velocity_model_parameters(
+        source_config=source_config,
+        velocity_model_parameters=velocity_model_parameters,
+        rupture_propagation=rupture_propagation,
+        magnitudes=magnitudes,
+        rakes=rakes,
     )
 
-    sim_duration = estimate_simulation_duration(
-        model_domain,
-        rupture_magnitude,
-        list(source_config.source_geometries.values()),
-        np.fromiter(rakes.rakes.values(), float),
-        velocity_model_parameters.ds_multiplier,
-        velocity_model_parameters.vs30,
-        velocity_model_parameters.s_wave_velocity,
-    )
-
-    domain_parameters = DomainParameters(
-        domain=model_domain,
-        depth=max_depth,
-        duration=sim_duration,
-    )
     domain_parameters.write_to_realisation(realisation_ffp)
     realisations.append_log_entry(realisation_ffp)
