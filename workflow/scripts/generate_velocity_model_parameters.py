@@ -546,7 +546,7 @@ def main(
     1. The size of the simulation domain,
     2. The simulation duration.
 
-    Both of these values are written to the realisation using `VelocityModelParameters`.
+    Both of these values are written to the realisation using `DomainParameters`.
 
     Parameters
     ----------
