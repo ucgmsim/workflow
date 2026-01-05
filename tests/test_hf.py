@@ -56,7 +56,15 @@ def test_build_hf_input_serialisation() -> None:
     )
 
     res = Resolution(resolution=0.1)
-    rv = RuptureVelocity(rvfrac=0.8, rvfrac_shal=0.7, rvfrac_deep=0.9)
+    rv = RuptureVelocity(
+        rvfrac=0.8,
+        rvfrac_shal=0.7,
+        rvfrac_deep=0.9,
+        shallow_depth=1.0,
+        shallow_transition_range=1,
+        deep_depth=2.0,
+        deep_transition_range=1,
+    )
     # Rather than create DomainParameters with a bounding box, we simplify with a mock object
     domain = SimpleNamespace(duration=100.0)
 
@@ -78,11 +86,12 @@ def test_build_hf_input_serialisation() -> None:
     assert lines[5] == "1"  # int(not no_siteamp) -> int(not False) -> 1
     assert lines[7] == "{seed}"  # seed placeholder
     assert lines[9] == "100.0 0.005 20.0 0.045 0.6"  # Domain and resolution parameters
-    assert lines[10] == "0.8 0.7 0.9 2.5 0.0"
-    assert lines[11] == "-1 1.2"  # mom (None -> -1) and rupv
-    assert lines[12] == str(stoch_ffp)  # Stoch file path
-    assert lines[15] == "0 0.1 0.1 0.1 0.1 1"  # Sigs and ic_flag (True -> 1)
-    assert lines[20] == "-1 -1 -1"  # Optional stress parameters
+    assert lines[10] == "0.8 0.7 0.9 2.5 0.0"  # rupture velocity + czero,alpha
+    assert lines[11] == "0.5 1.5 1.5 2.5"  # shallow depth, deep depth
+    assert lines[12] == "-1 1.2"  # mom (None -> -1) and rupv
+    assert lines[13] == str(stoch_ffp)  # Stoch file path
+    assert lines[16] == "0 0.1 0.1 0.1 0.1 1"  # Sigs and ic_flag (True -> 1)
+    assert lines[21] == "-1 -1 -1"  # Optional stress parameters
 
 
 STATION_STRATEGY = st.text(

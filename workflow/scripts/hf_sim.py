@@ -62,6 +62,35 @@ from workflow.realisations import (
 app = typer.Typer()
 
 
+def rupture_velocity_hf_transition_bands(
+    rupture_velocity: RuptureVelocity,
+) -> tuple[float, float, float, float]:
+    """Produce transition bands for rupture velocity parameters.
+
+    Converts median-centred description into bounds description.
+
+    Parameters
+    ----------
+    rupture_velocity : RuptureVelocity
+        Rupture velocity configuration
+
+
+    Returns
+    -------
+    tuple[float, float, float, float]
+        The shallow min/max, deep min/max transition depths.
+    """
+    deep = rupture_velocity.deep_depth
+    deep_range = rupture_velocity.deep_transition_range
+    shallow = rupture_velocity.shallow_depth
+    shallow_range = rupture_velocity.shallow_transition_range
+    deep_min = deep - deep_range / 2
+    deep_max = deep + deep_range / 2
+    shallow_min = shallow - shallow_range / 2
+    shallow_max = shallow + shallow_range / 2
+    return shallow_min, shallow_max, deep_min, deep_max
+
+
 def build_hf_input(
     stoch_ffp: Path,
     velocity_model: Path,
@@ -95,6 +124,9 @@ def build_hf_input(
         substituted to yield a high-frequency input in for each
         station.
     """
+    shallow_min, shallow_max, deep_min, deep_max = rupture_velocity_hf_transition_bands(
+        rupture_velocity
+    )
     hf_sim_input = [
         "",
         hf_config.sdrop,
@@ -107,6 +139,7 @@ def build_hf_input(
         1,  # one station in the input
         f"{domain_parameters.duration} {resolution.dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",
         f"{rupture_velocity.rvfrac} {rupture_velocity.rvfrac_shal} {rupture_velocity.rvfrac_deep} {hf_config.czero} {hf_config.calpha}",
+        f"{shallow_min} {shallow_max} {deep_min} {deep_max}",
         f"{hf_config.mom or -1} {hf_config.rupv or -1}",
         stoch_ffp,
         velocity_model,
