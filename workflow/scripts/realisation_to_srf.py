@@ -473,7 +473,11 @@ def _build_genslip_command(
         f"dt={dt}",
         f"rvfrac={rupture_velocity.rvfrac}",
         f"shal_vrup={rupture_velocity.rvfrac_shal}",
+        f"shal_vrup_dep={rupture_velocity.shallow_depth}",
+        f"shal_vrup_deprange={rupture_velocity.shallow_transition_range}",
         f"deep_vrup={rupture_velocity.rvfrac_deep}",
+        f"deep_vrup_dep={rupture_velocity.deep_depth}",
+        f"deep_vrup_deprange={rupture_velocity.deep_transition_range}",
     ]
     skipped_fields = {"point_source_params"}
     for field in dataclasses.fields(srf_config):

@@ -389,6 +389,22 @@ RUPTURE_VELOCITY_SCHEMA = Schema(
         Literal("rvfrac_deep", description="Rupture velocity at depth"): And(
             NUMBER, _is_positive
         ),
+        Literal(
+            "shallow_depth",
+            description="Shallow transition depth.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "shallow_transition_range",
+            description="Shallow transition depth transition range.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "deep_depth",
+            description="Deep transition depth.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "deep_transition_range",
+            description="Deep transition depth transition range.",
+        ): And(NUMBER, _is_positive),
     }
 )
 

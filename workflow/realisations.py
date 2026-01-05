@@ -736,6 +736,14 @@ class RuptureVelocity(RealisationConfiguration):
     """Rupture velocity at shallow depths"""
     rvfrac_deep: float
     """Rupture velocity at depth"""
+    shallow_depth: float
+    """Shallow depth (km). Marks transition to rvfrac_shal from rvfrac."""
+    shallow_transition_range: float
+    """Shallow depth transition range (km)."""
+    deep_depth: float
+    """Shallow depth (km). Marks transition to rvfrac_deep from rvfrac."""
+    deep_transition_range: float
+    """Deep depth transition range (km)."""
 
 
 @dataclasses.dataclass
