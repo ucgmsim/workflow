@@ -426,45 +426,38 @@ def pgv_target(
     )
 
 
-@cli.from_docstring(app)
-@log_utils.log_call()
-def generate_velocity_model_parameters(
-    realisation_ffp: Annotated[Path, typer.Argument()],
-) -> None:
-    """Generate velocity model parameters for a given realisation file.
-
-    This function reads the source and rupture propagation information and computes:
-
-    1. The size of the simulation domain,
-    2. The simulation duration.
-
-    Both of these values are written to the realisation using `VelocityModelParameters`.
+def generate_domain(
+    source_config: SourceConfig,
+    rupture_propagation: RupturePropagationConfig,
+    magnitudes: Magnitudes,
+    rakes: Rakes,
+    velocity_model_parameters: VelocityModelParameters,
+) -> DomainParameters:
+    """
+    Computes simulation domain spatial extent and temporal duration.
 
     Parameters
     ----------
-    realisation_ffp : Path
-        The path to the realisation file from which to read configurations and to which
-        the generated velocity model parameters will be written.
+    source_config : SourceConfig
+        Configuration containing the geometries for all faults involved in
+        the realisation.
+    rupture_propagation : RupturePropagationConfig
+        Configuration defining the propagation characteristics, including the
+        identification of the initial fault.
+    magnitudes : Magnitudes
+        The magnitudes associated with each source in the realisation.
+    rakes : Rakes
+        The rake angles for the source geometries.
+    velocity_model_parameters : VelocityModelParameters
+        Parameters defining the velocity model, including Vs30, S-wave
+        velocity, and the duration scaling multiplier.
 
     Returns
     -------
-    None
-        The function does not return any value. It writes the computed parameters to
-        the specified realisation file.
+    DomainParameters
+        An object containing the computed model domain (bounding box),
+        the maximum simulation depth, and the estimated simulation duration.
     """
-    metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
-    source_config = SourceConfig.read_from_realisation(realisation_ffp)
-    velocity_model_parameters = (
-        VelocityModelParameters.read_from_realisation_or_defaults(
-            realisation_ffp, metadata.defaults_version
-        )
-    )
-
-    rupture_propagation = RupturePropagationConfig.read_from_realisation(
-        realisation_ffp
-    )
-    magnitudes = Magnitudes.read_from_realisation(realisation_ffp)
-    rakes = Rakes.read_from_realisation(realisation_ffp)
     rupture_magnitude = total_magnitude(np.array(list(magnitudes.magnitudes.values())))
     realisation_pgv_target = pgv_target(magnitudes, velocity_model_parameters)
 
@@ -483,7 +476,6 @@ def generate_velocity_model_parameters(
         shapely.buffer(fault.geometry, 2000)
         for fault in source_config.source_geometries.values()
     ]
-    rakes = Rakes.read_from_realisation(realisation_ffp)
     # This polygon includes all areas within rrup distance of any
     # corner in the source geometries.
     # These may be in the domain where they are over land.
@@ -520,6 +512,51 @@ def generate_velocity_model_parameters(
         domain=model_domain,
         depth=max_depth,
         duration=sim_duration,
+    )
+    return domain_parameters
+
+
+@cli.from_docstring(app)
+@log_utils.log_call()
+def generate_domain_from_realisation(
+    realisation_ffp: Annotated[Path, typer.Argument()],
+) -> None:
+    """Generate velocity model parameters for a given realisation file.
+
+    This function reads the source and rupture propagation information and computes:
+
+    1. The size of the simulation domain,
+    2. The simulation duration.
+
+    Both of these values are written to the realisation using `VelocityModelParameters`.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        The path to the realisation file from which to read configurations and to which
+        the generated velocity model parameters will be written.
+
+    Returns
+    -------
+    None
+        The function does not return any value. It writes the computed parameters to
+        the specified realisation file.
+    """
+    metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
+    source_config = SourceConfig.read_from_realisation(realisation_ffp)
+    velocity_model_parameters = (
+        VelocityModelParameters.read_from_realisation_or_defaults(
+            realisation_ffp, metadata.defaults_version
+        )
+    )
+
+    rupture_propagation = RupturePropagationConfig.read_from_realisation(
+        realisation_ffp
+    )
+    magnitudes = Magnitudes.read_from_realisation(realisation_ffp)
+    rakes = Rakes.read_from_realisation(realisation_ffp)
+    domain_parameters = generate_domain(
+        source_config, rupture_propagation, magnitudes, rakes, velocity_model_parameters
     )
     domain_parameters.write_to_realisation(realisation_ffp)
     realisations.append_log_entry(realisation_ffp)
