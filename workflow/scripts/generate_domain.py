@@ -47,7 +47,6 @@ from workflow.realisations import (
     Magnitudes,
     Rakes,
     RealisationMetadata,
-    RupturePropagationConfig,
     SourceConfig,
     VelocityModelParameters,
 )
@@ -337,7 +336,7 @@ def estimate_r_surface(
     Returns
     -------
     float
-        The estimated rupture radius (in km).
+        The estimated rupture radius (in metres).
     """
     rrup = float(np.interp(magnitude, rrup_interpolants[0], rrup_interpolants[1]))
 
@@ -359,7 +358,7 @@ def fault_top(fault: sources.IsSource) -> float:
     Returns
     -------
     float
-        The top-depth of the rupture.
+        The top-depth of the rupture in km.
     """
     if isinstance(fault, sources.Point):
         # TODO: backport this into source modelling
@@ -493,15 +492,14 @@ def domain_max_depth(
     float
         The estimated maximum reasonable simulation depth, in kilometers.
     """
-    max_depth = source_max_depth(source_config.source_geometries.values())
+    max_depth_km = source_max_depth(source_config.source_geometries.values()) / 1000
     magnitude = total_magnitude(magnitudes.magnitudes.values())
 
-    return simulation_max_depth(magnitude, max_depth)
+    return simulation_max_depth(magnitude, max_depth_km)
 
 
 def generate_domain(
     source_config: SourceConfig,
-    rupture_propagation: RupturePropagationConfig,
     magnitudes: Magnitudes,
     rakes: Rakes,
     velocity_model_parameters: VelocityModelParameters,
@@ -514,9 +512,6 @@ def generate_domain(
     source_config : SourceConfig
         Configuration containing the geometries for all faults involved in
         the realisation.
-    rupture_propagation : RupturePropagationConfig
-        Configuration defining the propagation characteristics, including the
-        identification of the initial fault.
     magnitudes : Magnitudes
         The magnitudes associated with each source in the realisation.
     rakes : Rakes
@@ -586,13 +581,10 @@ def generate_domain_from_realisation(
         )
     )
 
-    rupture_propagation = RupturePropagationConfig.read_from_realisation(
-        realisation_ffp
-    )
     magnitudes = Magnitudes.read_from_realisation(realisation_ffp)
     rakes = Rakes.read_from_realisation(realisation_ffp)
     domain_parameters = generate_domain(
-        source_config, rupture_propagation, magnitudes, rakes, velocity_model_parameters
+        source_config, magnitudes, rakes, velocity_model_parameters
     )
     domain_parameters.write_to_realisation(realisation_ffp)
     realisations.append_log_entry(realisation_ffp)

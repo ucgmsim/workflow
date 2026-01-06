@@ -10,7 +10,6 @@ from source_modelling import sources
 from workflow.realisations import (
     Magnitudes,
     Rakes,
-    RupturePropagationConfig,
     SourceConfig,
     VelocityModelParameters,
 )
@@ -90,11 +89,6 @@ def test_generate_domain() -> None:
         dip_dir=180.0,
     )
     source_config = SourceConfig(dict(source=source))
-    rupture_propagation_config = RupturePropagationConfig(
-        hypocentre=np.array([0.5, 0.5]),
-        rupture_causality_tree=dict(source=None),
-        jump_points={},
-    )
     magnitudes = Magnitudes(dict(source=6.0))
     rakes = Rakes(dict(source=180.0))
 
@@ -109,7 +103,6 @@ def test_generate_domain() -> None:
     )
     domain_parameters = generate_domain.generate_domain(
         source_config,
-        rupture_propagation_config,
         magnitudes,
         rakes,
         velocity_model_parameters,
