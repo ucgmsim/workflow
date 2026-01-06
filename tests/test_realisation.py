@@ -222,7 +222,7 @@ def test_velocity_model(tmp_path: Path) -> None:
         ds_multiplier=1.2,
         vs30=300.0,
         s_wave_velocity=3500.0,
-        pgv_interpolants=np.ones(shape=(2, 2), dtype=np.float32),
+        rrup_interpolants=np.ones(shape=(2, 2), dtype=np.float32),
     )
     realisation_ffp = tmp_path / "realisation.json"
     velocity_model.write_to_realisation(realisation_ffp)
@@ -235,7 +235,7 @@ def test_velocity_model(tmp_path: Path) -> None:
                 "ds_multiplier": 1.2,
                 "vs30": 300.0,
                 "s_wave_velocity": 3500.0,
-                "pgv_interpolants": [[1, 1], [1, 1]],
+                "rrup_interpolants": [[1, 1], [1, 1]],
             }
         }
 

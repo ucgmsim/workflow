@@ -118,7 +118,7 @@ velocity_model:
   topo_type: "SQUASHED_TAPERED"
   vs30: 500.0
   s_wave_velocity: 3500.0
-  pgv_interpolants: [[3.5, 1.0], [8., 1.0]]
+  rrup_interpolants: [[]]
 velocity_model_1d:
   model:
     - thickness: 0.0500

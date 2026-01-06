@@ -32,8 +32,8 @@ from pathlib import Path
 from typing import Annotated
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
-import scipy as sp
 import shapely
 import typer
 
@@ -287,15 +287,15 @@ def estimate_simulation_duration(
     return total_duration
 
 
-def simulation_max_depth(magnitude: float, hypocentre_depth: float) -> float:
+def simulation_max_depth(magnitude: float, bottom_depth: float) -> float:
     """Estimate the maximum depth to simulate for a rupture.
 
     Parameters
     ----------
     magnitude : float
         The magnitude of the rupture.
-    hypocentre_depth : float
-        hypocentre depth (in km).
+    bottom_depth : float
+        bottom depth (in km).
 
     Returns
     -------
@@ -308,228 +308,96 @@ def simulation_max_depth(magnitude: float, hypocentre_depth: float) -> float:
     """
     return round(
         10
-        + hypocentre_depth
+        + bottom_depth
         + (
             10
             * np.power(
-                (0.5 * np.power(10, (0.55 * magnitude - 1.2)) / hypocentre_depth), 0.3
+                (0.5 * np.power(10, (0.55 * magnitude - 1.2)) / bottom_depth), 0.3
             )
         ),
         ndigits=0,  # like default rounding behaviour but returns a float.
     )
 
 
-def pgv_from_rrup(
-    magnitude: float, rake: float, dip: float, rrup: float, ztor: float
+def estimate_r_surface(
+    rrup_interpolants: npt.NDArray[np.floating], magnitude: float, ztor: float
 ) -> float:
     """
-    Compute the peak ground velocity (PGV) at a given distance from a rupture.
+    Estimate an appropriate rupture radius for a rupture.
 
     Parameters
     ----------
+    rrup_interpolants : array of floats
+        The rrup function of magnitude.
     magnitude : float
         The magnitude of the rupture.
-    rake : float
-        The rake angle of the rupture.
-    dip : float
-        The dip angle of the rupture.
-    rrup : float
-        The distance from the rupture (in km).
     ztor : float
-        The distance to the top of the fault geometry.
+        The distance to top-depth.
 
     Returns
     -------
     float
-        The peak ground velocity (cm/s) at the given distance from the rupture.
+        The estimated rupture radius (in km).
     """
-    # import here rather than at the module level because openquake is slow to import
-    import oq_wrapper as oqw
+    rrup = float(np.interp(magnitude, rrup_interpolants[0], rrup_interpolants[1]))
 
-    vs30 = 500  # default Vs30 value
-    rupture_df = pd.DataFrame(
-        {
-            "mag": [magnitude],
-            "rake": [rake],
-            "vs30": [vs30],
-            "vs30measured": [False],
-            "dip": [dip],
-            "z1pt0": [oqw.estimations.chiou_young_08_calc_z1p0(vs30)],
-            # These calculations are done with a point-source
-            # assumption. We don't know where our test point is so
-            # estimating them from source geometry is impossible
-            # since rjb depends on polygon-distance measurements.
-            # We believe this is defensible for reasons:
-            #
-            # 1. At small Mw, we assume a point-source anyway so these calculations are essentially correct.
-            # 2. At large Mw, PGV of 0.1cm/s will occur sufficiently far from the event that a point-source approximation is reasonable.
-            "ztor": [ztor],
-            "rrup": [rrup],
-            "rjb": [np.sqrt(np.maximum(0, rrup**2 - ztor**2))],
-            # We want to include any hanging-wall terms in the model
-            # to err on the conservative side for our domains. In the
-            # other case, we risk shrinking our domains unnecessarily.
-            "rx": [rrup],
-        }
-    )
+    if rrup < ztor:
+        raise ValueError(f"Rupture depth {ztor=} is higher than estimated {rrup=}.")
 
-    return np.exp(
-        oqw.run_gmm(
-            oqw.constants.GMM.CY_14,
-            oqw.constants.TectType.ACTIVE_SHALLOW,
-            rupture_df,
-            "PGV",
-        )["PGV_mean"].iloc[0]
-    )
+    r_surface = np.sqrt(rrup**2 - ztor**2)
+    return r_surface * 1000
 
 
-def estimate_rrup_from_pgv(
-    magnitude: float, rake: float, dip: float, ztor: float, pgv_target: float
-) -> float:
-    """
-    Estimate the rupture radius such that stations at this radius will
-    experience the target PGV.
-
-    Parameters
-    ----------
-    magnitude : float
-        The magnitude of the rupture.
-    rake : float
-        The rake angle of the rupture.
-    dip : float
-        The dip angle of the rupture.
-    ztor : float
-        The distance to the top of the fault geometry.
-    pgv_target : float
-        The target PGV value (cm/s).
-
-    Returns
-    -------
-    float
-            The estimated rupture radius (in km).
-
-    Examples
-    --------
-    >>> # Estimate the rupture radius for a 7.5 magnitude earthquake
-    >>> # with a rake of 90 degrees, a dip of 45 degrees, a depth to
-    >>> # the top of rupture (ztor) of 5 km, and a target PGV of 10 cm/s.
-    >>> estimate_rrup_from_pgv(7.5, 90, 45, 5.0, 10)
-    60.86630588572306
-    """
-    return float(
-        sp.optimize.minimize_scalar(
-            lambda rrup: np.abs(
-                pgv_from_rrup(magnitude, rake, dip, rrup, ztor) - pgv_target
-            ),
-            bounds=(0, 1000),
-            method="bounded",
-        ).x
-    )
-
-
-def find_rrup(
-    fault: sources.IsSource,
-    magnitude: float,
-    rake: float,
-    pgv_target: float,
-) -> float:
-    """Find the rrup distance of a fault.
-
-    The rrup is estimated from the PGV target.
+def fault_top(fault: sources.IsSource) -> float:
+    """Return the top of rupture distance (ztor).
 
     Parameters
     ----------
     fault : sources.IsSource
-        The fault geometry.
-    magnitude : float
-        The magnitude of the rupture.
-    rake : float
-        The rake angle of the rupture.
-    pgv_target : float
-        The target PGV value (cm/s).
+        The fault to compute rupture top for.
 
     Returns
     -------
     float
-        The rrup distance of the fault in the realisation.
+        The top-depth of the rupture.
     """
-
     if isinstance(fault, sources.Point):
         # TODO: backport this into source modelling
         ztor = fault.centroid[2] - fault.width_m / 2 * np.sin(np.radians(fault.dip))
     else:
         ztor = fault.top_m
     ztor /= 1000.0
-
-    rrup = estimate_rrup_from_pgv(
-        magnitude,
-        rake,
-        fault.dip,
-        ztor,
-        pgv_target,
-    )
-
-    return rrup * 1000
+    return ztor
 
 
-def find_rrups(
+def find_r_surfaces(
     source_config: SourceConfig,
     magnitudes: Magnitudes,
-    rakes: Rakes,
-    pgv_target: float,
+    rrup_interpolants: npt.NDArray[np.floating],
 ) -> dict[str, float]:
-    """Find rrups for all sources.
+    """Find r_surfaces for all sources.
 
     Parameters
     ----------
     source_config : SourceConfig
-        The sources to find rrups for.
+        The sources to find r_surfaces for.
     magnitudes : Magnitudes
         The magnitudes of the rupture on each source.
-    rakes : Rakes
-        The rake for each source.
-    pgv_target : float
-        The PGV target threshold
+    rrup_interpolants : array of floats
+        The rrup function of magnitude.
 
     Returns
     -------
     dict[str, float]
-        A key-value mapping of source name to rrup.
+        A key-value mapping of source name to r_surface.
     """
     return {
-        fault_name: find_rrup(fault, magnitude, rake, pgv_target)
-        for fault_name, (fault, magnitude, rake) in utils.dict_zip(
-            source_config.source_geometries, magnitudes.magnitudes, rakes.rakes
+        fault_name: estimate_r_surface(rrup_interpolants, magnitude, fault_top(fault))
+        for fault_name, (fault, magnitude) in utils.dict_zip(
+            source_config.source_geometries,
+            magnitudes.magnitudes,
         ).items()
     }
-
-
-def pgv_target(
-    magnitudes: Magnitudes,
-    velocity_model_parameters: VelocityModelParameters,
-) -> float:
-    """Compute the PGV target for the realisation.
-
-    Parameters
-    ----------
-    magnitudes : Magnitudes
-        The magnitudes object.
-    velocity_model_parameters : VelocityModelParameters
-        The velocity model parameters containing PGV interpolants.
-
-    Returns
-    -------
-    float
-        The PGV target for the realisation.
-    """
-    magnitude = total_magnitude(magnitudes.magnitudes.values())
-    return float(
-        np.interp(
-            magnitude,
-            velocity_model_parameters.pgv_interpolants[:, 0],
-            velocity_model_parameters.pgv_interpolants[:, 1],
-        )
-    )
 
 
 def source_max_depth(faults: Iterable[sources.IsSource]) -> float:
@@ -609,7 +477,6 @@ def estimate_domain(
 
 def domain_max_depth(
     source_config: SourceConfig,
-    rupture_propagation_config: RupturePropagationConfig,
     magnitudes: Magnitudes,
 ) -> float:
     """Estimate the maximum reasonable simulation depth.
@@ -618,8 +485,6 @@ def domain_max_depth(
     ----------
     source_config : SourceConfig
         The faults in the rupture.
-    rupture_propagation_config : RupturePropagationConfig
-        The rupture propagation information.
     magnitudes : Magnitudes
         The magnitudes of each rupture.
 
@@ -628,20 +493,10 @@ def domain_max_depth(
     float
         The estimated maximum reasonable simulation depth, in kilometers.
     """
-    initial_fault = source_config.source_geometries[
-        rupture_propagation_config.initial_fault
-    ]
-    hypocentre = initial_fault.fault_coordinates_to_wgs_depth_coordinates(
-        rupture_propagation_config.hypocentre
-    )
-    hypocentre_depth = hypocentre[-1]
+    max_depth = source_max_depth(source_config.source_geometries.values())
     magnitude = total_magnitude(magnitudes.magnitudes.values())
 
-    return max(
-        source_max_depth(source_config.source_geometries.values())
-        + 10.0 * 1000.0,  # plus 10km for the buffer.
-        simulation_max_depth(magnitude, hypocentre_depth),
-    )
+    return simulation_max_depth(magnitude, max_depth)
 
 
 def generate_domain(
@@ -679,14 +534,15 @@ def generate_domain(
 
     rupture_context = rupture_context_from(magnitudes, rakes, velocity_model_parameters)
 
-    realisation_pgv_target = pgv_target(magnitudes, velocity_model_parameters)
-    rrups = find_rrups(source_config, magnitudes, rakes, realisation_pgv_target)
+    rrups = find_r_surfaces(
+        source_config, magnitudes, velocity_model_parameters.rrup_interpolants
+    )
     nz_outline = utils.get_nz_outline_polygon()
     model_domain = estimate_domain(source_config, rrups, nz_outline)
     sim_duration = estimate_simulation_duration(
         rupture_context, model_domain, source_config.source_geometries.values()
     )
-    depth = domain_max_depth(source_config, rupture_propagation, magnitudes)
+    depth = domain_max_depth(source_config, magnitudes)
 
     domain_parameters = DomainParameters(
         domain=model_domain,
