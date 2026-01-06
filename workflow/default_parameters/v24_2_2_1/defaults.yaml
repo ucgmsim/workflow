@@ -1,3 +1,4 @@
+---
 resolution:
   resolution: 0.1
 emod3d:
@@ -669,6 +670,12 @@ hf_velocity_model_1d:
       rho: 3.12
       Qp: 374.40
       Qs: 187.20
+    - thickness: 999.999
+      Vp: 8.10
+      Vs: 4.60
+      rho: 3.33
+      Qp: 394.80
+      Qs: 197.40
     - thickness: 999.999
       Vp: 8.10
       Vs: 4.60
