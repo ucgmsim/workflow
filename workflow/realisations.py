@@ -370,14 +370,43 @@ class SRFConfig(RealisationConfiguration):
     _config_key: ClassVar[str] = "srf"
     _schema: ClassVar[Schema] = schemas.SRF_SCHEMA
 
-    genslip_version: str
-    """The version of genslip to use (currently supports "5.4.2")."""
-
     resolution: float
     """The resolution of the SRF discretisation (different, in general, from the simulation resolution)."""
 
     point_source_params: schemas.PointSourceParams | None
     """Parameters for point source approximation, if applicable."""
+
+    side_taper: float
+    """Side slip tapering, proportion of along-strike 0-1."""
+    bot_taper: float
+    """Bottom slip tapering proportion of down-dip 0-1."""
+    top_taper: float
+    """Top slip tapering proportion of down-dip 0-1."""
+
+    alpha_rough: float
+    """Roughness (0.0 = smooth)"""
+
+    gwid: list[float]
+    """Width of delay zone around segment boundaries"""
+    rvfac_seg: list[float]
+    """Rupture speed reduction (proportion) at segment boundaries."""
+    seg_delay: bool
+    """If true, delay rupture across slip boundaries according to specifications of rvfac_seg and gwid."""
+
+    slip_sigma: float
+    """The stddev of slip distribution."""
+
+    risetime_coef: float
+    """Risetime scaling coefficient."""
+
+    ymag_exp: float | None = None
+    """Corner magnitude exponent for along-strike slip correlation length. See genslip_v5.6.2c:1385"""
+    xmag_exp: float | None = None
+    """Corner magnitude exponent for down-dip slip correlation length. See genslip_v5.6.2c:1385"""
+    kx_corner: float | None = None
+    """Corner wavenumber for along-strike slip correlation length. See genslip_v5.6.2c:1385"""
+    ky_corner: float | None = None
+    """Corner wavenumber for down-dip slip correlation length. See genslip_v5.6.2c:1385"""
 
     def to_dict(self) -> dict[str, Any]:
         """

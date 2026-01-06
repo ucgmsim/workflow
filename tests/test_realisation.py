@@ -114,7 +114,6 @@ def test_srf_config_example(tmp_path: Path) -> None:
         duration=60.0,
     )
     srf_config = realisations.SRFConfig(
-        genslip_version="5.4.2",
         resolution=0.1,
         point_source_params=schemas.PointSourceParams(
             stype=schemas.Stype.cos,
@@ -123,6 +122,19 @@ def test_srf_config_example(tmp_path: Path) -> None:
             risetimedep=0.0,
             inittime=0.0,
         ),
+        side_taper=0.02,
+        bot_taper=0.02,
+        top_taper=0.0,
+        alpha_rough=0.0,
+        gwid=[],
+        rvfac_seg=[],
+        seg_delay=False,
+        slip_sigma=1.0,
+        risetime_coef=1.6,
+        ymag_exp=None,
+        xmag_exp=None,
+        kx_corner=None,
+        ky_corner=None,
     )
 
     realisation_ffp = tmp_path / "realisation.json"
@@ -141,7 +153,6 @@ def test_srf_config_example(tmp_path: Path) -> None:
                 "duration": 60.0,
             },
             "srf": {
-                "genslip_version": "5.4.2",
                 "resolution": 0.1,
                 "point_source_params": {
                     "stype": "cos",
@@ -150,6 +161,19 @@ def test_srf_config_example(tmp_path: Path) -> None:
                     "risetimedep": 0.0,
                     "inittime": 0.0,
                 },
+                "side_taper": 0.02,
+                "bot_taper": 0.02,
+                "top_taper": 0.0,
+                "alpha_rough": 0.0,
+                "slip_sigma": 1.0,
+                "risetime_coef": 1.6,
+                "gwid": [],
+                "rvfac_seg": [],
+                "seg_delay": False,
+                "ymag_exp": None,
+                "xmag_exp": None,
+                "kx_corner": None,
+                "ky_corner": None,
             },
         }
 
