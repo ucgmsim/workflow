@@ -70,7 +70,6 @@ To find the documentation for a given stage, find the module that runs this stag
 | EMOD3D                        | See below.                                            |
 | High Frequency Simulation     | `workflow.scripts.hf_sim`                             |
 | Broadband Simulation          | `workflow.scripts.bb_sim`                             |
-| Merge Timeslices              | `merge_ts.merge_ts`                                   |
 | Create Simulation Video       | `workflow.scripts.plot_ts`                            |
 | Intensity Measure Calculation | `workflow.scripts.im_calc`                            |
 
