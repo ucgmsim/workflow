@@ -3,6 +3,8 @@
 import os
 import tempfile
 import urllib.request
+from collections.abc import Mapping
+from typing import Any, TypeVar, overload
 
 import geopandas as gpd
 import numpy as np
@@ -101,3 +103,74 @@ def get_available_cores() -> int:
         return cpu_count
     else:
         raise RuntimeError("Cannot determine CPU count.")
+
+
+K = TypeVar("K")
+V1 = TypeVar("V1")
+V2 = TypeVar("V2")
+V3 = TypeVar("V3")
+
+
+# These overloads provide better type inference in the common case
+@overload
+def dict_zip(
+    __d1: Mapping[K, V1], *, strict: bool = ...
+) -> dict[K, tuple[V1]]: ...  # numpydoc ignore=GL08
+
+
+@overload
+def dict_zip(
+    __d1: Mapping[K, V1], __d2: Mapping[K, V2], *, strict: bool = ...
+) -> dict[K, tuple[V1, V2]]: ...  # numpydoc ignore=GL08
+
+
+@overload
+def dict_zip(
+    __d1: Mapping[K, V1],
+    __d2: Mapping[K, V2],
+    __d3: Mapping[K, V3],
+    *,
+    strict: bool = True,
+) -> dict[K, tuple[V1, V2, V3]]: ...  # numpydoc ignore=GL08
+
+
+@overload
+def dict_zip(
+    *dicts: Mapping[K, Any], strict: bool = ...
+) -> dict[K, tuple[Any, ...]]: ...  # numpydoc ignore=GL08
+
+
+def dict_zip(*dicts: Mapping[K, Any], strict: bool = True) -> dict[K, tuple[Any, ...]]:
+    """
+    Takes the product of one or more dictionaries.
+
+    Parameters
+    ----------
+    *dicts : list of dict
+        Variable number of dictionaries.
+    strict : bool, default False
+        If True, raise an error if the keys in `dicts` are not all the same.
+
+    Returns
+    -------
+    dict
+        A dictionary where each value is a tuple of the corresponding values from the input dictionaries.
+
+    Raises
+    ------
+    ValueError
+        If strict is True and the keys in the dictionaries are not all the same.
+    """
+    if not dicts:
+        return {}
+
+    keys: set[K] = set(dicts[0].keys())
+
+    if strict and any(set(d) != keys for d in dicts[1:]):
+        raise ValueError("Keys in dictionaries are not all the same.")
+    else:
+        for dict in dicts[1:]:
+            keys = keys.intersection(dict.keys())
+
+    result = {key: tuple(d[key] for d in dicts) for key in list(keys)}
+    return result

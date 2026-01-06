@@ -17,38 +17,37 @@ dependencies = [
   "oq_wrapper>=2025.12.3",
   "qcore-utils>=2025.12.1",
   "source_modelling>=2025.12.1",
-
   # Data Formats
   "geopandas",
   "pandas[parquet, hdf5]",
   "pyyaml",
   "xarray[io]",
-
   # Workflow Planner
   "jinja2",
   "networkx",
   "printree",
   "pyvis",
-
   # Numerics
   "numexpr",
   "numpy",
   "scipy",
   "shapely",
-
   # CLI
   "tqdm",
   "typer",
-
   # Misc.
   "requests",  # For gcmt-to-realisation
   "schema",    # For loading realisations
   "structlog", # Logging.
   "psutil",    # To get the CPU affinity for jobs
+
 ]
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = [
+  "pytest>=6.0.0",            # required for the tool.pytest section
+  "hypothesis[numpy]>=6.0.0",
+]
 types = ["pandas-stubs", "types-geopandas", "types-requests", "scipy-stubs"]
 dev = ["ruff", "deptry", "ty", "numpydoc"]
 
@@ -84,6 +83,8 @@ workflow = "workflow"
 
 [tool.setuptools_scm]
 
+[tool.pytest]
+markers = ["slow: mark test as slow."]
 
 [tool.ruff.lint]
 extend-select = [

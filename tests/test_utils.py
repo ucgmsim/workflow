@@ -45,6 +45,7 @@ def test_raises_when_no_cpu_info() -> None:
         utils.get_available_cores()
 
 
+@pytest.mark.slow
 def test_read_nz_coastline() -> None:
     gdf = utils.read_nz_coastline()
     assert isinstance(gdf, gpd.GeoDataFrame)
@@ -80,3 +81,64 @@ def test_get_nz_outline_polygon_selects_two_largest() -> None:
     expected_union = shapely.transform(expected_union, lambda x: x[:, ::-1])
     # Check the result is equal to the union of the two largest polygons
     assert shapely.area(shapely.symmetric_difference(result, expected_union)) < 1e-4
+
+
+def test_dict_zip_basic_two_dicts() -> None:
+    """Test standard zipping of two dictionaries with matching keys."""
+    d1 = {"a": 1, "b": 2}
+    d2 = {"a": "apple", "b": "banana"}
+
+    expected = {"a": (1, "apple"), "b": (2, "banana")}
+    assert utils.dict_zip(d1, d2) == expected
+
+
+def test_dict_zip_three_dicts() -> None:
+    """Test standard zipping of three dictionaries."""
+    d1 = {"a": 1}
+    d2 = {"a": 2}
+    d3 = {"a": 3}
+
+    assert utils.dict_zip(d1, d2, d3) == {"a": (1, 2, 3)}
+
+
+def test_dict_zip_strict_mismatch_raises_error() -> None:
+    """Test that strict=True raises ValueError when keys don't match exactly."""
+    d1 = {"a": 1, "b": 2}
+    d2 = {"a": 1}  # Missing 'b'
+
+    with pytest.raises(ValueError, match="Keys in dictionaries are not all the same"):
+        utils.dict_zip(d1, d2, strict=True)
+
+
+def test_dict_zip_non_strict_intersection() -> None:
+    """Test that strict=False returns the intersection of keys."""
+    d1 = {"a": 1, "b": 2, "c": 3}
+    d2 = {"a": 10, "b": 20, "d": 40}
+
+    # Only 'a' and 'b' are in both
+    result = utils.dict_zip(d1, d2, strict=False)
+    assert set(result.keys()) == {"a", "b"}
+    assert result["a"] == (1, 10)
+    assert result["b"] == (2, 20)
+
+
+def test_dict_zip_empty_input() -> None:
+    """Test behaviour with no dictionaries provided."""
+    assert utils.dict_zip() == {}
+
+
+def test_dict_zip_single_dict() -> None:
+    """Test behaviour with a single dictionary."""
+    d1 = {"a": 1, "b": 2}
+    assert utils.dict_zip(d1) == {"a": (1,), "b": (2,)}
+
+
+def test_dict_zip_identical_keys_different_order() -> None:
+    """Test that key order in input doesn't cause strict mode to fail."""
+    d1 = {"a": 1, "b": 2}
+    d2 = {"b": 20, "a": 10}
+
+    # Should not raise ValueError even though insertion order differs
+    result = utils.dict_zip(d1, d2, strict=True)
+    assert result["a"] == (1, 10)
+    assert result["b"] == (2, 20)
