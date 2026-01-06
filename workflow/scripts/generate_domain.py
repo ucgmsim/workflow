@@ -218,14 +218,14 @@ def rupture_context_from(
     )
 
 
-def average_rake(rakes: Rakes, magnitude: Magnitudes) -> float:
+def average_rake(rakes: Rakes, magnitudes: Magnitudes) -> float:
     """Find moment-weighted average rupture rake.
 
     Parameters
     ----------
     rakes : Rakes
         The rakes to average.
-    magnitude : Magnitudes
+    magnitudes : Magnitudes
         The magnitudes to weight rakes by.
 
     Returns
@@ -235,7 +235,7 @@ def average_rake(rakes: Rakes, magnitude: Magnitudes) -> float:
     """
     moments = {
         k: moment.magnitude_to_moment(magnitude)
-        for k, magnitude in magnitude.magnitudes.items()
+        for k, magnitude in magnitudes.magnitudes.items()
     }
     max_moment = max(moments.values())
     # re-normalise for debugging purposes and to maybe improve
