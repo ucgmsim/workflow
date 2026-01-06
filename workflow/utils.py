@@ -130,7 +130,7 @@ def dict_zip(
     __d2: Mapping[K, V2],
     __d3: Mapping[K, V3],
     *,
-    strict: bool = True,
+    strict: bool = ...,
 ) -> dict[K, tuple[V1, V2, V3]]: ...  # numpydoc ignore=GL08
 
 
@@ -148,7 +148,7 @@ def dict_zip(*dicts: Mapping[K, Any], strict: bool = True) -> dict[K, tuple[Any,
     ----------
     *dicts : list of dict
         Variable number of dictionaries.
-    strict : bool, default False
+    strict : bool, default True
         If True, raise an error if the keys in `dicts` are not all the same.
 
     Returns
@@ -169,8 +169,8 @@ def dict_zip(*dicts: Mapping[K, Any], strict: bool = True) -> dict[K, tuple[Any,
     if strict and any(set(d) != keys for d in dicts[1:]):
         raise ValueError("Keys in dictionaries are not all the same.")
     else:
-        for dict in dicts[1:]:
-            keys = keys.intersection(dict.keys())
+        for d in dicts[1:]:
+            keys = keys.intersection(d.keys())
 
     result = {key: tuple(d[key] for d in dicts) for key in list(keys)}
     return result
