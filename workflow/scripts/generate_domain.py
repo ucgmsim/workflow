@@ -321,8 +321,7 @@ def simulation_max_depth(magnitude: float, bottom_depth: float) -> float:
 def estimate_r_surface(
     rrup_interpolants: npt.NDArray[np.floating], magnitude: float, ztor: float
 ) -> float:
-    """
-    Estimate an appropriate rupture radius for a rupture.
+    """Estimate the horizontal surface distance from a rupture.
 
     Parameters
     ----------
