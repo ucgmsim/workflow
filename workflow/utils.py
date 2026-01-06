@@ -168,7 +168,7 @@ def dict_zip(*dicts: Mapping[K, Any], strict: bool = True) -> dict[K, tuple[Any,
 
     if strict and any(set(d) != keys for d in dicts[1:]):
         raise ValueError("Keys in dictionaries are not all the same.")
-    else:
+    elif not strict:
         for d in dicts[1:]:
             keys = keys.intersection(d.keys())
 
