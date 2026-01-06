@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm", "cython"]
+requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -23,12 +23,6 @@ dependencies = [
   "pandas[parquet, hdf5]",
   "pyyaml",
   "xarray[io]",
-
-  # Workflow Planner
-  "jinja2",
-  "networkx",
-  "printree",
-  "pyvis",
 
   # Numerics
   "numexpr",
@@ -67,13 +61,11 @@ generate-rupture-propagation = "workflow.scripts.generate_rupture_propagation:ap
 copy-domain-parameters = "workflow.scripts.copy_velocity_model_parameters:app"
 create-e3d-par = "workflow.scripts.create_e3d_par:app"
 generate-stoch = "workflow.scripts.generate_stoch:app"
-merge-ts = "workflow.scripts.merge_ts:app"
 hf-sim = "workflow.scripts.hf_sim:app"
 bb-sim = "workflow.scripts.bb_sim:app"
 im-calc = "workflow.scripts.im_calc:app"
 check-srf = "workflow.scripts.check_srf:app"
 check-domain = "workflow.scripts.check_domain:app"
-plan-workflow = "workflow.scripts.plan_workflow:app"
 gcmt-auto-simulate = "workflow.scripts.gcmt_auto_simulate:app"
 import-realisation = "workflow.scripts.import_realisation:app"
 lf-to-xarray = "workflow.scripts.lf_to_xarray:app"
