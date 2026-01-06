@@ -8,7 +8,7 @@ from typer.testing import CliRunner
 
 import workflow.scripts as scripts_package
 
-EXCLUDE_MODULES = {"merge_ts_loop"}
+EXCLUDE_MODULES = set()
 
 
 def collect_script_modules() -> list[ModuleType]:

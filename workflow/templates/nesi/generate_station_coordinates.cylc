@@ -1,3 +1,0 @@
-[[{{stage_node_identifier(stage)}}]]
-    platform = localhost
-    script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR/{{realisation_identifier(stage)}}:/share" {{container}} generate-station-coordinates /share/realisation.json /share/stations --stat-file /stations.ll
