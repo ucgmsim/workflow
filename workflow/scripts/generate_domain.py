@@ -120,16 +120,14 @@ def boundary_distance(
     sources : Iterable[sources.IsSource]
         The sources to compute the boundary distance for.
 
-
     Returns
     -------
     float
         The Hausdorff distance between the sources and the boundary (in meters).
-
     """
     source_geometry = shapely.union_all([source.geometry for source in sources])
     bounding_box_geometry = domain.polygon
-    return shapely.hausdorff_distance(source_geometry, bounding_box_geometry)
+    return float(shapely.hausdorff_distance(source_geometry, bounding_box_geometry))
 
 
 def total_magnitude(magnitudes: Iterable[float]) -> float:
@@ -274,7 +272,7 @@ def estimate_simulation_duration(
     largest_distance = boundary_distance(bounding_box, faults)
 
     significant_duration = get_significant_duration(
-        distance=largest_distance,
+        distance=largest_distance / 1000.0,
         magnitude=rupture_context.magnitude,
         vs30=rupture_context.vs30,
         rake=rupture_context.rake,
@@ -524,7 +522,7 @@ def pgv_target(
     float
         The PGV target for the realisation.
     """
-    magnitude = total_magnitude(np.array(list(magnitudes.magnitudes.values())))
+    magnitude = total_magnitude(magnitudes.magnitudes.values())
     return float(
         np.interp(
             magnitude,
@@ -641,7 +639,7 @@ def domain_max_depth(
 
     return max(
         source_max_depth(source_config.source_geometries.values())
-        + 10.0,  # plus 10km for the buffer.
+        + 10.0 * 1000.0,  # plus 10km for the buffer.
         simulation_max_depth(magnitude, hypocentre_depth),
     )
 
