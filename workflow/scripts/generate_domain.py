@@ -250,7 +250,7 @@ def estimate_simulation_duration(
 ) -> float:
     """Estimate the simulation duration required for a realisation in a given domain.
 
-    The simulation distance is the length of time it
+    The simulation duration is the length of time it
     takes the S-waves to reach and pass the edge of the domain from
     the centre of the fault(s).
 
@@ -294,7 +294,7 @@ def simulation_max_depth(magnitude: float, bottom_depth: float) -> float:
     magnitude : float
         The magnitude of the rupture.
     bottom_depth : float
-        bottom depth (in km).
+        Bottom depth (in km).
 
     Returns
     -------
@@ -326,21 +326,24 @@ def estimate_r_surface(
     Parameters
     ----------
     rrup_interpolants : array of floats
-        The rrup function of magnitude.
+        A 2D array where the first row contains magnitude values and the second
+        row contains the corresponding rrup values (in km).
     magnitude : float
         The magnitude of the rupture.
     ztor : float
-        The distance to top-depth.
+        The depth to the top of the rupture plane (in km).
 
     Returns
     -------
     float
-        The estimated rupture radius (in metres).
+        The estimated horizontal surface distance (in metres).
     """
     rrup = float(np.interp(magnitude, rrup_interpolants[0], rrup_interpolants[1]))
 
     if rrup < ztor:
-        raise ValueError(f"Rupture depth {ztor=} is higher than estimated {rrup=}.")
+        raise ValueError(
+            f"Top-of-rupture depth {ztor=} is greater than estimated rrup {rrup=}."
+        )
 
     r_surface = np.sqrt(rrup**2 - ztor**2)
     return r_surface * 1000
@@ -445,8 +448,8 @@ def estimate_domain(
     Returns
     -------
     BoundingBox
-        The smallest domain containing the sources that encompasses
-        all areas with PGV estimated near the PGV target.
+        The smallest domain containing the sources and areas within
+        the estimated surface distance for the given magnitudes.
     """
     # This polygon includes all the faults corners + a 2km buffer (which must be in the simulation domain).
 
