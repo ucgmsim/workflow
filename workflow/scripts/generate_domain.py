@@ -15,15 +15,15 @@ A realisation file containing velocity model and domain extent parameters.
 
 Environment
 -----------
-Can be run in the cybershake container. Can also be run from your own computer using the `generate-velocity-model-parameters` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+Can be run in the cybershake container. Can also be run from your own computer using the `generate-domain` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
 
 Usage
 -----
-`generate-velocity-model-parameters [OPTIONS] REALISATION_FFP`
+`generate-domain [OPTIONS] REALISATION_FFP`
 
 For More Help
 -------------
-See the output of `generate-velocity-model-parameters --help` or `workflow.scripts.generate_velocity_model_parameters`.
+See the output of `generate-domain --help` or `workflow.scripts.generate_domain`.
 """
 
 from collections.abc import Iterable
@@ -65,7 +65,7 @@ def get_significant_duration(
     magnitude : float
         The magnitude of the rupture.
     distance : float
-        The distance to estimate Ds595 for.
+        The rupture distance (rrup) in kilometers to estimate Ds595 for.
     vs30 : float
         The Vs30 value at the site.
     rake : float
@@ -124,12 +124,12 @@ def boundary_distance(
     Returns
     -------
     float
-        The hausdorff distance between the sources and the boundary.
+        The Hausdorff distance between the sources and the boundary (in meters).
 
     """
     source_geometry = shapely.union_all([source.geometry for source in sources])
     bounding_box_geometry = domain.polygon
-    return float(shapely.hausdorff_distance(source_geometry, bounding_box_geometry))
+    return shapely.hausdorff_distance(source_geometry, bounding_box_geometry)
 
 
 def total_magnitude(magnitudes: Iterable[float]) -> float:
@@ -138,7 +138,7 @@ def total_magnitude(magnitudes: Iterable[float]) -> float:
 
     Parameters
     ----------
-    magnitudes : np.ndarray
+    magnitudes : Iterable[float]
         An array of magnitudes.
 
     Returns
@@ -413,9 +413,9 @@ def estimate_rrup_from_pgv(
     Examples
     --------
     >>> # Estimate the rupture radius for a 7.5 magnitude earthquake
-    >>> # with a rake of 90 degrees, a dip of 45 degrees, and a target
-    >>> # PGV of 10 cm/s.
-    >>> estimate_rrup(7.5, 90, 45, 10)
+    >>> # with a rake of 90 degrees, a dip of 45 degrees, a depth to
+    >>> # the top of rupture (ztor) of 5 km, and a target PGV of 10 cm/s.
+    >>> estimate_rrup_from_pgv(7.5, 90, 45, 5.0, 10)
     60.86630588572306
     """
     return float(
@@ -545,7 +545,7 @@ def source_max_depth(faults: Iterable[sources.IsSource]) -> float:
     Returns
     -------
     float
-        The maximum source depth of the rupture.
+        The maximum source depth of the rupture, in meters.
     """
     depths: list[float] = []
 
@@ -628,7 +628,7 @@ def domain_max_depth(
     Returns
     -------
     float
-        The estimated maximum reasonable simulation depth.
+        The estimated maximum reasonable simulation depth, in kilometers.
     """
     initial_fault = source_config.source_geometries[
         rupture_propagation_config.initial_fault
