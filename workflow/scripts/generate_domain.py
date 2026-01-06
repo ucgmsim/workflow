@@ -552,20 +552,21 @@ def generate_domain(
 def generate_domain_from_realisation(
     realisation_ffp: Annotated[Path, typer.Argument()],
 ) -> None:
-    """Generate velocity model parameters for a given realisation file.
+    """Generate domain parameters for a given realisation file.
 
-    This function reads the source and rupture propagation information and computes:
+    This function reads the source, rupture propagation, and velocity model
+    information and computes:
 
     1. The size of the simulation domain,
     2. The simulation duration.
 
-    Both of these values are written to the realisation using `VelocityModelParameters`.
+    Both of these values are written to the realisation using `DomainParameters`.
 
     Parameters
     ----------
     realisation_ffp : Path
         The path to the realisation file from which to read configurations and to which
-        the generated velocity model parameters will be written.
+        the generated domain parameters will be written.
 
     Returns
     -------
