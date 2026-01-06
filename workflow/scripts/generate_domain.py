@@ -174,8 +174,6 @@ def rupture_context_from(
 ) -> RuptureContext:
     """Create a rupture context from a rupture.
 
-
-
     Parameters
     ----------
     magnitudes : Magnitudes
@@ -185,7 +183,6 @@ def rupture_context_from(
     velocity_model_parameters : VelocityModelParameters
         The velocity model parameters. Only use s_wave_velocity and
         ds_multiplier.
-
 
     Returns
     -------
