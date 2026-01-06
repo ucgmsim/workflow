@@ -677,6 +677,8 @@ hf_velocity_model_1d:
       rho: 3.33
       Qp: 394.80
       Qs: 197.40
+    # This layer is duplicated to prevent a crash in the HF fortran code
+    # when raycasting travels through the last layer.
     - thickness: 999.999
       Vp: 8.10
       Vs: 4.60
