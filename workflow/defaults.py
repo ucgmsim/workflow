@@ -20,15 +20,16 @@ class DefaultsVersion(StrEnum):
 
 
 def _merge_defaults(defaults_a: dict[str, Any], defaults_b: dict[str, Any]) -> None:
-    """Deep merge python dictionaries preferring the values of the second argument.
+    """Deep-merge dictionaries in place, updating the first with values from the second.
 
     Parameters
     ----------
     defaults_a : dict[str, Any]
-        The first dictionary to merge from.
+        Base dictionary to be updated. This dictionary is modified in place with
+        merged values.
     defaults_b : dict[str, Any]
-        The second dictionary to merge from. Keys in this dictionary
-        are preferred.
+        Dictionary providing overriding values. Keys in this dictionary are
+        preferred when keys conflict. This dictionary is not modified.
     """
 
     for key, value in defaults_b.items():
