@@ -97,7 +97,7 @@ def read_waveform_data(xyts_file: xyts.XYTSFile) -> WaveformData:
     Parameters
     ----------
     xyts_file : xyts.XYTSFile
-        The XYTS file to read file.
+        The XYTS file to read from.
 
     Returns
     -------
@@ -380,8 +380,8 @@ def merge_ts_hdf5(
         The output xyts file.
     glob_pattern : str, optional
         Set a custom glob pattern for merging the xyts files, by default "*xyts-*.e3d".
-    scale : float
-        Set the scale for quantising XYTS outputs.
+    scale : float, optional
+        Set the scale for quantising XYTS outputs. Defaults to 0.1.
     complevel : int, optional
         Set the compression level for the output HDF5 file. Range
         between 1-9 (9 being the highest level of compression).
