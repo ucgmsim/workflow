@@ -196,6 +196,9 @@ def xyts_lat_lon_coordinates(
 ) -> tuple[CoordinateArray, CoordinateArray]:
     """Generate the lat/lon coordinates corresponding to a model.
 
+    Generates a ``lat`` and ``lon`` meshgrid such that ``waveform_data[i, j]``
+    has latitude ``lat[i, j]`` and longitude ``lon[i, j]``.
+
     Parameters
     ----------
     metadata : Metadata
@@ -204,9 +207,10 @@ def xyts_lat_lon_coordinates(
 
     Returns
     -------
-    tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
-        A ``lat`` and ``lon`` meshgrid such that ``waveform_data[i, j]``
-        has latitude ``lat[i, j]`` and longitude ``lon[i, j]``.
+    lat : array of float64
+        The latitude coordinate meshgrid.
+    lon : array of float64
+        The longitude coordinate meshgrid.
     """
     proj = coordinates.SphericalProjection(
         mlon=metadata.mlon,
@@ -240,13 +244,13 @@ def create_xyts_dataset(
 
     Parameters
     ----------
-    data : npt.ndarray[tuple[int, int, int], np.uint16]
+    data : (nt, ny, nx) array of uint16
         Quantised waveform data.
-    lat : npt.ndarray[tuple[int, int], np.float64]
+    lat : (ny, nx) array of float64
         Latitude meshgrid.
-    lon : npt.ndarray[tuple[int, int], np.float64]
+    lon : (ny, nx) array of float64
         Longitude meshgrid.
-    time : npt.ndarray[int, np.float64]
+    time : (nt,) array of float64
         Time array.
     metadata : Metadata
         Metadata object.
