@@ -262,6 +262,22 @@ def create_xyts_dataset(
         indexing the waveform data, lat and lon arrays. Metadata
         populates the attributes.
     """
+    (nt, ny, nx) = data.shape
+    if metadata.nx != nx or metadata.ny != ny or metadata.nt != nt:
+        raise ValueError(
+            f"Metadata does not match data, {metadata.nx=}, {metadata.ny=}, {metadata.nt=} but data {nx=}, {ny=}, {nt=}"
+        )
+    elif lon.shape != (ny, nx):
+        raise ValueError(
+            f"Longitude shape incompatible, {lon.shape=} but {data.shape=}"
+        )
+    elif lat.shape != (ny, nx):
+        raise ValueError(f"Latitude shape incompatible, {lat.shape=} but {data.shape=}")
+    elif time.shape != (nt,):
+        raise ValueError(
+            f"Time shape incompatible, expected {(nt,)} but found {time.shape=}"
+        )
+
     dset = xr.Dataset(
         {
             "waveform": (("time", "y", "x"), data),
