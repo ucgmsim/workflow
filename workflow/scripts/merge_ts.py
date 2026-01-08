@@ -389,7 +389,7 @@ def merge_ts_hdf5(
         engine="h5netcdf",
         encoding={
             "waveform": {
-                "dtype": "int16",
+                "dtype": "uint16",
                 "compression": "zlib",
                 "complevel": complevel,
                 "shuffle": True,
