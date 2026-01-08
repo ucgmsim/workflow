@@ -88,6 +88,9 @@ class WaveformData:
     """Waveform data."""
 
 
+XYTS_PROC_HEADER_SIZE = 72
+
+
 def read_waveform_data(xyts_file: xyts.XYTSFile) -> WaveformData:
     """Read waveform data from an XYTS file.
 
@@ -120,9 +123,9 @@ def read_waveform_data(xyts_file: xyts.XYTSFile) -> WaveformData:
     y0 = xyts_file.y0
     x1 = x0 + nx
     y1 = y0 + ny
-    xyts_proc_header_size = 72
+
     data = np.fromfile(
-        xyts_file.xyts_path, dtype=np.float32, offset=xyts_proc_header_size
+        xyts_file.xyts_path, dtype=np.float32, offset=XYTS_PROC_HEADER_SIZE
     ).reshape((nt, components, ny, nx))
     waveform_data = WaveformData(x_start=x0, y_start=y0, x_end=x1, y_end=y1, data=data)
     return waveform_data
