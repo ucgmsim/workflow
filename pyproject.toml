@@ -61,6 +61,7 @@ generate-rupture-propagation = "workflow.scripts.generate_rupture_propagation:ap
 copy-domain-parameters = "workflow.scripts.copy_velocity_model_parameters:app"
 create-e3d-par = "workflow.scripts.create_e3d_par:app"
 generate-stoch = "workflow.scripts.generate_stoch:app"
+merge-ts = "workflow.scripts.merge_ts:app"
 hf-sim = "workflow.scripts.hf_sim:app"
 bb-sim = "workflow.scripts.bb_sim:app"
 im-calc = "workflow.scripts.im_calc:app"
