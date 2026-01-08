@@ -266,7 +266,7 @@ def create_xyts_dataset(
             "latitude": (("y", "x"), lat),
             "longitude": (("y", "x"), lon),
         },
-        attrs=dataclasses.asdict(Metadata),
+        attrs=dataclasses.asdict(metadata),
     )
 
     return dset
