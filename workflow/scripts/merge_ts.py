@@ -358,6 +358,10 @@ def merge_ts_hdf5(
     component_xyts_files = read_component_xyts_files(
         component_xyts_directory, glob_pattern
     )
+    if not component_xyts_files:
+        raise FileNotFoundError(
+            f"No files in '{component_xyts_directory}' match glob '{glob_pattern}'"
+        )
 
     # XYTS files contain certain repeated metadata, so we can extract
     # a "sample" file for this common metadata.
