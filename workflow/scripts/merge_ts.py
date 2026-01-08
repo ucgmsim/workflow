@@ -321,6 +321,37 @@ def set_scale(dset: xr.Dataset, scale: float) -> None:
     )
 
 
+def quantise_array(waveform_data: WaveformArray, scale: float) -> QuantisedArray:
+    """Quantise a floating point waveform array.
+
+    Quantisation consists of scaling ``waveform_data`` by ``scale``,
+    rounding, clipping and casting to uint16.
+
+    Parameters
+    ----------
+    waveform_data : WaveformArray
+        The input waveform array. It is assumed that
+        ``waveform_data[i, j] >= 0``.
+    scale : float
+        The scale to quantise.
+
+
+    Returns
+    -------
+    QuantisedArray
+        A quantised version of ``waveform_data``. NaN values are set
+        to 2^16 - 1. Out of scale values are also set to 2^16 - 1. For
+        this reason, treat 2^16 - 1 as NaN or a fill-value.
+    """
+    scaled = waveform_data / scale
+    bounds = np.iinfo(np.uint16)
+    max_bound = bounds.max
+    np.nan_to_num(scaled, nan=max_bound, copy=False)
+    np.clip(scaled, 0, max_bound, out=scaled)
+    np.round(scaled, out=scaled)
+    return scaled.astype(np.uint16)
+
+
 @cli.from_docstring(app)
 def merge_ts_hdf5(
     component_xyts_directory: Annotated[
@@ -371,15 +402,16 @@ def merge_ts_hdf5(
     metadata = extract_metadata(sample_xyts_file)
 
     waveform_data = np.empty((metadata.nt, metadata.ny, metadata.nx), dtype=np.uint16)
+
     for xyts_file in tqdm.tqdm(component_xyts_files, unit="files"):
         local_data = read_waveform_data(xyts_file)
-        magnitude = np.linalg.norm(local_data.data, axis=1) / scale
-        np.round(magnitude, out=magnitude)
+        magnitude = np.linalg.norm(local_data.data, axis=1)
+        quantised = quantise_array(magnitude, scale)
         waveform_data[
             :,
             local_data.y_start : local_data.y_end,
             local_data.x_start : local_data.x_end,
-        ] = magnitude.astype(np.uint16)
+        ] = quantised
 
     lat, lon = xyts_lat_lon_coordinates(metadata)
     time = np.arange(metadata.nt, dtype=np.float64) * metadata.dt
