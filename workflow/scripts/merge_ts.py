@@ -367,8 +367,8 @@ def merge_ts_hdf5(
         typer.Argument(dir_okay=False, writable=True),
     ],
     glob_pattern: str = "*xyts-*.e3d",
-    scale: float = 0.1,
-    complevel: int = 4,
+    scale: Annotated[float, typer.Option(min=0)] = 0.1,
+    complevel: Annotated[int, typer.Option(min=1, max=9)] = 4,
 ) -> None:
     """Merge XYTS files.
 
