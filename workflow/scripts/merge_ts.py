@@ -26,10 +26,13 @@ For More Help
 See the output of `merge-ts --help`.
 """
 
+import dataclasses
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
 import numpy as np
+import numpy.typing as npt
 import tqdm
 import typer
 import xarray as xr
@@ -39,7 +42,255 @@ from qcore import cli, coordinates, xyts
 app = typer.Typer()
 
 
-@cli.from_docstring(app)  # type: ignore
+def read_component_xyts_files(
+    xyts_directory: Path, glob_pattern: str
+) -> list[xyts.XYTSFile]:
+    """Read XYTS headers from component XYTS directory.
+
+    Parameters
+    ----------
+    xyts_directory : Path
+        The directory containing e3d files.
+    glob_pattern : str
+        The glob pattern to search for xyts files.
+
+    Returns
+    -------
+    list[xyts.XYTSFile]
+        A list of XYTS files with parsed metadata.
+    """
+    return [
+        xyts.XYTSFile(
+            xyts_file_path, proc_local_file=True, meta_only=True, round_dt=False
+        )
+        for xyts_file_path in xyts_directory.glob(glob_pattern)
+    ]
+
+
+WaveformArray = npt.ndarray[tuple[int, int, int, int], np.float32]
+QuantisedArray = npt.ndarray[tuple[int, int, int], np.uint16]
+CoordinateArray = npt.ndarray[tuple[int, int], npt.float64]
+
+
+@dataclass
+class WaveformData:
+    """Waveform data object"""
+
+    x_start: int
+    """Global x-start of waveform data."""
+    x_end: int
+    """Global x-end of waveform data."""
+    y_start: int
+    """Global y-start of waveform data."""
+    y_end: int
+    """Global y-end of waveform data."""
+    data: WaveformArray
+    """Waveform data."""
+
+
+def read_waveform_data(xyts_file: xyts.XYTSFile) -> WaveformData:
+    """Read waveform data from an XYTS file.
+
+    Parameters
+    ----------
+    xyts_file : xyts.XYTSFile
+        The XYTS file to read file.
+
+    Returns
+    -------
+    WaveformData
+        The extracted waveform data.
+
+    Raises
+    ------
+    ValueError
+        If the XYTS file is not a local XYTS file (output of EMOD3D).
+        Local XYTS files will have non-None ``local_nx`` and
+        ``local_ny`` attributes.
+    """
+    nt = xyts_file.nt
+    components = len(xyts_file.comps)
+    ny = xyts_file.local_ny
+    nx = xyts_file.local_nx
+    if not (ny and nx):
+        raise ValueError(
+            "Encountered invalid XYTS component file (must have local ny and local nx both set)."
+        )
+    x0 = xyts_file.x0
+    y0 = xyts_file.y0
+    x1 = x0 + nx
+    y1 = y0 + ny
+    xyts_proc_header_size = 72
+    data = np.fromfile(
+        xyts_file.xyts_path, dtype=np.float32, offset=xyts_proc_header_size
+    ).reshape((nt, components, ny, nx))
+    waveform_data = WaveformData(x_start=x0, y_start=y0, x_end=x1, y_end=y1, data=data)
+    return waveform_data
+
+
+@dataclass
+class Metadata:
+    """XYTS file metadata."""
+
+    nx: int
+    """Number of x gridpoints."""
+    ny: int
+    """Number of y gridpoints."""
+    nt: int
+    """Number of timesteps."""
+    dx: float
+    """Spatial resolution."""
+    dt: float
+    """Temporal resolution."""
+    mlon: float
+    """Model origin longitude."""
+    mlat: float
+    """Model origin latitude."""
+    mrot: float
+    """Model rotation."""
+
+
+def extract_metadata(xyts_file: xyts.XYTSFile) -> Metadata:
+    """Extract metadata from an XYTS file.
+
+    Parameters
+    ----------
+    xyts_file : xyts.XYTSFile
+        The XYTS file to extract from.
+
+    Returns
+    -------
+    Metadata
+        The metadata extracted from the XYTS file.
+    """
+    nt = xyts_file.nt
+    nx = xyts_file.nx
+    ny = xyts_file.ny
+    dx = xyts_file.hh
+    mlat = xyts_file.mlat
+    mlon = xyts_file.mlon
+    mrot = xyts_file.mrot
+    dt = xyts_file.dt
+    return Metadata(
+        dx=dx,
+        dt=dt,
+        mlon=mlon,
+        mlat=mlat,
+        mrot=mrot,
+        nx=nx,
+        ny=ny,
+        nt=nt,
+    )
+
+
+def xyts_lat_lon_coordinates(
+    metadata: Metadata,
+) -> tuple[CoordinateArray, CoordinateArray]:
+    """Generate the lat/lon coordinates corresponding to a model.
+
+    Parameters
+    ----------
+    metadata : Metadata
+        The metadata describing a model (mrot, mlat, mlon, nx, ny,
+        dx).
+
+    Returns
+    -------
+    tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
+        A ``lat`` and ``lon`` meshgrid such that ``waveform_data[i, j]``
+        has latitude ``lat[i, j]`` and longitude ``lon[i, j]``.
+    """
+    proj = coordinates.SphericalProjection(
+        mlon=metadata.mlon,
+        mlat=metadata.mlat,
+        mrot=metadata.mrot,
+    )
+    y, x = np.meshgrid(
+        np.arange(metadata.ny, dtype=np.float64),
+        np.arange(metadata.nx, dtype=np.float64),
+        indexing="ij",
+    )
+    # dx = dy, so the following is ok.
+    # Shift gridpoints so that they are origin centred.
+    y -= metadata.ny * metadata.dx / 2
+    x -= metadata.nx * metadata.dx / 2
+    lat, lon = proj.inverse(x.flatten(), y.flatten()).T
+    lat = lat.reshape(y.shape)
+    lon = lon.reshape(y.shape)
+    return lat, lon
+
+
+def create_xyts_dataset(
+    data: QuantisedArray,
+    lat: CoordinateArray,
+    lon: CoordinateArray,
+    time: npt.ndarray[int, np.float64],
+    metadata: Metadata,
+) -> xr.Dataset:
+    """Create an XYTS dataset from given waveform data, coordinate meshgrid, time and metadata.
+
+    Parameters
+    ----------
+    data : npt.ndarray[tuple[int, int, int], np.uint16]
+        Quantised waveform data.
+    lat : npt.ndarray[tuple[int, int], np.float64]
+        Latitude meshgrid.
+    lon : npt.ndarray[tuple[int, int], np.float64]
+        Longitude meshgrid.
+    time : npt.ndarray[int, np.float64]
+        Time array.
+    metadata : Metadata
+        Metadata object.
+
+    Returns
+    -------
+    xr.Dataset
+        An xarray dataset with coordinates ``time``, ``y`` and ``x``
+        indexing the waveform data, lat and lon arrays. Metadata
+        populates the attributes.
+    """
+    dset = xr.Dataset(
+        {
+            "waveform": (("time", "y", "x"), data),
+        },
+        coords={
+            "time": ("time", time),
+            "y": ("y", np.arange(metadata.ny)),
+            "x": ("x", np.arange(metadata.nx)),
+            "latitude": (("y", "x"), lat),
+            "longitude": (("y", "x"), lon),
+        },
+        attrs=dataclasses.asdict(Metadata),
+    )
+
+    return dset
+
+
+def set_scale(dset: xr.Dataset, scale: float) -> None:
+    """Set dataset scale properties.
+
+    This function sets the appropriate netcdf properties and units to
+    transparently read the uint16 quantised waveform values as 64-bit
+    floating point arrays.
+
+    Parameters
+    ----------
+    dset : xr.Dataset
+        Dataset to update.
+    scale : float
+        Scale for waveform quantisation.
+    """
+    dset["waveform"].attrs.update(
+        {
+            "scale_factor": scale,
+            "add_offset": 0.0,
+            "units": "cm/s",
+            "_FillValue": -9999,
+        }
+    )
+
+
+@cli.from_docstring(app)
 def merge_ts_hdf5(
     component_xyts_directory: Annotated[
         Path,
@@ -55,6 +306,7 @@ def merge_ts_hdf5(
         typer.Argument(dir_okay=False, writable=True),
     ],
     glob_pattern: str = "*xyts-*.e3d",
+    scale: float = 0.1,
     complevel: int = 4,
 ) -> None:
     """Merge XYTS files.
@@ -67,82 +319,37 @@ def merge_ts_hdf5(
         The output xyts file.
     glob_pattern : str, optional
         Set a custom glob pattern for merging the xyts files, by default "*xyts-*.e3d".
+    scale : float
+        Set the scale for quantising XYTS outputs.
     complevel : int, optional
         Set the compression level for the output HDF5 file. Range
         between 1-9 (9 being the highest level of compression).
         Defaults to 4.
     """
-    component_xyts_files = sorted(
-        [
-            xyts.XYTSFile(
-                xyts_file_path, proc_local_file=True, meta_only=True, round_dt=False
-            )
-            for xyts_file_path in component_xyts_directory.glob(glob_pattern)
-        ],
-        key=lambda xyts_file: (xyts_file.y0, xyts_file.x0),
+    component_xyts_files = read_component_xyts_files(
+        component_xyts_directory, glob_pattern
     )
-    top_left = component_xyts_files[0]
-    nt = top_left.nt
-    nx = top_left.nx
-    ny = top_left.ny
-    components = 3
 
-    xyts_proc_header_size = 72
+    # XYTS files contain certain repeated metadata, so we can extract
+    # a "sample" file for this common metadata.
+    sample_xyts_file = component_xyts_files[0]
+    metadata = extract_metadata(sample_xyts_file)
 
-    waveform_data = np.empty((nt, ny, nx), dtype=np.uint16)
+    waveform_data = np.empty((metadata.nt, metadata.ny, metadata.nx), dtype=np.uint16)
     for xyts_file in tqdm.tqdm(component_xyts_files, unit="files"):
-        x0 = xyts_file.x0
-        y0 = xyts_file.y0
-        x1 = x0 + xyts_file.local_nx
-        y1 = y0 + xyts_file.local_ny
-        data = np.fromfile(
-            xyts_file.xyts_path, dtype=np.float32, offset=xyts_proc_header_size
-        ).reshape((nt, components, xyts_file.local_ny, xyts_file.local_nx))
-        magnitude = np.linalg.norm(data, axis=1) / 0.1
+        local_data = read_waveform_data(xyts_file)
+        magnitude = np.linalg.norm(local_data.data, axis=1) / scale
         np.round(magnitude, out=magnitude)
-        waveform_data[:, y0:y1, x0:x1] = magnitude.astype(np.uint16)
+        waveform_data[
+            :,
+            local_data.y_start : local_data.y_end,
+            local_data.x_start : local_data.x_end,
+        ] = magnitude.astype(np.uint16)
 
-    proj = coordinates.SphericalProjection(
-        mlon=top_left.mlon, mlat=top_left.mlat, mrot=top_left.mrot
-    )
-    dx = top_left.hh
-    dt = top_left.dt
-    y, x = np.meshgrid(
-        np.arange(ny, dtype=np.float64), np.arange(nx, dtype=np.float64), indexing="ij"
-    )
-    lat, lon = proj.inverse(x.flatten(), y.flatten()).T
-    lat = lat.reshape(y.shape)
-    lon = lon.reshape(y.shape)
-    time = np.arange(nt) * dt
-    dset = xr.Dataset(
-        {
-            "waveform": (("time", "y", "x"), waveform_data),
-        },
-        coords={
-            "time": ("time", time),
-            "y": ("y", np.arange(ny)),
-            "x": ("x", np.arange(nx)),
-            "latitude": (("y", "x"), lat),
-            "longitude": (("y", "x"), lon),
-        },
-        attrs={
-            "dx": dx,
-            "dy": dx,
-            "dt": dt,
-            "mlon": top_left.mlon,
-            "mlat": top_left.mlat,
-            "mrot": top_left.mrot,
-        },
-    )
-
-    dset["waveform"].attrs.update(
-        {
-            "scale_factor": 0.1,
-            "add_offset": 0.0,
-            "units": "cm/s",
-            "_FillValue": -9999,
-        }
-    )
+    lat, lon = xyts_lat_lon_coordinates(metadata)
+    time = np.arange(metadata.nt) * metadata.dt
+    dset = create_xyts_dataset(waveform_data, lat, lon, time, metadata)
+    set_scale(dset, scale)
 
     dset.to_netcdf(
         output,
