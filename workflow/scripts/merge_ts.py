@@ -19,7 +19,7 @@ Can be run in the cybershake container. Can also be run from your own computer u
 
 Usage
 -----
-`merge_ts XYTS_DIRECTORY output.h5`
+`merge-ts XYTS_DIRECTORY output.h5`
 
 For More Help
 -------------
