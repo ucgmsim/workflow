@@ -309,12 +309,14 @@ def set_scale(dset: xr.Dataset, scale: float) -> None:
     scale : float
         Scale for waveform quantisation.
     """
+    bounds = np.iinfo(np.uint16)
+    max_bound = bounds.max
     dset["waveform"].attrs.update(
         {
             "scale_factor": scale,
             "add_offset": 0.0,
             "units": "cm/s",
-            "_FillValue": -9999,
+            "_FillValue": max_bound,  # Reserve max bound for NaN values
         }
     )
 
