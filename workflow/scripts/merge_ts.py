@@ -399,8 +399,11 @@ def merge_ts_hdf5(
     # a "sample" file for this common metadata.
     sample_xyts_file = component_xyts_files[0]
     metadata = extract_metadata(sample_xyts_file)
-
-    waveform_data = np.empty((metadata.nt, metadata.ny, metadata.nx), dtype=np.uint16)
+    bounds = np.iinfo(np.uint16)
+    nan_value = bounds.max
+    waveform_data = np.full(
+        (metadata.nt, metadata.ny, metadata.nx), nan_value, dtype=np.uint16
+    )
 
     for xyts_file in tqdm.tqdm(component_xyts_files, unit="files"):
         local_data = read_waveform_data(xyts_file)
