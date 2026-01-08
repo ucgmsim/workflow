@@ -138,8 +138,10 @@ class Metadata:
     """Number of y gridpoints."""
     nt: int
     """Number of timesteps."""
+    resolution: float
+    """Spatial resolution (of simulation)."""
     dx: float
-    """Spatial resolution."""
+    """Spatial resolution (of XYTS file)."""
     dt: float
     """Temporal resolution."""
     mlon: float
@@ -166,20 +168,23 @@ def extract_metadata(xyts_file: xyts.XYTSFile) -> Metadata:
     nt = xyts_file.nt
     nx = xyts_file.nx
     ny = xyts_file.ny
-    dx = xyts_file.hh
+    resolution = xyts_file.hh
+    dx = xyts_file.dx
     mlat = xyts_file.mlat
     mlon = xyts_file.mlon
     mrot = xyts_file.mrot
     dt = xyts_file.dt
+    # The casts here convert from numpy to python types
     return Metadata(
-        dx=dx,
-        dt=dt,
-        mlon=mlon,
-        mlat=mlat,
-        mrot=mrot,
-        nx=nx,
-        ny=ny,
-        nt=nt,
+        resolution=float(resolution),
+        dx=float(dx),
+        dt=float(dt),
+        mlon=float(mlon),
+        mlat=float(mlat),
+        mrot=float(mrot),
+        nx=int(nx),
+        ny=int(ny),
+        nt=int(nt),
     )
 
 
@@ -212,8 +217,9 @@ def xyts_lat_lon_coordinates(
     )
     # dx = dy, so the following is ok.
     # Shift gridpoints so that they are origin centred.
-    y -= metadata.ny * metadata.dx / 2
-    x -= metadata.nx * metadata.dx / 2
+    y = (y - metadata.ny / 2) * metadata.dx
+    x = (x - metadata.nx / 2) * metadata.dx
+
     lat, lon = proj.inverse(x.flatten(), y.flatten()).T
     lat = lat.reshape(y.shape)
     lon = lon.reshape(y.shape)
