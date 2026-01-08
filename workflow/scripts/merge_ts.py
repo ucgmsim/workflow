@@ -32,7 +32,6 @@ from pathlib import Path
 from typing import Annotated
 
 import numpy as np
-import numpy.typing as npt
 import tqdm
 import typer
 import xarray as xr
@@ -67,9 +66,10 @@ def read_component_xyts_files(
     ]
 
 
-WaveformArray = npt.ndarray[tuple[int, int, int, int], np.float32]
-QuantisedArray = npt.ndarray[tuple[int, int, int], np.uint16]
-CoordinateArray = npt.ndarray[tuple[int, int], npt.float64]
+WaveformArray = np.ndarray[tuple[int, int, int, int], np.dtype[np.float32]]
+QuantisedArray = np.ndarray[tuple[int, int, int], np.dtype[np.uint16]]
+CoordinateArray = np.ndarray[tuple[int, int], np.dtype[np.float64]]
+TimeArray = np.ndarray[tuple[int], np.dtype[np.float64]]
 
 
 @dataclass
@@ -224,7 +224,7 @@ def create_xyts_dataset(
     data: QuantisedArray,
     lat: CoordinateArray,
     lon: CoordinateArray,
-    time: npt.ndarray[int, np.float64],
+    time: TimeArray,
     metadata: Metadata,
 ) -> xr.Dataset:
     """Create an XYTS dataset from given waveform data, coordinate meshgrid, time and metadata.
@@ -347,7 +347,7 @@ def merge_ts_hdf5(
         ] = magnitude.astype(np.uint16)
 
     lat, lon = xyts_lat_lon_coordinates(metadata)
-    time = np.arange(metadata.nt) * metadata.dt
+    time = np.arange(metadata.nt, dtype=np.float64) * metadata.dt
     dset = create_xyts_dataset(waveform_data, lat, lon, time, metadata)
     set_scale(dset, scale)
 
