@@ -322,32 +322,31 @@ def set_scale(dset: xr.Dataset, scale: float) -> None:
 
 
 def quantise_array(waveform_data: WaveformArray, scale: float) -> QuantisedArray:
-    """Quantise a floating point waveform array.
+    r"""
+    Quantise a floating-point waveform array into 16-bit unsigned integers.
 
-    Quantisation consists of scaling ``waveform_data`` by ``scale``,
-    rounding, clipping and casting to uint16.
+    The transformation follows the formula:
+    $$output = \text{round}(\text{clip}(\frac{waveform\_data}{scale}, 0, 65534))$$
 
     Parameters
     ----------
     waveform_data : WaveformArray
-        The input waveform array. It is assumed that
-        ``waveform_data[i, j] >= 0``.
+        The input floating-point array. All values are expected to be >= 0.
     scale : float
-        The scale to quantise.
-
+        The quantisation step size (resolution). For example, a scale of 0.1
+        means the output represents increments of 0.1 from the input.
 
     Returns
     -------
-    QuantisedArray
-        A quantised version of ``waveform_data``. NaN values are set
-        to 2^16 - 1. Out of scale values are also set to 2^16 - 1. For
-        this reason, treat 2^16 - 1 as NaN or a fill-value.
+    QuantisedArray (uint16)
+        The discrete representation of the waveform. Values are capped at
+        65534 to reserve 65535 as a NaN indicator.
     """
     scaled = waveform_data / scale
     bounds = np.iinfo(np.uint16)
     max_bound = bounds.max
     np.nan_to_num(scaled, nan=max_bound, copy=False)
-    np.clip(scaled, 0, max_bound, out=scaled)
+    np.clip(scaled, 0, max_bound - 1, out=scaled)
     np.round(scaled, out=scaled)
     return scaled.astype(np.uint16)
 
