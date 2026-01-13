@@ -84,10 +84,10 @@ def rupture_velocity_hf_transition_bands(
     deep_range = rupture_velocity.deep_transition_range
     shallow = rupture_velocity.shallow_depth
     shallow_range = rupture_velocity.shallow_transition_range
-    deep_min = deep - deep_range / 2
-    deep_max = deep + deep_range / 2
-    shallow_min = shallow - shallow_range / 2
-    shallow_max = shallow + shallow_range / 2
+    deep_min = deep - deep_range
+    deep_max = deep + deep_range
+    shallow_min = shallow - shallow_range
+    shallow_max = shallow + shallow_range
     return shallow_min, shallow_max, deep_min, deep_max
 
 
