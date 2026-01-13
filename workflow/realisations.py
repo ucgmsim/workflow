@@ -942,10 +942,14 @@ class BroadbandParameters(RealisationConfiguration):
 
     flo: float
     """low/high frequency cutoff."""
-    fmidbot: float
-    """fmidbot for site amplification"""
     fmin: float
     """fmin for site amplification."""
+    fmidbot: float
+    """fmidbot for site amplification"""
+    fhightop: float
+    """fmidbot for site amplification"""
+    fmax: float
+    """fmidbot for site amplification"""
     site_amp_version: str
 
 

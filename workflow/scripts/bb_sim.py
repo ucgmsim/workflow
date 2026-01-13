@@ -193,6 +193,10 @@ def combine_hf_and_lf(
             hf_amp_val,
             bb_dt,
             bb_nt,
+            fmin=broadband_config.fmin,
+            fmidbot=broadband_config.fmidbot,
+            fhightop=broadband_config.fhightop,
+            fmax=broadband_config.fmax,
         )
         hf_waveform_amped = timeseries.ampdeamp(
             temp_hf_padded, hf_amp_fas_vals, amplify=True

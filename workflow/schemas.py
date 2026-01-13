@@ -717,6 +717,12 @@ BROADBAND_PARAMETERS_SCHEMA = Schema(
         Literal("fmin", description="fmin for site amplification"): And(
             NUMBER, _is_non_negative
         ),
+        Literal("fhightop", description="fhightop for site amplification"): And(
+            NUMBER, _is_non_negative
+        ),
+        Literal("fmax", description="fmax for site amplification"): And(
+            NUMBER, _is_non_negative
+        ),
         "site_amp_version": str,
     }
 )
