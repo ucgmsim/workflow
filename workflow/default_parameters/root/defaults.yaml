@@ -97,8 +97,8 @@ hf:
   stoch_dy: 2.0
 rupture_velocity:
   rvfrac: 0.8
-  rvfrac_shal: 0.7
-  rvfrac_deep: 0.7
+  rvfrac_shal: 0.6
+  rvfrac_deep: 0.6
   shallow_depth: 6.5
   deep_depth: 17.5
   shallow_transition_range: 1.5
