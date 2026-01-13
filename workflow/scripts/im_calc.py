@@ -31,7 +31,6 @@ import functools
 from pathlib import Path
 from typing import Annotated, Optional
 
-import numexpr as ne
 import numpy as np
 import pandas as pd
 import tqdm
@@ -70,6 +69,7 @@ def calculate_instensity_measures(
         Path | None, typer.Option(exists=True, file_okay=False)
     ] = None,
     override_ims: Annotated[list[IM] | None, typer.Option("-i", "--im")] = None,
+    cores: Annotated[int | None, typer.Option(min=1)] = None,
 ) -> None:
     """Calculate intensity measures for simulation data.
 
@@ -89,8 +89,12 @@ def calculate_instensity_measures(
         Directory containing the KO matrix files for FAS calculation. Not required for other IMs.
     override_ims : list of str
         Intensity measures to calculate. If not set, reads from the realisation file.
+    cores : int or None
+        Set the number of cores for parallel processing of IMs. If set
+        to `None`, will default to the available cores from
+        `utils.get_available_cores`.
     """
-    ne.set_num_threads(utils.get_available_cores())
+    cores = cores or utils.get_available_cores()
 
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     resolution = Resolution.read_from_realisation_or_defaults(
@@ -121,18 +125,16 @@ def calculate_instensity_measures(
     nyquist_frequency = 1 / (2 * resolution.dt)
 
     im_function_map = {
-        IM.PGA: ims.peak_ground_acceleration,
-        IM.PGV: functools.partial(ims.peak_ground_velocity, dt=resolution.dt),
-        IM.CAV: functools.partial(ims.cumulative_absolute_velocity, dt=resolution.dt),
-        IM.AI: functools.partial(ims.arias_intensity, dt=resolution.dt),
-        IM.Ds575: functools.partial(
-            ims.ds575,
-            dt=resolution.dt,
+        IM.PGA: functools.partial(ims.peak_ground_acceleration, cores=cores),
+        IM.PGV: functools.partial(
+            ims.peak_ground_velocity, dt=resolution.dt, cores=cores
         ),
-        IM.Ds595: functools.partial(
-            ims.ds595,
-            dt=resolution.dt,
+        IM.CAV: functools.partial(
+            ims.cumulative_absolute_velocity, dt=resolution.dt, cores=cores
         ),
+        IM.AI: functools.partial(ims.arias_intensity, dt=resolution.dt, cores=cores),
+        IM.Ds575: functools.partial(ims.ds575, dt=resolution.dt, cores=cores),
+        IM.Ds595: functools.partial(ims.ds595, dt=resolution.dt, cores=cores),
         IM.pSA: functools.partial(
             ims.pseudo_spectral_acceleration,
             periods=np.array(
@@ -142,7 +144,7 @@ def calculate_instensity_measures(
             psa_rotd_maximum_memory_allocation=psa_rotd_maximum_memory_allocation * 1e9
             if psa_rotd_maximum_memory_allocation
             else None,
-            cores=utils.get_available_cores(),
+            cores=cores,
         ),
         IM.FAS: functools.partial(
             ims.fourier_amplitude_spectra,
@@ -151,7 +153,7 @@ def calculate_instensity_measures(
                 intensity_measure_parameters.fas_frequencies <= nyquist_frequency
             ],
             ko_directory=ko_directory,
-            cores=utils.get_available_cores(),
+            cores=cores,
         ),
     }
     latitude = broadband.latitude.values
@@ -215,21 +217,13 @@ def calculate_instensity_measures(
         attrs={"hypo_lat": hypocentre[0], "hypo_lon": hypocentre[1]},
     )
 
-    # Add each column of the DataFrame as a coordinate
-    # TODO: Refactor IM Calculation to use waveforms in (component, station, time) format
-    # Convert (component, station, time) to (station, time, component).
-    # This hack is a stop-gap while the intensity measures get refactored
-    waveform_component_wise = broadband.waveform.values.astype(np.float64)
-    waveform = np.transpose(waveform_component_wise.copy(), (1, 2, 0))
+    waveform = broadband.waveform.values.astype(np.float64)
 
     for im_name in (pbar := tqdm.tqdm(intensity_measures)):
         pbar.set_description(im_name)
         im_fn = im_function_map[im_name]
-        if im_name in {IM.pSA}:
-            # These IMs take (component, station, time) shape arrays
-            result = im_fn(waveform_component_wise)
-        else:
-            result = im_fn(waveform)
+
+        result = im_fn(waveform)
 
         if isinstance(result, pd.DataFrame):
             result["station"] = broadband.station.values
