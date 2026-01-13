@@ -144,6 +144,7 @@ def calculate_instensity_measures(
             psa_rotd_maximum_memory_allocation=psa_rotd_maximum_memory_allocation * 1e9
             if psa_rotd_maximum_memory_allocation
             else None,
+            step=10000,
             cores=cores,
         ),
         IM.FAS: functools.partial(
