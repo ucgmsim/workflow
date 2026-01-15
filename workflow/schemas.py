@@ -379,9 +379,9 @@ SRF_SCHEMA = Schema(
         Literal("genslip_version", description="The version of genslip to use"): Or(
             "5.4.2"
         ),
-        Literal("resolution", description="The resolution of the SRF discretisation."): And(
-            NUMBER, _is_positive
-        ),
+        Literal(
+            "resolution", description="The resolution of the SRF discretisation."
+        ): And(NUMBER, _is_positive),
         Optional(
             Literal(
                 "point_source_params",
@@ -462,6 +462,9 @@ VELOCITY_MODEL_SCHEMA = Schema(
         Literal("s_wave_velocity", "S-wave velocity"): And(NUMBER, _is_positive),
         Literal("rrup_interpolants", "RRup interpolants to estimate domain size"): And(
             [[And(NUMBER, _is_positive)]], Use(np.array)
+        ),
+        Literal("fault_buffer", "Buffer width (km) around sources in rupture."): And(
+            NUMBER, _is_positive
         ),
     }
 )

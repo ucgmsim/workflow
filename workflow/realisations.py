@@ -615,6 +615,8 @@ class VelocityModelParameters(RealisationConfiguration):
     """The s-wave velocity."""
     rrup_interpolants: npt.NDArray[np.float32]
     """Target RRup values at specific magnitudes, used to estimate domain size."""
+    fault_buffer: float
+    """Buffer width (km) around sources in rupture. Domain edge is guaranteed not be within this distance from any source."""
 
     def to_dict(self) -> dict:
         """

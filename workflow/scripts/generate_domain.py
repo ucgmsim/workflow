@@ -443,6 +443,7 @@ def estimate_domain(
     source_config: SourceConfig,
     rrups: dict[str, float],
     nz_outline: shapely.Geometry,
+    fault_buffer: float,
 ) -> BoundingBox:
     """Estimate a domain for a rupture.
 
@@ -454,6 +455,9 @@ def estimate_domain(
         The rrups for each source.
     nz_outline : Geometry
         The NZ outline polygon.
+    fault_buffer : float
+        Buffer width (km) around sources in rupture. Domain edge is
+        guaranteed not be within this distance from any source.
 
     Returns
     -------
@@ -464,7 +468,7 @@ def estimate_domain(
     # This polygon includes all the faults corners + a 2km buffer (which must be in the simulation domain).
 
     fault_buffer_polygons = [
-        shapely.buffer(fault.geometry, 2000)
+        shapely.buffer(fault.geometry, fault_buffer * 1000.0)
         for fault in source_config.source_geometries.values()
     ]
 
@@ -545,7 +549,9 @@ def generate_domain(
         source_config, magnitudes, velocity_model_parameters.rrup_interpolants
     )
     nz_outline = utils.get_nz_outline_polygon()
-    model_domain = estimate_domain(source_config, rrups, nz_outline)
+    model_domain = estimate_domain(
+        source_config, rrups, nz_outline, velocity_model_parameters.fault_buffer
+    )
     sim_duration = estimate_simulation_duration(
         rupture_context, model_domain, source_config.source_geometries.values()
     )

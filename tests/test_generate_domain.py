@@ -67,6 +67,7 @@ def test_estimate_domain_contains_fault_geometry() -> None:
         source_config=source_config,  # type: ignore[invalid-argument-type]
         rrups=rrups,
         nz_outline=nz_outline,
+        fault_buffer=2000.0,
     )
 
     assert result_domain.polygon.contains(fault_geom), (
@@ -98,6 +99,7 @@ def test_generate_domain() -> None:
         topo_type="BULLDOZED",
         ds_multiplier=1.2,
         vs30=500.0,
+        fault_buffer=2000,
         s_wave_velocity=3500,
         rrup_interpolants=np.array([[5.0, 8.0], [50.0, 50.0]]),
     )

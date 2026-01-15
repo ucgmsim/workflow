@@ -221,6 +221,7 @@ def test_velocity_model(tmp_path: Path) -> None:
         topo_type="SQUASHED_TAPERED",
         ds_multiplier=1.2,
         vs30=300.0,
+        fault_buffer=2000.0,
         s_wave_velocity=3500.0,
         rrup_interpolants=np.ones(shape=(2, 2), dtype=np.float32),
     )
@@ -234,6 +235,7 @@ def test_velocity_model(tmp_path: Path) -> None:
                 "topo_type": "SQUASHED_TAPERED",
                 "ds_multiplier": 1.2,
                 "vs30": 300.0,
+                "fault_buffer": 2000.0,
                 "s_wave_velocity": 3500.0,
                 "rrup_interpolants": [[1, 1], [1, 1]],
             }
