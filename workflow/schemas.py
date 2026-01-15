@@ -18,28 +18,6 @@ from source_modelling import rupture_propagation, sources
 from velocity_modelling.bounding_box import BoundingBox
 from workflow.defaults import DefaultsVersion
 
-# NOTE: These functions seem silly and short, however there is a good
-# reason for the choice to create functions like this. The reason is
-# because when the schema library reports an error (such as the input
-# file having a negative depth value) it prints the name of the
-# function. So
-#
-# And(float, lambda x: x > 0).validate(-12)
-#
-# Would report the error
-#
-# schema.SchemaError: <lambda>(-12) should evaluate to True
-#
-# But using the function `is_positive` we instead have
-#
-# And(float, is_positive).validate(-12)
-# schema.SchemaError: is_positive(-12) should evaluate to True
-#
-# So using short functions with names improves the error reporting
-# from the library.
-#
-# Accordingly, the most trivial of these functions lack docstrings.
-
 
 class Stype(StrEnum):
     """Options for slip time function (stype) in generic_slip2srf."""
@@ -94,6 +72,29 @@ class PointSourceParams:
         return cls(**params_dict)
 
 
+# NOTE: These functions seem silly and short, however there is a good
+# reason for the choice to create functions like this. The reason is
+# because when the schema library reports an error (such as the input
+# file having a negative depth value) it prints the name of the
+# function. So
+#
+# And(float, lambda x: x > 0).validate(-12)
+#
+# Would report the error
+#
+# schema.SchemaError: <lambda>(-12) should evaluate to True
+#
+# But using the function `is_positive` we instead have
+#
+# And(float, is_positive).validate(-12)
+# schema.SchemaError: is_positive(-12) should evaluate to True
+#
+# So using short functions with names improves the error reporting
+# from the library.
+#
+# Accordingly, the most trivial of these functions lack docstrings.
+
+
 def _is_positive(x: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
     return x > 0
 
@@ -128,6 +129,10 @@ def _is_valid_local_coordinate(
 
 def _is_valid_bearing(bearing: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
     return 0 <= bearing <= 360
+
+
+def _is_proportion(x: float | int) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+    return 0 <= x <= 1
 
 
 def _is_correct_corner_shape(corners: np.ndarray) -> bool:
@@ -373,12 +378,8 @@ POINT_SOURCE_PARAMS_SCHEMA = Schema(
     )
 )
 
-
 SRF_SCHEMA = Schema(
     {
-        Literal("genslip_version", description="The version of genslip to use"): Or(
-            "5.4.2"
-        ),
         Literal(
             "resolution", description="The resolution of the SRF discretisation."
         ): And(NUMBER, _is_positive),
@@ -388,6 +389,58 @@ SRF_SCHEMA = Schema(
                 description="Parameters for point source approximation, if applicable",
             )
         ): Or(None, POINT_SOURCE_PARAMS_SCHEMA),
+        Literal(
+            "side_taper",
+            description="Side slip tapering, proportion of along-strike 0-1.",
+        ): And(NUMBER, _is_proportion),
+        Literal(
+            "bot_taper",
+            description="Bottom slip tapering proportion of down-dip 0-1.",
+        ): And(NUMBER, _is_proportion),
+        Literal(
+            "top_taper",
+            description="Top slip tapering proportion of down-dip 0-1.",
+        ): And(NUMBER, _is_proportion),
+        Literal(
+            "alpha_rough",
+            description="Roughness (0.0 = smooth)",
+        ): And(NUMBER, _is_proportion),
+        Literal(
+            "gwid",
+            description="Width of delay zone around segment boundaries",
+        ): [And(NUMBER, _is_positive)],
+        Literal(
+            "rvfac_seg",
+            description="Rupture speed reduction (proportion) at segment boundaries.",
+        ): [And(NUMBER, _is_proportion)],
+        Literal(
+            "seg_delay",
+            description="If true, delay rupture across slip boundaries according to specifications of rvfac_seg and gwid.",
+        ): bool,
+        Literal(
+            "ymag_exp",
+            description="Corner magnitude exponent for along-strike slip correlation length. See genslip_v5.6.2c:1385",
+        ): Or(NUMBER, None),
+        Literal(
+            "xmag_exp",
+            description="Corner magnitude exponent for down-dip slip correlation length. See genslip_v5.6.2c:1385",
+        ): Or(NUMBER, None),
+        Literal(
+            "kx_corner",
+            description="Corner wavenumber for along-strike slip correlation length. See genslip_v5.6.2c:1385",
+        ): Or(NUMBER, None),
+        Literal(
+            "ky_corner",
+            description="Corner wavenumber for down-dip slip correlation length. See genslip_v5.6.2c:1385",
+        ): Or(NUMBER, None),
+        Literal(
+            "slip_sigma",
+            description="The stddev of slip distribution.",
+        ): And(NUMBER, _is_non_negative),
+        Literal(
+            "risetime_coef",
+            description="Risetime scaling coefficient.",
+        ): And(NUMBER, _is_positive),
     }
 )
 
