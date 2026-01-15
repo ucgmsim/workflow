@@ -286,6 +286,18 @@ def estimate_simulation_duration(
 def simulation_max_depth(magnitude: float, bottom_depth: float) -> float:
     """Estimate the maximum depth to simulate for a rupture.
 
+    This function estimates the max depth of the domain by ensuring
+    the z-extent is deep enough so the bottom does not interfere with
+    waves initially radiating downwards from the earthquake before
+    returning to the surface. Its design is,
+
+    1. The bottom depth of the rupture plus
+    2. a flat 10km buffer and,
+    3. a magnitude dependent power term that accounts for the fact
+    that waves refract deeper from larger magnitude earthquakes, but
+    4. accounting for the fact that deeper earthquakes for the same
+    magnitude result in weaker shaking at the surface.
+
     Parameters
     ----------
     magnitude : float
@@ -300,7 +312,8 @@ def simulation_max_depth(magnitude: float, bottom_depth: float) -> float:
 
     References
     ----------
-    See the "Custom Models Used in VM Params" wiki page for an explanation of this function.
+    Robin's slack message that describes the max depth estimation:
+    https://uceqeng.slack.com/archives/C06L1MRUQF8/p1718865771998809?thread_ts=1718846081.570789&cid=C06L1MRUQF8.
     """
     return round(
         10
