@@ -465,8 +465,9 @@ def estimate_domain(
         The smallest domain containing the sources and areas within
         the estimated surface distance for the given magnitudes.
     """
-    # This polygon includes all the faults corners + a 2km buffer (which must be in the simulation domain).
-
+    # This polygon includes all the faults corners + a variable
+    # (default 2km) fault buffer. This polygon must be included in the
+    # domain.
     fault_buffer_polygons = [
         shapely.buffer(fault.geometry, fault_buffer * 1000.0)
         for fault in source_config.source_geometries.values()
