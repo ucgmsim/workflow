@@ -1,60 +1,59 @@
-from collections.abc import Callable
+import importlib
+import pkgutil
+from types import ModuleType
 
-import pytest
+from pytest import Metafunc
 from typer import Typer
 from typer.testing import CliRunner
 
-from workflow.scripts import (
-    bb_sim,
-    check_domain,
-    check_srf,
-    copy_velocity_model_parameters,
-    create_e3d_par,
-    gcmt_auto_simulate,
-    gcmt_to_realisation,
-    generate_rupture_propagation,
-    generate_station_coordinates,
-    generate_stoch,
-    generate_velocity_model,
-    generate_velocity_model_parameters,
-    hf_sim,
-    im_calc,
-    import_realisation,
-    lf_to_xarray,
-    nshm2022_to_realisation,
-    realisation_to_srf,
-)
+import workflow.scripts as scripts_package
+
+EXCLUDE_MODULES = set()
 
 
-@pytest.mark.parametrize(
-    "script",
-    [
-        bb_sim,
-        check_domain,
-        check_srf,
-        copy_velocity_model_parameters,
-        create_e3d_par,
-        gcmt_auto_simulate,
-        gcmt_to_realisation,
-        generate_rupture_propagation,
-        generate_station_coordinates,
-        generate_stoch,
-        generate_velocity_model,
-        generate_velocity_model_parameters,
-        lf_to_xarray,
-        hf_sim,
-        im_calc,
-        import_realisation,
-        nshm2022_to_realisation,
-        realisation_to_srf,
-    ],
-)
-def test_invocation_of_script(script: Callable) -> None:
-    """Basic check that the scripts can be invoked."""
+def collect_script_modules() -> list[ModuleType]:
+    """
+    Dynamically discovers all modules within the workflow.scripts package.
+    """
+    modules = []
+    # Iterates through all modules in the package directory
+    for loader, module_name, is_pkg in pkgutil.iter_modules(scripts_package.__path__):
+        if module_name in EXCLUDE_MODULES:
+            continue
+
+        # Construct full module path (e.g., workflow.scripts.bb_sim)
+        full_module_name = f"{scripts_package.__name__}.{module_name}"
+        module = importlib.import_module(full_module_name)
+        modules.append(module)
+    return modules
+
+
+def pytest_generate_tests(metafunc: Metafunc) -> None:
+    """
+    Generate tests dynamically based on discovered modules.
+    """
+    if "script_module" in metafunc.fixturenames:
+        found_modules = collect_script_modules()
+        # Create readable IDs from the module names (e.g., 'bb_sim')
+        ids = [m.__name__.split(".")[-1] for m in found_modules]
+        metafunc.parametrize("script_module", found_modules, ids=ids)
+
+
+def test_invocation_of_script(script_module: ModuleType) -> None:
+    """
+    Test that each discovered module has a Typer app and responds to --help.
+    """
     runner = CliRunner()
-    # The following satisifies the type checker.
-    app = getattr(script, "app", None)
-    assert isinstance(app, Typer)
+
+    assert hasattr(script_module, "app"), (
+        f"Module {script_module.__name__} is missing the 'app' attribute."
+    )
+
+    app = getattr(script_module, "app")
+
+    assert isinstance(app, Typer), (
+        f"'app' in {script_module.__name__} should be a Typer instance, but got {type(app)}."
+    )
 
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0

@@ -513,8 +513,11 @@ VELOCITY_MODEL_SCHEMA = Schema(
         ),
         Literal("vs30", "VS30 value"): And(NUMBER, _is_positive),
         Literal("s_wave_velocity", "S-wave velocity"): And(NUMBER, _is_positive),
-        Literal("pgv_interpolants", "PGV interpolants to estimate domain size"): And(
+        Literal("rrup_interpolants", "RRup interpolants to estimate domain size"): And(
             [[And(NUMBER, _is_positive)]], Use(np.array)
+        ),
+        Literal("fault_buffer", "Buffer width (km) around sources in rupture."): And(
+            NUMBER, _is_positive
         ),
     }
 )
