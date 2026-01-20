@@ -130,7 +130,7 @@ velocity_model:
   version: "2.07"
   topo_type: "SQUASHED_TAPERED"
   vs30: 500.0
-  fault_buffer: 2000.0
+  fault_buffer: 2.0
   s_wave_velocity: 3500.0
   rrup_interpolants:
     [
