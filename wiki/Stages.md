@@ -219,20 +219,6 @@ Can be run in the cybershake container. Can also be run from your own computer u
 See the output of `create-e3d-par --help` or [create_e3d_par.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/create_e3d_par.py).
 See our description of the [EMOD3D Parameters](https://wiki.canterbury.ac.nz/pages/viewpage.action?pageId=100794983) for documentation on the EMOD3D parameter file format.
 
-## Merge Timeslices
-### Description
-Merge the output timeslice files of EMOD3D.
-### Inputs
-1. A directory containing EMOD3D timeslice files.
-### Outputs
-1. A merged output timeslice file.
-### Environment
-Can be run in the cybershake container. Can also be run from your own computer using the `merge-ts` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
-### Usage
-`merge_ts XYTS_DIRECTORY XYTS_DIRECTORY/output.e3d`
-### For More Help
-See the output of `merge-ts --help` or [merge_ts.py](https://github.com/ucgmsim/workflow/blob/pegasus/merge_ts/merge_ts.py).
-
 ## Create Simulation Video
 ### Description
 Create a simulation video from the low frequency simulation output.
