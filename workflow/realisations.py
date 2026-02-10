@@ -370,14 +370,43 @@ class SRFConfig(RealisationConfiguration):
     _config_key: ClassVar[str] = "srf"
     _schema: ClassVar[Schema] = schemas.SRF_SCHEMA
 
-    genslip_version: str
-    """The version of genslip to use (currently supports "5.4.2")."""
-
     resolution: float
     """The resolution of the SRF discretisation (different, in general, from the simulation resolution)."""
 
     point_source_params: schemas.PointSourceParams | None
     """Parameters for point source approximation, if applicable."""
+
+    side_taper: float
+    """Side slip tapering, proportion of along-strike 0-1."""
+    bot_taper: float
+    """Bottom slip tapering proportion of down-dip 0-1."""
+    top_taper: float
+    """Top slip tapering proportion of down-dip 0-1."""
+
+    alpha_rough: float
+    """Roughness (0.0 = smooth)"""
+
+    gwid: list[float]
+    """Width of delay zone around segment boundaries"""
+    rvfac_seg: list[float]
+    """Rupture speed reduction (proportion) at segment boundaries."""
+    seg_delay: bool
+    """If true, delay rupture across slip boundaries according to specifications of rvfac_seg and gwid."""
+
+    slip_sigma: float
+    """The stddev of slip distribution."""
+
+    risetime_coef: float
+    """Risetime scaling coefficient."""
+
+    ymag_exp: float | None = None
+    """Corner magnitude exponent for along-strike slip correlation length. See genslip_v5.6.2c:1385"""
+    xmag_exp: float | None = None
+    """Corner magnitude exponent for down-dip slip correlation length. See genslip_v5.6.2c:1385"""
+    kx_corner: float | None = None
+    """Corner wavenumber for along-strike slip correlation length. See genslip_v5.6.2c:1385"""
+    ky_corner: float | None = None
+    """Corner wavenumber for down-dip slip correlation length. See genslip_v5.6.2c:1385"""
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -613,8 +642,10 @@ class VelocityModelParameters(RealisationConfiguration):
     """The reference vs30 value for duration estimation."""
     s_wave_velocity: float
     """The s-wave velocity."""
-    pgv_interpolants: npt.NDArray[np.float32]
-    """Target PGV values at specific magnitudes, used to estimate domain size."""
+    rrup_interpolants: npt.NDArray[np.float32]
+    """Target RRup values at specific magnitudes, used to estimate domain size."""
+    fault_buffer: float
+    """Buffer width (km) around sources in rupture. Domain edge is guaranteed not be within this distance from any source."""
 
     def to_dict(self) -> dict:
         """
@@ -626,7 +657,7 @@ class VelocityModelParameters(RealisationConfiguration):
             Dictionary representation of the object.
         """
         _dict = dataclasses.asdict(self)
-        _dict["pgv_interpolants"] = _dict["pgv_interpolants"].tolist()
+        _dict["rrup_interpolants"] = _dict["rrup_interpolants"].tolist()
         return _dict
 
 

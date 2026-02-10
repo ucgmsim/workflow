@@ -1,3 +1,4 @@
+---
 resolution:
   resolution: 0.2
 emod3d:
@@ -100,8 +101,20 @@ hf:
   stoch_dx: 2.0
   stoch_dy: 2.0
 srf:
-  genslip_version: 5.4.2
+  side_taper: 0.02
+  bot_taper: 0.02
+  top_taper: 0.0
+  alpha_rough: 0.0
+  gwid: []
+  rvfac_seg: []
+  seg_delay: false
+  ymag_exp: null
+  xmag_exp: null
+  kx_corner: null
+  ky_corner: null
   resolution: 0.1
+  slip_sigma: 0.75
+  risetime_coef: 1.6
   # The following parameters are only used for the point source approximation.
   point_source_params:
     # Valid options for the slip time function (stype) are:
@@ -117,8 +130,73 @@ velocity_model:
   version: "2.07"
   topo_type: "SQUASHED_TAPERED"
   vs30: 500.0
+  fault_buffer: 2.0
   s_wave_velocity: 3500.0
-  pgv_interpolants: [[3.5, 1.0], [8., 1.0]]
+  rrup_interpolants:
+    [
+      [
+        3.5,
+        3.6,
+        3.7,
+        3.8,
+        3.9,
+        4.,
+        4.1,
+        4.2,
+        4.3,
+        4.4,
+        4.5,
+        4.6,
+        4.7,
+        4.8,
+        4.9,
+        5.,
+        5.1,
+        5.2,
+        5.3,
+        5.4,
+        5.5,
+        5.6,
+        5.7,
+        5.8,
+        6.,
+        6.5,
+        7.,
+        7.5,
+        8.,
+      ],
+      [
+        96.001584,
+        95.96318337,
+        98.,
+        102.,
+        108.02690269,
+        114.86856676,
+        123.44523863,
+        128.68959965,
+        134.58683383,
+        145.68111725,
+        157.68992642,
+        170.68864766,
+        188.45405921,
+        192.22314039,
+        203.98873437,
+        216.47447683,
+        233.19667576,
+        248.66112894,
+        258.19003824,
+        268.72840715,
+        280.03281854,
+        297.1730673,
+        300.,
+        300.,
+        300.,
+        300.,
+        300.,
+        300.,
+        300.,
+      ],
+    ]
 bb:
   flo: 0.5
   fmidbot: 0.5
@@ -670,6 +748,14 @@ hf_velocity_model_1d:
       rho: 3.12
       Qp: 374.40
       Qs: 187.20
+    - thickness: 999.999
+      Vp: 8.10
+      Vs: 4.60
+      rho: 3.33
+      Qp: 394.80
+      Qs: 197.40
+    # This layer is duplicated to prevent a crash in the HF fortran code
+    # when raycasting travels through the last layer.
     - thickness: 999.999
       Vp: 8.10
       Vs: 4.60
