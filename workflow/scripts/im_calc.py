@@ -49,6 +49,8 @@ from workflow.realisations import (
     SourceConfig,
 )
 
+PSA_STEP = 10000
+
 app = typer.Typer()
 
 
@@ -62,9 +64,7 @@ def calculate_instensity_measures(
     ],
     output_path: Annotated[Path, typer.Argument(dir_okay=False, writable=True)],
     simulated_stations: Annotated[bool, typer.Option()] = True,
-    psa_rotd_maximum_memory_allocation: Annotated[
-        Optional[float], typer.Option(min=0)
-    ] = None,
+    psa_step: Annotated[int, typer.Option()] = PSA_STEP,
     ko_directory: Annotated[
         Path | None, typer.Option(exists=True, file_okay=False)
     ] = None,
@@ -83,8 +83,8 @@ def calculate_instensity_measures(
         Output directory for IM calc summary statistics.
     simulated_stations : bool, default True
         If passed, calculate for simulated stations.
-    psa_rotd_maximum_memory_allocation : Optional[float]
-        Maximum amount of memory allocated for rotated PSA calculation station buffer, in gigabytes.
+    psa_step : int
+        Maximum number stations to read from disk at once for pSA calculation
     ko_directory : Path
         Directory containing the KO matrix files for FAS calculation. Not required for other IMs.
     override_ims : list of str
@@ -141,10 +141,7 @@ def calculate_instensity_measures(
                 intensity_measure_parameters.valid_periods, dtype=np.float64
             ),
             dt=resolution.dt,
-            psa_rotd_maximum_memory_allocation=psa_rotd_maximum_memory_allocation * 1e9
-            if psa_rotd_maximum_memory_allocation
-            else None,
-            step=10000,
+            step=psa_step,
             cores=cores,
         ),
         IM.FAS: functools.partial(
