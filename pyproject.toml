@@ -7,7 +7,7 @@ name = "workflow"
 authors = [{ name = "QuakeCoRE" }]
 description = "Next generation workflow powered by cylc."
 readme = "README.md"
-requires-python = ">=3.12,<3.14"
+requires-python = ">=3.12"
 dynamic = ["version"]
 dependencies = [
   # UCGMSim Dependencies
