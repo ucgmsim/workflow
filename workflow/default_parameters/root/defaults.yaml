@@ -135,7 +135,6 @@ velocity_model:
   vs30: 500.0
   s_wave_velocity: 3500.0
   fault_buffer: 2.0
-  pgv_interpolants: [[3.5, 1.0], [8., 1.0]]
   rrup_interpolants:
     [
       [
