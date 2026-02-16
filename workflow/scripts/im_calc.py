@@ -29,7 +29,7 @@ See the output of `im-calc --help`.
 
 import functools
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import numpy as np
 import pandas as pd
@@ -128,6 +128,9 @@ def calculate_instensity_measures(
         IM.PGA: functools.partial(ims.peak_ground_acceleration, cores=cores),
         IM.PGV: functools.partial(
             ims.peak_ground_velocity, dt=resolution.dt, cores=cores
+        ),
+        IM.PGD: functools.partial(
+            ims.peak_ground_displacement, dt=resolution.dt, cores=cores
         ),
         IM.CAV: functools.partial(
             ims.cumulative_absolute_velocity, dt=resolution.dt, cores=cores
