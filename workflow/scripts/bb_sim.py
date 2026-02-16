@@ -162,7 +162,7 @@ def combine_hf_and_lf(
         station_vs30_ffp,
         sep=r"\s+",
         header=None,
-        names=["station", "vsite"],  # type: ignore[invalid-argument-type]
+        names=["station", "vsite"],
     ).set_index("station")
     vs30_df["vsite"] = vs30_df["vsite"].astype(np.float32)
     vs30_df = vs30_df.loc[common_stations]

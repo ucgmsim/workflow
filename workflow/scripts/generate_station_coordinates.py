@@ -79,7 +79,7 @@ def generate_fd_files(
         stat_file,
         delimiter=r"\s+",
         comment="#",
-        names=["lon", "lat", "name"],  # type: ignore[invalid-argument-type]
+        names=["lon", "lat", "name"],
     )
 
     x, y = proj(

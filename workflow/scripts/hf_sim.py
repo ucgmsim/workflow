@@ -301,7 +301,7 @@ def run_hf(
         station_file,
         delimiter=r"\s+",
         header=None,
-        names=["longitude", "latitude", "name"],  # type: ignore[invalid-argument-type]
+        names=["longitude", "latitude", "name"],
     ).set_index("name")
     station_hashes = np.array(
         [stable_hash(name) for name in stations.index], dtype=np.int32
@@ -332,8 +332,8 @@ def run_hf(
                 hf_sim_path,
                 hf_input_template,
                 station["latitude"],
-                station["longitude"],  # type: ignore[invalid-argument-type]
-                name,
+                station["longitude"],
+                str(name),
                 int(station["seed"]),
             )
             for name, station in stations.iterrows()
