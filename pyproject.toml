@@ -17,7 +17,6 @@ dependencies = [
   "oq_wrapper>=2025.12.3",
   "qcore-utils>=2025.12.1",
   "source_modelling>=2025.12.1",
-
   # Data Formats
   "geopandas",
   "pandas[parquet, hdf5]",
@@ -29,20 +28,22 @@ dependencies = [
   "numpy",
   "scipy",
   "shapely",
-
   # CLI
   "tqdm",
   "typer",
-
   # Misc.
   "requests",  # For gcmt-to-realisation
   "schema",    # For loading realisations
   "structlog", # Logging.
   "psutil",    # To get the CPU affinity for jobs
+
 ]
 
 [project.optional-dependencies]
-test = ["hypothesis>=6.148.3", "pytest"]
+test = [
+  "pytest>=6.0.0",            # required for the tool.pytest section
+  "hypothesis[numpy]>=6.0.0",
+]
 types = ["pandas-stubs", "types-geopandas", "types-requests", "scipy-stubs"]
 dev = ["ruff", "deptry", "ty", "numpydoc"]
 
@@ -53,7 +54,7 @@ pep621_dev_dependency_groups = ["test", "dev", "types"]
 nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:app"
 gcmt-to-realisation = "workflow.scripts.gcmt_to_realisation:app"
 realisation-to-srf = "workflow.scripts.realisation_to_srf:app"
-generate-velocity-model-parameters = "workflow.scripts.generate_velocity_model_parameters:app"
+generate-domain = "workflow.scripts.generate_domain:app"
 generate-velocity-model = "workflow.scripts.generate_velocity_model:app"
 generate-station-coordinates = "workflow.scripts.generate_station_coordinates:app"
 generate-model-coordinates = "workflow.scripts.generate_model_coordinates:app"
@@ -61,6 +62,7 @@ generate-rupture-propagation = "workflow.scripts.generate_rupture_propagation:ap
 copy-domain-parameters = "workflow.scripts.copy_velocity_model_parameters:app"
 create-e3d-par = "workflow.scripts.create_e3d_par:app"
 generate-stoch = "workflow.scripts.generate_stoch:app"
+merge-ts = "workflow.scripts.merge_ts:app"
 hf-sim = "workflow.scripts.hf_sim:app"
 bb-sim = "workflow.scripts.bb_sim:app"
 im-calc = "workflow.scripts.im_calc:app"
@@ -76,6 +78,8 @@ workflow = "workflow"
 
 [tool.setuptools_scm]
 
+[tool.pytest]
+markers = ["slow: mark test as slow."]
 
 [tool.ruff.lint]
 extend-select = [
