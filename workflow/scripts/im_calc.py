@@ -84,7 +84,7 @@ def calculate_instensity_measures(
     simulated_stations : bool, default True
         If passed, calculate for simulated stations.
     psa_step : int
-        Maximum number stations to read from disk at once for pSA calculation
+        Maximum number of stations to read from disk at once for pSA calculation
     ko_directory : Path
         Directory containing the KO matrix files for FAS calculation. Not required for other IMs.
     override_ims : list of str
