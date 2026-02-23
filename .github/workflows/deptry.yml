@@ -17,4 +17,4 @@ jobs:
       - run: uv venv
       - run: uv sync --all-extras --dev
       # Run deptry to check that all dependencies are present.
-      - run: uv run deptry . -ddg test,dev,types
+      - run: uv run deptry .

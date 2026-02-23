@@ -378,6 +378,36 @@ POINT_SOURCE_PARAMS_SCHEMA = Schema(
     )
 )
 
+RUPTURE_VELOCITY_SCHEMA = Schema(
+    {
+        Literal("rvfrac", description="Rupture velocity factor (rupture : Vs)"): And(
+            NUMBER, _is_positive
+        ),
+        Literal("rvfrac_shal", description="Rupture velocity at shallow depths"): And(
+            NUMBER, _is_positive
+        ),
+        Literal("rvfrac_deep", description="Rupture velocity at depth"): And(
+            NUMBER, _is_positive
+        ),
+        Literal(
+            "shallow_depth",
+            description="Shallow transition depth.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "shallow_transition_range",
+            description="Shallow transition depth transition range.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "deep_depth",
+            description="Deep transition depth.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "deep_transition_range",
+            description="Deep transition depth transition range.",
+        ): And(NUMBER, _is_positive),
+    }
+)
+
 SRF_SCHEMA = Schema(
     {
         Literal(
@@ -410,7 +440,7 @@ SRF_SCHEMA = Schema(
             description="Width of delay zone around segment boundaries",
         ): [And(NUMBER, _is_positive)],
         Literal(
-            "rvfac_seg",
+            "rvfrac_seg",
             description="Rupture speed reduction (proportion) at segment boundaries.",
         ): [And(NUMBER, _is_proportion)],
         Literal(
@@ -602,11 +632,6 @@ HF_CONFIG_SCHEMA = Schema(
         ),
         Literal("kappa", description="Unknown!"): NUMBER,
         Literal("qfexp", description="Q frequency exponent"): NUMBER,
-        Literal("rvfac", description="Rupture velocity factor (rupture : Vs)"): And(
-            NUMBER, _is_non_negative
-        ),
-        Literal("rvfac_shal", description="rvfac shallow fault multiplier"): NUMBER,
-        Literal("rvfac_deep", description="rvfac deep fault multiplier"): NUMBER,
         Literal("czero", description="C0 coefficient"): NUMBER,
         Literal("calpha", description="Ca coefficient"): NUMBER,
         Literal("mom", description="Seimic moment (or null, to infer value)"): Or(

@@ -63,6 +63,7 @@ from workflow.realisations import (
     RealisationMetadata,
     Resolution,
     RupturePropagationConfig,
+    RuptureVelocity,
     Seeds,
     SourceConfig,
     SRFConfig,
@@ -368,6 +369,8 @@ class SRFRealisationContext:
     """The 1D velocity model to use for SRF generation"""
     srf_config: SRFConfig
     """SRF configuration options to apply"""
+    rupture_velocity: RuptureVelocity
+    """Rupture velocity configuration"""
 
 
 @dataclasses.dataclass
@@ -411,6 +414,7 @@ def _build_genslip_command(
     magnitude: float,
     dt: float,
     srf_config: SRFConfig,
+    rupture_velocity: RuptureVelocity,
 ) -> list[str]:
     """Build a genslip command to run.
 
@@ -438,7 +442,8 @@ def _build_genslip_command(
         Time resolution for SVFs.
     srf_config : SRFConfig
         Parameters for SRF generation.
-
+    rupture_velocity : RuptureVelocity
+        Parameters for rupture velocity config.
 
     Returns
     -------
@@ -466,6 +471,13 @@ def _build_genslip_command(
         f"dhypo={dhypo}",
         f"mag={magnitude}",
         f"dt={dt}",
+        f"rvfrac={rupture_velocity.rvfrac}",
+        f"shal_vrup={rupture_velocity.rvfrac_shal}",
+        f"shal_vrup_dep={rupture_velocity.shallow_depth}",
+        f"shal_vrup_deprange={rupture_velocity.shallow_transition_range}",
+        f"deep_vrup={rupture_velocity.rvfrac_deep}",
+        f"deep_vrup_dep={rupture_velocity.deep_depth}",
+        f"deep_vrup_deprange={rupture_velocity.deep_transition_range}",
     ]
     skipped_fields = {"point_source_params"}
     for field in dataclasses.fields(srf_config):
@@ -541,6 +553,7 @@ def generate_fault_srf(
         magnitude=params.magnitudes.magnitudes[name],
         dt=params.resolution.dt,
         srf_config=params.srf_config,
+        rupture_velocity=params.rupture_velocity,
     )
 
     srf_file_path = environment.srf_directory / (normalise_name(name) + ".srf")
@@ -757,6 +770,9 @@ def generate_srf(
     resolution = Resolution.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
+    rupture_velocity = RuptureVelocity.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
 
     params = SRFRealisationContext(
         resolution=resolution,
@@ -766,6 +782,7 @@ def generate_srf(
         rakes=rakes,
         velocity_model_1d=velocity_model_1d,
         srf_config=srf_config,
+        rupture_velocity=rupture_velocity,
     )
 
     environment = SRFEnvironmentContext(

@@ -388,7 +388,7 @@ class SRFConfig(RealisationConfiguration):
 
     gwid: list[float]
     """Width of delay zone around segment boundaries"""
-    rvfac_seg: list[float]
+    rvfrac_seg: list[float]
     """Rupture speed reduction (proportion) at segment boundaries."""
     seg_delay: bool
     """If true, delay rupture across slip boundaries according to specifications of rvfac_seg and gwid."""
@@ -726,6 +726,29 @@ class RealisationMetadata(RealisationConfiguration):
 
 
 @dataclasses.dataclass
+class RuptureVelocity(RealisationConfiguration):
+    """Rupture velocities for source and high-frequency simulation."""
+
+    _config_key: ClassVar[str] = "rupture_velocity"
+    _schema: ClassVar[Schema] = schemas.RUPTURE_VELOCITY_SCHEMA
+
+    rvfrac: float
+    """Rupture velocity factor (rupture : Vs)"""
+    rvfrac_shal: float
+    """Rupture velocity at shallow depths"""
+    rvfrac_deep: float
+    """Rupture velocity at depth"""
+    shallow_depth: float
+    """Shallow depth (km). Marks transition to rvfrac_shal from rvfrac."""
+    shallow_transition_range: float
+    """Shallow depth transition range (km)."""
+    deep_depth: float
+    """Deep depth (km). Marks transition to rvfrac_deep from rvfrac."""
+    deep_transition_range: float
+    """Deep depth transition range (km)."""
+
+
+@dataclasses.dataclass
 class HFConfig(RealisationConfiguration):
     """High frequency simulation configuration."""
 
@@ -768,12 +791,6 @@ class HFConfig(RealisationConfiguration):
     """Unknown!"""
     qfexp: float
     """Q frequency exponent"""
-    rvfac: float
-    """Rupture velocity factor (rupture : Vs)"""
-    rvfac_shal: float
-    """rvfac shallow fault multiplier"""
-    rvfac_deep: float
-    """rvfac deep fault multiplier"""
     czero: float
     """C0 coefficient"""
     calpha: float
