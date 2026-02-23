@@ -782,12 +782,18 @@ def generate_srf(
         single_threaded=single_threaded,
     )
     srf_name = normalise_name(metadata.name)
-    stitch_srf_files(
-        source_config.source_geometries,
-        rupture_propagation,
-        work_directory,
-        srf_name,
-    )
+    if len(source_config.source_geometries) > 1:
+        stitch_srf_files(
+            source_config.source_geometries,
+            rupture_propagation,
+            work_directory,
+            srf_name,
+        )
+    else:
+        source_name = list(source_config.source_geometries)[0]
+        input_srf_path = work_directory / "srf" / f"{normalise_name(source_name)}.srf"
+        output_srf_path = work_directory / f"{srf_name}.srf"
+        shutil.move(input_srf_path, output_srf_path)
     srf_config.write_to_realisation(realisation_ffp)
 
     shutil.copyfile(work_directory / (srf_name + ".srf"), output_srf_filepath)
