@@ -4,8 +4,10 @@ import difflib
 import inspect
 import json
 import re
+from collections import defaultdict
 from enum import Enum, auto
 from pathlib import Path
+from typing import Mapping
 
 import schema
 import typer
@@ -23,6 +25,13 @@ class Response(Enum):
     NO = auto()
     AUTO = auto()  # Always (!)
     NEVER = auto()  # Never (N)
+
+
+class Action(Enum):
+    MIGRATE = auto()
+    TRIM = auto()
+    FILL = auto()
+    UPDATE = auto()
 
 
 def is_realisation_configuration(cls: type) -> bool:
@@ -61,42 +70,30 @@ def loadable_defaults(
 
 def yes_no_always_prompt(raw_prompt: str) -> Response:
     """Prompt user for a decision, handling y, n, !, and N."""
-    prompt = f"[bold]{raw_prompt}[/bold] (y/n/!/N): "
+    prompt = f"{raw_prompt} (y/n/!/N): "
+    response_map = {
+        "N": Response.NEVER,
+        "!": Response.AUTO,
+        "y": Response.YES,
+        "n": Response.NO,
+    }
     while True:
-        # Use console.input to support rich markup in the prompt
-        raw_response = console.input(prompt).strip()
-
-        # Exact match for case-sensitive 'N' (Never)
-        if raw_response == "N":
-            return Response.NEVER
-        elif raw_response == "!":
-            return Response.AUTO
-        elif raw_response.lower() == "y":
-            return Response.YES
-        elif raw_response.lower() == "n":
-            return Response.NO
+        raw_response = input(prompt).strip()
+        if raw_response in response_map:
+            return response_map[raw_response]
 
 
-def prompt_autofill(
+def autofill(
     realisation: Path,
     config: realisations.RealisationConfiguration,
-    auto_state: Response | None,
     dry_run: bool,
-) -> Response:
-    response = auto_state
-
-    if response not in (Response.AUTO, Response.NEVER):
-        response = yes_no_always_prompt(
-            f"Defaults are available for {config.__class__.__name__}, autofill?"
+) -> None:
+    if dry_run:
+        console.print(
+            f"DRY RUN: Would merge with {config.__class__.__name__} defaults in {realisation}"
         )
-
-    if response in (Response.YES, Response.AUTO):
-        if dry_run:
-            console.print(f"[magenta]DRY RUN: Would autofill {realisation}[/magenta]")
-        else:
-            config.write_to_realisation(realisation)
-
-    return response
+    else:
+        config.write_to_realisation(realisation)
 
 
 def extract_error(
@@ -110,88 +107,52 @@ def extract_error(
             keys.append(match.group(1))
 
     last_error = e.autos[-1] if e.autos else str(e)
-    table_path = f"[bold cyan]{name}[/bold cyan]"
     extraneous_keys = []
 
     # Handle multiple wrong keys: "Wrong keys 'dt', 'resolution' in..."
     if "Wrong keys" in last_error:
         # Extract everything between single quotes
         extraneous_keys = re.findall(r"'(.*?)'", last_error.split(" in {")[0])
-        error_msg = (
-            f"Extraneous keys found: [bold red]{', '.join(extraneous_keys)}[/bold red]"
-        )
-        return f"Error in {table_path}: {error_msg}", extraneous_keys
+        error_msg = f"Extraneous keys found: [red]{', '.join(extraneous_keys)}[/red]"
+        return f"Error in {name}: {error_msg}", extraneous_keys
 
     # Fallback to existing logic for "Wrong key" (singular/typo)
     if match := re.match(r"^Wrong key '(.*?)'", last_error):
         unknown_key = match.group(1)
         # ... (keep your existing fuzzy matching logic here) ...
-        return f"Error in {table_path}: Unknown key '{unknown_key}'", [unknown_key]
+        return f"Error in {name}: Unknown key '{unknown_key}'", [unknown_key]
 
-    return f"Error in {table_path}: {last_error}", []
+    return f"Error in {name}: {last_error}", []
 
 
-def prompt_migrate(
+def should_trim_keys(config: type, extra_keys: list[str]) -> Response:
+    return yes_no_always_prompt(f"Remove extraneous keys {extra_keys}?")
+
+
+def should_update(config: type) -> Response:
+    return yes_no_always_prompt(f"Merge with defaults for {config._config_key}?")
+
+
+def trim_keys(
     realisation: Path,
     config: type,
-    error: schema.SchemaError,
-    defaults: realisations.RealisationConfiguration | None,
-    auto_state: Response | None,
+    extra_keys: list[str],
     dry_run: bool,
-) -> Response:
-    assert issubclass(config, realisations.RealisationConfiguration)
-    name = config._config_key
+) -> None:
 
-    console.print(f"[red]Error loading {name}:[/red]")
-    error_msg, extraneous_keys = extract_error(
-        config._config_key, config._schema, error
-    )
-    console.print(error_msg)
-
-    response = auto_state
-    if extraneous_keys:
-        if response not in (Response.AUTO, Response.NEVER):
-            response = yes_no_always_prompt(
-                f"Remove extraneous keys {extraneous_keys}?"
-            )
-
-        if response in (Response.YES, Response.AUTO):
-            if dry_run:
-                console.print(
-                    f"[magenta]DRY RUN: Would remove {extraneous_keys} from {realisation}[/magenta]"
-                )
-            else:
-                # Load raw data, delete keys, save back
-                with open(realisation, "r") as f:
-                    data = json.load(f)
-
-                # Note: This logic assumes keys are at the root or you'd need
-                # to traverse based on the 'keys' list from pprint_error
-                config_data = data[config._config_key]
-                for k in extraneous_keys:
-                    config_data.pop(k, None)
-
-                with open(realisation, "w") as f:
-                    json.dump(data, f, indent=4)
-                console.print(f"[green]Successfully trimmed {realisation}[/green]")
-            return response
-    if defaults:
-        if response not in (Response.AUTO, Response.NEVER):
-            response = yes_no_always_prompt(
-                "Defaults are available, replace with defaults?"
-            )
-
-        if response in (Response.YES, Response.AUTO):
-            if dry_run:
-                console.print(
-                    f"[magenta]DRY RUN: Would migrate defaults to {realisation}[/magenta]"
-                )
-            else:
-                defaults.write_to_realisation(realisation)
+    if dry_run:
+        console.print(f"DRY RUN: Would remove {extra_keys} from {realisation}")
     else:
-        return response or Response.NO
+        # Load raw data, delete keys, save back
+        with open(realisation, "r") as f:
+            data = json.load(f)
 
-    return response
+        config_data = data[config._config_key]
+        for k in extra_keys:
+            config_data.pop(k, None)
+
+        with open(realisation, "w") as f:
+            json.dump(data, f, indent=4)
 
 
 def print_diff(config_a: dict, config_b: dict) -> None:
@@ -216,105 +177,97 @@ def print_diff(config_a: dict, config_b: dict) -> None:
             console.print(line, end="")
 
 
-def prompt_update(
-    realisation: Path,
-    loaded_config: realisations.RealisationConfiguration,
-    default_config: realisations.RealisationConfiguration,
-    auto_state: Response | None,
-    dry_run: bool,
-) -> Response:
-    loaded_conf_dict = loaded_config.to_dict()
-    default_dict = default_config.to_dict()
-    response = auto_state
-
-    if loaded_conf_dict != default_dict:
-        console.print("[yellow]Defaults differ from saved value:[/yellow]")
-        print_diff(loaded_conf_dict, default_dict)
-
-        if response not in (Response.AUTO, Response.NEVER):
-            response = yes_no_always_prompt("Accept defaults?")
-
-        if response in (Response.YES, Response.AUTO):
-            if dry_run:
-                console.print(
-                    f"[magenta]DRY RUN: Would update {realisation} with defaults[/magenta]"
-                )
-            else:
-                default_config.write_to_realisation(realisation)
-    else:
-        return response or Response.NO
-
-    return response
-
-
 def migrate(
     realisation: Path,
     defaults_version: DefaultsVersion,
     check_configs: list[type],
     defaults: dict[type, realisations.RealisationConfiguration],
-    auto_fill: dict[type, Response],
-    auto_migrate: dict[type, Response],
-    auto_update: dict[type, Response],
+    auto_response: Mapping[tuple[type, Action], Response],
     dry_run: bool,
 ) -> None:
     metadata = realisations.RealisationMetadata.read_from_realisation(realisation)
     if metadata.defaults_version != defaults_version:
         console.print(
-            f"[magenta]Updating defaults in {realisation} from {metadata.defaults_version} to {defaults}[/magenta]"
+            f"Updating defaults in {realisation} from {metadata.defaults_version} to {defaults_version}"
         )
         if not dry_run:
             metadata.defaults_version = defaults_version
             metadata.write_to_realisation(realisation)
+    try:
+        with open(realisation, "r") as f:
+            json_data = json.load(f)
+    except json.JSONDecodeError:
+        console.print(
+            f"[bold red]Invalid JSON in {realisation}, skipping...[/bold red]"
+        )
+        return
 
     for config in check_configs:
         if not issubclass(config, realisations.RealisationConfiguration):
             raise TypeError(
                 f"{config=} should be a subclass of realisations.RealisationConfiguration"
             )
-        else:
-            try:
-                loaded_config = config.read_from_realisation(realisation)
-                if default_config := defaults.get(config):
-                    response = prompt_update(
-                        realisation,
-                        loaded_config,
-                        default_config,
-                        auto_update.get(config),
-                        dry_run,
-                    )
-                    if response in (Response.AUTO, Response.NEVER):
-                        auto_update[config] = response
+        elif default_config := defaults.get(config):
+            default_config_dict = default_config.to_dict()
+            current_config = json_data.get(config._config_key, dict())
+            if current_config != default_config_dict:
+                print_diff(current_config, default_config_dict)
+                print("")
+                response = auto_response.get((config, Action.UPDATE)) or should_update(
+                    config
+                )
 
-            except realisations.RealisationParseError:
-                if default_config := defaults.get(config):
-                    response = prompt_autofill(
+                if response in (Response.AUTO, Response.NEVER):
+                    auto_response[Action.UPDATE] = response
+
+                if response in (response.AUTO, response.YES):
+                    autofill(
                         realisation,
                         default_config,
-                        auto_state=auto_fill.get(config),
                         dry_run=dry_run,
                     )
-                    if response in (Response.AUTO, Response.NEVER):
-                        auto_fill[config] = response
 
-            except schema.SchemaError as error:
-                default_config = defaults.get(config)
-                response = prompt_migrate(
-                    realisation,
-                    config,
-                    error,
-                    default_config,
-                    auto_state=auto_migrate.get(config),
-                    dry_run=dry_run,
-                )
-                if response in (Response.AUTO, Response.NEVER):
-                    auto_migrate[config] = response
-
-            except Exception as e:  # noqa: BLE001
+        # Basic validation complete, now try to resolve schema errors
+        try:
+            _ = config.read_from_realisation(realisation)
+        except realisations.RealisationParseError:
+            if config not in defaults and config != realisations.Seeds:
                 console.print(
-                    f"[bold red]Could not load realisation {realisation} for unrecoverable reason:[/bold red]"
+                    f"[bold red]Missing required configuration {config.__class__.__name__}[/bold red]"
                 )
-                console.print(str(e))
-                console.print("[yellow]Skipping[/yellow]")
+        except schema.SchemaError as error:
+            console.print(f"[red]Schema error for {realisation}[/red]")
+
+            default_config = defaults.get(config)
+            error, extra_keys = extract_error(config._config_key, config._schema, error)
+            console.print(error)
+            if extra_keys:
+                response = auto_response.get(Action.TRIM) or should_trim_keys(
+                    config, extra_keys
+                )
+
+                if response in (Response.AUTO, Response.NEVER):
+                    auto_response[Action.TRIM] = response
+
+                if response in (response.AUTO, response.YES):
+                    trim_keys(realisation, config, extra_keys, dry_run)
+                    # Try to read one more time
+                    try:
+                        _ = config.read_from_realisation(realisation)
+                    except schema.SchemaError as error:
+                        error, _ = extract_error(
+                            config._config_key, config._schema, error
+                        )
+                        console.print(
+                            f"[bold red]Unrecoverable schema error for {realisation}[/bold red]"
+                        )
+                        console.print(error)
+
+        except Exception as e:  # noqa: BLE001
+            console.print(
+                f"[bold red]Could not load realisation {realisation} for unrecoverable reason:[/bold red]"
+            )
+            console.print(str(e))
 
 
 @app.command()
@@ -324,15 +277,8 @@ def migrate_all(
     glob: str = "*.json",
     dry_run: bool = False,
 ) -> None:
-    if dry_run:
-        console.print(
-            "[bold magenta]*** RUNNING IN DRY RUN MODE - NO FILES WILL BE MODIFIED ***[/bold magenta]"
-        )
 
-    auto_fill: dict[type, Response] = {}
-    auto_migrate: dict[type, Response] = {}
-    auto_update: dict[type, Response] = {}
-
+    auto_response = dict()
     configs = realisation_configurations()
     defaults = loadable_defaults(configs, defaults_version)
 
@@ -342,9 +288,7 @@ def migrate_all(
             defaults_version,
             configs,
             defaults,
-            auto_fill,
-            auto_migrate,
-            auto_update,
+            auto_response,
             dry_run,
         )
 
