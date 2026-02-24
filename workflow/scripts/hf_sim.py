@@ -139,7 +139,8 @@ def build_hf_input(
         1,  # one station in the input
         f"{domain_parameters.duration} {resolution.dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",
         f"{rupture_velocity.rvfrac} {rupture_velocity.rvfrac_shal} {rupture_velocity.rvfrac_deep} {hf_config.czero} {hf_config.calpha}",
-        f"{shallow_min} {shallow_max} {deep_min} {deep_max}",
+        # TODO: This requires PR from EMOD3D to merge before we can do this!
+        # f"{shallow_min} {shallow_max} {deep_min} {deep_max}",
         f"{hf_config.mom or -1} {hf_config.rupv or -1}",
         stoch_ffp,
         velocity_model,
