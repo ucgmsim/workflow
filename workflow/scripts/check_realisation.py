@@ -1,4 +1,5 @@
 """Check that realisation can be loaded, if it can't automatically trim extraneous tags and offer to fill in default values."""
+from collections.abc import MutableMapping
 
 import difflib
 import inspect
@@ -182,7 +183,7 @@ def migrate(
     defaults_version: DefaultsVersion,
     check_configs: list[type],
     defaults: dict[type, realisations.RealisationConfiguration],
-    auto_response: Mapping[tuple[type, Action], Response],
+    auto_response: MutableMapping[tuple[type, Action], Response],
     dry_run: bool,
 ) -> None:
     metadata = realisations.RealisationMetadata.read_from_realisation(realisation)
@@ -218,7 +219,7 @@ def migrate(
                 )
 
                 if response in (Response.AUTO, Response.NEVER):
-                    auto_response[Action.UPDATE] = response
+                    auto_response[(config, Action.UPDATE)] = response
 
                 if response in (response.AUTO, response.YES):
                     autofill(
@@ -242,12 +243,12 @@ def migrate(
             error, extra_keys = extract_error(config._config_key, config._schema, error)
             console.print(error)
             if extra_keys:
-                response = auto_response.get(Action.TRIM) or should_trim_keys(
+                response = auto_response.get((config, Action.TRIM)) or should_trim_keys(
                     config, extra_keys
                 )
 
                 if response in (Response.AUTO, Response.NEVER):
-                    auto_response[Action.TRIM] = response
+                    auto_response[(config, Action.TRIM)] = response
 
                 if response in (response.AUTO, response.YES):
                     trim_keys(realisation, config, extra_keys, dry_run)
