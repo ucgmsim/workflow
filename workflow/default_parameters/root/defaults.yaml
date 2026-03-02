@@ -118,6 +118,106 @@ srf:
   resolution: 0.1
   slip_sigma: 0.75
   risetime_coef: 1.6
+  # Rise time and source time function values
+  beta_asp: 0.3
+  beta_deep: 0.13
+  beta_mid: 0.13
+  beta_mid_depth: 6.5
+  beta_mid_depth_range: 1.5
+  beta_shal: 0.5
+  beta_shal_depth: 2.0
+  beta_shal_depth_range: 1.0
+  beta_subevt: 0.1
+  deep_risetimedep: 17.5
+  deep_risetimedep_range: 2.5
+  deep_risetimefac: 2.0
+  risetimedep: 6.5
+  risetimedep_range: 1.5
+  risetimefac: 2.0
+  rt_rand: 0.0
+  rt_scalefac: 1.0
+  stype: null
+  # Hybrid Correlation Length (hyb_corlen) Parameters
+  hyb_corlen_deep_wt_end: 1.0
+  hyb_corlen_deep_wt_start: 0.0
+  hyb_corlen_dep: 6.5
+  hyb_corlen_dep_range: 1.5
+  hyb_corlen_fac: 2.0
+  hyb_corlen_flag: false
+  hyb_corlen_kmodel: 5
+  hyb_corlen_shal_wt_end: 0.0
+  hyb_corlen_shal_wt_start: 1.0
+  hyb_corlen_side_taper: 0.08
+  # Rupture Velocity & Fault Dimensions
+  fdrup_scale_slip: false
+  fdrup_time: false
+  rupture_delay: 0.0
+  rvfmax: 1.414
+  rvfmin: 0.25
+  rvfrac_slip_sig: null
+  # Tapering & Slip Level Adjustments
+  truncate_zero_slip: true
+  slip_water_level: null
+  rake_sigma: 15.0
+  fractal_rake: false
+  # Time Shift Factors (tsfac)
+  tsfac1_scor: 0.8
+  tsfac1_sigma: 1.0
+  tsfac2_lambda_max: 5.0
+  tsfac2_lambda_min: null
+  tsfac2_scor: 0.5
+  tsfac2_sigma: 1.0
+  tsfac_bzero: -0.1
+  tsfac_coef: 1.1
+  tsfac_main: null
+  tsfac_slope: -0.5
+  # Kinematic Models & Corner Frequencies
+  circular_average: false
+  kmodel: 2
+  kord: 4
+  magC: 6.3
+  mag_area_Acoef: null
+  mag_area_Bcoef: null
+  mai_wt: 0.5
+  modified_corners: false
+  somerville_wt: 0.5
+  stretch_kcorner: false
+  use_gaus: true
+  use_median_mag: false
+  # Roughness & Wavelength Limits
+  lambda_max: null
+  lambda_min: null
+  roughnessfile: null
+  wavelength_max: null
+  wavelength_min: null
+  # Miscellaneous Slip/Rupture/Rake Vars
+  asp_taper_fac: 0.05
+  extend_fac: null
+  flen_max: null
+  fwid_max: null
+  init_slip_file: null
+  moment_fraction: null
+  perturb_subfault_location: true
+  rand_rake_degs: 60.0
+  read_slip_file: false
+  rtime1_depth: 2.0
+  rtime1_depth_range: 1.0
+  rtime1_scor: 0.8
+  rtime1_sigma: 0.85
+  rtime2_scor: 0.5
+  rtime2slip_exp: 0.5
+  rtime_rand: null
+  set_rake: null
+  svr_wt: 0.0
+  target_savg: null
+  use_Mw: true
+  # Aseismic & Segment Settings
+  aseis_flag: false
+  aseis_smooth: false
+  aseis_dep: 10.0
+  aseis_fac: null
+  xshift: 0.0
+  yshift: 0.0
   # The following parameters are only used for the point source approximation.
   point_source_params:
     # Valid options for the slip time function (stype) are:
