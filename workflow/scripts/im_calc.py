@@ -208,7 +208,7 @@ def calculate_instensity_measures(
             "station": ("station", broadband.station.values),
             "component": (
                 "component",
-                ["000", "090", "ver", "geom", "rotd0", "rotd50", "rotd100"],
+                ["000", "090", "ver", "geom", "rotd0", "rotd50", "rotd100", "eas"],
             ),
             "rrup": ("station", rrup),
             "rjb": ("station", rjb),
