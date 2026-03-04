@@ -99,6 +99,7 @@ rupture_velocity:
   rvfrac: 0.8
   rvfrac_shal: 0.6
   rvfrac_deep: 0.6
+  rvfrac_slip_sig: null
   shallow_depth: 6.5
   deep_depth: 17.5
   shallow_transition_range: 1.5
@@ -154,7 +155,6 @@ srf:
   rupture_delay: 0.0
   rvfmax: 1.414
   rvfmin: 0.25
-  rvfrac_slip_sig: null
   # Tapering & Slip Level Adjustments
   truncate_zero_slip: true
   slip_water_level: null
@@ -187,7 +187,6 @@ srf:
   # Roughness & Wavelength Limits
   lambda_max: null
   lambda_min: null
-  roughnessfile: null
   wavelength_max: null
   wavelength_min: null
   # Miscellaneous Slip/Rupture/Rake Vars
@@ -195,11 +194,9 @@ srf:
   extend_fac: null
   flen_max: null
   fwid_max: null
-  init_slip_file: null
   moment_fraction: null
   perturb_subfault_location: true
   rand_rake_degs: 60.0
-  read_slip_file: false
   rtime1_depth: 2.0
   rtime1_depth_range: 1.0
   rtime1_scor: 0.8

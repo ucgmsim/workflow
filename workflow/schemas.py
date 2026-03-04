@@ -7,7 +7,7 @@ for a description of realisations and the schemas.
 """
 
 import dataclasses
-from enum import StrEnum
+from enum import StrEnum, IntEnum
 
 import numpy as np
 import pandas as pd
@@ -30,6 +30,14 @@ class Stype(StrEnum):
     ucsb_varT1 = "ucsb-varT1"  # noqa: N815
     cos = "cos"
     seki = "seki"
+
+class KModel(IntEnum):
+    SOMERVILLE = 1
+    MAI = 2
+    FRANKEL = 3
+    MAI_SOMERVILLE = 4
+    SUZUKI = 5
+    INPUT_CORNERS = -1
 
 
 @dataclasses.dataclass
@@ -390,6 +398,11 @@ RUPTURE_VELOCITY_SCHEMA = Schema(
             NUMBER, _is_positive
         ),
         Literal(
+            "rvfrac_slip_sig",
+            description="Rupture velocity fraction slip sigma (null = disabled)."): Or(
+            NUMBER, None
+        ),
+        Literal(
             "shallow_depth",
             description="Shallow transition depth.",
         ): And(NUMBER, _is_positive),
@@ -538,7 +551,7 @@ SRF_SCHEMA = Schema(
         Literal(
             "stype",
             description="Slip time function type for genslip (null = use genslip default).",
-        ): Or(str, None),
+        ): Or(Use(Stype),None),
         # Hybrid Correlation Length (hyb_corlen) Parameters
         Literal(
             "hyb_corlen_deep_wt_end",
@@ -601,10 +614,7 @@ SRF_SCHEMA = Schema(
             "rvfmin",
             description="Minimum rupture velocity fraction.",
         ): And(NUMBER, _is_positive),
-        Literal(
-            "rvfrac_slip_sig",
-            description="Rupture velocity fraction slip sigma (null = disabled).",
-        ): Or(NUMBER, None),
+
         # Tapering & Slip Level Adjustments
         Literal(
             "truncate_zero_slip",
@@ -670,12 +680,12 @@ SRF_SCHEMA = Schema(
         ): bool,
         Literal(
             "kmodel",
-            description="Kinematic model index: 1=SOMERVILLE_FLAG, 2=MAI_FLAG, -1=INPUT_CORNERS_FLAG.",
-        ): And(NUMBER, _is_positive),
+            description="Kinematic model index: 1=SOMERVILLE, 2=MAI, 3=FRANKEL, 4=MAI_SOMERVILLE, 5=SUZUKI, -1=INPUT_CORNERS",
+        ): Use(KModel),
         Literal(
             "kord",
             description="Wavenumber filter order (integer stored as float for schema compatibility).",
-        ): And(NUMBER, _is_positive),
+        ): And(int, _is_positive),
         Literal(
             "magC",
             description="Magnitude corner frequency coefficient.",
@@ -722,10 +732,6 @@ SRF_SCHEMA = Schema(
             description="Minimum wavelength for slip correlation (null = no limit).",
         ): Or(NUMBER, None),
         Literal(
-            "roughnessfile",
-            description="Path to roughness file (null = no file).",
-        ): Or(str, None),
-        Literal(
             "wavelength_max",
             description="Maximum wavelength limit (null = no limit).",
         ): Or(NUMBER, None),
@@ -751,10 +757,6 @@ SRF_SCHEMA = Schema(
             description="Maximum fault width (null = no limit).",
         ): Or(NUMBER, None),
         Literal(
-            "init_slip_file",
-            description="Path to initial slip file (null = no file).",
-        ): Or(str, None),
-        Literal(
             "moment_fraction",
             description="Fraction of seismic moment (null = use all).",
         ): Or(NUMBER, None),
@@ -766,10 +768,6 @@ SRF_SCHEMA = Schema(
             "rand_rake_degs",
             description="Range of random rake perturbation (degrees).",
         ): And(NUMBER, _is_non_negative),
-        Literal(
-            "read_slip_file",
-            description="Read slip distribution from file.",
-        ): bool,
         Literal(
             "rtime1_depth",
             description="Rise time 1 depth level.",

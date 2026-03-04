@@ -399,213 +399,204 @@ class SRFConfig(RealisationConfiguration):
     risetime_coef: float
     """Risetime scaling coefficient."""
 
-    ymag_exp: float | None = None
+    ymag_exp: float | None
     """Corner magnitude exponent for along-strike slip correlation length. See genslip_v5.6.2c:1385"""
-    xmag_exp: float | None = None
+    xmag_exp: float | None
     """Corner magnitude exponent for down-dip slip correlation length. See genslip_v5.6.2c:1385"""
-    kx_corner: float | None = None
+    kx_corner: float | None
     """Corner wavenumber for along-strike slip correlation length. See genslip_v5.6.2c:1385"""
-    ky_corner: float | None = None
+    ky_corner: float | None
     """Corner wavenumber for down-dip slip correlation length. See genslip_v5.6.2c:1385"""
 
     # Rise time and source time function values
-    beta_asp: float = 0.3
+    beta_asp: float
     """Asperity beta parameter."""
-    beta_deep: float = 0.13
+    beta_deep: float
     """Deep beta parameter for rise time."""
-    beta_mid: float = 0.13
+    beta_mid: float
     """Mid-depth beta parameter for rise time."""
-    beta_mid_depth: float = 6.5
+    beta_mid_depth: float
     """Mid-depth level for beta depth scaling."""
-    beta_mid_depth_range: float = 1.5
+    beta_mid_depth_range: float
     """Mid-depth range for beta depth scaling."""
-    beta_shal: float = 0.5
+    beta_shal: float
     """Shallow beta parameter for rise time."""
-    beta_shal_depth: float = 2.0
+    beta_shal_depth: float
     """Shallow depth level for beta depth scaling."""
-    beta_shal_depth_range: float = 1.0
+    beta_shal_depth_range: float
     """Shallow depth range for beta depth scaling."""
-    beta_subevt: float = 0.1
+    beta_subevt: float
     """Sub-event beta parameter for rise time."""
-    deep_risetimedep: float = 17.5
+    deep_risetimedep: float
     """Deep rise time depth dependency level."""
-    deep_risetimedep_range: float = 2.5
+    deep_risetimedep_range: float
     """Deep rise time depth dependency range."""
-    deep_risetimefac: float = 2.0
+    deep_risetimefac: float
     """Deep rise time scaling factor."""
-    risetimedep: float = 6.5
+    risetimedep: float
     """Rise time depth dependency level."""
-    risetimedep_range: float = 1.5
+    risetimedep_range: float
     """Rise time depth dependency range."""
-    risetimefac: float = 2.0
+    risetimefac: float
     """Rise time scaling factor."""
-    rt_rand: float = 0.0
+    rt_rand: float
     """Rise time randomness factor (0.0 = deterministic)."""
-    rt_scalefac: float = 1.0
+    rt_scalefac: float
     """Rise time scale factor."""
-    stype: str | None = None
+    stype: str | None
     """Slip time function type for genslip (None = use genslip default)."""
 
     # Hybrid Correlation Length (hyb_corlen) Parameters
-    hyb_corlen_deep_wt_end: float = 1.0
+    hyb_corlen_deep_wt_end: float
     """Hybrid correlation length deep weight end."""
-    hyb_corlen_deep_wt_start: float = 0.0
+    hyb_corlen_deep_wt_start: float
     """Hybrid correlation length deep weight start."""
-    hyb_corlen_dep: float = 6.5
+    hyb_corlen_dep: float
     """Hybrid correlation length depth scaling level."""
-    hyb_corlen_dep_range: float = 1.5
+    hyb_corlen_dep_range: float
     """Hybrid correlation length depth scaling range."""
-    hyb_corlen_fac: float = 2.0
+    hyb_corlen_fac: float
     """Hybrid correlation length factor."""
-    hyb_corlen_flag: bool = False
+    hyb_corlen_flag: bool
     """Enable hybrid correlation length model."""
-    hyb_corlen_kmodel: float = 5.0
+    hyb_corlen_kmodel: schemas.KModel
     """Hybrid correlation length k-model index. Stored as float for schema compatibility."""
-    hyb_corlen_shal_wt_end: float = 0.0
+    hyb_corlen_shal_wt_end: float
     """Hybrid correlation length shallow weight end."""
-    hyb_corlen_shal_wt_start: float = 1.0
+    hyb_corlen_shal_wt_start: float
     """Hybrid correlation length shallow weight start."""
-    hyb_corlen_side_taper: float = 0.08
+    hyb_corlen_side_taper: float
     """Hybrid correlation length side taper."""
 
     # Rupture Velocity & Fault Dimensions
-    fdrup_scale_slip: bool = False
+    fdrup_scale_slip: bool
     """Scale slip by fault rupture area."""
-    fdrup_time: bool = False
+    fdrup_time: bool
     """Use fault rupture time."""
-    rupture_delay: float = 0.0
+    rupture_delay: float
     """Delay (in seconds) before rupture starts."""
-    rvfmax: float = 1.414
+    rvfmax: float
     """Maximum rupture velocity fraction."""
-    rvfmin: float = 0.25
+    rvfmin: float
     """Minimum rupture velocity fraction."""
-    rvfrac_slip_sig: float | None = None
-    """Rupture velocity fraction slip sigma (None = disabled)."""
-
     # Tapering & Slip Level Adjustments
-    truncate_zero_slip: bool = True
+    truncate_zero_slip: bool
     """Truncate subfaults with zero slip."""
-    slip_water_level: float | None = None
+    slip_water_level: float | None
     """Water level for slip distribution (None = disabled)."""
-    rake_sigma: float = 15.0
+    rake_sigma: float
     """Standard deviation of rake perturbation (degrees)."""
-    fractal_rake: bool = False
+    fractal_rake: bool
     """Use fractal rake distribution."""
 
     # Time Shift Factors (tsfac)
-    tsfac1_scor: float = 0.8
+    tsfac1_scor: float
     """Time shift factor 1 spatial correlation."""
-    tsfac1_sigma: float = 1.0
+    tsfac1_sigma: float
     """Time shift factor 1 sigma."""
-    tsfac2_lambda_max: float = 5.0
+    tsfac2_lambda_max: float
     """Time shift factor 2 maximum wavelength."""
-    tsfac2_lambda_min: float | None = None
+    tsfac2_lambda_min: float | None
     """Time shift factor 2 minimum wavelength (None = disabled)."""
-    tsfac2_scor: float = 0.5
+    tsfac2_scor: float
     """Time shift factor 2 spatial correlation."""
-    tsfac2_sigma: float = 1.0
+    tsfac2_sigma: float
     """Time shift factor 2 sigma."""
-    tsfac_bzero: float = -0.1
+    tsfac_bzero: float
     """Time shift factor b0 coefficient."""
-    tsfac_coef: float = 1.1
+    tsfac_coef: float
     """Time shift factor coefficient."""
-    tsfac_main: float | None = None
+    tsfac_main: float | None
     """Main time shift factor (None = use computed value)."""
-    tsfac_slope: float = -0.5
+    tsfac_slope: float
     """Time shift factor slope."""
 
     # Kinematic Models & Corner Frequencies
-    circular_average: bool = False
+    circular_average: bool
     """Use circular average for slip correlation."""
-    kmodel: float = 2.0
-    """Kinematic model index: 1=SOMERVILLE_FLAG, 2=MAI_FLAG, -1=INPUT_CORNERS_FLAG. Stored as float for schema compatibility."""
-    kord: float = 4.0
+    kmodel: schemas.KModel
+    """Kinematic model index."""
+    kord: int
     """Wavenumber filter order. Stored as float for schema compatibility."""
-    magC: float = 6.3
+    magC: float
     """Magnitude corner frequency coefficient."""
-    mag_area_Acoef: float | None = None
+    mag_area_Acoef: float | None
     """Magnitude-area scaling A coefficient (None = disabled)."""
-    mag_area_Bcoef: float | None = None
+    mag_area_Bcoef: float | None
     """Magnitude-area scaling B coefficient (None = disabled)."""
-    mai_wt: float = 0.5
+    mai_wt: float
     """MAI model weight."""
-    modified_corners: bool = False
+    modified_corners: bool
     """Use modified corner frequencies."""
-    somerville_wt: float = 0.5
+    somerville_wt: float
     """Somerville model weight."""
-    stretch_kcorner: bool = False
+    stretch_kcorner: bool
     """Stretch corner wavenumber."""
-    use_gaus: bool = True
+    use_gaus: bool
     """Use Gaussian slip distribution."""
-    use_median_mag: bool = False
+    use_median_mag: bool
     """Use median magnitude for scaling."""
 
     # Roughness & Wavelength Limits
-    lambda_max: float | None = None
+    lambda_max: float | None
     """Maximum wavelength for slip correlation (None = no limit)."""
-    lambda_min: float | None = None
+    lambda_min: float | None
     """Minimum wavelength for slip correlation (None = no limit)."""
-    roughnessfile: str | None = None
-    """Path to roughness file (None = no file)."""
-    wavelength_max: float | None = None
+    wavelength_max: float | None
     """Maximum wavelength limit (None = no limit)."""
-    wavelength_min: float | None = None
+    wavelength_min: float | None
     """Minimum wavelength limit (None = no limit)."""
 
     # Miscellaneous Slip/Rupture/Rake Vars
-    asp_taper_fac: float = 0.05
+    asp_taper_fac: float
     """Asperity taper factor."""
-    extend_fac: float | None = None
+    extend_fac: float | None
     """Fault extension factor (None = disabled)."""
-    flen_max: float | None = None
+    flen_max: float | None
     """Maximum fault length (None = no limit)."""
-    fwid_max: float | None = None
+    fwid_max: float | None
     """Maximum fault width (None = no limit)."""
-    init_slip_file: str | None = None
-    """Path to initial slip file (None = no file)."""
-    moment_fraction: float | None = None
+    moment_fraction: float | None
     """Fraction of seismic moment (None = use all)."""
-    perturb_subfault_location: bool = True
+    perturb_subfault_location: bool
     """Perturb subfault locations."""
-    rand_rake_degs: float = 60.0
+    rand_rake_degs: float
     """Range of random rake perturbation (degrees)."""
-    read_slip_file: bool = False
-    """Read slip distribution from file."""
-    rtime1_depth: float = 2.0
+    rtime1_depth: float
     """Rise time 1 depth level."""
-    rtime1_depth_range: float = 1.0
+    rtime1_depth_range: float
     """Rise time 1 depth range."""
-    rtime1_scor: float = 0.8
+    rtime1_scor: float
     """Rise time 1 spatial correlation."""
-    rtime1_sigma: float = 0.85
+    rtime1_sigma: float
     """Rise time 1 sigma."""
-    rtime2_scor: float = 0.5
+    rtime2_scor: float
     """Rise time 2 spatial correlation."""
-    rtime2slip_exp: float = 0.5
+    rtime2slip_exp: float
     """Rise time 2 slip exponent."""
-    rtime_rand: float | None = None
+    rtime_rand: float | None
     """Rise time randomness (None = disabled)."""
-    set_rake: float | None = None
+    set_rake: float | None
     """Fixed rake angle (None = use fault rake)."""
-    svr_wt: float = 0.0
+    svr_wt: float
     """SVR model weight."""
-    target_savg: float | None = None
+    target_savg: float | None
     """Target average slip (None = compute from magnitude)."""
-    use_Mw: bool = True
+    use_Mw: bool
     """Use moment magnitude for scaling."""
 
     # Aseismic & Segment Settings
-    aseis_flag: bool = False
+    aseis_flag: bool
     """Enable aseismic zone correction."""
-    aseis_smooth: bool = False
+    aseis_smooth: bool
     """Enable smoothing of aseismic zones."""
-    aseis_dep: float = 10.0
+    aseis_dep: float
     """Aseismic zone depth."""
-    aseis_fac: float | None = None
+    aseis_fac: float | None
     """Aseismic zone factor (None = disabled)."""
-    xshift: float = 0.0
+    xshift: float
     """Along-strike shift of slip distribution."""
-    yshift: float = 0.0
+    yshift: float
     """Down-dip shift of slip distribution."""
 
     def to_dict(self) -> dict[str, Any]:
@@ -936,6 +927,8 @@ class RuptureVelocity(RealisationConfiguration):
     """Rupture velocity factor (rupture : Vs)"""
     rvfrac_shal: float
     """Rupture velocity at shallow depths"""
+    rvfrac_slip_sig: float | None
+    """Rupture velocity fraction slip sigma (None = disabled)."""
     rvfrac_deep: float
     """Rupture velocity at depth"""
     shallow_depth: float
