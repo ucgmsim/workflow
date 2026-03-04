@@ -43,6 +43,7 @@ import re
 import shutil
 import subprocess
 from collections.abc import Iterable
+from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
@@ -490,6 +491,8 @@ def _build_genslip_command(
             serialised_value = ",".join([str(v) for v in value])
         elif isinstance(value, bool):
             serialised_value = "1" if value else "0"
+        elif isinstance(value, Enum):
+            serialised_value = str(value.value)
         elif dataclasses.is_dataclass(value):
             continue
         else:

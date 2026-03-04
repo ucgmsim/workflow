@@ -517,7 +517,7 @@ class SRFConfig(RealisationConfiguration):
     kmodel: schemas.KModel
     """Kinematic model index."""
     kord: int
-    """Wavenumber filter order. Stored as float for schema compatibility."""
+    """Wavenumber filter order."""
     magC: float
     """Magnitude corner frequency coefficient."""
     mag_area_Acoef: float | None
