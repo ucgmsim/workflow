@@ -159,7 +159,7 @@ def test_srf_config_example(tmp_path: Path) -> None:
         hyb_corlen_dep_range=1.5,
         hyb_corlen_fac=2.0,
         hyb_corlen_flag=False,
-        hyb_corlen_kmodel=5.0,
+        hyb_corlen_kmodel=KModel.SUZUKI,
         hyb_corlen_shal_wt_end=0.0,
         hyb_corlen_shal_wt_start=1.0,
         hyb_corlen_side_taper=0.08,
