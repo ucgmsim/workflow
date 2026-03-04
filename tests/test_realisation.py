@@ -312,7 +312,7 @@ def test_srf_config_example(tmp_path: Path) -> None:
                 "tsfac_slope": -0.5,
                 "circular_average": False,
                 "kmodel": 2.0,
-                "kord": 4.0,
+                "kord": 4,
                 "magC": 6.3,
                 "mag_area_Acoef": None,
                 "mag_area_Bcoef": None,
