@@ -480,6 +480,10 @@ def _build_genslip_command(
         f"deep_vrup_dep={rupture_velocity.deep_depth}",
         f"deep_vrup_deprange={rupture_velocity.deep_transition_range}",
     ]
+
+    if rupture_velocity.rvfrac_slip_sig is not None:
+        cmd.append(f"rvfrac_slip_sig={rupture_velocity.rvfrac_slip_sig}")
+
     skipped_fields = {"point_source_params"}
     for field in dataclasses.fields(srf_config):
         key = field.name
