@@ -20,6 +20,8 @@ console = Console()
 
 
 class Response(Enum):
+    """Enum for response to prompts asked of user."""
+
     YES = auto()
     NO = auto()
     AUTO = auto()  # Always (!)
@@ -27,44 +29,12 @@ class Response(Enum):
 
 
 class Action(Enum):
+    """Migration actions that can be taken on realisation configuration."""
+
     MIGRATE = auto()
     TRIM = auto()
     FILL = auto()
     UPDATE = auto()
-
-
-def is_realisation_configuration(cls: type) -> bool:
-    return (
-        cls != realisations.RealisationConfiguration
-        and inspect.isclass(cls)
-        and issubclass(cls, realisations.RealisationConfiguration)
-    )
-
-
-def realisation_configurations() -> list[type]:
-    return [
-        cls
-        for name, cls in inspect.getmembers(realisations)
-        if is_realisation_configuration(cls)
-    ]
-
-
-def loadable_defaults(
-    configurations: list[type], defaults: DefaultsVersion
-) -> dict[type, realisations.RealisationConfiguration]:
-    config_defaults = {}
-    for config in configurations:
-        if not issubclass(config, realisations.RealisationConfiguration):
-            raise TypeError(
-                f"{config=} should be a subclass of realisations.RealisationConfiguration"
-            )
-        else:
-            try:
-                default_config = config.read_from_defaults(defaults)
-                config_defaults[config] = default_config
-            except realisations.RealisationParseError:
-                continue
-    return config_defaults
 
 
 def yes_no_always_prompt(raw_prompt: str) -> Response:

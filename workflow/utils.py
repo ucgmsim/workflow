@@ -1,5 +1,6 @@
 """Miscellaneous workflow utilities that couldn't go anywhere else."""
 
+import inspect
 import os
 import tempfile
 import urllib.request
@@ -13,6 +14,7 @@ import shapely
 from shapely import Geometry, Polygon, geometry
 
 from qcore import coordinates
+from workflow import defaults, realisations
 
 NZ_COASTLINE_URL = "https://www.dropbox.com/scl/fi/zkohh794y0s2189t7b1hi/NZ.gmt?rlkey=02011f4morc4toutt9nzojrw1&st=vpz2ri8x&dl=1"
 
@@ -174,3 +176,81 @@ def dict_zip(*dicts: Mapping[K, Any], strict: bool = True) -> dict[K, tuple[Any,
 
     result = {key: tuple(d[key] for d in dicts) for key in list(keys)}
     return result
+
+
+def is_realisation_configuration(cls: type) -> bool:
+    """Returns True if the class is a subclass of realisation configuration.
+
+    Parameters
+    ----------
+    cls : type
+        Type to check.
+
+    Returns
+    -------
+    bool
+        True if class is a realisation configuration.
+    """
+    return (
+        cls != realisations.RealisationConfiguration
+        and inspect.isclass(cls)
+        and issubclass(cls, realisations.RealisationConfiguration)
+    )
+
+
+def realisation_configurations() -> list[type]:
+    """Return a list of all realisation configurations.
+
+    Returns
+    -------
+    list[type]
+        A list of all realisation configuration types.
+    """
+    return [
+        cls
+        for name, cls in inspect.getmembers(realisations)
+        if is_realisation_configuration(cls)
+    ]
+
+
+def loadable_defaults(
+    configurations: list[type], defaults: defaults.DefaultsVersion
+) -> dict[type, realisations.RealisationConfiguration]:
+    """Filter a list of realisation configurations for those with loadable defaults.
+
+
+
+    Parameters
+    ----------
+    configurations : list[type]
+        Configurations to filter.
+    defaults : defaults.DefaultsVersion
+        Defaults to try and load.
+
+
+    Returns
+    -------
+    dict[type, realisations.RealisationConfiguration]
+        A mapping from realisation configuration types to their
+        defaults specified by ``defaults``.
+
+    Raises
+    ------
+    TypeError
+        If ``configurations`` contains a type that is not a
+        realisation configuration.
+
+    """
+    config_defaults = {}
+    for config in configurations:
+        if not is_realisation_configuration(config):
+            raise TypeError(
+                f"{config=} should be a subclass of realisations.RealisationConfiguration"
+            )
+        else:
+            try:
+                default_config = config.read_from_defaults(defaults)  # type: ignore[unresolved-attribute]
+                config_defaults[config] = default_config
+            except realisations.RealisationParseError:
+                continue
+    return config_defaults
