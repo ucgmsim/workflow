@@ -1,14 +1,12 @@
 """Check that realisation can be loaded, if it can't automatically trim extraneous tags and offer to fill in default values."""
-from collections.abc import MutableMapping
 
 import difflib
 import inspect
 import json
 import re
-from collections import defaultdict
+from collections.abc import MutableMapping
 from enum import Enum, auto
 from pathlib import Path
-from typing import Mapping
 
 import schema
 import typer
