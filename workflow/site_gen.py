@@ -12,7 +12,6 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import pooch
-import pygmt
 import shapely
 import xarray as xr
 from shapely import geometry
@@ -164,6 +163,8 @@ def gen_general_land_mask_grid(spacing: int) -> xr.DataArray:
 
     # Generate grid
     logger.info("Generating grid...")
+    # Defer import of pygmt because GMT sucks
+    import pygmt
     land_mask_grid = pygmt.grdlandmask(
         region="NZ", spacing=f"{spacing}e/{spacing}e"
     ).astype(bool)
