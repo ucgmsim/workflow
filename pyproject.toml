@@ -74,6 +74,8 @@ gcmt-auto-simulate = "workflow.scripts.gcmt_auto_simulate:app"
 import-realisation = "workflow.scripts.import_realisation:app"
 lf-to-xarray = "workflow.scripts.lf_to_xarray:app"
 merge-ts = "workflow.scripts.merge_ts:app"
+site-grid =  "workflow.scripts.site_gen_cmds:app"
+
 
 [tool.setuptools.package-dir]
 workflow = "workflow"
