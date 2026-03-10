@@ -5,7 +5,6 @@ from typing import Annotated
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import shapely
 import typer
 import yaml
@@ -148,7 +147,9 @@ def gen_plot(
         config = site_gen.CustomGridConfig.from_config(
             yaml.load(f, Loader=yaml.FullLoader)["config"]
         )
-
+    
+    # Import the following within the function so that it is only required if used
+    import plotly.graph_objects as go
     fig = go.Figure()
 
     virt_sites_mask = site_df.loc[:, "source"] == "virtual"
