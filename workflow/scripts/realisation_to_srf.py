@@ -546,7 +546,10 @@ def generate_fault_srf(
         gsf_file_path=gsf_file_path,
         nx=nx,
         ny=ny,
-        seed=environment.seeds.genslip_seed,
+        # NOTE: This stable hash trick is also used in hf-sim, and is
+        # designed to give order invariant stable hashes for segments
+        # based on their names.
+        seed=environment.seeds.genslip_seed ^ utils.stable_hash(name),
         velocity_model_path=environment.velocity_model_path,
         shypo=genslip_hypocentre_coords[0],
         dhypo=genslip_hypocentre_coords[1],

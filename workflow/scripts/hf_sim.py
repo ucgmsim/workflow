@@ -247,32 +247,6 @@ def hf_simulate_station(
         return station_name, epicentre_distance, station_waveform
 
 
-def stable_hash(station: str) -> int:
-    """Compute stable hashes for station names.
-
-    The HF binary expects seeds. We want the provided seed to be
-    independent of the order of stations in the stations lists. This
-    is so setting HF seed reproduces the same outputs, even for
-    different orders or subsets of the original station file. To do
-    that, we generate stable hashes based on the station name.
-
-
-    Parameters
-    ----------
-    station : str
-        The station name.
-
-    Returns
-    -------
-    int
-        A hash of the station name. This is guaranteed to be in the
-        range of a signed 32-bit integer.
-    """
-    return int.from_bytes(
-        hashlib.blake2b(station.encode("utf-8"), digest_size=4).digest(), signed=True
-    )
-
-
 def station_seeds(seed: int, stations: Iterable[str]) -> npt.NDArray[np.int32]:
     """Create a list of per-station seeds in an order-invariant fashion with a root seed.
 
@@ -289,7 +263,9 @@ def station_seeds(seed: int, stations: Iterable[str]) -> npt.NDArray[np.int32]:
     npt.NDArray[np.int32]
         A list of station seeds.
     """
-    station_hashes = np.array([stable_hash(name) for name in stations], dtype=np.int32)
+    station_hashes = np.array(
+        [utils.stable_hash(name) for name in stations], dtype=np.int32
+    )
     # Rather than add (which could overflow and cause annoying numpy
     # warnings), we just xor the hf seed with the station hashes.
     # Since this is invertible, we ensure that the same hf seed gives

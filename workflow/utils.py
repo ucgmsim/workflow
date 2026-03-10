@@ -1,5 +1,6 @@
 """Miscellaneous workflow utilities that couldn't go anywhere else."""
 
+import hashlib
 import os
 import tempfile
 import urllib.request
@@ -174,3 +175,24 @@ def dict_zip(*dicts: Mapping[K, Any], strict: bool = True) -> dict[K, tuple[Any,
 
     result = {key: tuple(d[key] for d in dicts) for key in list(keys)}
     return result
+
+
+def stable_hash(value: str, size: int = 4) -> int:
+    """Compute stable hashes for strings.
+
+    Parameters
+    ----------
+    value : str
+        String to hash.
+    size : int
+        Size of the hash value.
+
+    Returns
+    -------
+    int
+        A hash of the value. Guaranteed to be an integer within
+        the signed integer bounds prescribed by ``size``.
+    """
+    return int.from_bytes(
+        hashlib.blake2b(value.encode("utf-8"), digest_size=size).digest(), signed=True
+    )
