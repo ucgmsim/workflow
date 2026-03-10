@@ -17,6 +17,8 @@ dependencies = [
   "oq_wrapper>=2025.12.3",
   "qcore-utils>=2025.12.2",
   "source_modelling>=2025.12.1",
+
+  "pygmt",
   # Data Formats
   "geopandas",
   "pandas[parquet, hdf5]",
@@ -47,7 +49,6 @@ types = ["pandas-stubs", "types-geopandas", "types-requests", "scipy-stubs"]
 dev = ["ruff", "deptry", "ty", "numpydoc"]
 plot = [
   "plotly",
-  "pygmt",
 ]
 
 [tool.deptry]
