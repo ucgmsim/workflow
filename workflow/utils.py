@@ -14,7 +14,7 @@ import shapely
 from shapely import Geometry, Polygon, geometry
 
 from qcore import coordinates
-from workflow import defaults, realisations
+from workflow import defaults
 
 NZ_COASTLINE_URL = "https://www.dropbox.com/scl/fi/zkohh794y0s2189t7b1hi/NZ.gmt?rlkey=02011f4morc4toutt9nzojrw1&st=vpz2ri8x&dl=1"
 
@@ -178,79 +178,21 @@ def dict_zip(*dicts: Mapping[K, Any], strict: bool = True) -> dict[K, tuple[Any,
     return result
 
 
-def is_realisation_configuration(cls: type) -> bool:
-    """Returns True if the class is a subclass of realisation configuration.
+def merge_dictionaries(dict_a: dict[str, Any], dict_b: dict[str, Any]) -> None:
+    """Deep-merge dictionaries in place, updating the first with values from the second.
 
     Parameters
     ----------
-    cls : type
-        Type to check.
-
-    Returns
-    -------
-    bool
-        True if class is a realisation configuration.
+    dict_a : dict[str, Any]
+        Base dictionary to be updated. This dictionary is modified in place with
+        merged values.
+    dict_b : dict[str, Any]
+        Dictionary providing overriding values. Keys in this dictionary are
+        preferred when keys conflict. This dictionary is not modified.
     """
-    return (
-        cls != realisations.RealisationConfiguration
-        and inspect.isclass(cls)
-        and issubclass(cls, realisations.RealisationConfiguration)
-    )
 
-
-def realisation_configurations() -> list[type]:
-    """Return a list of all realisation configurations.
-
-    Returns
-    -------
-    list[type]
-        A list of all realisation configuration types.
-    """
-    return [
-        cls
-        for name, cls in inspect.getmembers(realisations)
-        if is_realisation_configuration(cls)
-    ]
-
-
-def loadable_defaults(
-    configurations: list[type], defaults: defaults.DefaultsVersion
-) -> dict[type, realisations.RealisationConfiguration]:
-    """Filter a list of realisation configurations for those with loadable defaults.
-
-
-
-    Parameters
-    ----------
-    configurations : list[type]
-        Configurations to filter.
-    defaults : defaults.DefaultsVersion
-        Defaults to try and load.
-
-
-    Returns
-    -------
-    dict[type, realisations.RealisationConfiguration]
-        A mapping from realisation configuration types to their
-        defaults specified by ``defaults``.
-
-    Raises
-    ------
-    TypeError
-        If ``configurations`` contains a type that is not a
-        realisation configuration.
-
-    """
-    config_defaults = {}
-    for config in configurations:
-        if not is_realisation_configuration(config):
-            raise TypeError(
-                f"{config=} should be a subclass of realisations.RealisationConfiguration"
-            )
+    for key, value in dict_b.items():
+        if key in dict_a and isinstance(dict_a[key], dict) and isinstance(value, dict):
+            merge_dictionaries(dict_a[key], dict_b[key])
         else:
-            try:
-                default_config = config.read_from_defaults(defaults)  # type: ignore[unresolved-attribute]
-                config_defaults[config] = default_config
-            except realisations.RealisationParseError:
-                continue
-    return config_defaults
+            dict_a[key] = value
