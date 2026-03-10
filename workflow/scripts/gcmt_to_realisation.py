@@ -171,12 +171,6 @@ def gcmt_to_realisation(
         strike2 = gcmt_solutions.at[gcmt_event_id, "strike2"]
         dip2 = gcmt_solutions.at[gcmt_event_id, "dip2"]
         rake2 = gcmt_solutions.at[gcmt_event_id, "rake2"]
-        assert isinstance(strike1, float | int)
-        assert isinstance(dip1, float | int)
-        assert isinstance(rake1, float | int)
-        assert isinstance(strike2, float | int)
-        assert isinstance(dip2, float | int)
-        assert isinstance(rake2, float | int)
         nodal_plane_1 = NodalPlane(strike1, dip1, rake1)
         nodal_plane_2 = NodalPlane(strike2, rake2, dip2)
     elif gcmt_event_id in automated_gcmt_solutions:
