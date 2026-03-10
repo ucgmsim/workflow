@@ -18,28 +18,6 @@ from source_modelling import rupture_propagation, sources
 from velocity_modelling.bounding_box import BoundingBox
 from workflow.defaults import DefaultsVersion
 
-# NOTE: These functions seem silly and short, however there is a good
-# reason for the choice to create functions like this. The reason is
-# because when the schema library reports an error (such as the input
-# file having a negative depth value) it prints the name of the
-# function. So
-#
-# And(float, lambda x: x > 0).validate(-12)
-#
-# Would report the error
-#
-# schema.SchemaError: <lambda>(-12) should evaluate to True
-#
-# But using the function `is_positive` we instead have
-#
-# And(float, is_positive).validate(-12)
-# schema.SchemaError: is_positive(-12) should evaluate to True
-#
-# So using short functions with names improves the error reporting
-# from the library.
-#
-# Accordingly, the most trivial of these functions lack docstrings.
-
 
 class Stype(StrEnum):
     """Options for slip time function (stype) in generic_slip2srf."""
@@ -94,6 +72,29 @@ class PointSourceParams:
         return cls(**params_dict)
 
 
+# NOTE: These functions seem silly and short, however there is a good
+# reason for the choice to create functions like this. The reason is
+# because when the schema library reports an error (such as the input
+# file having a negative depth value) it prints the name of the
+# function. So
+#
+# And(float, lambda x: x > 0).validate(-12)
+#
+# Would report the error
+#
+# schema.SchemaError: <lambda>(-12) should evaluate to True
+#
+# But using the function `is_positive` we instead have
+#
+# And(float, is_positive).validate(-12)
+# schema.SchemaError: is_positive(-12) should evaluate to True
+#
+# So using short functions with names improves the error reporting
+# from the library.
+#
+# Accordingly, the most trivial of these functions lack docstrings.
+
+
 def _is_positive(x: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
     return x > 0
 
@@ -128,6 +129,10 @@ def _is_valid_local_coordinate(
 
 def _is_valid_bearing(bearing: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
     return 0 <= bearing <= 360
+
+
+def _is_proportion(x: float | int) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+    return 0 <= x <= 1
 
 
 def _is_correct_corner_shape(corners: np.ndarray) -> bool:
@@ -373,33 +378,104 @@ POINT_SOURCE_PARAMS_SCHEMA = Schema(
     )
 )
 
+RUPTURE_VELOCITY_SCHEMA = Schema(
+    {
+        Literal("rvfrac", description="Rupture velocity factor (rupture : Vs)"): And(
+            NUMBER, _is_positive
+        ),
+        Literal("rvfrac_shal", description="Rupture velocity at shallow depths"): And(
+            NUMBER, _is_positive
+        ),
+        Literal("rvfrac_deep", description="Rupture velocity at depth"): And(
+            NUMBER, _is_positive
+        ),
+        Literal(
+            "shallow_depth",
+            description="Shallow transition depth.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "shallow_transition_range",
+            description="Shallow transition depth transition range.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "deep_depth",
+            description="Deep transition depth.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "deep_transition_range",
+            description="Deep transition depth transition range.",
+        ): And(NUMBER, _is_positive),
+    }
+)
 
 SRF_SCHEMA = Schema(
     {
         Literal(
-            "genslip_dt",
-            description="The timestep for genslip (used to specify the resolution for the `TINIT` values)",
+            "resolution", description="The resolution of the SRF discretisation."
         ): And(NUMBER, _is_positive),
-        Literal("genslip_version", description="The version of genslip to use"): Or(
-            "5.4.2"
-        ),
-        Literal("resolution", description="Subdivision resolution."): And(
-            NUMBER, _is_positive
-        ),
         Optional(
             Literal(
                 "point_source_params",
                 description="Parameters for point source approximation, if applicable",
             )
         ): Or(None, POINT_SOURCE_PARAMS_SCHEMA),
+        Literal(
+            "side_taper",
+            description="Side slip tapering, proportion of along-strike 0-1.",
+        ): And(NUMBER, _is_proportion),
+        Literal(
+            "bot_taper",
+            description="Bottom slip tapering proportion of down-dip 0-1.",
+        ): And(NUMBER, _is_proportion),
+        Literal(
+            "top_taper",
+            description="Top slip tapering proportion of down-dip 0-1.",
+        ): And(NUMBER, _is_proportion),
+        Literal(
+            "alpha_rough",
+            description="Roughness (0.0 = smooth)",
+        ): And(NUMBER, _is_proportion),
+        Literal(
+            "gwid",
+            description="Width of delay zone around segment boundaries",
+        ): [And(NUMBER, _is_positive)],
+        Literal(
+            "rvfrac_seg",
+            description="Rupture speed reduction (proportion) at segment boundaries.",
+        ): [And(NUMBER, _is_proportion)],
+        Literal(
+            "seg_delay",
+            description="If true, delay rupture across slip boundaries according to specifications of rvfac_seg and gwid.",
+        ): bool,
+        Literal(
+            "ymag_exp",
+            description="Corner magnitude exponent for along-strike slip correlation length. See genslip_v5.6.2c:1385",
+        ): Or(NUMBER, None),
+        Literal(
+            "xmag_exp",
+            description="Corner magnitude exponent for down-dip slip correlation length. See genslip_v5.6.2c:1385",
+        ): Or(NUMBER, None),
+        Literal(
+            "kx_corner",
+            description="Corner wavenumber for along-strike slip correlation length. See genslip_v5.6.2c:1385",
+        ): Or(NUMBER, None),
+        Literal(
+            "ky_corner",
+            description="Corner wavenumber for down-dip slip correlation length. See genslip_v5.6.2c:1385",
+        ): Or(NUMBER, None),
+        Literal(
+            "slip_sigma",
+            description="The stddev of slip distribution.",
+        ): And(NUMBER, _is_non_negative),
+        Literal(
+            "risetime_coef",
+            description="Risetime scaling coefficient.",
+        ): And(NUMBER, _is_positive),
     }
 )
 
 DOMAIN_SCHEMA = Schema(
     {
-        Literal("resolution", description="The simulation resolution (in km)"): And(
-            NUMBER, _is_positive
-        ),
         Literal("domain", description="The corners of the simulation domain."): And(
             LAT_LON_SCHEMA, Use(BoundingBox.from_wgs84_coordinates)
         ),
@@ -409,9 +485,6 @@ DOMAIN_SCHEMA = Schema(
         Literal(
             "duration", description="The duration of the simulation (in seconds)"
         ): And(NUMBER, _is_positive),
-        Literal("dt", "The resolution of the domain in time (in seconds)."): And(
-            NUMBER, _is_positive
-        ),
     }
 )
 
@@ -463,21 +536,18 @@ VELOCITY_MODEL_SCHEMA = Schema(
             "min_vs",
             description="The minimum velocity (km/s) produced in the velocity model.",
         ): And(NUMBER, _is_positive),
-        Literal("version", "Velocity model version"): Or(
-            "2.02", "2.03", "2.06", "2.07", "2.08", "2.09", "2.09_no_basin"
-        ),
+        Literal("version", "Velocity model version"): str,
         Literal("topo_type", "Velocity model topology type"): str,
-        Literal("dt", "Velocity model timestep resolution"): And(NUMBER, _is_positive),
         Literal("ds_multiplier", "Velocity model ds multiplier"): And(
-            NUMBER, _is_positive
-        ),
-        Literal("resolution", "Velocity model spatial resolution"): And(
             NUMBER, _is_positive
         ),
         Literal("vs30", "VS30 value"): And(NUMBER, _is_positive),
         Literal("s_wave_velocity", "S-wave velocity"): And(NUMBER, _is_positive),
-        Literal("pgv_interpolants", "PGV interpolants to estimate domain size"): And(
+        Literal("rrup_interpolants", "RRup interpolants to estimate domain size"): And(
             [[And(NUMBER, _is_positive)]], Use(np.array)
+        ),
+        Literal("fault_buffer", "Buffer width (km) around sources in rupture."): And(
+            NUMBER, _is_positive
         ),
     }
 )
@@ -549,9 +619,6 @@ HF_CONFIG_SCHEMA = Schema(
         Literal("qs_sig", description="Unknown!"): NUMBER,
         Literal("ic_flag", description="Unknown!"): bool,
         Literal("velocity_name", description="Unknown!"): str,
-        Literal("dt", description="Time resolution for HF simulation"): And(
-            NUMBER, _is_positive
-        ),
         Literal("t_sec", description="High frequency output start time."): And(
             NUMBER, _is_non_negative
         ),
@@ -565,11 +632,6 @@ HF_CONFIG_SCHEMA = Schema(
         ),
         Literal("kappa", description="Unknown!"): NUMBER,
         Literal("qfexp", description="Q frequency exponent"): NUMBER,
-        Literal("rvfac", description="Rupture velocity factor (rupture : Vs)"): And(
-            NUMBER, _is_non_negative
-        ),
-        Literal("rvfac_shal", description="rvfac shallow fault multiplier"): NUMBER,
-        Literal("rvfac_deep", description="rvfac deep fault multiplier"): NUMBER,
         Literal("czero", description="C0 coefficient"): NUMBER,
         Literal("calpha", description="Ca coefficient"): NUMBER,
         Literal("mom", description="Seimic moment (or null, to infer value)"): Or(
@@ -677,9 +739,6 @@ BROADBAND_PARAMETERS_SCHEMA = Schema(
         Literal("flo", description="low/high frequency cutoff"): And(
             NUMBER, _is_non_negative
         ),
-        Literal("dt", description="simulation time resolution"): And(
-            NUMBER, _is_positive
-        ),
         Literal("fmidbot", description="fmidbot for site amplification"): And(
             NUMBER, _is_non_negative
         ),
@@ -732,5 +791,13 @@ LOG_TRAIL_SCHEMA = Schema(
             "log",
             description="The utilities executed on this realisation.",
         ): [LOG_ENTRY_SCHEMA],
+    }
+)
+
+RESOLUTION_SCHEMA = Schema(
+    {
+        Literal("resolution", description="Simulation spatial resolution."): And(
+            NUMBER, _is_positive
+        )
     }
 )

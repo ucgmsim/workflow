@@ -81,7 +81,7 @@ def generate_rupture_propagation(
     strategy : RuptureStrategy
         The rupture propagation strategy to use. Default is `RuptureStrategy.RANDOM`.
     """
-    seeds = realisations.Seeds.read_from_realisation_or_defaults(realisation_ffp)
+    seeds = realisations.Seeds.read_from_realisation_or_random(realisation_ffp)
     source_config = realisations.SourceConfig.read_from_realisation(realisation_ffp)
     faults = source_config.source_geometries
 

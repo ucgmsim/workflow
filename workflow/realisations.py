@@ -224,6 +224,22 @@ class RealisationConfiguration(ABC):
 
 
 @dataclasses.dataclass
+class Resolution(RealisationConfiguration):
+    """Configuration for spatial/temporal resolution."""
+
+    _config_key: ClassVar[str] = "resolution"
+    _schema: ClassVar[Schema] = schemas.RESOLUTION_SCHEMA
+
+    resolution: float
+    """Simulation spatial resolution."""
+
+    @property
+    def dt(self) -> float:  # numpydoc ignore=RT01
+        """float: Simulation temporal resolution."""
+        return self.resolution / 20
+
+
+@dataclasses.dataclass
 class Seeds(RealisationConfiguration):
     """Configuration block for random seeds."""
 
@@ -242,8 +258,8 @@ class Seeds(RealisationConfiguration):
     """HF seed."""
 
     @classmethod
-    def read_from_realisation_or_defaults(
-        cls, realisation_ffp: Path, *args: list[Any]
+    def read_from_realisation_or_random(
+        cls, realisation_ffp: Path
     ) -> Self:  # *args is to maintain compat with superclass (remove this and see the error in mypy).
         """Read seeds configuration from a realisation file or generate random seeds if not present.
 
@@ -256,8 +272,6 @@ class Seeds(RealisationConfiguration):
         ----------
         realisation_ffp : Path
             The realisation filepath to read from.
-        *args : list
-            Ignored arguments.
 
         Returns
         -------
@@ -356,16 +370,43 @@ class SRFConfig(RealisationConfiguration):
     _config_key: ClassVar[str] = "srf"
     _schema: ClassVar[Schema] = schemas.SRF_SCHEMA
 
-    genslip_dt: float
-    """The timestep for genslip (used to specify the resolution for the `TINIT` values)."""
-
-    genslip_version: str
-    """The version of genslip to use (currently supports "5.4.2")."""
     resolution: float
-    """The resolution of the SRF geometry"""
+    """The resolution of the SRF discretisation (different, in general, from the simulation resolution)."""
 
     point_source_params: schemas.PointSourceParams | None
     """Parameters for point source approximation, if applicable."""
+
+    side_taper: float
+    """Side slip tapering, proportion of along-strike 0-1."""
+    bot_taper: float
+    """Bottom slip tapering proportion of down-dip 0-1."""
+    top_taper: float
+    """Top slip tapering proportion of down-dip 0-1."""
+
+    alpha_rough: float
+    """Roughness (0.0 = smooth)"""
+
+    gwid: list[float]
+    """Width of delay zone around segment boundaries"""
+    rvfrac_seg: list[float]
+    """Rupture speed reduction (proportion) at segment boundaries."""
+    seg_delay: bool
+    """If true, delay rupture across slip boundaries according to specifications of rvfac_seg and gwid."""
+
+    slip_sigma: float
+    """The stddev of slip distribution."""
+
+    risetime_coef: float
+    """Risetime scaling coefficient."""
+
+    ymag_exp: float | None = None
+    """Corner magnitude exponent for along-strike slip correlation length. See genslip_v5.6.2c:1385"""
+    xmag_exp: float | None = None
+    """Corner magnitude exponent for down-dip slip correlation length. See genslip_v5.6.2c:1385"""
+    kx_corner: float | None = None
+    """Corner wavenumber for along-strike slip correlation length. See genslip_v5.6.2c:1385"""
+    ky_corner: float | None = None
+    """Corner wavenumber for down-dip slip correlation length. See genslip_v5.6.2c:1385"""
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -376,11 +417,7 @@ class SRFConfig(RealisationConfiguration):
         dict
             Dictionary representation of the object.
         """
-        config_dict = {
-            "genslip_dt": self.genslip_dt,
-            "genslip_version": self.genslip_version,
-            "resolution": self.resolution,
-        }
+        config_dict = dataclasses.asdict(self)
         if self.point_source_params is not None:
             config_dict["point_source_params"] = dataclasses.asdict(
                 self.point_source_params
@@ -515,40 +552,60 @@ class DomainParameters(RealisationConfiguration):
     _config_key: ClassVar[str] = "domain"
     _schema: ClassVar[Schema] = schemas.DOMAIN_SCHEMA
 
-    resolution: float
-    """The simulation resoultion in kilometres."""
     domain: BoundingBox
     """The bounding box for the domain."""
     depth: float
     """The depth of the domain (in metres)."""
     duration: float
     """The simulation duration (in seconds)."""
-    dt: float
-    """The resolution of the domain in time (in seconds)."""
 
-    @property
-    def nx(self) -> int:  # numpydoc ignore=RT01
-        """int: The number of x coordinate positions in the discretised domain."""
+    def nx(self, resolution: float) -> int:
+        """Calculate the number of point in the x-direction in the simulation domain.
+
+        Parameters
+        ----------
+        resolution : float
+            The simulation resolution in km, e.g. 0.1 for 100m.
+
+        Returns
+        -------
+        int
+            The number of points in the x-direction in the simulation domain.
+        """
         # The C NZVM code always rounds 0.5 up to 1.0 but Python does not always
         # round in the same way. So we manually replicate the C rounding behaviour
         # here for consistency.
-        return int((self.domain.extent_x / self.resolution) + 0.5)
+        return int((self.domain.extent_x / resolution) + 0.5)
 
-    @property
-    def ny(self) -> int:  # numpydoc ignore=RT01
-        """int: The number of y coordinate positions in the discretised domain."""
-        # The C NZVM code always rounds 0.5 up to 1.0 but Python does not always
-        # round in the same way. So we manually replicate the C rounding behaviour
-        # here for consistency.
-        return int((self.domain.extent_y / self.resolution) + 0.5)
+    def ny(self, resolution: float) -> int:
+        """Calculate the number of point in the y-direction in the simulation domain.
 
-    @property
-    def nz(self) -> int:  # numpydoc ignore=RT01
-        """int: The number of z coordinate positions in the discretised domain."""
-        # The C NZVM code always rounds 0.5 up to 1.0 but Python does not always
-        # round in the same way. So we manually replicate the C rounding behaviour
-        # here for consistency.
-        return int((self.depth / self.resolution) + 0.5)
+        Parameters
+        ----------
+        resolution : float
+            The simulation resolution in km, e.g. 0.1 for 100m.
+
+        Returns
+        -------
+        int
+            The number of points in the y-direction in the simulation domain.
+        """
+        return int((self.domain.extent_y / resolution) + 0.5)
+
+    def nz(self, resolution: float) -> int:
+        """Calculate the number of point in the z-direction in the simulation domain.
+
+        Parameters
+        ----------
+        resolution : float
+            The simulation resolution in km, e.g. 0.1 for 100m.
+
+        Returns
+        -------
+        int
+            The number of points in the z-direction in the simulation domain.
+        """
+        return int((self.depth / resolution) + 0.5)
 
     def to_dict(self) -> dict:
         """
@@ -579,18 +636,16 @@ class VelocityModelParameters(RealisationConfiguration):
     """The velocity model version."""
     topo_type: str
     """The topology type of the velocity model."""
-    dt: float
-    """The velocity model time resolution."""
     ds_multiplier: float
     """The ds multiplier used to adjust simulation duration."""
-    resolution: float
-    """The resolution of the velocity model (in kilometres)."""
     vs30: float
     """The reference vs30 value for duration estimation."""
     s_wave_velocity: float
     """The s-wave velocity."""
-    pgv_interpolants: npt.NDArray[np.float32]
-    """Target PGV values at specific magnitudes, used to estimate domain size."""
+    rrup_interpolants: npt.NDArray[np.float32]
+    """Target RRup values at specific magnitudes, used to estimate domain size."""
+    fault_buffer: float
+    """Buffer width (km) around sources in rupture. Domain edge is guaranteed not be within this distance from any source."""
 
     def to_dict(self) -> dict:
         """
@@ -602,7 +657,7 @@ class VelocityModelParameters(RealisationConfiguration):
             Dictionary representation of the object.
         """
         _dict = dataclasses.asdict(self)
-        _dict["pgv_interpolants"] = _dict["pgv_interpolants"].tolist()
+        _dict["rrup_interpolants"] = _dict["rrup_interpolants"].tolist()
         return _dict
 
 
@@ -671,14 +726,35 @@ class RealisationMetadata(RealisationConfiguration):
 
 
 @dataclasses.dataclass
+class RuptureVelocity(RealisationConfiguration):
+    """Rupture velocities for source and high-frequency simulation."""
+
+    _config_key: ClassVar[str] = "rupture_velocity"
+    _schema: ClassVar[Schema] = schemas.RUPTURE_VELOCITY_SCHEMA
+
+    rvfrac: float
+    """Rupture velocity factor (rupture : Vs)"""
+    rvfrac_shal: float
+    """Rupture velocity at shallow depths"""
+    rvfrac_deep: float
+    """Rupture velocity at depth"""
+    shallow_depth: float
+    """Shallow depth (km). Marks transition to rvfrac_shal from rvfrac."""
+    shallow_transition_range: float
+    """Shallow depth transition range (km)."""
+    deep_depth: float
+    """Deep depth (km). Marks transition to rvfrac_deep from rvfrac."""
+    deep_transition_range: float
+    """Deep depth transition range (km)."""
+
+
+@dataclasses.dataclass
 class HFConfig(RealisationConfiguration):
     """High frequency simulation configuration."""
 
     _config_key: ClassVar[str] = "hf"
     _schema: ClassVar[Schema] = schemas.HF_CONFIG_SCHEMA
 
-    dt: float
-    """High frequency time resolution."""
     nbu: int
     """Unknown!"""
     ift: int
@@ -715,12 +791,6 @@ class HFConfig(RealisationConfiguration):
     """Unknown!"""
     qfexp: float
     """Q frequency exponent"""
-    rvfac: float
-    """Rupture velocity factor (rupture : Vs)"""
-    rvfac_shal: float
-    """rvfac shallow fault multiplier"""
-    rvfac_deep: float
-    """rvfac deep fault multiplier"""
     czero: float
     """C0 coefficient"""
     calpha: float
@@ -891,8 +961,6 @@ class BroadbandParameters(RealisationConfiguration):
 
     flo: float
     """low/high frequency cutoff."""
-    dt: float
-    """simulation time resolution."""
     fmidbot: float
     """fmidbot for site amplification"""
     fmin: float

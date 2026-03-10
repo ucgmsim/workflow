@@ -29,9 +29,8 @@ See the output of `im-calc --help`.
 
 import functools
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
-import numexpr as ne
 import numpy as np
 import pandas as pd
 import tqdm
@@ -43,12 +42,14 @@ from IM.im_calculation import IM
 from qcore import cli, coordinates
 from workflow import realisations, utils
 from workflow.realisations import (
-    BroadbandParameters,
     IntensityMeasureCalculationParameters,
     RealisationMetadata,
+    Resolution,
     RupturePropagationConfig,
     SourceConfig,
 )
+
+PSA_STEP = 10000
 
 app = typer.Typer()
 
@@ -63,13 +64,12 @@ def calculate_instensity_measures(
     ],
     output_path: Annotated[Path, typer.Argument(dir_okay=False, writable=True)],
     simulated_stations: Annotated[bool, typer.Option()] = True,
-    psa_rotd_maximum_memory_allocation: Annotated[
-        Optional[float], typer.Option(min=0)
-    ] = None,
+    psa_step: Annotated[int, typer.Option()] = PSA_STEP,
     ko_directory: Annotated[
         Path | None, typer.Option(exists=True, file_okay=False)
     ] = None,
     override_ims: Annotated[list[IM] | None, typer.Option("-i", "--im")] = None,
+    cores: Annotated[int | None, typer.Option(min=1)] = None,
 ) -> None:
     """Calculate intensity measures for simulation data.
 
@@ -83,17 +83,23 @@ def calculate_instensity_measures(
         Output directory for IM calc summary statistics.
     simulated_stations : bool, default True
         If passed, calculate for simulated stations.
-    psa_rotd_maximum_memory_allocation : Optional[float]
-        Maximum amount of memory allocated for rotated PSA calculation station buffer, in gigabytes.
+    psa_step : int
+        Maximum number of stations to read from disk at once for pSA calculation
     ko_directory : Path
         Directory containing the KO matrix files for FAS calculation. Not required for other IMs.
     override_ims : list of str
         Intensity measures to calculate. If not set, reads from the realisation file.
+    cores : int or None
+        Set the number of cores for parallel processing of IMs. If set
+        to `None`, will default to the available cores from
+        `utils.get_available_cores`.
     """
-    ne.set_num_threads(utils.get_available_cores())
+    cores = cores or utils.get_available_cores()
 
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
-    broadband_parameters = BroadbandParameters.read_from_realisation(realisation_ffp)
+    resolution = Resolution.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
     intensity_measure_parameters = (
         IntensityMeasureCalculationParameters.read_from_realisation_or_defaults(
             realisation_ffp, metadata.defaults_version
@@ -116,42 +122,39 @@ def calculate_instensity_measures(
             "FAS calculation requires KO directory. Please provide a valid KO directory."
         )
 
-    nyquist_frequency = 1 / (2 * broadband_parameters.dt)
+    nyquist_frequency = 1 / (2 * resolution.dt)
 
     im_function_map = {
-        IM.PGA: ims.peak_ground_acceleration,
-        IM.PGV: functools.partial(ims.peak_ground_velocity, dt=broadband_parameters.dt),
+        IM.PGA: functools.partial(ims.peak_ground_acceleration, cores=cores),
+        IM.PGV: functools.partial(
+            ims.peak_ground_velocity, dt=resolution.dt, cores=cores
+        ),
+        IM.PGD: functools.partial(
+            ims.peak_ground_displacement, dt=resolution.dt, cores=cores
+        ),
         IM.CAV: functools.partial(
-            ims.cumulative_absolute_velocity, dt=broadband_parameters.dt
+            ims.cumulative_absolute_velocity, dt=resolution.dt, cores=cores
         ),
-        IM.AI: functools.partial(ims.arias_intensity, dt=broadband_parameters.dt),
-        IM.Ds575: functools.partial(
-            ims.ds575,
-            dt=broadband_parameters.dt,
-        ),
-        IM.Ds595: functools.partial(
-            ims.ds595,
-            dt=broadband_parameters.dt,
-        ),
+        IM.AI: functools.partial(ims.arias_intensity, dt=resolution.dt, cores=cores),
+        IM.Ds575: functools.partial(ims.ds575, dt=resolution.dt, cores=cores),
+        IM.Ds595: functools.partial(ims.ds595, dt=resolution.dt, cores=cores),
         IM.pSA: functools.partial(
             ims.pseudo_spectral_acceleration,
             periods=np.array(
-                intensity_measure_parameters.valid_periods, dtype=np.float32
+                intensity_measure_parameters.valid_periods, dtype=np.float64
             ),
-            dt=broadband_parameters.dt,
-            psa_rotd_maximum_memory_allocation=psa_rotd_maximum_memory_allocation * 1e9
-            if psa_rotd_maximum_memory_allocation
-            else None,
-            cores=utils.get_available_cores(),
+            dt=resolution.dt,
+            step=psa_step,
+            cores=cores,
         ),
         IM.FAS: functools.partial(
             ims.fourier_amplitude_spectra,
-            dt=broadband_parameters.dt,
+            dt=resolution.dt,
             freqs=intensity_measure_parameters.fas_frequencies[
                 intensity_measure_parameters.fas_frequencies <= nyquist_frequency
             ],
             ko_directory=ko_directory,
-            cores=utils.get_available_cores(),
+            cores=cores,
         ),
     }
     latitude = broadband.latitude.values
@@ -215,13 +218,12 @@ def calculate_instensity_measures(
         attrs={"hypo_lat": hypocentre[0], "hypo_lon": hypocentre[1]},
     )
 
-    # Add each column of the DataFrame as a coordinate
-    # TODO: Refactor IM Calculation to use waveforms in (component, station, time) format
-    # Convert (component, station, time) to (station, time, component).
-    waveform = np.transpose(broadband.waveform.values, (1, 2, 0))
+    waveform = broadband.waveform.values.astype(np.float64)
+
     for im_name in (pbar := tqdm.tqdm(intensity_measures)):
         pbar.set_description(im_name)
         im_fn = im_function_map[im_name]
+
         result = im_fn(waveform)
 
         if isinstance(result, pd.DataFrame):

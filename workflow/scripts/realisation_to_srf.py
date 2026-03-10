@@ -54,14 +54,16 @@ from scipy.sparse import csr_array
 
 from qcore import cli, coordinates
 from source_modelling import gsf, moment, rupture_propagation, srf
-from source_modelling.sources import IsSource, Point
+from source_modelling.sources import Fault, IsSource, Point
 from workflow import log_utils, realisations, utils
 from workflow.log_utils import log_call
 from workflow.realisations import (
     Magnitudes,
     Rakes,
     RealisationMetadata,
+    Resolution,
     RupturePropagationConfig,
+    RuptureVelocity,
     Seeds,
     SourceConfig,
     SRFConfig,
@@ -327,18 +329,20 @@ def stitch_srf_files(
         process_fault(fault_name)
 
     # Combine SRF file components
+    combined_slipt_array = concatenate_slip_values(
+        (
+            fault_srf.slipt1_array
+            if fault_srf.slipt1_array is not None
+            else csr_array((len(fault_srf.points), 1))
+        )
+        for fault_srf in srf_file_map.values()
+    )
+    assert combined_slipt_array is not None
     combined_srf = srf.SrfFile(
         version="1.0",
         header=pd.concat([fault_srf.header for fault_srf in srf_file_map.values()]),
         points=pd.concat([fault_srf.points for fault_srf in srf_file_map.values()]),
-        slipt1_array=concatenate_slip_values(
-            (
-                fault_srf.slipt1_array
-                if fault_srf.slipt1_array is not None
-                else csr_array((len(fault_srf.points), 1))
-            )
-            for fault_srf in srf_file_map.values()
-        ),
+        slipt1_array=combined_slipt_array,
     )
 
     # Write the combined SRF file
@@ -351,6 +355,8 @@ def stitch_srf_files(
 class SRFRealisationContext:
     """Realisation configuration for the entire SRF generation process."""
 
+    resolution: Resolution
+    """The spatial/temporal resolution"""
     source_config: SourceConfig
     """The sources to generate"""
     rupture_propagation_config: RupturePropagationConfig
@@ -363,6 +369,8 @@ class SRFRealisationContext:
     """The 1D velocity model to use for SRF generation"""
     srf_config: SRFConfig
     """SRF configuration options to apply"""
+    rupture_velocity: RuptureVelocity
+    """Rupture velocity configuration"""
 
 
 @dataclasses.dataclass
@@ -394,6 +402,104 @@ class SRFEnvironmentContext:
         return self.work_directory / "velocity_model"
 
 
+def _build_genslip_command(
+    genslip_path: Path,
+    gsf_file_path: Path,
+    nx: int,
+    ny: int,
+    seed: int,
+    velocity_model_path: Path,
+    shypo: float,
+    dhypo: float,
+    magnitude: float,
+    dt: float,
+    srf_config: SRFConfig,
+    rupture_velocity: RuptureVelocity,
+) -> list[str]:
+    """Build a genslip command to run.
+
+    Parameters
+    ----------
+    genslip_path : Path
+        Path to genslip executable.
+    gsf_file_path : Path
+        GSF file to read.
+    nx : int
+        Number of points along-strike.
+    ny : int
+        Number of points down-dip
+    seed : int
+        Genslip seed.
+    velocity_model_path : Path
+        Path to 1D velocity model.
+    shypo : float
+        Along-strike hypocentre.
+    dhypo : float
+        Down-dip hypocentre.
+    magnitude : float
+        SRF magnitude.
+    dt : float
+        Time resolution for SVFs.
+    srf_config : SRFConfig
+        Parameters for SRF generation.
+    rupture_velocity : RuptureVelocity
+        Parameters for rupture velocity config.
+
+    Returns
+    -------
+    list[str]
+        An argument list suitable to execute genslip with
+        `subprocess.run`. First element is the genslip path,
+        subsequent arguments are key=value pairs.
+    """
+    cmd = [
+        str(genslip_path),
+        "plane_header=1",
+        "srf_version=1.0",
+        "read_erf=0",
+        "write_srf=1",
+        "read_gsf=1",
+        "write_gsf=0",
+        "ns=1",
+        "nh=1",
+        f"infile={gsf_file_path}",
+        f"nstk={nx}",
+        f"ndip={ny}",
+        f"seed={seed}",
+        f"velfile={velocity_model_path}",
+        f"shypo={shypo}",
+        f"dhypo={dhypo}",
+        f"mag={magnitude}",
+        f"dt={dt}",
+        f"rvfrac={rupture_velocity.rvfrac}",
+        f"shal_vrup={rupture_velocity.rvfrac_shal}",
+        f"shal_vrup_dep={rupture_velocity.shallow_depth}",
+        f"shal_vrup_deprange={rupture_velocity.shallow_transition_range}",
+        f"deep_vrup={rupture_velocity.rvfrac_deep}",
+        f"deep_vrup_dep={rupture_velocity.deep_depth}",
+        f"deep_vrup_deprange={rupture_velocity.deep_transition_range}",
+    ]
+    skipped_fields = {"point_source_params"}
+    for field in dataclasses.fields(srf_config):
+        key = field.name
+        value = getattr(srf_config, key)
+
+        if value is None or value == [] or key in skipped_fields:
+            continue
+        if isinstance(value, list):
+            serialised_value = ",".join([str(v) for v in value])
+        elif isinstance(value, bool):
+            serialised_value = "1" if value else "0"
+        elif dataclasses.is_dataclass(value):
+            continue
+        else:
+            serialised_value = str(value)
+
+        cmd.append(f"{key}={serialised_value}")
+
+    return cmd
+
+
 def generate_fault_srf(
     name: str, params: SRFRealisationContext, environment: SRFEnvironmentContext
 ) -> None:
@@ -417,8 +523,11 @@ def generate_fault_srf(
 
     resolution = params.srf_config.resolution
 
-    nx = sum(round(plane.length / resolution) for plane in fault.planes)
-    ny = round(fault.planes[0].width / resolution)
+    if isinstance(fault, Fault):
+        nx = sum(round(plane.length / resolution) for plane in fault.planes)
+    else:
+        nx = round(fault.length / resolution)
+    ny = round(fault.width / resolution)
 
     gsf_file_path = generate_fault_gsf(
         name,
@@ -431,34 +540,21 @@ def generate_fault_srf(
     genslip_hypocentre_coords = np.array([fault.length, fault.width]) * (
         params.rupture_propagation_config.hypocentres[name] - np.array([1 / 2, 0])
     )
-    genslip_cmd = [
-        str(environment.genslip_path),
-        "read_erf=0",
-        "write_srf=1",
-        "read_gsf=1",
-        "write_gsf=0",
-        f"infile={gsf_file_path}",
-        f"mag={params.magnitudes.magnitudes[name]}",
-        f"nstk={nx}",
-        f"ndip={ny}",
-        "ns=1",
-        "nh=1",
-        f"seed={environment.seeds.genslip_seed}",
-        f"velfile={environment.velocity_model_path}",
-        f"shypo={genslip_hypocentre_coords[0]}",
-        f"dhypo={genslip_hypocentre_coords[1]}",
-        f"dt={params.srf_config.genslip_dt}",
-        "plane_header=1",
-        "srf_version=1.0",
-        "seg_delay={0}",
-        "rvfac_seg=-1",
-        "gwid=-1",
-        "side_taper=0.02",
-        "bot_taper=0.02",
-        "top_taper=0.0",
-        "rup_delay=0",
-        "alpha_rough=0.0",
-    ]
+
+    genslip_cmd = _build_genslip_command(
+        genslip_path=environment.genslip_path,
+        gsf_file_path=gsf_file_path,
+        nx=nx,
+        ny=ny,
+        seed=environment.seeds.genslip_seed,
+        velocity_model_path=environment.velocity_model_path,
+        shypo=genslip_hypocentre_coords[0],
+        dhypo=genslip_hypocentre_coords[1],
+        magnitude=params.magnitudes.magnitudes[name],
+        dt=params.resolution.dt,
+        srf_config=params.srf_config,
+        rupture_velocity=params.rupture_velocity,
+    )
 
     srf_file_path = environment.srf_directory / (normalise_name(name) + ".srf")
     with open(srf_file_path, "w", encoding="utf-8") as srf_file_handle:
@@ -547,7 +643,7 @@ def generate_point_source_srf(
 
     fault = params.source_config.source_geometries[name]
 
-    resolution = params.srf_config.resolution
+    resolution = params.resolution.resolution
 
     # Get magnitude and convert to seismic moment
     magnitude = params.magnitudes.magnitudes[name]
@@ -560,7 +656,10 @@ def generate_point_source_srf(
     # divide by 1000 to convert depth from meters to kilometers
     source_depth_km = params.source_config.source_geometries[name].centroid[2] / 1000
 
-    fault_area_km2 = (params.source_config.source_geometries[name].length_m / 1000) ** 2
+    fault_area_km2 = (
+        params.source_config.source_geometries[name].length
+        * params.source_config.source_geometries[name].width
+    )
 
     slip = moment.point_source_slip(
         moment_newton_metre, fault_area_km2, velocity_model_df, source_depth_km
@@ -582,7 +681,7 @@ def generate_point_source_srf(
         f"outfile={environment.srf_directory / (normalise_name(name) + '.srf')}",
         "outbin=0",
         f"stype={params.srf_config.point_source_params.stype}",
-        f"dt={params.srf_config.genslip_dt}",
+        f"dt={params.resolution.dt}",
         "plane_header=1",
         f"risetime={params.srf_config.point_source_params.risetime}",
         f"risetimefac={params.srf_config.point_source_params.risetimefac}",
@@ -658,7 +757,7 @@ def generate_srf(
         realisation_ffp, metadata.defaults_version
     )
 
-    seeds = Seeds.read_from_realisation_or_defaults(realisation_ffp)
+    seeds = Seeds.read_from_realisation_or_random(realisation_ffp)
     rupture_propagation = RupturePropagationConfig.read_from_realisation(
         realisation_ffp
     )
@@ -668,14 +767,22 @@ def generate_srf(
     rakes = Rakes.read_from_realisation(realisation_ffp)
     magnitudes = Magnitudes.read_from_realisation(realisation_ffp)
     source_config = SourceConfig.read_from_realisation(realisation_ffp)
+    resolution = Resolution.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
+    rupture_velocity = RuptureVelocity.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
 
     params = SRFRealisationContext(
+        resolution=resolution,
         source_config=source_config,
         rupture_propagation_config=rupture_propagation,
         magnitudes=magnitudes,
         rakes=rakes,
         velocity_model_1d=velocity_model_1d,
         srf_config=srf_config,
+        rupture_velocity=rupture_velocity,
     )
 
     environment = SRFEnvironmentContext(
@@ -692,12 +799,18 @@ def generate_srf(
         single_threaded=single_threaded,
     )
     srf_name = normalise_name(metadata.name)
-    stitch_srf_files(
-        source_config.source_geometries,
-        rupture_propagation,
-        work_directory,
-        srf_name,
-    )
+    if len(source_config.source_geometries) > 1:
+        stitch_srf_files(
+            source_config.source_geometries,
+            rupture_propagation,
+            work_directory,
+            srf_name,
+        )
+    else:
+        source_name = list(source_config.source_geometries)[0]
+        input_srf_path = work_directory / "srf" / f"{normalise_name(source_name)}.srf"
+        output_srf_path = work_directory / f"{srf_name}.srf"
+        shutil.move(input_srf_path, output_srf_path)
     srf_config.write_to_realisation(realisation_ffp)
 
     shutil.copyfile(work_directory / (srf_name + ".srf"), output_srf_filepath)

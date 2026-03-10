@@ -36,7 +36,7 @@ import typer
 
 from qcore import cli, coordinates
 from workflow import log_utils, realisations
-from workflow.realisations import DomainParameters
+from workflow.realisations import DomainParameters, Resolution
 
 app = typer.Typer()
 
@@ -61,13 +61,14 @@ def generate_fd_files(
     """
     output_path.mkdir(exist_ok=True)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
+    resolution_parameters = Resolution.read_from_realisation(realisation_ffp)
     domain = domain_parameters.domain
 
-    nx = domain_parameters.nx
-    ny = domain_parameters.ny
+    nx = domain_parameters.nx(resolution_parameters.resolution)
+    ny = domain_parameters.ny(resolution_parameters.resolution)
     mlat, mlon = domain.origin
     mrot = domain.great_circle_bearing
-    proj = coordinates.SphericalProjection(mlat=mlat, mlon=mlon, mrot=mrot)
+    proj = coordinates.SphericalProjection(mlat=mlat, mlon=mlon, mrot=float(mrot))
 
     # where to save gridpoint and longlat station files
     gp_out = output_path / "stations.statcords"
@@ -75,25 +76,28 @@ def generate_fd_files(
 
     # retrieve in station names, latitudes and longitudes
     stations = pd.read_csv(
-        stat_file, delimiter=r"\s+", comment="#", names=["lon", "lat", "name"]
+        stat_file,
+        delimiter=r"\s+",
+        comment="#",
+        names=["lon", "lat", "name"],
     )
 
-    x, y = proj(lat=stations["lat"].values, lon=stations["lon"].values).T
+    x, y = proj(
+        lat=stations["lat"].to_numpy(float), lon=stations["lon"].to_numpy(float)
+    ).T
 
-    cx = nx // 2 * domain_parameters.resolution
-    cy = ny // 2 * domain_parameters.resolution
+    cx = nx // 2 * resolution_parameters.resolution
+    cy = ny // 2 * resolution_parameters.resolution
 
     # translate coordinates so that top-left corner of the domain is at (0, 0)
     x += cx
     y += cy
 
     # C-compatible rounding of the continuous coordinates into grid point coordinates
-    x = (x / domain_parameters.resolution + 0.5).astype(int)
-    y = (y / domain_parameters.resolution + 0.5).astype(int)
+    x = (x / resolution_parameters.resolution + 0.5).astype(int)
+    y = (y / resolution_parameters.resolution + 0.5).astype(int)
 
-    in_domain_mask = (
-        (x >= 0) & (x < domain_parameters.nx) & (y >= 0) & (y < domain_parameters.ny)
-    )
+    in_domain_mask = (x >= 0) & (x < nx) & (y >= 0) & (y < ny)
     # filter out stations outside the domain
     stations = stations.loc[in_domain_mask]
 
@@ -105,8 +109,8 @@ def generate_fd_files(
     stations["x"] = x
     stations["y"] = y
 
-    gp_x = x * domain_parameters.resolution - cx
-    gp_y = y * domain_parameters.resolution - cy
+    gp_x = x * resolution_parameters.resolution - cx
+    gp_y = y * resolution_parameters.resolution - cy
     gp_lat, gp_lon = proj.inverse(gp_x, gp_y).T
     stations["grid_lat"] = gp_lat
     stations["grid_lon"] = gp_lon

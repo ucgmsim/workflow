@@ -15,6 +15,6 @@ jobs:
 
       # Install deptry
       - run: uv venv
-      - run: uv pip install -e ".[test,dev]"
+      - run: uv sync --all-extras --dev
       # Run deptry to check that all dependencies are present.
       - run: uv run deptry .
