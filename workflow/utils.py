@@ -186,7 +186,7 @@ def stable_hash(value: str, size: int = 4) -> int:
         String to hash.
     size : int, optional
         Digest size in bytes. This is passed as ``digest_size`` to
-        :func:`hashlib.blake2b` and must be within the valid range for
+        `hashlib.blake2b` and must be within the valid range for
         BLAKE2b (1 to 64 bytes).
 
     Returns
