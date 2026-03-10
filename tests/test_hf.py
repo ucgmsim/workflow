@@ -99,11 +99,6 @@ STATION_STRATEGY = st.text(
 )
 
 
-@given(station=STATION_STRATEGY)
-def test_stable_hash(station: str) -> None:
-    # Check that stable_hash output is always a valid 32-bit integer
-    assert -(1 << 31) <= hf_sim.stable_hash(station) <= (1 << 31) - 1
-
 
 def test_station_seeds() -> None:
     seed = hf_sim.station_seeds(0, ["station"])

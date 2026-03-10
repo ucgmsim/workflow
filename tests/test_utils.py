@@ -4,6 +4,8 @@ from unittest.mock import Mock, patch
 import geopandas as gpd
 import pytest
 import shapely
+from hypothesis import given
+from hypothesis import strategies as st
 
 from workflow import utils
 
@@ -142,3 +144,16 @@ def test_dict_zip_identical_keys_different_order() -> None:
     result = utils.dict_zip(d1, d2, strict=True)
     assert result["a"] == (1, 10)
     assert result["b"] == (2, 20)
+
+
+@given(
+    value=st.text(min_size=0, max_size=64, alphabet=st.characters(codec="ascii")),
+    size=st.sampled_from([16, 32, 64]),
+)
+def test_stable_hash(value: str, size: int) -> None:
+    """Check that stable_hash output is always a valid ``size``-byte integer"""
+    assert (
+        -(1 << (size - 1))
+        <= utils.stable_hash(value, size=size // 8)
+        <= (1 << (size - 1)) - 1
+    )
