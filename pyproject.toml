@@ -18,6 +18,7 @@ dependencies = [
   "qcore-utils>=2025.12.2",
   "source_modelling>=2025.12.1",
   # Data Formats
+  "flacarray",
   "geopandas",
   "pandas[parquet, hdf5]",
   "pyyaml",
@@ -64,6 +65,7 @@ generate-stoch = "workflow.scripts.generate_stoch:app"
 merge-ts = "workflow.scripts.merge_ts:app"
 hf-sim = "workflow.scripts.hf_sim:app"
 bb-sim = "workflow.scripts.bb_sim:app"
+compress-waveform = "workflow.scripts.compress_waveform:app"
 im-calc = "workflow.scripts.im_calc:app"
 check-srf = "workflow.scripts.check_srf:app"
 check-domain = "workflow.scripts.check_domain:app"
