@@ -31,7 +31,6 @@ from pathlib import Path
 from typing import Annotated
 
 import h5py
-import numpy as np
 import typer
 import xarray as xr
 from flacarray import FlacArray
@@ -78,7 +77,7 @@ def compress_waveform(
 
         for coord_name in broadband.coords:
             coord_data = broadband.coords[coord_name].values
-            if np.issubdtype(coord_data.dtype, np.str_):
+            if coord_data.dtype.kind == "U":
                 coord_data = coord_data.astype(bytes)
             hdf.create_dataset(f"coords/{coord_name}", data=coord_data)
 
