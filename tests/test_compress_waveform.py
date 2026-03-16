@@ -38,7 +38,7 @@ def _make_broadband_dataset(rng: np.random.Generator) -> xr.Dataset:
             )
         ).astype(np.float32)
 
-    # Components share the base signal with ~10 % perturbation.
+    # Components share the base signal with ~10% perturbation.
     waveform = np.tile(base, (N_COMPONENTS, 1, 1))
     for c in range(N_COMPONENTS):
         pert_freqs = rng.uniform(0.5, 5.0, size=(1, N_STATIONS, 2))

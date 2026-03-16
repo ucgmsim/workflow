@@ -190,7 +190,7 @@ def compress_waveform(
     )
 
     # Materialise the encoded int32 array and compress losslessly with FLAC.
-    encoded_data: np.ndarray = encoded["waveform"].values
+    encoded_data: np.ndarray = encoded["waveform"].compute().values
     flac_waveform = FlacArray.from_array(encoded_data, level=level)
 
     with h5py.File(output_ffp, "w") as hdf:
@@ -234,9 +234,8 @@ def decompress_waveform(compressed_ffp: Path) -> xr.Dataset:
         # Rescale back to the original floating-point range.
         scale_factor = hdf.attrs["scale_factor"]
         waveform_dtype = np.dtype(str(hdf.attrs["waveform_dtype"]))
-        waveform = scaled.astype(waveform_dtype) * waveform_dtype.type(
-            scale_factor
-        )
+        scale_factor_typed = waveform_dtype.type(scale_factor)
+        waveform = scaled.astype(waveform_dtype) * scale_factor_typed
 
         dims = list(hdf.attrs["waveform_dims"])
         coords = _read_coords(hdf)
