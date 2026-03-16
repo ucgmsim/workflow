@@ -162,9 +162,9 @@ def compress_waveform(
         FLAC precision level (in significant digits of input data). Higher values compress more but
         are lose more precision. Defaults to 4.
     """
-
+    print(f'{level=}')
     with h5py.File(output_ffp, "w") as hdf, xr.open_dataset(waveform_ffp) as broadband:
-        flacarray.hdf5.write_array(broadband.waveform.values, hdf, precision=4, level=level)
+        flacarray.hdf5.write_array(broadband.waveform.values, hdf, precision=4, level=level, use_threads=True)
         _write_coords(hdf, broadband)
 
         for attr_name, attr_value in broadband.attrs.items():
@@ -188,7 +188,7 @@ def decompress_waveform(compressed_ffp: Path) -> xr.Dataset:
         and attributes restored.
     """
     with h5py.File(compressed_ffp, "r") as hdf:
-        waveform = flacarray.hdf5.read_array(hdf)
+        waveform = flacarray.hdf5.read_array(hdf, use_threads=True)
 
         dims = list(hdf.attrs["waveform_dims"])
         coords = _read_coords(hdf)
