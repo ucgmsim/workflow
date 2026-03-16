@@ -40,11 +40,11 @@ import functools
 from pathlib import Path
 from typing import Annotated
 
+import flacarray
 import h5py
 import numpy as np
 import typer
 import xarray as xr
-import flacarray
 
 from qcore import cli
 from workflow import log_utils
@@ -98,14 +98,13 @@ def _read_coords(hdf: h5py.File) -> dict[str, tuple[tuple[str, ...], np.ndarray]
     return coords
 
 
-
 @cli.from_docstring(app)
 @log_utils.log_call()
 def compress_waveform(
     waveform_ffp: Annotated[Path, typer.Argument(dir_okay=False, exists=True)],
     output_ffp: Annotated[Path, typer.Argument(dir_okay=False, writable=True)],
     level: Annotated[int, typer.Option(min=0, max=8)] = 5,
-    precision: Annotated[int, typer.Option(min=1)] = 4
+    precision: Annotated[int, typer.Option(min=1)] = 4,
 ) -> None:
     """Compress a broadband waveform file using FlacArray.
 
@@ -128,8 +127,17 @@ def compress_waveform(
         FLAC precision level (in significant digits of input data). Higher values compress more but
         are lose more precision. Defaults to 4.
     """
-    with h5py.File(output_ffp, "w") as hdf, xr.open_dataset(waveform_ffp) as broadband:
-        flacarray.hdf5.write_array(broadband.waveform.values, hdf, precision=precision, level=level, use_threads=True)
+    with (
+        h5py.File(output_ffp, "w") as hdf,
+        xr.open_dataset(waveform_ffp, engine="h5netcdf") as broadband,
+    ):
+        flacarray.hdf5.write_array(
+            broadband.waveform.values,
+            hdf,
+            precision=precision,
+            level=level,
+            use_threads=True,
+        )
         _write_coords(hdf, broadband)
 
         for attr_name, attr_value in broadband.attrs.items():
