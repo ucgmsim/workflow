@@ -34,7 +34,7 @@ def _make_test_dataset() -> xr.Dataset:
     )
 
 
-def test_waveform_roundtrip_integrity(tmp_path: Path):
+def test_waveform_roundtrip_integrity(tmp_path: Path) -> None:
     """Verify waveform values and metadata survive the compression roundtrip."""
     with _make_test_dataset() as ds:
         input_path = tmp_path / "input.h5"
@@ -56,12 +56,11 @@ def test_waveform_roundtrip_integrity(tmp_path: Path):
     xr.testing.assert_allclose(restored, ds, atol=5e-4)
 
 
-def test_compression_efficiency(tmp_path: Path):
-    """Verify the compressed file is actually smaller than the raw NetCDF."""
+def test_compression_efficiency(tmp_path: Path) -> None:
+    """Verify the compressed file is actually smaller than the raw values."""
     input_path = tmp_path / "input.h5"
     output_path = tmp_path / "output.h5"
 
-    ds = _make_test_dataset()
     with _make_test_dataset() as ds:
         ds.to_netcdf(input_path, engine="h5netcdf")
 
