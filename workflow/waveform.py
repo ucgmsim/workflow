@@ -1,7 +1,7 @@
 """API for loading compressed waveform datasets."""
 
-from pathlib import Path
 from numbers import Integral
+from pathlib import Path
 
 import dask.array as da
 import flacarray.decompress
@@ -71,10 +71,7 @@ class FlacH5Wrapper:
         sample_indexer = key[-1]
         keep[stream_indexer] = True
 
-        # Normalise the sample indexer (last dimension) and reject unsupported
-        # slicing patterns (e.g. stepped slices). This ensures that
-        # first_stream_sample/last_stream_sample passed to the decompressor are
-        # consistent with the actual indexing semantics.
+        step = None
         if isinstance(sample_indexer, Integral):
             # Handle scalar indices, including negative ones.
             index = int(sample_indexer)
@@ -85,16 +82,15 @@ class FlacH5Wrapper:
             first_sample = index
             last_sample = index + 1
         else:
+            # Normalise the sample indexer (last dimension). This ensures that
+            # first_stream_sample/last_stream_sample passed to the decompressor are
+            # consistent with the actual indexing semantics.
+
             if not isinstance(sample_indexer, slice):
                 raise TypeError(
                     f"Unsupported index type for samples: {type(sample_indexer)!r}"
                 )
             start, stop, step = sample_indexer.indices(self.shape[-1])
-            if step != 1:
-                raise IndexError(
-                    "Stepped slicing for the sample dimension is not supported; "
-                    f"got step={step!r}"
-                )
             first_sample = start
             last_sample = stop
 
@@ -110,6 +106,9 @@ class FlacH5Wrapper:
             last_stream_sample=last_sample,
             is_int64=(self.dtype == np.float64),
         )
+
+        if step not in (None, 1):
+            decompressed_data = decompressed_data[..., ::step]
 
         dummy = np.zeros(1, dtype=np.int8)
         # The following is a "virtual array" with the same shape as
