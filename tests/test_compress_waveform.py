@@ -8,6 +8,7 @@ from workflow.scripts.compress_waveform import compress_waveform, decompress_wav
 N_COMPONENTS = 3
 N_STATIONS = 20
 N_TIME = 20_000
+N_HARMONICS = 5
 DT = 0.005
 
 
@@ -23,12 +24,12 @@ def _make_broadband_dataset(rng: np.random.Generator) -> xr.Dataset:
     time = np.arange(N_TIME) * DT
 
     # Build smooth, correlated waveforms (sine sweep + harmonics)
-    freqs = rng.uniform(0.5, 5.0, size=(N_COMPONENTS, N_STATIONS, 5))
-    phases = rng.uniform(0, 2 * np.pi, size=(N_COMPONENTS, N_STATIONS, 5))
-    amplitudes = rng.uniform(0.001, 0.05, size=(N_COMPONENTS, N_STATIONS, 5))
+    freqs = rng.uniform(0.5, 5.0, size=(N_COMPONENTS, N_STATIONS, N_HARMONICS))
+    phases = rng.uniform(0, 2 * np.pi, size=(N_COMPONENTS, N_STATIONS, N_HARMONICS))
+    amplitudes = rng.uniform(0.001, 0.05, size=(N_COMPONENTS, N_STATIONS, N_HARMONICS))
 
     waveform = np.zeros((N_COMPONENTS, N_STATIONS, N_TIME), dtype=np.float32)
-    for k in range(5):
+    for k in range(N_HARMONICS):
         waveform += (
             amplitudes[..., k : k + 1]
             * np.sin(

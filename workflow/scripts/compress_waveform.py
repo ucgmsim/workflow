@@ -49,7 +49,7 @@ from workflow import log_utils
 
 app = typer.Typer()
 
-INT16_MAX = np.iinfo(np.int16).max
+_INT16_MAX = np.iinfo(np.int16).max
 
 
 def _write_coords(
@@ -123,6 +123,9 @@ def compress_waveform(
     """
     broadband = xr.open_dataset(waveform_ffp, chunks={"time": 10_000})
 
+    # Materialise the waveform into a numpy array.  Dask chunking above
+    # lets xarray parse file metadata lazily; we need the full array for
+    # the FlacArray encoder which operates on contiguous memory.
     waveform: np.ndarray = broadband["waveform"].values
     waveform_dtype = str(waveform.dtype)
 
@@ -130,7 +133,7 @@ def compress_waveform(
     # bit-shunting. Values are stored as int32 because FlacArray only
     # accepts int32/int64 integer types.
     max_abs = float(np.abs(waveform).max())
-    scale_factor = max_abs / INT16_MAX if max_abs > 0 else 1.0
+    scale_factor = max_abs / _INT16_MAX if max_abs > 0 else 1.0
     scaled = np.round(waveform / scale_factor).astype(np.int32)
 
     # Delta encode along the time axis (last axis): y[n] = x[n] - x[n-1].
