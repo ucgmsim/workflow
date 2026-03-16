@@ -3,16 +3,15 @@
 Description
 -----------
 Compress a broadband waveform HDF5 file using FlacArray compression with
-int32 rescaling and delta encoding for efficient storage.
+int32 rescaling and component-delta encoding for efficient storage.
 
 The waveform data is rescaled to fill the safe range of a signed 32-bit
-integer (leaving headroom for delta encoding) and delta encoded along
-both the component axis (to exploit inter-component correlation) and the
-time axis (to exploit temporal smoothness) before FLAC compression.
-This produces small integer residuals that FLAC's Rice coding compresses
-very efficiently.  All coordinates and attributes from the input xarray
-dataset are preserved so the compressed file can be decompressed back
-to a complete xarray Dataset.
+integer and delta encoded along the component axis (to exploit
+inter-component correlation) before FLAC compression.  FLAC's built-in
+linear prediction handles temporal smoothness internally, so no explicit
+time-axis delta encoding is needed.  All coordinates and attributes from
+the input xarray dataset are preserved so the compressed file can be
+decompressed back to a complete xarray Dataset.
 
 Inputs
 ------
@@ -52,12 +51,11 @@ from workflow import log_utils
 
 app = typer.Typer()
 
-# Maximum scaled value.  After component-delta and time-delta encoding
-# the worst-case integer value is 4× the scaled maximum.  Using 2^23 − 1
-# (matching the float32 mantissa width) gives effectively lossless
-# round-trip precision for single-precision data while keeping all
-# intermediate delta values well within int32 range for FlacArray
-# lossless compression.
+# Maximum scaled value.  After component-delta encoding the worst-case
+# integer value is 2× the scaled maximum.  Using 2^23 − 1 (matching the
+# float32 mantissa width) gives effectively lossless round-trip precision
+# for single-precision data while keeping all intermediate delta values
+# well within int32 range for FlacArray lossless compression.
 _SCALE_LIMIT = (1 << 23) - 1
 
 
@@ -108,7 +106,7 @@ def _read_coords(hdf: h5py.File) -> dict[str, tuple[tuple[str, ...], np.ndarray]
 
 
 def _encode_chunk(ds_chunk: xr.Dataset, scale_factor: float) -> xr.Dataset:
-    """Encode a waveform chunk with int32 scaling and delta encoding.
+    """Encode a waveform chunk with int32 scaling and component-delta encoding.
 
     Each chunk is expected to contain all three components and the full
     timeseries for a subset of stations.  The encoding pipeline is:
@@ -117,8 +115,9 @@ def _encode_chunk(ds_chunk: xr.Dataset, scale_factor: float) -> xr.Dataset:
        *scale_factor*.
     2. Delta-encode along the component axis (x, y, z are strongly
        correlated in seismic data, so differences are small).
-    3. Delta-encode along the time axis (smooth waveforms produce
-       near-zero residuals).
+
+    FLAC's built-in linear prediction already exploits temporal
+    smoothness, so no explicit time-axis delta is applied here.
 
     Parameters
     ----------
@@ -143,14 +142,8 @@ def _encode_chunk(ds_chunk: xr.Dataset, scale_factor: float) -> xr.Dataset:
     # have much smaller variance.
     comp_delta = np.diff(scaled, axis=0, prepend=np.zeros_like(scaled[:1]))
 
-    # Time-wise delta: d[n] = s[n] − s[n−1].
-    # Smooth waveforms produce near-zero residuals that compress well.
-    time_delta = np.diff(
-        comp_delta, axis=-1, prepend=np.zeros_like(comp_delta[..., :1])
-    )
-
     return xr.Dataset(
-        {"waveform": (ds_chunk["waveform"].dims, time_delta)},
+        {"waveform": (ds_chunk["waveform"].dims, comp_delta)},
         coords=ds_chunk.coords,
     )
 
@@ -167,8 +160,8 @@ def compress_waveform(
     The waveform is chunked by station so that each parallel dask task
     processes complete component-triples with full timeseries.  Within
     each chunk the data is rescaled to a safe sub-range of the signed
-    32-bit integer type and delta encoded along both the component and
-    time axes before FLAC compression.
+    32-bit integer type and delta encoded along the component axis
+    before FLAC compression.
 
     Parameters
     ----------
@@ -191,7 +184,7 @@ def compress_waveform(
     max_abs = float(abs(broadband["waveform"]).max().compute())
     scale_factor = max_abs / _SCALE_LIMIT if max_abs > 0 else 1.0
 
-    # Encode each station-chunk in parallel: scale → component delta → time delta.
+    # Encode each station-chunk in parallel: scale → component delta.
     encoded = broadband.map_blocks(
         functools.partial(_encode_chunk, scale_factor=scale_factor)
     )
@@ -230,13 +223,11 @@ def decompress_waveform(compressed_ffp: Path) -> xr.Dataset:
     """
     with h5py.File(compressed_ffp, "r") as hdf:
         flac_waveform = FlacArray.read_hdf5(hdf["waveform"])
-        delta = flac_waveform.to_array()
-
-        # Undo time delta encoding: cumulative sum along time axis.
-        comp_delta = np.cumsum(delta, axis=-1)
+        comp_delta = flac_waveform.to_array()
 
         # Undo component delta encoding: cumulative sum along component axis.
-        scaled = np.cumsum(comp_delta, axis=0)
+        # Use int64 to guarantee no overflow on all platforms.
+        scaled = np.cumsum(comp_delta, axis=0, dtype=np.int64)
 
         # Rescale back to the original floating-point range.
         scale_factor = hdf.attrs["scale_factor"]

@@ -107,7 +107,7 @@ def test_compression_is_efficient(tmp_path: Path) -> None:
     """Verify that the compressed file is meaningfully smaller than the original.
 
     Smooth, correlated waveforms (like real seismic data) should
-    compress well with int32-scaling + delta-encoding + FLAC.
+    compress well with int32-scaling + component-delta-encoding + FLAC.
     """
     rng = np.random.default_rng(12345)
     ds = _make_broadband_dataset(rng)
@@ -147,3 +147,63 @@ def test_metadata_preserved(tmp_path: Path) -> None:
             ds.coords[coord_name].values,
             err_msg=f"Coordinate {coord_name!r} differs after roundtrip",
         )
+
+
+def test_no_drift(tmp_path: Path) -> None:
+    """Verify that the decompressed waveform has no accumulated drift.
+
+    When the waveform is quiet (near zero) before and after a burst of
+    seismic activity, the decompressed tail must return to near zero
+    rather than drifting away—a symptom of cumulative errors in the
+    reconstruction path.
+    """
+    rng = np.random.default_rng(54321)
+
+    # Build a seismic-like waveform: quiet → active → quiet.
+    time = np.arange(N_TIME) * DT
+    envelope = np.exp(-0.5 * ((time - 50.0) / 10.0) ** 2)
+
+    waveform = np.zeros((N_COMPONENTS, N_STATIONS, N_TIME), dtype=np.float32)
+    for c in range(N_COMPONENTS):
+        for s in range(N_STATIONS):
+            for freq in [0.5, 1.0, 3.0, 7.0]:
+                amp = rng.uniform(0.005, 0.03)
+                phase = rng.uniform(0, 2 * np.pi)
+                waveform[c, s, :] += (
+                    amp * envelope * np.sin(2 * np.pi * freq * time + phase)
+                ).astype(np.float32)
+    waveform += (rng.standard_normal(waveform.shape) * 1e-5).astype(np.float32)
+
+    ds = xr.Dataset(
+        {"waveform": (["component", "station", "time"], waveform)},
+        coords={
+            "component": ("component", ["x", "y", "z"]),
+            "station": ("station", [f"STA{i:03d}" for i in range(N_STATIONS)]),
+            "time": ("time", time),
+        },
+    )
+
+    input_ffp = tmp_path / "broadband.nc"
+    compressed_ffp = tmp_path / "broadband_compressed.h5"
+
+    ds.to_netcdf(input_ffp, engine="h5netcdf")
+    compress_waveform(input_ffp, compressed_ffp)
+    restored = decompress_waveform(compressed_ffp)
+
+    orig = ds.waveform.values
+    rest = restored.waveform.values
+
+    # The last 20 % of the trace is the quiet tail; its mean should be
+    # essentially zero (matching the original) rather than drifted.
+    tail_start = int(N_TIME * 0.8)
+    tail_mean_orig = np.mean(orig[:, :, tail_start:], axis=-1)
+    tail_mean_rest = np.mean(rest[:, :, tail_start:], axis=-1)
+    drift = tail_mean_rest - tail_mean_orig
+
+    max_abs = float(np.abs(orig).max())
+    scale_factor = max_abs / _SCALE_LIMIT
+
+    # Drift must stay within one quantisation step.
+    assert np.abs(drift).max() <= scale_factor, (
+        f"Drift {np.abs(drift).max():.3e} exceeds one LSB ({scale_factor:.3e})"
+    )
