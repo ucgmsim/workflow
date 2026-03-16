@@ -36,7 +36,6 @@ For More Help
 See the output of ``compress-waveform --help``.
 """
 
-import functools
 from pathlib import Path
 from typing import Annotated
 
