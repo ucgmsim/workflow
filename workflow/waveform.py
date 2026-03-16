@@ -1,6 +1,7 @@
 """API for loading compressed waveform datasets."""
 
 from pathlib import Path
+from numbers import Integral
 
 import dask.array as da
 import flacarray.decompress
@@ -70,18 +71,32 @@ class FlacH5Wrapper:
         sample_indexer = key[-1]
         keep[stream_indexer] = True
 
-        if isinstance(sample_indexer, int):
-            first_sample = sample_indexer
-            last_sample = sample_indexer + 1
+        # Normalise the sample indexer (last dimension) and reject unsupported
+        # slicing patterns (e.g. stepped slices). This ensures that
+        # first_stream_sample/last_stream_sample passed to the decompressor are
+        # consistent with the actual indexing semantics.
+        if isinstance(sample_indexer, Integral):
+            # Handle scalar indices, including negative ones.
+            index = int(sample_indexer)
+            if index < 0:
+                index += self.shape[-1]
+            if index < 0 or index >= self.shape[-1]:
+                raise IndexError("Sample index out of range")
+            first_sample = index
+            last_sample = index + 1
         else:
-            first_sample = (
-                sample_indexer.start if sample_indexer.start is not None else 0
-            )
-            last_sample = (
-                sample_indexer.stop
-                if sample_indexer.stop is not None
-                else self.shape[-1]
-            )
+            if not isinstance(sample_indexer, slice):
+                raise TypeError(
+                    f"Unsupported index type for samples: {type(sample_indexer)!r}"
+                )
+            start, stop, step = sample_indexer.indices(self.shape[-1])
+            if step != 1:
+                raise IndexError(
+                    "Stepped slicing for the sample dimension is not supported; "
+                    f"got step={step!r}"
+                )
+            first_sample = start
+            last_sample = stop
 
         decompressed_data, _ = flacarray.decompress.array_decompress_slice(
             compressed=self.raw_bytes,
