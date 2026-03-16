@@ -3,7 +3,11 @@ from pathlib import Path
 import numpy as np
 import xarray as xr
 
-from workflow.scripts.compress_waveform import compress_waveform, decompress_waveform
+from workflow.scripts.compress_waveform import (
+    _SCALE_LIMIT,
+    compress_waveform,
+    decompress_waveform,
+)
 
 N_COMPONENTS = 3
 N_STATIONS = 20
@@ -90,9 +94,9 @@ def test_compress_decompress_roundtrip(tmp_path: Path) -> None:
     assert restored.waveform.dtype == ds.waveform.dtype
     assert restored.waveform.shape == ds.waveform.shape
 
-    # Numerical accuracy: int16 quantisation error is at most 0.5 LSB.
+    # Numerical accuracy: quantisation error is at most 0.5 LSB.
     max_abs = float(np.abs(ds.waveform.values).max())
-    scale_factor = max_abs / np.iinfo(np.int16).max
+    scale_factor = max_abs / _SCALE_LIMIT
     max_err = float(np.abs(restored.waveform.values - ds.waveform.values).max())
     assert max_err <= scale_factor, (
         f"Roundtrip error {max_err} exceeds one LSB ({scale_factor})"
@@ -103,7 +107,7 @@ def test_compression_is_efficient(tmp_path: Path) -> None:
     """Verify that the compressed file is meaningfully smaller than the original.
 
     Smooth, correlated waveforms (like real seismic data) should
-    compress well with int16-scaling + delta-encoding + FLAC.
+    compress well with int32-scaling + delta-encoding + FLAC.
     """
     rng = np.random.default_rng(12345)
     ds = _make_broadband_dataset(rng)
@@ -118,8 +122,8 @@ def test_compression_is_efficient(tmp_path: Path) -> None:
     compressed_bytes = compressed_ffp.stat().st_size
     ratio = original_bytes / compressed_bytes
 
-    # With smooth waveforms, expect at least 3× compression.
-    assert ratio > 3.0, (
+    # With smooth waveforms, expect at least 1.5× compression.
+    assert ratio > 1.5, (
         f"Compression ratio {ratio:.2f}x is too low "
         f"(original={original_bytes}, compressed={compressed_bytes})"
     )

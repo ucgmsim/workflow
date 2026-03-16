@@ -3,14 +3,14 @@
 Description
 -----------
 Compress a broadband waveform HDF5 file using FlacArray compression with
-int16 rescaling and delta encoding for efficient storage.
+int32 rescaling and delta encoding for efficient storage.
 
-The waveform data is rescaled to fit the full range of a signed 16-bit
-integer ([-32768, 32767]) and delta encoded along both the component
-axis (to exploit inter-component correlation) and the time axis (to
-exploit temporal smoothness) before FLAC compression.  This produces
-small integer residuals that FLAC's Rice coding compresses very
-efficiently.  All coordinates and attributes from the input xarray
+The waveform data is rescaled to fill the safe range of a signed 32-bit
+integer (leaving headroom for delta encoding) and delta encoded along
+both the component axis (to exploit inter-component correlation) and the
+time axis (to exploit temporal smoothness) before FLAC compression.
+This produces small integer residuals that FLAC's Rice coding compresses
+very efficiently.  All coordinates and attributes from the input xarray
 dataset are preserved so the compressed file can be decompressed back
 to a complete xarray Dataset.
 
@@ -52,7 +52,13 @@ from workflow import log_utils
 
 app = typer.Typer()
 
-_INT16_MAX = np.iinfo(np.int16).max
+# Maximum scaled value.  After component-delta and time-delta encoding
+# the worst-case integer value is 4× the scaled maximum.  Using 2^23 − 1
+# (matching the float32 mantissa width) gives effectively lossless
+# round-trip precision for single-precision data while keeping all
+# intermediate delta values well within int32 range for FlacArray
+# lossless compression.
+_SCALE_LIMIT = (1 << 23) - 1
 
 
 def _write_coords(
@@ -102,12 +108,13 @@ def _read_coords(hdf: h5py.File) -> dict[str, tuple[tuple[str, ...], np.ndarray]
 
 
 def _encode_chunk(ds_chunk: xr.Dataset, scale_factor: float) -> xr.Dataset:
-    """Encode a waveform chunk with int16 scaling and delta encoding.
+    """Encode a waveform chunk with int32 scaling and delta encoding.
 
     Each chunk is expected to contain all three components and the full
     timeseries for a subset of stations.  The encoding pipeline is:
 
-    1. Scale the float waveform to the int16 range using *scale_factor*.
+    1. Scale the float waveform to the int32 safe range using
+       *scale_factor*.
     2. Delta-encode along the component axis (x, y, z are strongly
        correlated in seismic data, so differences are small).
     3. Delta-encode along the time axis (smooth waveforms produce
@@ -119,7 +126,7 @@ def _encode_chunk(ds_chunk: xr.Dataset, scale_factor: float) -> xr.Dataset:
         A chunk of the broadband dataset.
     scale_factor : float
         Global scale factor that maps the maximum amplitude to the
-        int16 range.
+        int32 safe range.
 
     Returns
     -------
@@ -128,7 +135,7 @@ def _encode_chunk(ds_chunk: xr.Dataset, scale_factor: float) -> xr.Dataset:
     """
     waveform = ds_chunk["waveform"].values
 
-    # Scale to fill the int16 range [-32768, 32767].
+    # Scale to fill the int32 safe range.
     scaled = np.round(waveform / scale_factor).astype(np.int32)
 
     # Component-wise delta: [x, y−x, z−y].
@@ -159,9 +166,9 @@ def compress_waveform(
 
     The waveform is chunked by station so that each parallel dask task
     processes complete component-triples with full timeseries.  Within
-    each chunk the data is rescaled to the signed 16-bit integer range
-    and delta encoded along both the component and time axes before
-    FLAC compression.
+    each chunk the data is rescaled to a safe sub-range of the signed
+    32-bit integer type and delta encoded along both the component and
+    time axes before FLAC compression.
 
     Parameters
     ----------
@@ -182,7 +189,7 @@ def compress_waveform(
     # Compute the global scale factor.  This is a reduction that dask
     # evaluates lazily until .compute() is called.
     max_abs = float(abs(broadband["waveform"]).max().compute())
-    scale_factor = max_abs / _INT16_MAX if max_abs > 0 else 1.0
+    scale_factor = max_abs / _SCALE_LIMIT if max_abs > 0 else 1.0
 
     # Encode each station-chunk in parallel: scale → component delta → time delta.
     encoded = broadband.map_blocks(
