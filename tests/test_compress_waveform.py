@@ -3,9 +3,9 @@ from pathlib import Path
 import numpy as np
 import xarray as xr
 
+from workflow import waveform
 from workflow.scripts.compress_waveform import (
     compress_waveform,
-    decompress_waveform,
 )
 
 # Constants for test data generation
@@ -43,7 +43,7 @@ def test_waveform_roundtrip_integrity(tmp_path: Path) -> None:
     output_path = tmp_path / "output.h5"
 
     compress_waveform(input_path, output_path)
-    restored = decompress_waveform(output_path)
+    restored = waveform.load_waveform_dataset(output_path).compute()
 
     restored_subset = {k: v for k, v in restored.attrs.items() if k in original_attrs}
     assert restored_subset == original_attrs, (

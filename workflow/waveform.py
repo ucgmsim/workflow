@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import dask.array as da
-import flacarray
+import flacarray.decompress
 import h5py
 import numpy as np
 import xarray as xr
@@ -11,7 +11,17 @@ from numpy.lib import stride_tricks
 
 
 class FlacH5Wrapper:
-    """An array-like interface for FLAC compressed waveforms that only allocates memory for the compressed raw bytes."""
+    """An array-like interface for FLAC compressed waveforms that only allocates memory for the compressed raw bytes.
+
+    Parameters
+    ----------
+    group : h5py.Group
+        HDF5 group to read from
+    shape : tuple
+        Shape of output array.
+    dtype : np.dtype
+        Data type of output array.
+    """
 
     def __init__(
         self,
