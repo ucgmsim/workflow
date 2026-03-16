@@ -131,7 +131,7 @@ def compress_waveform(
         h5py.File(output_ffp, "w") as hdf,
         xr.open_dataset(waveform_ffp, engine="h5netcdf") as broadband,
     ):
-        flacarray.hdf5.write_array(
+        flacarray.hdf5.write_array(  # type: ignore[possibly-missing-attribute]
             broadband.waveform.values,
             hdf,
             precision=precision,
@@ -161,7 +161,7 @@ def decompress_waveform(compressed_ffp: Path) -> xr.Dataset:
         and attributes restored.
     """
     with h5py.File(compressed_ffp, "r") as hdf:
-        waveform = flacarray.hdf5.read_array(hdf, use_threads=True)
+        waveform = flacarray.hdf5.read_array(hdf, use_threads=True)  # type: ignore[possibly-missing-attribute]
 
         dims = list(hdf.attrs["waveform_dims"])
         coords = _read_coords(hdf)
