@@ -44,19 +44,12 @@ import h5py
 import numpy as np
 import typer
 import xarray as xr
-from flacarray import FlacArray
+import flacarray
 
 from qcore import cli
 from workflow import log_utils
 
 app = typer.Typer()
-
-# Maximum scaled value.  After component-delta encoding the worst-case
-# integer value is 2× the scaled maximum.  Using 2^23 − 1 (matching the
-# float32 mantissa width) gives effectively lossless round-trip precision
-# for single-precision data while keeping all intermediate delta values
-# well within int32 range for FlacArray lossless compression.
-_SCALE_LIMIT = (1 << 23) - 1
 
 
 def _write_coords(
@@ -105,7 +98,7 @@ def _read_coords(hdf: h5py.File) -> dict[str, tuple[tuple[str, ...], np.ndarray]
     return coords
 
 
-def _encode_chunk(ds_chunk: xr.Dataset, scale_factor: float) -> xr.Dataset:
+def _compress_chunk(ds_chunk: xr.Dataset) -> xr.Dataset:
     """Encode a waveform chunk with int32 scaling and component-delta encoding.
 
     Each chunk is expected to contain all three components and the full
@@ -134,14 +127,6 @@ def _encode_chunk(ds_chunk: xr.Dataset, scale_factor: float) -> xr.Dataset:
     """
     waveform = ds_chunk["waveform"].values
 
-    # Scale to fill the int32 safe range.
-    scaled = np.round(waveform / scale_factor).astype(np.int32)
-
-    # Component-wise delta: [x, y−x, z−y].
-    # Components share strong seismic correlation, so their differences
-    # have much smaller variance.
-    comp_delta = np.diff(scaled, axis=0, prepend=np.zeros_like(scaled[:1]))
-
     return xr.Dataset(
         {"waveform": (ds_chunk["waveform"].dims, comp_delta)},
         coords=ds_chunk.coords,
@@ -154,6 +139,7 @@ def compress_waveform(
     waveform_ffp: Annotated[Path, typer.Argument(dir_okay=False, exists=True)],
     output_ffp: Annotated[Path, typer.Argument(dir_okay=False, writable=True)],
     level: Annotated[int, typer.Option(min=0, max=8)] = 5,
+    precision: Annotated[int, typer.Option(min=1)] = 4
 ) -> None:
     """Compress a broadband waveform file using FlacArray.
 
@@ -172,39 +158,19 @@ def compress_waveform(
     level : int, optional
         FLAC compression level (0-8). Higher values compress more but
         are slower. Defaults to 5.
+    precision : int, optional
+        FLAC precision level (in significant digits of input data). Higher values compress more but
+        are lose more precision. Defaults to 4.
     """
-    # Chunk by station: each chunk gets all components and full timeseries
-    # for a subset of stations, allowing parallel encoding via dask.
-    broadband = xr.open_dataset(waveform_ffp, chunks={"station": "auto"})
 
-    waveform_dtype = str(broadband["waveform"].dtype)
-
-    # Compute the global scale factor.  This is a reduction that dask
-    # evaluates lazily until .compute() is called.
-    max_abs = float(abs(broadband["waveform"]).max().compute())
-    scale_factor = max_abs / _SCALE_LIMIT if max_abs > 0 else 1.0
-
-    # Encode each station-chunk in parallel: scale → component delta.
-    encoded = broadband.map_blocks(
-        functools.partial(_encode_chunk, scale_factor=scale_factor)
-    )
-
-    # Materialise the encoded int32 array and compress losslessly with FLAC.
-    encoded_data: np.ndarray = encoded["waveform"].compute().values
-    flac_waveform = FlacArray.from_array(encoded_data, level=level)
-
-    with h5py.File(output_ffp, "w") as hdf:
-        flac_waveform.write_hdf5(hdf.create_group("waveform"))
+    with h5py.File(output_ffp, "w") as hdf, xr.open_dataset(waveform_ffp) as broadband:
+        flacarray.hdf5.write_array(broadband.waveform.values, hdf, precision=4, level=level)
         _write_coords(hdf, broadband)
 
         for attr_name, attr_value in broadband.attrs.items():
             hdf.attrs[attr_name] = attr_value
 
         hdf.attrs["waveform_dims"] = list(broadband["waveform"].dims)
-        hdf.attrs["scale_factor"] = scale_factor
-        hdf.attrs["waveform_dtype"] = waveform_dtype
-
-    broadband.close()
 
 
 def decompress_waveform(compressed_ffp: Path) -> xr.Dataset:
@@ -222,18 +188,7 @@ def decompress_waveform(compressed_ffp: Path) -> xr.Dataset:
         and attributes restored.
     """
     with h5py.File(compressed_ffp, "r") as hdf:
-        flac_waveform = FlacArray.read_hdf5(hdf["waveform"])
-        comp_delta = flac_waveform.to_array()
-
-        # Undo component delta encoding: cumulative sum along component axis.
-        # Use int64 to guarantee no overflow on all platforms.
-        scaled = np.cumsum(comp_delta, axis=0, dtype=np.int64)
-
-        # Rescale back to the original floating-point range.
-        scale_factor = hdf.attrs["scale_factor"]
-        waveform_dtype = np.dtype(str(hdf.attrs["waveform_dtype"]))
-        scale_factor_typed = waveform_dtype.type(scale_factor)
-        waveform = scaled.astype(waveform_dtype) * scale_factor_typed
+        waveform = flacarray.hdf5.read_array(hdf)
 
         dims = list(hdf.attrs["waveform_dims"])
         coords = _read_coords(hdf)
