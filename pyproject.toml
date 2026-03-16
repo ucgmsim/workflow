@@ -25,6 +25,7 @@ dependencies = [
   "xarray[io]",
 
   # Numerics
+  "dask",
   "numpy",
   "scipy",
   "shapely",
