@@ -13,30 +13,46 @@ DT = 0.005
 
 
 def _make_broadband_dataset(rng: np.random.Generator) -> xr.Dataset:
-    """Create a synthetic broadband waveform dataset resembling bb_sim output.
+    """Create a synthetic broadband waveform dataset with correlated components.
 
-    The waveform mimics real seismic traces by combining a few
-    sinusoidal components with different frequencies and adding a
-    small amount of noise.  Real broadband waveforms have strong
-    temporal autocorrelation, so this synthetic data is a reasonable
-    stand-in for testing compression behaviour.
+    The waveform mimics real seismic traces where x, y, z components
+    share a dominant signal with small per-component perturbations.
+    This tests that the component-delta encoding exploits
+    cross-component correlation effectively.
     """
     time = np.arange(N_TIME) * DT
 
-    # Build smooth, correlated waveforms (sine sweep + harmonics)
-    freqs = rng.uniform(0.5, 5.0, size=(N_COMPONENTS, N_STATIONS, N_HARMONICS))
-    phases = rng.uniform(0, 2 * np.pi, size=(N_COMPONENTS, N_STATIONS, N_HARMONICS))
-    amplitudes = rng.uniform(0.001, 0.05, size=(N_COMPONENTS, N_STATIONS, N_HARMONICS))
+    # Base signal shared by all components (dominant seismic motion).
+    base_freqs = rng.uniform(0.5, 5.0, size=(1, N_STATIONS, N_HARMONICS))
+    base_phases = rng.uniform(0, 2 * np.pi, size=(1, N_STATIONS, N_HARMONICS))
+    base_amps = rng.uniform(0.001, 0.05, size=(1, N_STATIONS, N_HARMONICS))
 
-    waveform = np.zeros((N_COMPONENTS, N_STATIONS, N_TIME), dtype=np.float32)
+    base = np.zeros((1, N_STATIONS, N_TIME), dtype=np.float32)
     for k in range(N_HARMONICS):
-        waveform += (
-            amplitudes[..., k : k + 1]
+        base += (
+            base_amps[..., k : k + 1]
             * np.sin(
-                2 * np.pi * freqs[..., k : k + 1] * time[np.newaxis, np.newaxis, :]
-                + phases[..., k : k + 1]
+                2 * np.pi * base_freqs[..., k : k + 1]
+                * time[np.newaxis, np.newaxis, :]
+                + base_phases[..., k : k + 1]
             )
         ).astype(np.float32)
+
+    # Components share the base signal with ~10 % perturbation.
+    waveform = np.tile(base, (N_COMPONENTS, 1, 1))
+    for c in range(N_COMPONENTS):
+        pert_freqs = rng.uniform(0.5, 5.0, size=(1, N_STATIONS, 2))
+        pert_phases = rng.uniform(0, 2 * np.pi, size=(1, N_STATIONS, 2))
+        pert_amps = rng.uniform(0.0001, 0.005, size=(1, N_STATIONS, 2))
+        for k in range(2):
+            waveform[c : c + 1] += (
+                pert_amps[..., k : k + 1]
+                * np.sin(
+                    2 * np.pi * pert_freqs[..., k : k + 1]
+                    * time[np.newaxis, np.newaxis, :]
+                    + pert_phases[..., k : k + 1]
+                )
+            ).astype(np.float32)
 
     # Small additive noise
     waveform += (rng.standard_normal(waveform.shape) * 1e-4).astype(np.float32)
