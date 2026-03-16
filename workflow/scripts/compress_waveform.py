@@ -98,40 +98,6 @@ def _read_coords(hdf: h5py.File) -> dict[str, tuple[tuple[str, ...], np.ndarray]
     return coords
 
 
-def _compress_chunk(ds_chunk: xr.Dataset) -> xr.Dataset:
-    """Encode a waveform chunk with int32 scaling and component-delta encoding.
-
-    Each chunk is expected to contain all three components and the full
-    timeseries for a subset of stations.  The encoding pipeline is:
-
-    1. Scale the float waveform to the int32 safe range using
-       *scale_factor*.
-    2. Delta-encode along the component axis (x, y, z are strongly
-       correlated in seismic data, so differences are small).
-
-    FLAC's built-in linear prediction already exploits temporal
-    smoothness, so no explicit time-axis delta is applied here.
-
-    Parameters
-    ----------
-    ds_chunk : xr.Dataset
-        A chunk of the broadband dataset.
-    scale_factor : float
-        Global scale factor that maps the maximum amplitude to the
-        int32 safe range.
-
-    Returns
-    -------
-    xr.Dataset
-        Encoded chunk with int32 waveform values.
-    """
-    waveform = ds_chunk["waveform"].values
-
-    return xr.Dataset(
-        {"waveform": (ds_chunk["waveform"].dims, comp_delta)},
-        coords=ds_chunk.coords,
-    )
-
 
 @cli.from_docstring(app)
 @log_utils.log_call()
@@ -162,9 +128,8 @@ def compress_waveform(
         FLAC precision level (in significant digits of input data). Higher values compress more but
         are lose more precision. Defaults to 4.
     """
-    print(f'{level=}')
     with h5py.File(output_ffp, "w") as hdf, xr.open_dataset(waveform_ffp) as broadband:
-        flacarray.hdf5.write_array(broadband.waveform.values, hdf, precision=4, level=level, use_threads=True)
+        flacarray.hdf5.write_array(broadband.waveform.values, hdf, precision=precision, level=level, use_threads=True)
         _write_coords(hdf, broadband)
 
         for attr_name, attr_value in broadband.attrs.items():
