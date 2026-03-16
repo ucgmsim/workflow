@@ -2,16 +2,7 @@
 
 Description
 -----------
-Compress a broadband waveform HDF5 file using FlacArray compression with
-int32 rescaling and component-delta encoding for efficient storage.
-
-The waveform data is rescaled to fill the safe range of a signed 32-bit
-integer and delta encoded along the component axis (to exploit
-inter-component correlation) before FLAC compression.  FLAC's built-in
-linear prediction handles temporal smoothness internally, so no explicit
-time-axis delta encoding is needed.  All coordinates and attributes from
-the input xarray dataset are preserved so the compressed file can be
-decompressed back to a complete xarray Dataset.
+Compress a broadband waveform HDF5 file using FLAC compression.
 
 Inputs
 ------
@@ -39,7 +30,7 @@ See the output of ``compress-waveform --help``.
 from pathlib import Path
 from typing import Annotated
 
-import flacarray
+import flacarray.hdf5
 import h5py
 import typer
 import xarray as xr
@@ -91,7 +82,7 @@ def compress_waveform(
             group.attrs["dims"] = broadband.waveform.dims
             group.attrs["dtype"] = str(broadband.waveform.dtype)
 
-            flacarray.hdf5.write_array(  # type: ignore[possibly-missing-attribute]
+            flacarray.hdf5.write_array(
                 broadband.waveform.values,
                 group,
                 precision=precision,
