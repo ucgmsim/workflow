@@ -61,8 +61,8 @@ def compress_waveform(
         FLAC compression level (0-8). Higher values compress more but
         are slower. Defaults to 5.
     precision : int, optional
-        FLAC precision level (in significant digits of input data). Higher values compress more but
-        are lose more precision. Defaults to 4.
+        FLAC precision level (in significant digits of input data). Higher values compress less but
+        have more precision. Defaults to 4.
     """
     with (
         xr.open_dataset(waveform_ffp, engine="h5netcdf") as broadband,
