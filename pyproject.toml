@@ -18,13 +18,13 @@ dependencies = [
   "qcore-utils>=2025.12.2",
   "source_modelling>=2025.12.1",
   # Data Formats
+  "dask",
   "flacarray",
   "geopandas",
   "h5py",
   "pandas[parquet, hdf5]",
   "pyyaml",
   "xarray[io]",
-
   # Numerics
   "numpy",
   "scipy",
@@ -37,7 +37,6 @@ dependencies = [
   "schema",    # For loading realisations
   "structlog", # Logging.
   "psutil",    # To get the CPU affinity for jobs
-
 ]
 
 [project.optional-dependencies]
