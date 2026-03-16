@@ -49,13 +49,7 @@ def compress_waveform(
     level: Annotated[int, typer.Option(min=0, max=8)] = 5,
     precision: Annotated[int, typer.Option(min=1)] = 4,
 ) -> None:
-    """Compress a broadband waveform file using FlacArray.
-
-    The waveform is chunked by station so that each parallel dask task
-    processes complete component-triples with full timeseries.  Within
-    each chunk the data is rescaled to a safe sub-range of the signed
-    32-bit integer type and delta encoded along the component axis
-    before FLAC compression.
+    """Compress a broadband waveform file using FLAC.
 
     Parameters
     ----------
