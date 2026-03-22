@@ -9,7 +9,7 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: earthquakesuc/workflow-boostrap
+  IMAGE_NAME: earthquakesuc/workflow-bootstrap
 
 jobs:
   build-test-upload:
