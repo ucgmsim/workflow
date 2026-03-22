@@ -32,7 +32,7 @@ jobs:
           tags: |
             type=sha,format=long
             type=ref,event=branch
-            latest
+            type=raw,value=latest
 
       - name: Build and push
         uses: docker/build-push-action@v5
