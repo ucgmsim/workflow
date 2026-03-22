@@ -172,7 +172,7 @@ def gcmt_to_realisation(
         dip2 = gcmt_solutions.at[gcmt_event_id, "dip2"]
         rake2 = gcmt_solutions.at[gcmt_event_id, "rake2"]
         nodal_plane_1 = NodalPlane(strike1, dip1, rake1)
-        nodal_plane_2 = NodalPlane(strike2, rake2, dip2)
+        nodal_plane_2 = NodalPlane(strike2, dip2, rake2)
     elif gcmt_event_id in automated_gcmt_solutions:
         solution = automated_gcmt_solutions[gcmt_event_id]
         latitude = solution["location"]["latitude"]
