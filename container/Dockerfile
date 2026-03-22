@@ -64,7 +64,7 @@ ENV RUSTUP_HOME=/sw/rust
 ENV CARGO_HOME=/sw/cargo
 ENV VIRTUAL_ENV="/sw/venv"
 # Added /sw/python/bin to path early to ensure we use the compiled python
-ENV PATH="$VIRTUAL_ENV/bin:/sw/python/bin:/sw/cargo/bin:/EMOD3D/tools:$PATH"
+ENV PATH="$VIRTUAL_ENV/bin:/sw/python/bin:/sw/cargo/bin:$PATH"
 ENV LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
 
 # Install Rust
