@@ -29,8 +29,8 @@ See the output of `gcmt-to-realisation --help`.
 """
 
 import warnings
-from enum import StrEnum, auto
 from dataclasses import dataclass
+from enum import StrEnum, auto
 from pathlib import Path
 from typing import Annotated, Optional
 
