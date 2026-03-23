@@ -29,7 +29,6 @@ See the output of `gcmt-to-realisation --help`.
 """
 
 import warnings
-from dataclasses import dataclass
 from enum import StrEnum, auto
 from pathlib import Path
 from typing import Annotated, Optional
@@ -89,16 +88,8 @@ class SourceType(StrEnum):
     POINT_SOURCE = "point-source"
     """Use a point source approximation."""
 
-@dataclass
-class GCMTSolution:
-    """Container for GCMT event data with guaranteed float types."""
-    event_id: str
-    latitude: float
-    longitude: float
-    centroid_depth: float
-    magnitude: float
-    nodal_plane_1: NodalPlane
-    nodal_plane_2: NodalPlane
+
+
 
 
 @cli.from_docstring(app)
