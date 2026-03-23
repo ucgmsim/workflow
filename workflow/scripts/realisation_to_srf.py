@@ -37,6 +37,7 @@ You can visualise the output of this stage using the SRF plotting tools in the [
 """
 
 import dataclasses
+from enum import Enum
 import functools
 import multiprocessing
 import re
@@ -490,6 +491,8 @@ def _build_genslip_command(
             serialised_value = ",".join([str(v) for v in value])
         elif isinstance(value, bool):
             serialised_value = "1" if value else "0"
+        elif isinstance(value, Enum):
+            serialised_value = value.value
         elif dataclasses.is_dataclass(value):
             continue
         else:
