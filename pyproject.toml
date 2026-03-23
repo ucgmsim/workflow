@@ -70,6 +70,7 @@ check-domain = "workflow.scripts.check_domain:app"
 gcmt-auto-simulate = "workflow.scripts.gcmt_auto_simulate:app"
 import-realisation = "workflow.scripts.import_realisation:app"
 lf-to-xarray = "workflow.scripts.lf_to_xarray:app"
+migrate = "workflow.scripts.migrate:app"
 
 [tool.setuptools.package-dir]
 workflow = "workflow"
