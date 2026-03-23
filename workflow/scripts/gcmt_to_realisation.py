@@ -30,6 +30,7 @@ See the output of `gcmt-to-realisation --help`.
 
 import warnings
 from enum import StrEnum, auto
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -87,6 +88,17 @@ class SourceType(StrEnum):
     """Use a finite fault plane."""
     POINT_SOURCE = "point-source"
     """Use a point source approximation."""
+
+@dataclass
+class GCMTSolution:
+    """Container for GCMT event data with guaranteed float types."""
+    event_id: str
+    latitude: float
+    longitude: float
+    centroid_depth: float
+    magnitude: float
+    nodal_plane_1: NodalPlane
+    nodal_plane_2: NodalPlane
 
 
 @cli.from_docstring(app)
@@ -161,16 +173,20 @@ def gcmt_to_realisation(
     ].set_index("PublicID")
 
     if gcmt_event_id in gcmt_solutions.index:
-        latitude = gcmt_solutions.at[gcmt_event_id, "Latitude"]
-        longitude = gcmt_solutions.at[gcmt_event_id, "Longitude"]
-        centroid_depth = gcmt_solutions.at[gcmt_event_id, "CD"]
-        magnitude = gcmt_solutions.at[gcmt_event_id, "Mw"]
-        strike1 = gcmt_solutions.at[gcmt_event_id, "strike1"]
-        dip1 = gcmt_solutions.at[gcmt_event_id, "dip1"]
-        rake1 = gcmt_solutions.at[gcmt_event_id, "rake1"]
-        strike2 = gcmt_solutions.at[gcmt_event_id, "strike2"]
-        dip2 = gcmt_solutions.at[gcmt_event_id, "dip2"]
-        rake2 = gcmt_solutions.at[gcmt_event_id, "rake2"]
+        row = gcmt_solutions.loc[gcmt_event_id]
+        latitude = float(row["Latitude"])  # type: ignore[invalid-argument-type]
+        longitude = float(gcmt_solutions.at[gcmt_event_id, "Longitude"]) # type: ignore[invalid-argument-type]
+        centroid_depth = float(gcmt_solutions.at[gcmt_event_id, "CD"]) # type: ignore[invalid-argument-type]
+        magnitude = float(gcmt_solutions.at[gcmt_event_id, "Mw"]) # type: ignore[invalid-argument-type]
+        
+        strike1 = float(gcmt_solutions.at[gcmt_event_id, "strike1"]) # type: ignore[invalid-argument-type]
+        dip1 = float(gcmt_solutions.at[gcmt_event_id, "dip1"]) # type: ignore[invalid-argument-type]
+        rake1 = float(gcmt_solutions.at[gcmt_event_id, "rake1"]) # type: ignore[invalid-argument-type]
+        
+        strike2 = float(gcmt_solutions.at[gcmt_event_id, "strike2"]) # type: ignore[invalid-argument-type]
+        dip2 = float(gcmt_solutions.at[gcmt_event_id, "dip2"]) # type: ignore[invalid-argument-type]
+        rake2 = float(gcmt_solutions.at[gcmt_event_id, "rake2"]) # type: ignore[invalid-argument-type]
+
         nodal_plane_1 = NodalPlane(strike1, dip1, rake1)
         nodal_plane_2 = NodalPlane(strike2, dip2, rake2)
     elif gcmt_event_id in automated_gcmt_solutions:
@@ -181,6 +197,7 @@ def gcmt_to_realisation(
         magnitude = solution["magnitude"]
         nodal_plane_1 = NodalPlane(**solution["nodalPlanes"][0])
         nodal_plane_2 = NodalPlane(**solution["nodalPlanes"][1])
+        
     else:
         raise typer.BadParameter(
             f"GCMT event ID {gcmt_event_id} not found in either the published GCMT solutions or automated solutions.",
@@ -204,7 +221,6 @@ def gcmt_to_realisation(
     # Calculate dip direction from strike (strike + 90 degrees for right-hand rule)
     dip_direction = (selected_nodal_plane.strike + 90) % 360
 
-    assert isinstance(magnitude, float)
     length, width = magnitude_scaling.magnitude_to_length_width(
         scaling_relation, magnitude, rake
     )
@@ -219,7 +235,6 @@ def gcmt_to_realisation(
         length_m = length_km * 1000  # Convert km to meters
         width_m = width_km * 1000  # Convert km to meters
 
-        assert isinstance(centroid_depth, float)
         source_geometry = sources.Point.from_lat_lon_depth(
             point_coordinates=np.array(
                 [latitude, longitude, centroid_depth * 1000]
