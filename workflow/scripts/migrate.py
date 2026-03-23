@@ -211,17 +211,13 @@ def extract_error(
     last_error = e.autos[-1] if e.autos else str(e)
     extraneous_keys = []
     assert isinstance(last_error, str)
-    # Handle multiple wrong keys: "Wrong keys 'dt', 'resolution' in..."
     if "Wrong keys" in last_error:
-        # Extract everything between single quotes
         extraneous_keys = re.findall(r"'(.*?)'", last_error.split(" in {")[0])
         error_msg = f"Extraneous keys found: [red]{', '.join(extraneous_keys)}[/red]"
         return f"Error in {name}: {error_msg}", extraneous_keys
 
-    # Fallback to existing logic for "Wrong key" (singular/typo)
     if match := re.match(r"^Wrong key '(.*?)'", last_error):
         unknown_key = match.group(1)
-        # ... (keep your existing fuzzy matching logic here) ...
         return f"Error in {name}: Unknown key '{unknown_key}'", [unknown_key]
 
     return f"Error in {name}: {last_error}", []
@@ -285,7 +281,6 @@ def trim_keys(
     if dry_run:
         console.print(f"DRY RUN: Would remove {extra_keys} from {realisation}")
     else:
-        # Load raw data, delete keys, save back
         with open(realisation, "r") as f:
             data = json.load(f)
 
@@ -393,7 +388,6 @@ def migrate(
                     dry_run=dry_run,
                 )
 
-        # Basic validation complete, now try to resolve schema errors
         try:
             _ = config.read_from_realisation(realisation)
         except realisations.RealisationParseError:
