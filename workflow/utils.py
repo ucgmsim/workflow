@@ -1,6 +1,7 @@
 """Miscellaneous workflow utilities that couldn't go anywhere else."""
 
 import inspect
+import hashlib
 import os
 import tempfile
 import urllib.request
@@ -196,3 +197,26 @@ def merge_dictionaries(dict_a: dict[str, Any], dict_b: dict[str, Any]) -> None:
             merge_dictionaries(dict_a[key], dict_b[key])
         else:
             dict_a[key] = value
+
+def stable_hash(value: str, size: int = 4) -> int:
+    """Compute stable hashes for strings.
+
+    Parameters
+    ----------
+    value : str
+        String to hash.
+    size : int, optional
+        Digest size in bytes. This is passed as ``digest_size`` to
+        `hashlib.blake2b` and must be within the valid range for
+        BLAKE2b (1 to 64 bytes).
+
+    Returns
+    -------
+    int
+        A hash of the value derived from a ``size``-byte BLAKE2b digest.
+        The result is within the range of a signed integer representable
+        with ``size`` bytes.
+    """
+    return int.from_bytes(
+        hashlib.blake2b(value.encode("utf-8"), digest_size=size).digest(), signed=True
+    )
