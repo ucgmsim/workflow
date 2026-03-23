@@ -684,7 +684,7 @@ SRF_SCHEMA = Schema(
         ): Use(KModel),
         Literal(
             "kord",
-            description="Wavenumber filter order (integer stored as float for schema compatibility).",
+            description="Wavenumber filter order.",
         ): And(int, _is_positive),
         Literal(
             "magC",

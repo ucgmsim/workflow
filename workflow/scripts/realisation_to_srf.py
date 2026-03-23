@@ -44,6 +44,7 @@ import re
 import shutil
 import subprocess
 from collections.abc import Iterable
+from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
@@ -480,6 +481,10 @@ def _build_genslip_command(
         f"deep_vrup_dep={rupture_velocity.deep_depth}",
         f"deep_vrup_deprange={rupture_velocity.deep_transition_range}",
     ]
+
+    if rupture_velocity.rvfrac_slip_sig is not None:
+        cmd.append(f"rvfrac_slip_sig={rupture_velocity.rvfrac_slip_sig}")
+
     skipped_fields = {"point_source_params"}
     for field in dataclasses.fields(srf_config):
         key = field.name
@@ -492,7 +497,7 @@ def _build_genslip_command(
         elif isinstance(value, bool):
             serialised_value = "1" if value else "0"
         elif isinstance(value, Enum):
-            serialised_value = value.value
+            serialised_value = str(value.value)
         elif dataclasses.is_dataclass(value):
             continue
         else:

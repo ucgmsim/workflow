@@ -64,6 +64,7 @@ def test_build_hf_input_serialisation() -> None:
         shallow_transition_range=1,
         deep_depth=2.0,
         deep_transition_range=1,
+        rvfrac_slip_sig=None
     )
     # Rather than create DomainParameters with a bounding box, we simplify with a mock object
     domain = SimpleNamespace(duration=100.0)
