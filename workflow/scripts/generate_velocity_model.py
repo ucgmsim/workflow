@@ -53,6 +53,8 @@ from workflow.realisations import (
 )
 
 app = typer.Typer()
+generate_hdf5_app = typer.Typer()
+convert_hdf5_app = typer.Typer()
 
 
 def write_nzvm_config(
@@ -131,6 +133,57 @@ def run_nzvm(
     )
 
 
+def run_nzcvm_generate(
+    nzvm_config_ffp: Path,
+    work_directory: Path,
+    num_threads: int | None,
+) -> None:
+    """Generate HDF5 velocity model only (no EMOD3D conversion).
+
+    Parameters
+    ----------
+    nzvm_config_ffp : Path
+        Path to NZVM config to generate from.
+    work_directory : Path
+        Working directory to output HDF5 to.
+    num_threads : int or None
+        Number of threads to use (default is inferred by
+        `utils.get_available_cores`).
+    """
+    num_threads = num_threads or utils.get_available_cores()
+    generate_3d_model.generate_3d_model(
+        nzvm_config_ffp,
+        out_dir=work_directory,
+        output_format=WriteFormat.HDF5.name,
+        np_workers=num_threads,
+    )
+
+
+def run_nzcvm_convert(
+    work_directory: Path,
+    velocity_model_intermediate_path: Path,
+) -> None:
+    """Convert existing HDF5 velocity model to EMOD3D binary format.
+
+    Parameters
+    ----------
+    work_directory : Path
+        Working directory containing the HDF5 file (velocity_model.h5).
+    velocity_model_intermediate_path : Path
+        Output directory for EMOD3D files.
+    """
+    os.environ.setdefault("HDF5_USE_FILE_LOCKING", "FALSE")
+    hdf5_output_file = work_directory / "velocity_model.h5"
+    if not hdf5_output_file.exists():
+        raise FileNotFoundError(
+            f"HDF5 file not found: {hdf5_output_file}. "
+            "Run the generate step first."
+        )
+    convert_hdf5_to_emod3d.convert_hdf5_to_emod3d(
+        hdf5_output_file, velocity_model_intermediate_path
+    )
+
+
 def run_nzcvm(
     nzvm_config_ffp: Path,
     work_directory: Path,
@@ -151,18 +204,8 @@ def run_nzcvm(
         Number of threads to use (default is inferred by
         `utils.get_available_cores`)
     """
-
-    num_threads = num_threads or utils.get_available_cores()
-    generate_3d_model.generate_3d_model(
-        nzvm_config_ffp,
-        out_dir=work_directory,
-        output_format=WriteFormat.HDF5.name,
-        np_workers=num_threads,
-    )
-    hdf5_output_file = work_directory / "velocity_model.h5"
-    convert_hdf5_to_emod3d.convert_hdf5_to_emod3d(
-        hdf5_output_file, velocity_model_intermediate_path
-    )
+    run_nzcvm_generate(nzvm_config_ffp, work_directory, num_threads)
+    run_nzcvm_convert(work_directory, velocity_model_intermediate_path)
 
 
 @cli.from_docstring(app)
@@ -251,4 +294,88 @@ def generate_velocity_model(
             "If not using nzcvm, you must specify the path to the NZVM binary."
         )
 
+    realisations.append_log_entry(realisation_ffp)
+
+
+@cli.from_docstring(generate_hdf5_app)
+@log_utils.log_call()
+def generate_velocity_model_hdf5(
+    realisation_ffp: Annotated[
+        Path, typer.Argument(readable=True, exists=True, dir_okay=False)
+    ],
+    work_directory: Annotated[
+        Path, typer.Option(exists=False, writable=True, file_okay=False)
+    ] = Path("/out"),
+    num_threads: Annotated[Optional[int], typer.Option(min=1)] = None,
+) -> None:
+    """Generate HDF5 velocity model only (step 1 of 2 for Cylc split workflow).
+
+    Reads realisation.json, writes nzvm.cfg, then runs the parallel NZCVM
+    generation to produce velocity_model.h5 in work_directory.
+    Does NOT perform EMOD3D conversion. Run convert-velocity-model-hdf5 next.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        Path to the JSON realisation file.
+    work_directory : Path
+        Directory for intermediate output files (velocity_model.h5 written here).
+    num_threads : int or None, optional
+        Number of threads for parallel generation.
+    """
+    domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
+    metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
+    velocity_model_parameters = (
+        VelocityModelParameters.read_from_realisation_or_defaults(
+            realisation_ffp, metadata.defaults_version
+        )
+    )
+    resolution = Resolution.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
+    nzvm_config_path = work_directory / "nzvm.cfg"
+    velocity_model_intermediate_path = work_directory / "Velocity_Model"
+    work_directory.mkdir(parents=True, exist_ok=True)
+
+    write_nzvm_config(
+        resolution,
+        domain_parameters,
+        velocity_model_parameters,
+        velocity_model_intermediate_path,
+        nzvm_config_path,
+    )
+    run_nzcvm_generate(nzvm_config_path, work_directory, num_threads)
+
+
+@cli.from_docstring(convert_hdf5_app)
+@log_utils.log_call()
+def convert_velocity_model_hdf5(
+    realisation_ffp: Annotated[
+        Path, typer.Argument(readable=True, exists=True, dir_okay=False)
+    ],
+    velocity_model_output: Annotated[
+        Path, typer.Argument(writable=True, file_okay=False)
+    ],
+    work_directory: Annotated[
+        Path, typer.Option(exists=True, writable=True, file_okay=False)
+    ] = Path("/out"),
+) -> None:
+    """Convert HDF5 velocity model to EMOD3D format (step 2 of 2 for Cylc split workflow).
+
+    Reads velocity_model.h5 from work_directory (written by generate-velocity-model-hdf5),
+    converts it to EMOD3D binary format, and moves the result to velocity_model_output.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        Path to the JSON realisation file.
+    velocity_model_output : Path
+        Final output directory for EMOD3D binary files.
+    work_directory : Path
+        Directory containing velocity_model.h5 from the generate step.
+    """
+    velocity_model_intermediate_path = work_directory / "Velocity_Model"
+    run_nzcvm_convert(work_directory, velocity_model_intermediate_path)
+    shutil.rmtree(velocity_model_output, ignore_errors=True)
+    shutil.move(velocity_model_intermediate_path, velocity_model_output)
     realisations.append_log_entry(realisation_ffp)
