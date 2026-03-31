@@ -164,7 +164,7 @@ def generate_velocity_model(
         Path, typer.Argument(readable=True, exists=True, dir_okay=False)
     ],
     velocity_model_output: Annotated[
-        Path, typer.Argument(writable=True, file_okay=False, exists=False)
+        Path, typer.Argument(writable=True, file_okay=False)
     ],
     velocity_model_bin_path: Annotated[
         Path | None, typer.Option(exists=True, readable=True)
