@@ -3,14 +3,14 @@
 Description
 -----------
 Convert a velocity model in HDF5 format to EMOD3D binary format. This is used
-as a separate step after ``generate-velocity-model --no-emod3d-convert`` to
-decouple the parallel HDF5 generation (high CPU) from the conversion step.
+as a separate step after ``generate-velocity-model`` to decouple the parallel
+HDF5 generation (high CPU) from the conversion step.
 
 Inputs
 ------
 1. A realisation file (for logging),
 2. A work directory containing ``velocity_model.h5`` written by
-   ``generate-velocity-model --no-emod3d-convert``.
+   ``generate-velocity-model``.
 
 Outputs
 -------
@@ -60,8 +60,8 @@ def convert_vm_hdf5_to_emod3d(
     """Convert HDF5 velocity model to EMOD3D binary format.
 
     Reads velocity_model.h5 from work_directory (produced by
-    ``generate-velocity-model --no-emod3d-convert``) and converts it to EMOD3D
-    binary format, writing the result directly to velocity_model_output.
+    ``generate-velocity-model``) and converts it to EMOD3D binary format,
+    writing the result directly to velocity_model_output.
 
     Parameters
     ----------
