@@ -14,7 +14,7 @@ Inputs
 
 Outputs
 -------
-EMOD3D binary velocity model files written to ``velocity_model_output``.
+EMOD3D binary velocity model files written directly to ``velocity_model_output``.
 
 Environment
 -----------
@@ -32,7 +32,6 @@ See the output of ``convert-vm-hdf5-to-emod3d --help``.
 """
 
 import os
-import shutil
 from pathlib import Path
 from typing import Annotated
 
@@ -61,26 +60,22 @@ def convert_vm_hdf5_to_emod3d(
     """Convert HDF5 velocity model to EMOD3D binary format.
 
     Reads velocity_model.h5 from work_directory (produced by
-    ``generate-velocity-model --no-emod3d-convert``), converts it to EMOD3D
-    binary format, and moves the result to velocity_model_output.
+    ``generate-velocity-model --no-emod3d-convert``) and converts it to EMOD3D
+    binary format, writing the result directly to velocity_model_output.
 
     Parameters
     ----------
     realisation_ffp : Path
         Path to the JSON realisation file.
     velocity_model_output : Path
-        Final output directory for EMOD3D binary files.
+        Output directory for EMOD3D binary files.
     work_directory : Path
         Directory containing velocity_model.h5 from the generate step.
         Default is /out.
     """
     os.environ.setdefault("HDF5_USE_FILE_LOCKING", "FALSE")
     hdf5_output_file = work_directory / "velocity_model.h5"
-    velocity_model_intermediate_path = work_directory / "Velocity_Model"
     convert_hdf5_to_emod3d.convert_hdf5_to_emod3d(
-        hdf5_output_file, velocity_model_intermediate_path
+        hdf5_output_file, velocity_model_output
     )
-    shutil.rmtree(velocity_model_output, ignore_errors=True)
-    shutil.move(velocity_model_intermediate_path, velocity_model_output)
     realisations.append_log_entry(realisation_ffp)
-

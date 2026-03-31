@@ -23,9 +23,14 @@
         platform = localhost
         script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-velocity-model-parameters /share/realisation.json
     [[generate_velocity_model]]
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --num-threads $(nproc)'
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --use-nzcvm --num-threads $(nproc) --no-emod3d-convert --work-directory /share'
         [[[directives]]]
                 --cpus-per-task = 32
+                --time = 01:00:00
+    [[convert_vm_hdf5_to_emod3d]]
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif convert-vm-hdf5-to-emod3d /share/realisation.json /share/Velocity_Model --work-directory /share
+        [[[directives]]]
+                --cpus-per-task = 112
                 --time = 01:00:00
     [[generate_station_coordinates]]
         script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-station-coordinates /share/realisation.json /share/stations
