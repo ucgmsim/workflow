@@ -53,6 +53,8 @@ from workflow.realisations import (
 )
 
 app = typer.Typer()
+generate_hdf5_app = typer.Typer()
+convert_hdf5_app = typer.Typer()
 
 
 def write_nzvm_config(
@@ -187,7 +189,7 @@ def generate_velocity_model(
     ] = Path("/out"),
     use_nzcvm: Annotated[bool, typer.Option()] = False,
     num_threads: Annotated[Optional[int], typer.Option(min=1)] = None,
-    emod3d_convert: Annotated[bool] = True,
+    emod3d_convert: Annotated[bool, typer.Option()] = True,
 ) -> None:
     """
     Generate a velocity model for a seismic realisation using NZVM.
@@ -210,8 +212,9 @@ def generate_velocity_model(
         If True, use the NZCVM Python package instead of the NZVM binary. Default is False.
     num_threads : int or None, optional
         Number of threads to use for velocity model generation. Use None for inferred thread count.
-    emod3d_convert : bool, optional. Default is True
+    emod3d_convert : bool, optional
         If True, perform conversion to EMOD3D format. If False, leave in HDF5 format.
+        Default is True.
 
     Returns
     -------
@@ -245,10 +248,11 @@ def generate_velocity_model(
             work_directory,
             velocity_model_intermediate_path,
             num_threads,
-            emod3d_convert = emod3d_convert
+            emod3d_convert=emod3d_convert,
         )
-        shutil.rmtree(velocity_model_output, ignore_errors=True)
-        shutil.move(velocity_model_intermediate_path, velocity_model_output)
+        if emod3d_convert:
+            shutil.rmtree(velocity_model_output, ignore_errors=True)
+            shutil.move(velocity_model_intermediate_path, velocity_model_output)
     elif velocity_model_bin_path:
         run_nzvm(velocity_model_bin_path, nzvm_config_path, num_threads)
         shutil.rmtree(velocity_model_output, ignore_errors=True)
@@ -260,4 +264,99 @@ def generate_velocity_model(
             "If not using nzcvm, you must specify the path to the NZVM binary."
         )
 
+    realisations.append_log_entry(realisation_ffp)
+
+
+@cli.from_docstring(generate_hdf5_app)
+@log_utils.log_call()
+def generate_velocity_model_hdf5(
+    realisation_ffp: Annotated[
+        Path, typer.Argument(readable=True, exists=True, dir_okay=False)
+    ],
+    work_directory: Annotated[
+        Path, typer.Option(exists=False, writable=True, file_okay=False)
+    ] = Path("/out"),
+    num_threads: Annotated[Optional[int], typer.Option(min=1)] = None,
+) -> None:
+    """Generate HDF5 velocity model only (step 1 of 2 for split Cylc workflow).
+
+    Reads realisation.json, writes nzvm.cfg, then runs the NZCVM Python package
+    to produce velocity_model.h5 in work_directory. Does NOT perform EMOD3D
+    conversion. Run convert-velocity-model-hdf5 as a separate step next.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        Path to the JSON realisation file.
+    work_directory : Path
+        Directory for intermediate output files (velocity_model.h5 written here).
+    num_threads : int or None, optional
+        Number of threads for parallel generation.
+    """
+    domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
+    metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
+    velocity_model_parameters = (
+        VelocityModelParameters.read_from_realisation_or_defaults(
+            realisation_ffp, metadata.defaults_version
+        )
+    )
+    resolution = Resolution.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
+    nzvm_config_path = work_directory / "nzvm.cfg"
+    velocity_model_intermediate_path = work_directory / "Velocity_Model"
+    work_directory.mkdir(parents=True, exist_ok=True)
+
+    write_nzvm_config(
+        resolution,
+        domain_parameters,
+        velocity_model_parameters,
+        velocity_model_intermediate_path,
+        nzvm_config_path,
+    )
+    run_nzcvm(
+        nzvm_config_path,
+        work_directory,
+        velocity_model_intermediate_path,
+        num_threads,
+        emod3d_convert=False,
+    )
+
+
+@cli.from_docstring(convert_hdf5_app)
+@log_utils.log_call()
+def convert_velocity_model_hdf5(
+    realisation_ffp: Annotated[
+        Path, typer.Argument(readable=True, exists=True, dir_okay=False)
+    ],
+    velocity_model_output: Annotated[
+        Path, typer.Argument(writable=True, file_okay=False)
+    ],
+    work_directory: Annotated[
+        Path, typer.Option(exists=True, writable=True, file_okay=False)
+    ] = Path("/out"),
+) -> None:
+    """Convert HDF5 velocity model to EMOD3D format (step 2 of 2 for split Cylc workflow).
+
+    Reads velocity_model.h5 from work_directory (written by
+    generate-velocity-model-hdf5), converts it to EMOD3D binary format, and
+    moves the result to velocity_model_output.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        Path to the JSON realisation file.
+    velocity_model_output : Path
+        Final output directory for EMOD3D binary files.
+    work_directory : Path
+        Directory containing velocity_model.h5 from the generate step.
+    """
+    os.environ.setdefault("HDF5_USE_FILE_LOCKING", "FALSE")
+    hdf5_output_file = work_directory / "velocity_model.h5"
+    velocity_model_intermediate_path = work_directory / "Velocity_Model"
+    convert_hdf5_to_emod3d.convert_hdf5_to_emod3d(
+        hdf5_output_file, velocity_model_intermediate_path
+    )
+    shutil.rmtree(velocity_model_output, ignore_errors=True)
+    shutil.move(velocity_model_intermediate_path, velocity_model_output)
     realisations.append_log_entry(realisation_ffp)
