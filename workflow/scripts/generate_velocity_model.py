@@ -136,7 +136,7 @@ def run_nzcvm(
     work_directory: Path,
     velocity_model_intermediate_path: Path,
     num_threads: int | None,
-    emod3d_convert : bool = True
+    emod3d_convert: bool = True,
 ) -> None:
     """Generate velocity model with New Zealand Community Velocity Model.
 
@@ -151,6 +151,9 @@ def run_nzcvm(
     num_threads : int | None
         Number of threads to use (default is inferred by
         `utils.get_available_cores`)
+    emod3d_convert : bool, optional
+        If True (default), convert the HDF5 output to EMOD3D binary format
+        after generation. Set to False to produce the HDF5 file only.
     """
 
     num_threads = num_threads or utils.get_available_cores()
@@ -258,4 +261,58 @@ def generate_velocity_model(
         )
 
     realisations.append_log_entry(realisation_ffp)
+
+@log_utils.log_call()
+def generate_velocity_model_hdf5(
+    realisation_ffp: Annotated[
+        Path, typer.Argument(readable=True, exists=True, dir_okay=False)
+    ],
+    work_directory: Annotated[
+        Path, typer.Option(exists=False, writable=True, file_okay=False)
+    ] = Path("/out"),
+    num_threads: Annotated[Optional[int], typer.Option(min=1)] = None,
+) -> None:
+    """Generate HDF5 velocity model only (step 1 of 2 for Cylc split workflow).
+
+    Reads realisation.json, writes nzvm.cfg, then runs the parallel NZCVM
+    generation to produce velocity_model.h5 in work_directory.
+    Does NOT perform EMOD3D conversion. Run convert-velocity-model-hdf5 next.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        Path to the JSON realisation file.
+    work_directory : Path
+        Directory for intermediate output files (velocity_model.h5 written here).
+    num_threads : int or None, optional
+        Number of threads for parallel generation.
+    """
+    domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
+    metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
+    velocity_model_parameters = (
+        VelocityModelParameters.read_from_realisation_or_defaults(
+            realisation_ffp, metadata.defaults_version
+        )
+    )
+    resolution = Resolution.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
+    nzvm_config_path = work_directory / "nzvm.cfg"
+    velocity_model_intermediate_path = work_directory / "Velocity_Model"
+    work_directory.mkdir(parents=True, exist_ok=True)
+
+    write_nzvm_config(
+        resolution,
+        domain_parameters,
+        velocity_model_parameters,
+        velocity_model_intermediate_path,
+        nzvm_config_path,
+    )
+    run_nzcvm(
+        nzvm_config_path,
+        work_directory,
+        velocity_model_intermediate_path,
+        num_threads,
+        emod3d_convert=False,
+    )
 
