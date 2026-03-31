@@ -53,9 +53,6 @@ from workflow.realisations import (
 )
 
 app = typer.Typer()
-generate_hdf5_app = typer.Typer()
-convert_hdf5_app = typer.Typer()
-
 
 def write_nzvm_config(
     resolution: Resolution,
