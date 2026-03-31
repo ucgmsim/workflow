@@ -53,6 +53,8 @@ from workflow.realisations import (
 )
 
 app = typer.Typer()
+generate_hdf5_app = typer.Typer()
+convert_hdf5_app = typer.Typer()
 
 
 def write_nzvm_config(
@@ -210,8 +212,9 @@ def generate_velocity_model(
         If True, use the NZCVM Python package instead of the NZVM binary. Default is False.
     num_threads : int or None, optional
         Number of threads to use for velocity model generation. Use None for inferred thread count.
-    emod3d_convert : bool, optional.
-        If True, perform conversion to EMOD3D format. If False, leave in HDF5 format. Default is True
+    emod3d_convert : bool, optional
+        If True, perform conversion to EMOD3D format. If False, leave in HDF5 format.
+        Default is True.
 
     Returns
     -------
