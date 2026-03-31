@@ -187,7 +187,7 @@ def generate_velocity_model(
     ] = Path("/out"),
     use_nzcvm: Annotated[bool, typer.Option()] = False,
     num_threads: Annotated[Optional[int], typer.Option(min=1)] = None,
-    emod3d_convert: Annotated[bool] = True,
+    emod3d_convert: Annotated[bool, typer.Option()] = True,
 ) -> None:
     """
     Generate a velocity model for a seismic realisation using NZVM.
@@ -210,8 +210,8 @@ def generate_velocity_model(
         If True, use the NZCVM Python package instead of the NZVM binary. Default is False.
     num_threads : int or None, optional
         Number of threads to use for velocity model generation. Use None for inferred thread count.
-    emod3d_convert : bool, optional. Default is True
-        If True, perform conversion to EMOD3D format. If False, leave in HDF5 format.
+    emod3d_convert : bool, optional.
+        If True, perform conversion to EMOD3D format. If False, leave in HDF5 format. Default is True
 
     Returns
     -------
@@ -245,10 +245,11 @@ def generate_velocity_model(
             work_directory,
             velocity_model_intermediate_path,
             num_threads,
-            emod3d_convert = emod3d_convert
+            emod3d_convert=emod3d_convert,
         )
-        shutil.rmtree(velocity_model_output, ignore_errors=True)
-        shutil.move(velocity_model_intermediate_path, velocity_model_output)
+        if emod3d_convert:
+            shutil.rmtree(velocity_model_output, ignore_errors=True)
+            shutil.move(velocity_model_intermediate_path, velocity_model_output)
     elif velocity_model_bin_path:
         run_nzvm(velocity_model_bin_path, nzvm_config_path, num_threads)
         shutil.rmtree(velocity_model_output, ignore_errors=True)
