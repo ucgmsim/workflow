@@ -28,7 +28,7 @@
                 --cpus-per-task = 32
                 --time = 01:00:00
     [[convert_vm_hdf5_to_emod3d]]
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif convert-vm-hdf5-to-emod3d /share/realisation.json /share/Velocity_Model --work-directory /share
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif convert-vm-hdf5-to-emod3d /share/velocity_model.h5 /share/Velocity_Model
         [[[directives]]]
                 --cpus-per-task = 4 # While we only use 4 threads, consider increasing this to allocate more memory per task, as the conversion can be memory intensive. For MN5, setting this 112 will give entire 256GB of the node to the task.
                 --time = 02:00:00
