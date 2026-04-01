@@ -219,36 +219,16 @@ Can be run in the cybershake container. Can also be run from your own computer u
 See the output of `create-e3d-par --help` or [create_e3d_par.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/create_e3d_par.py).
 See our description of the [EMOD3D Parameters](https://wiki.canterbury.ac.nz/pages/viewpage.action?pageId=100794983) for documentation on the EMOD3D parameter file format.
 
-## Create Simulation Video
+## Merge Timeslices
 ### Description
-Create a simulation video from the low frequency simulation output.
+Merge the output timeslice files of EMOD3D.
 ### Inputs
-1. A merged timeslice file.
+1. A directory containing EMOD3D timeslice files.
 ### Outputs
-1. An animation of the low frequency simulation output. See [youtube](https://www.youtube.com/watch?v=Crdk3k0Prew) for an example of these videos.
+1. A merged output timeslice file.
 ### Environment
-Can be run in the cybershake container. Can also be run from your own computer using the `plot-ts` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If running on your own computer, you need to install [gmt](https://www.generic-mapping-tools.org/) and [ffmpeg](https://www.ffmpeg.org/). This stage does not run well on Windows, and is very dependent on the gmt version installed. Hypocentre is already setup to run `plot_ts.py` without installing anything.
+Can be run in the cybershake container. Can also be run from your own computer using the `merge-ts-hdf5` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
 ### Usage
-`plot-ts [OPTIONS] SRF_FFP XYTS_INPUT_DIRECTORY OUTPUT_FFP`
+`merge-ts-hdf5 XYTS_DIRECTORY XYTS_DIRECTORY/output.hdf5`
 ### For More Help
-See the output of `plot-ts --help` or [plot_ts.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/plot_ts.py)
-## Broadband Simulation
-### Description
-Combine high-frequency and low-frequency simulation waveforms for each station into a broadband simulation file.
-### Inputs
-1. A realisation file containing:
-   - Realisation metadata,
-   - Domain parameters.
-2. Station list (latitude, longitude, name),
-3. Stations VS30 reference values,
-4. Low frequency waveform directory,
-5. High frequency output file,
-6. Velocity model directory.
-### Outputs
-An output [broadband file](https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation#FileFormatsUsedInGroundMotionSimulation-LF/HF/BBbinaryformat).
-### Environment
-Can be run in the cybershake container. Can also be run from your own computer using the `bb-sim` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If running on your own computer, you need to configure a work directory (`--work-directory`).
-### Usage
-`bb-sim REALISATION_FFP STATION_FFP STATION_VS30_FFP LOW_FREQUENCY_WAVEFORM_DIRECTORY HIGH_FREQUENCY_WAVEFORM_FILE VELOCITY_MODEL_DIRECTORY OUTPUT_FFP`
-### For More Help
-See the output of `bb-sim --help` or [bb_sim.py](https://github.com/ucgmsim/workflow/blob/pegasus/workflow/scripts/bb_sim.py) for more help.
+See the output of `merge-ts-hdf5 --help` or [merge_ts.py](https://github.com/ucgmsim/workflow/blob/pegasus/merge_ts/merge_ts.py).

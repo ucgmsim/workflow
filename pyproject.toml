@@ -17,6 +17,7 @@ dependencies = [
   "oq_wrapper>=2025.12.3",
   "qcore-utils>=2025.12.2",
   "source_modelling>=2025.12.1",
+
   # Data Formats
   "geopandas",
   "pandas[parquet, hdf5]",
@@ -45,6 +46,12 @@ test = [
 ]
 types = ["pandas-stubs", "types-geopandas", "types-requests", "scipy-stubs"]
 dev = ["ruff", "deptry", "ty", "numpydoc"]
+plot = [
+  "plotly",
+]
+grid = [
+  "pygmt"
+]
 
 [tool.deptry]
 pep621_dev_dependency_groups = ["test", "dev", "types"]
@@ -62,7 +69,6 @@ generate-rupture-propagation = "workflow.scripts.generate_rupture_propagation:ap
 copy-domain-parameters = "workflow.scripts.copy_velocity_model_parameters:app"
 create-e3d-par = "workflow.scripts.create_e3d_par:app"
 generate-stoch = "workflow.scripts.generate_stoch:app"
-merge-ts = "workflow.scripts.merge_ts:app"
 hf-sim = "workflow.scripts.hf_sim:app"
 bb-sim = "workflow.scripts.bb_sim:app"
 im-calc = "workflow.scripts.im_calc:app"
@@ -71,6 +77,9 @@ check-domain = "workflow.scripts.check_domain:app"
 gcmt-auto-simulate = "workflow.scripts.gcmt_auto_simulate:app"
 import-realisation = "workflow.scripts.import_realisation:app"
 lf-to-xarray = "workflow.scripts.lf_to_xarray:app"
+merge-ts = "workflow.scripts.merge_ts:app"
+site-grid =  "workflow.scripts.site_gen_cmds:app"
+
 
 [tool.setuptools.package-dir]
 workflow = "workflow"
