@@ -1,56 +1,23 @@
 Bootstrap: docker
-From: ubuntu:latest
-
-%setup
-    [ -d /tmp/EMOD3D ] || git clone --depth 1 git@github.com:ucgmsim/EMOD3D.git /tmp/EMOD3D
+From: earthquakesuc/workflow-bootstrap:latest
 
 %files
-    /tmp/EMOD3D /EMOD3D
+    EMOD3D /EMOD3D
 
 %post
-    apt-get update && apt-get install -y \
-                      build-essential \
-                      cmake \
-                      gdal-bin \
-                      gfortran \
-                      ghostscript \
-                      git \
-                      gmt \
-                      libgmt-dev \
-                      gmt-dcw \
-                      gmt-gshhg \
-                      graphicsmagick \
-                      libfftw3-dev \
-                      libopenmpi-dev \
-                      libpapi-dev \
-                      python-is-python3 \
-                      python3-pip \
-                      sqlite3 \
-                      wget
-
-    wget "https://www.dropbox.com/scl/fi/b4m9g32x1j70ti69zyybq/genslip_velocity_model.vmod?rlkey=yxurhrdn8uvqh33hsb0inhsq0&st=o77aaccp&dl=0" -O /genslip_velocity_model.vmod
-    wget "https://www.dropbox.com/scl/fi/qakchhg6qu23aclcb02ye/Cant1D_v2-midQ_leer.1d?rlkey=wn1a6nnol2eaf5n6qsy5t1nym&st=8yahw7id&dl=0" -O /Cant1D_v2-midQ_leer.1d
-    wget "https://www.dropbox.com/scl/fi/tw1m15owloi0eo8h3u1kw/geoNet_stats-2023-06-28.vs30?rlkey=plu90zg0ti4lc2nvf51zu9xmg&st=iz8c2ls3&dl=0" -O /stations.vs30
-    wget "https://www.dropbox.com/scl/fi/bb852b1f0rly6cfvs9p9b/geoNet_stats-2023-06-28.ll?rlkey=3y8k5qviy52nbksfdkm1n92yh&st=605h60u6&dl=0" -O /stations.ll
-
     cd /EMOD3D && \
-    mkdir build && \
-    cd build && \
-    cmake .. && \
-    make -j $(nproc) genslip_v5.6.2 srf2stoch hb_high_binmod_v6.0.3 hb_high_binmod_v5.4.5
+      mkdir build && cd build && \
+      cmake -DHF_TIME_WINDOW=off -DUSE_FFTW=on -DCMAKE_C_FLAGS="-march=x86-64 -mtune=generic" .. && \
+      make -j $(nproc) genslip_v5.6.2 srf2stoch generic_slip2srf \
+                      hb_high_binmod_v6.0.3
 
-    # Remove all folders in EMOD3D except the tools folder
-    find /EMOD3D -mindepth 1 -maxdepth 1 ! -name "tools" -exec rm -rf \{\} \;
-
-
-    git clone --depth 1 https://github.com/ucgmsim/Velocity-Model.git /Velocity-Model && \
-    cd /Velocity-Model && \
-    mkdir build && \
-    cd build && \
-    cmake ../ -DCMAKE_C_FLAGS="-fopenmp" -DCMAKE_CXX_FLAGS="-fopenmp" && \
-    make -j $(nproc)
-
-    pip install "git+https://github.com/ucgmsim/workflow@pegasus" --break-system-packages
+    cd /
+    # Keep only the EMOD3D tools folder and compiled binaries
+    find /EMOD3D -mindepth 1 -maxdepth 1 ! -name "tools" -exec rm -rf {} \;
 
 %environment
-    export PATH="$PATH:/EMOD3D/tools:/Velocity-Model"
+    export RUSTUP_HOME=/sw/rust
+    export CARGO_HOME=/sw/cargo
+    export PATH="/sw/venv/bin:/EMOD3D/tools:/sw/cargo/bin:/sw/python/bin:$PATH"
+    export VIRTUAL_ENV="/sw/venv"
+    export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
