@@ -39,7 +39,7 @@ import typer
 
 from qcore import cli
 from velocity_modelling.tools import convert_hdf5_to_emod3d
-from workflow import log_utils, realisations
+from workflow import log_utils
 
 app = typer.Typer()
 
