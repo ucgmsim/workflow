@@ -23,7 +23,7 @@
         platform = localhost
         script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-velocity-model-parameters /share/realisation.json
     [[generate_velocity_model]]
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif sh -c 'generate-velocity-model /share/realisation.json /share/Velocity_Model --use-nzcvm --num-threads $(nproc) --work-directory /share'
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif sh -c "generate-velocity-model /share/realisation.json --use-nzcvm --num-threads ${SLURM_CPUS_PER_TASK:-32} --work-directory /share"
         [[[directives]]]
                 --cpus-per-task = 32
                 --time = 01:00:00

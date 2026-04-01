@@ -164,8 +164,8 @@ def generate_velocity_model(
         Path, typer.Argument(readable=True, exists=True, dir_okay=False)
     ],
     velocity_model_output: Annotated[
-        Path, typer.Argument(writable=True, file_okay=False)
-    ],
+        Optional[Path], typer.Argument(writable=True, file_okay=False)
+    ] = None,
     velocity_model_bin_path: Annotated[
         Path | None, typer.Option(exists=True, readable=True)
     ] = None,
@@ -186,14 +186,20 @@ def generate_velocity_model(
     ----------
     realisation_ffp : Path
         Path to the JSON file containing the seismic realisation parameters.
-    velocity_model_output : Path
+    velocity_model_output : Path, optional
         Path to the directory where the generated velocity model will be saved.
+        Required when using the NZVM binary (``--no-use-nzcvm``). Not used
+        when ``--use-nzcvm`` is set; EMOD3D conversion is handled by the
+        separate ``convert-vm-hdf5-to-emod3d`` command in that case.
     velocity_model_bin_path : Path, optional
         Path to the NZVM binary.
     work_directory : Path, optional
         Directory for intermediate output files.
     use_nzcvm : bool, optional
-        If True, use the NZCVM Python package instead of the NZVM binary. Default is False.
+        If True, use the NZCVM Python package instead of the NZVM binary.
+        The velocity model is written as HDF5 to ``work_directory``; use
+        ``convert-vm-hdf5-to-emod3d`` afterwards to produce EMOD3D files.
+        Default is False.
     num_threads : int or None, optional
         Number of threads to use for velocity model generation. Use None for inferred thread count.
 
@@ -230,6 +236,10 @@ def generate_velocity_model(
             num_threads,
         )
     elif velocity_model_bin_path:
+        if velocity_model_output is None:
+            raise typer.BadParameter(
+                "VELOCITY_MODEL_OUTPUT is required when using the NZVM binary."
+            )
         run_nzvm(velocity_model_bin_path, nzvm_config_path, num_threads)
         shutil.rmtree(velocity_model_output, ignore_errors=True)
         shutil.move(
