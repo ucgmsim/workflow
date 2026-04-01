@@ -83,6 +83,13 @@ def convert_vm_hdf5_to_emod3d(
         )
         raise typer.Exit(code=1)
 
+    if not hdf5_output_file.is_file():
+        typer.echo(
+            f"Expected HDF5 velocity model file not found: {hdf5_output_file}",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
     convert_hdf5_to_emod3d.convert_hdf5_to_emod3d(
         hdf5_output_file, velocity_model_output
     )
