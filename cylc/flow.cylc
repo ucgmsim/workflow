@@ -30,8 +30,8 @@
     [[convert_vm_hdf5_to_emod3d]]
         script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif convert-vm-hdf5-to-emod3d /share/realisation.json /share/Velocity_Model --work-directory /share
         [[[directives]]]
-                --cpus-per-task = 4
-                --time = 01:00:00
+                --cpus-per-task = 4 # While we only use 4 threads, consider increasing this to allocate more memory per task, as the conversion can be memory intensive. For MN5, setting this 112 will give entire 256GB of the node to the task.
+                --time = 02:00:00
     [[generate_station_coordinates]]
         script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-station-coordinates /share/realisation.json /share/stations
     [[generate_model_coordinates]]
