@@ -38,12 +38,11 @@ See the output of `hf-sim --help`.
 
 import subprocess
 import tempfile
-from collections.abc import Generator, Iterable
-from contextlib import contextmanager
-from enum import Enum
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Annotated
 
+import dask.array as da
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -73,44 +72,6 @@ under-utilise workers, while too many (e.g. one per station at 100 k+)
 flood the scheduler with graph overhead.  A value of 500–1 000 keeps the
 task graph manageable while still saturating a large cluster.
 """
-
-
-class HostType(str, Enum):
-    """Cluster host type for Dask scheduling."""
-
-    local = "local"
-    slurm = "slurm"
-
-
-@contextmanager
-def dask_cluster(host: HostType) -> Generator[Client, None, None]:
-    """Create and manage a Dask distributed client for the given host type.
-
-    Parameters
-    ----------
-    host : HostType
-        The host type, either ``local`` for a `LocalCluster` or
-        ``slurm`` for a `SLURMCluster`.
-
-    Yields
-    ------
-    Client
-        A connected Dask distributed client.
-    """
-    if host == HostType.local:
-        cluster = LocalCluster()
-    else:
-        from dask_jobqueue import SLURMCluster
-
-        cluster = SLURMCluster(
-            cores=2,
-            memory="4GB",
-            walltime="01:00:00",
-            account="default",
-        )
-        cluster.adapt(minimum=1, maximum=50)
-    with Client(cluster) as client:
-        yield client
 
 
 def rupture_velocity_hf_transition_bands(
@@ -561,15 +522,15 @@ def run_hf(
         Path,
         typer.Option(exists=True, writable=True, file_okay=False),
     ] = Path("/out"),
-    host: Annotated[HostType, typer.Option()] = HostType.local,
 ) -> None:
     """Run the HF (High-Frequency) simulation and generate the HF output file.
 
     This function performs the following steps:
     1. Reads configuration and domain parameters from the realisation file.
     2. Loads station data into a chunked xarray Dataset.
-    3. Uses Dask distributed to simulate each station chunk in parallel.
-    4. Writes the HF output file in NetCDF format.
+    3. Uses Dask to lazily simulate each station chunk in parallel.
+    4. Writes the HF output file in NetCDF format chunk-by-chunk to
+       support larger-than-memory datasets.
 
     Parameters
     ----------
@@ -585,9 +546,6 @@ def run_hf(
         Path to the HF simulation binary.
     work_directory : Path, optional
         Directory for intermediate files. Must be writable.
-    host : HostType, optional
-        Dask cluster host type. Use ``local`` for a local cluster or
-        ``slurm`` for a SLURM cluster. Defaults to ``local``.
 
     Returns
     -------
@@ -634,17 +592,25 @@ def run_hf(
 
     nt = input_ds.attrs["nt"]
     dt = input_ds.attrs["dt"]
+    # Station coordinate labels are always in-memory in xarray (not
+    # dask-backed), so accessing .values here is safe and necessary to
+    # construct the template.
     station_names = input_ds.station.values
     n_stations = len(station_names)
     time_coords = np.arange(nt) * dt
 
+    # Use dask.array.empty so the template does not allocate memory for
+    # the full waveform array (which can be 100 GB+ for large runs).
     template = xr.Dataset(
         {
             "waveform": (
                 ["component", "station", "time"],
-                np.empty((3, n_stations, nt), dtype=np.float32),
+                da.empty((3, n_stations, nt), dtype=np.float32),
             ),
-            "epicentre_distance": (["station"], np.empty(n_stations, dtype=np.float64)),
+            "epicentre_distance": (
+                ["station"],
+                da.empty(n_stations, dtype=np.float64),
+            ),
         },
         coords={
             "station": ("station", station_names),
@@ -653,7 +619,7 @@ def run_hf(
         },
     )
 
-    with dask_cluster(host) as client:
+    with LocalCluster() as cluster, Client(cluster):
         result_ds = xr.map_blocks(
             process_hf_dataset,
             input_ds,
@@ -663,18 +629,27 @@ def run_hf(
                 "hf_input_template": hf_input_template,
             },
         )
-        result_ds = client.compute(result_ds).result()
 
-    ds = create_hf_dataset(
-        waveform=result_ds["waveform"].values,
-        latitude=input_ds["latitude"].values,
-        longitude=input_ds["longitude"].values,
-        names=station_names,
-        epicentre_distance=result_ds["epicentre_distance"].values,
-        seed=input_ds["seed"].values,
-        vref=input_ds["vref"].values,
-        dt=dt,
-        start_sec=hf_config.t_sec,
-    )
-    ds.to_netcdf(out_file, engine="h5netcdf")
+        # Attach station metadata from the input dataset.  These are
+        # small 1-D arrays (one value per station) so they do not
+        # contribute to memory pressure.
+        result_ds["seed"] = input_ds["seed"]
+        result_ds["vref"] = input_ds["vref"]
+        result_ds = result_ds.assign_coords(
+            lat=input_ds["latitude"],
+            lon=input_ds["longitude"],
+        )
+        result_ds.attrs.update(
+            {
+                "start_sec": hf_config.t_sec,
+                "nt": nt,
+                "dt": dt,
+                "units": "cm/s^2",
+            }
+        )
+
+        # Write lazily — Dask streams chunks to disk one at a time so
+        # the full waveform array never needs to reside in memory.
+        result_ds.to_netcdf(out_file, engine="h5netcdf")
+
     realisations.append_log_entry(realisation_ffp)

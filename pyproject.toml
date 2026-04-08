@@ -25,7 +25,6 @@ dependencies = [
 
   # Distributed Computing
   "dask[distributed]",
-  "dask-jobqueue",
   # Numerics
   "numpy",
   "scipy",

@@ -13,7 +13,6 @@ from workflow.realisations import (
     RuptureVelocity,
 )
 from workflow.scripts import hf_sim
-from workflow.scripts.hf_sim import HostType
 
 
 def test_build_hf_input_serialisation() -> None:
@@ -171,13 +170,6 @@ def test_create_hf_dataset_structure() -> None:
     assert ds.attrs["dt"] == dt
     assert ds.attrs["nt"] == n_time
     assert ds.attrs["units"] == "cm/s^2"
-
-
-def test_host_type_values() -> None:
-    assert HostType.local == "local"
-    assert HostType.slurm == "slurm"
-    assert HostType("local") is HostType.local
-    assert HostType("slurm") is HostType.slurm
 
 
 def test_load_hf_dataset(tmp_path: Path) -> None:
