@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 import pytest
+import xarray as xr
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -193,26 +194,23 @@ def test_load_hf_dataset(tmp_path: Path) -> None:
         domain_parameters,  # type: ignore[arg-type]
     )
 
-    assert "station" in ds.dims
-    assert ds.sizes["station"] == 3
-    np.testing.assert_array_equal(
-        ds.station.values, ["STAT_A", "STAT_B", "STAT_C"]
+    station_names = ["STAT_A", "STAT_B", "STAT_C"]
+    expected = xr.Dataset(
+        {
+            "latitude": ("station", [-43.5, -43.6, -43.7]),
+            "longitude": ("station", [172.6, 172.7, 172.8]),
+            "vref": ("station", [500.0, 500.0, 500.0]),
+        },
+        coords={"station": ("station", station_names)},
+    )
+    xr.testing.assert_allclose(
+        ds[["latitude", "longitude", "vref"]], expected
     )
 
-    assert "latitude" in ds.data_vars
-    assert "longitude" in ds.data_vars
     assert "seed" in ds.data_vars
-    assert "vref" in ds.data_vars
-
-    np.testing.assert_allclose(ds["latitude"].values, [-43.5, -43.6, -43.7])
-    np.testing.assert_allclose(ds["longitude"].values, [172.6, 172.7, 172.8])
-
     assert ds.attrs["nt"] > 0
     assert ds.attrs["dt"] == pytest.approx(0.005)
     assert ds.attrs["start_sec"] == 0.0
-
-    # vref should be Vs * 1000
-    np.testing.assert_allclose(ds["vref"].values, [500.0, 500.0, 500.0])
 
 
 def test_load_hf_dataset_chunking(tmp_path: Path) -> None:
@@ -246,8 +244,6 @@ def test_load_hf_dataset_chunking(tmp_path: Path) -> None:
 
 
 def test_process_hf_dataset_structure() -> None:
-    import xarray as xr
-
     nt = 100
     dt = 0.02
     station_names = np.array(["STAT_A", "STAT_B"])
@@ -289,5 +285,8 @@ def test_process_hf_dataset_structure() -> None:
     assert result["waveform"].dims == ("component", "station", "time")
     assert result.sizes == {"component": 3, "station": 2, "time": nt}
     assert result["epicentre_distance"].dims == ("station",)
-    np.testing.assert_array_equal(result.station.values, station_names)
-    np.testing.assert_array_equal(result.component.values, ["x", "y", "z"])
+    xr.testing.assert_equal(result.station, input_ds.station)
+    expected_components = xr.DataArray(
+        ["x", "y", "z"], coords={"component": ["x", "y", "z"]}, dims="component"
+    )
+    xr.testing.assert_equal(result.component, expected_components)
