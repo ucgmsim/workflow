@@ -2,6 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import pandas as pd
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
@@ -12,6 +13,7 @@ from workflow.realisations import (
     RuptureVelocity,
 )
 from workflow.scripts import hf_sim
+from workflow.scripts.hf_sim import HostType
 
 
 def test_build_hf_input_serialisation() -> None:
@@ -169,3 +171,130 @@ def test_create_hf_dataset_structure() -> None:
     assert ds.attrs["dt"] == dt
     assert ds.attrs["nt"] == n_time
     assert ds.attrs["units"] == "cm/s^2"
+
+
+def test_host_type_values() -> None:
+    assert HostType.local == "local"
+    assert HostType.slurm == "slurm"
+    assert HostType("local") is HostType.local
+    assert HostType("slurm") is HostType.slurm
+
+
+def test_load_hf_dataset(tmp_path: Path) -> None:
+    station_file = tmp_path / "stations.ll"
+    station_file.write_text("172.6 -43.5 STAT_A\n172.7 -43.6 STAT_B\n172.8 -43.7 STAT_C\n")
+
+    seeds = SimpleNamespace(hf_seed=42)
+    resolution = Resolution(resolution=0.1)
+    hf_config = SimpleNamespace(t_sec=0.0)
+    velocity_model = SimpleNamespace(
+        model=pd.DataFrame({"Vs": [0.5]}),
+    )
+    domain_parameters = SimpleNamespace(duration=100.0)
+
+    ds = hf_sim.load_hf_dataset(
+        station_file,
+        seeds,  # type: ignore[arg-type]
+        resolution,
+        hf_config,  # type: ignore[arg-type]
+        velocity_model,  # type: ignore[arg-type]
+        domain_parameters,  # type: ignore[arg-type]
+    )
+
+    assert "station" in ds.dims
+    assert ds.sizes["station"] == 3
+    np.testing.assert_array_equal(
+        ds.station.values, ["STAT_A", "STAT_B", "STAT_C"]
+    )
+
+    assert "latitude" in ds.data_vars
+    assert "longitude" in ds.data_vars
+    assert "seed" in ds.data_vars
+    assert "vref" in ds.data_vars
+
+    np.testing.assert_allclose(ds["latitude"].values, [-43.5, -43.6, -43.7])
+    np.testing.assert_allclose(ds["longitude"].values, [172.6, 172.7, 172.8])
+
+    assert ds.attrs["nt"] > 0
+    assert ds.attrs["dt"] == pytest.approx(0.005)
+    assert ds.attrs["start_sec"] == 0.0
+
+    # vref should be Vs * 1000
+    np.testing.assert_allclose(ds["vref"].values, [500.0, 500.0, 500.0])
+
+
+def test_load_hf_dataset_chunking(tmp_path: Path) -> None:
+    # Create a station file with 1500 stations to test chunking logic
+    station_file = tmp_path / "stations.ll"
+    lines = [f"172.{i % 10} -43.{i % 10} STAT_{i:04d}" for i in range(1500)]
+    station_file.write_text("\n".join(lines) + "\n")
+
+    seeds = SimpleNamespace(hf_seed=42)
+    resolution = Resolution(resolution=0.1)
+    hf_config = SimpleNamespace(t_sec=0.0)
+    velocity_model = SimpleNamespace(
+        model=pd.DataFrame({"Vs": [0.5]}),
+    )
+    domain_parameters = SimpleNamespace(duration=10.0)
+
+    ds = hf_sim.load_hf_dataset(
+        station_file,
+        seeds,  # type: ignore[arg-type]
+        resolution,
+        hf_config,  # type: ignore[arg-type]
+        velocity_model,  # type: ignore[arg-type]
+        domain_parameters,  # type: ignore[arg-type]
+    )
+
+    # chunk_size = max(1, 1500 // 500) = 3
+    assert ds.chunks is not None
+    station_chunks = ds.chunks["station"]
+    assert all(c <= 3 for c in station_chunks)
+
+
+def test_process_hf_dataset_structure() -> None:
+    import xarray as xr
+
+    nt = 100
+    dt = 0.02
+    station_names = np.array(["STAT_A", "STAT_B"])
+
+    input_ds = xr.Dataset(
+        {
+            "latitude": ("station", np.array([-43.5, -43.6])),
+            "longitude": ("station", np.array([172.6, 172.7])),
+            "seed": ("station", np.array([123, 456])),
+            "vref": ("station", np.array([500.0, 500.0])),
+        },
+        coords={"station": ("station", station_names)},
+        attrs={"nt": nt, "dt": dt, "start_sec": 0.0},
+    )
+
+    # We can't actually run the binary, but we can test that the function
+    # signature is correct and the output structure is as expected by
+    # mocking hf_simulate_station
+    import unittest.mock as mock
+
+    mock_waveform = np.random.rand(nt, 3).astype(np.float32)
+
+    with mock.patch.object(
+        hf_sim,
+        "hf_simulate_station",
+        side_effect=[
+            ("STAT_A", 10.5, mock_waveform),
+            ("STAT_B", 20.1, mock_waveform),
+        ],
+    ):
+        result = hf_sim.process_hf_dataset(
+            input_ds,
+            hf_sim_path="/fake/path",
+            hf_input_template="template",
+        )
+
+    assert "waveform" in result.data_vars
+    assert "epicentre_distance" in result.data_vars
+    assert result["waveform"].dims == ("component", "station", "time")
+    assert result.sizes == {"component": 3, "station": 2, "time": nt}
+    assert result["epicentre_distance"].dims == ("station",)
+    np.testing.assert_array_equal(result.station.values, station_names)
+    np.testing.assert_array_equal(result.component.values, ["x", "y", "z"])

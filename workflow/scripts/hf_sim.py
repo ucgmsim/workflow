@@ -23,6 +23,10 @@ Can be run in the cybershake container. Can also be run from your own computer u
 > [!NOTE]
 > The high-frequency code is very brittle. It is recommended you have both versions 6.0.3 and 5.4.5 built to run with. Sometimes it is necessary to switch between versions if one does not work.
 
+> [!NOTE]
+> Dask worker memory limits should account for the external binary's footprint,
+> as `hb_high_binmod` runs as a subprocess and its memory usage is not tracked by Dask.
+
 Usage
 -----
 `hf-sim [OPTIONS] REALISATION_FFP STOCH_FFP STATION_FILE OUT_FILE`
@@ -32,11 +36,11 @@ For More Help
 See the output of `hf-sim --help`.
 """
 
-import concurrent.futures
 import subprocess
 import tempfile
-from collections.abc import Iterable
-from concurrent.futures.thread import ThreadPoolExecutor
+from collections.abc import Generator, Iterable
+from contextlib import contextmanager
+from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
@@ -45,6 +49,7 @@ import numpy.typing as npt
 import pandas as pd
 import typer
 import xarray as xr
+from dask.distributed import Client, LocalCluster
 
 from qcore import cli
 from workflow import log_utils, realisations, utils
@@ -59,6 +64,44 @@ from workflow.realisations import (
 )
 
 app = typer.Typer()
+
+
+class HostType(str, Enum):
+    """Cluster host type for Dask scheduling."""
+
+    local = "local"
+    slurm = "slurm"
+
+
+@contextmanager
+def dask_cluster(host: HostType) -> Generator[Client, None, None]:
+    """Create and manage a Dask distributed client for the given host type.
+
+    Parameters
+    ----------
+    host : HostType
+        The host type, either ``local`` for a `LocalCluster` or
+        ``slurm`` for a `SLURMCluster`.
+
+    Yields
+    ------
+    Client
+        A connected Dask distributed client.
+    """
+    if host == HostType.local:
+        cluster = LocalCluster()
+    else:
+        from dask_jobqueue import SLURMCluster
+
+        cluster = SLURMCluster(
+            cores=2,
+            memory="4GB",
+            walltime="01:00:00",
+            account="default",
+        )
+        cluster.adapt(minimum=1, maximum=50)
+    with Client(cluster) as client:
+        yield client
 
 
 def rupture_velocity_hf_transition_bands(
@@ -272,6 +315,146 @@ def station_seeds(seed: int, stations: Iterable[str]) -> npt.NDArray[np.int32]:
     return np.int32(seed) ^ station_hashes
 
 
+def load_hf_dataset(
+    station_file: Path,
+    seeds: Seeds,
+    resolution: Resolution,
+    hf_config: HFConfig,
+    velocity_model: HFVelocityModel1D,
+    domain_parameters: DomainParameters,
+) -> xr.Dataset:
+    """Load station data into a chunked xarray Dataset for distributed processing.
+
+    Parameters
+    ----------
+    station_file : Path
+        Path to station CSV file (columns: longitude, latitude, name).
+    seeds : Seeds
+        Seed configuration for the simulation.
+    resolution : Resolution
+        HF simulation resolution.
+    hf_config : HFConfig
+        The high-frequency config.
+    velocity_model : HFVelocityModel1D
+        The 1D velocity model.
+    domain_parameters : DomainParameters
+        The simulation domain parameters.
+
+    Returns
+    -------
+    xr.Dataset
+        A dataset indexed by ``station`` with variables for latitude,
+        longitude, seed, and vref, chunked for distributed processing.
+    """
+    stations = pd.read_csv(
+        station_file,
+        delimiter=r"\s+",
+        header=None,
+        names=["longitude", "latitude", "name"],
+    ).set_index("name")
+
+    seeds_array = station_seeds(seeds.hf_seed, stations.index)
+    vs = velocity_model.model["Vs"].iloc[0] * 1000
+    vref = np.full(len(stations), vs, dtype=np.float64)
+
+    nt = int(
+        np.float32(domain_parameters.duration) / np.float32(resolution.dt)
+    )
+
+    total_stations = len(stations)
+    chunk_size = max(1, total_stations // 500)
+
+    ds = xr.Dataset(
+        {
+            "latitude": ("station", stations["latitude"].values),
+            "longitude": ("station", stations["longitude"].values),
+            "seed": ("station", seeds_array),
+            "vref": ("station", vref),
+        },
+        coords={
+            "station": ("station", stations.index.values.astype(str)),
+        },
+        attrs={
+            "nt": nt,
+            "dt": resolution.dt,
+            "start_sec": hf_config.t_sec,
+        },
+    )
+    return ds.chunk({"station": chunk_size})
+
+
+def process_hf_dataset(
+    ds: xr.Dataset,
+    *,
+    hf_sim_path: str,
+    hf_input_template: str,
+) -> xr.Dataset:
+    """Process a chunk of the HF dataset by running station simulations.
+
+    Designed to be used with :func:`xarray.map_blocks`. Iterates over the
+    stations in the chunk and executes ``hf_simulate_station`` for each one.
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        A chunk of the input dataset with ``latitude``, ``longitude``,
+        and ``seed`` variables indexed by ``station``.
+    hf_sim_path : str
+        Path to the HF simulation binary (passed as string for
+        serialization).
+    hf_input_template : str
+        The stdin input template for the HF simulation binary.
+
+    Returns
+    -------
+    xr.Dataset
+        A dataset containing ``waveform`` (dims: component, station, time)
+        and ``epicentre_distance`` (dims: station) for the stations in the
+        chunk.
+    """
+    station_names = ds.station.values
+    n_stations = len(station_names)
+    nt = ds.attrs["nt"]
+
+    waveform = np.empty((3, n_stations, nt), dtype=np.float32)
+    epicentre_distances = np.empty(n_stations, dtype=np.float64)
+
+    for i, station_name in enumerate(station_names):
+        lat = float(ds["latitude"].values[i])
+        lon = float(ds["longitude"].values[i])
+        seed = int(ds["seed"].values[i])
+
+        _, epicentre, station_waveform = hf_simulate_station(
+            Path(hf_sim_path),
+            hf_input_template,
+            lat,
+            lon,
+            str(station_name),
+            seed,
+        )
+        epicentre_distances[i] = epicentre
+        for component in range(3):
+            waveform[component, i] = station_waveform[:, component]
+
+    dt = ds.attrs["dt"]
+    time_coords = np.arange(nt) * dt
+
+    return xr.Dataset(
+        {
+            "waveform": (
+                ["component", "station", "time"],
+                waveform,
+            ),
+            "epicentre_distance": (["station"], epicentre_distances),
+        },
+        coords={
+            "station": ("station", station_names),
+            "component": ("component", ["x", "y", "z"]),
+            "time": ("time", time_coords),
+        },
+    )
+
+
 def create_hf_dataset(
     # array-like used here to reduce the number of times we have to
     # change the types if the downstream function inputs change.
@@ -369,15 +552,15 @@ def run_hf(
         Path,
         typer.Option(exists=True, writable=True, file_okay=False),
     ] = Path("/out"),
+    host: Annotated[HostType, typer.Option()] = HostType.local,
 ) -> None:
     """Run the HF (High-Frequency) simulation and generate the HF output file.
 
     This function performs the following steps:
     1. Reads configuration and domain parameters from the realisation file.
-    2. Filters stations based on their location relative to the domain.
-    3. Uses multiprocessing to simulate each station and calculate epicentre distances.
-    4. Reads the velocity model and calculates the `vs` value.
-    5. Writes the HF output file, including header and station-specific data.
+    2. Loads station data into a chunked xarray Dataset.
+    3. Uses Dask distributed to simulate each station chunk in parallel.
+    4. Writes the HF output file in NetCDF format.
 
     Parameters
     ----------
@@ -393,6 +576,9 @@ def run_hf(
         Path to the HF simulation binary.
     work_directory : Path, optional
         Directory for intermediate files. Must be writable.
+    host : HostType, optional
+        Dask cluster host type. Use ``local`` for a local cluster or
+        ``slurm`` for a SLURM cluster. Defaults to ``local``.
 
     Returns
     -------
@@ -416,19 +602,8 @@ def run_hf(
         realisation_ffp, metadata.defaults_version
     )
 
-    stations = pd.read_csv(
-        station_file,
-        delimiter=r"\s+",
-        header=None,
-        names=["longitude", "latitude", "name"],
-    ).set_index("name")
-    stations["seed"] = station_seeds(seeds.hf_seed, stations.index)
     velocity_model_path = work_directory / "velocity_model"
     velocity_model.write_velocity_model(velocity_model_path)
-    nt = int(
-        np.float32(domain_parameters.duration) / np.float32(resolution.dt)
-    )  # Match Fortran's single-precision for consistent nt calculation
-    waveform = np.empty((3, len(stations), nt), dtype=np.float32)
 
     hf_input_template = build_hf_input(
         stoch_ffp,
@@ -438,42 +613,58 @@ def run_hf(
         rupture_velocity,
         domain_parameters,
     )
-    stations["epicentre_distance"] = np.nan
 
-    with ThreadPoolExecutor(max_workers=utils.get_available_cores()) as executor:
-        station_index = {station: i for i, station in enumerate(stations.index)}
-        futures = [
-            executor.submit(
-                hf_simulate_station,
-                hf_sim_path,
-                hf_input_template,
-                station["latitude"],
-                station["longitude"],
-                str(name),
-                int(station["seed"]),
-            )
-            for name, station in stations.iterrows()
-        ]
-        for future in concurrent.futures.as_completed(futures):
-            station, epicentre, station_waveform = future.result()
-            stations.loc[station, "epicentre_distance"] = epicentre
-            i = station_index[station]
+    input_ds = load_hf_dataset(
+        station_file,
+        seeds,
+        resolution,
+        hf_config,
+        velocity_model,
+        domain_parameters,
+    )
 
-            for component in range(3):
-                waveform[component, i] = station_waveform[:, component]
+    nt = input_ds.attrs["nt"]
+    dt = input_ds.attrs["dt"]
+    station_names = input_ds.station.values
+    n_stations = len(station_names)
+    time_coords = np.arange(nt) * dt
 
-    vs = velocity_model.model["Vs"].iloc[0] * 1000
-    stations["vs"] = vs
+    template = xr.Dataset(
+        {
+            "waveform": (
+                ["component", "station", "time"],
+                np.empty((3, n_stations, nt), dtype=np.float32),
+            ),
+            "epicentre_distance": (["station"], np.empty(n_stations, dtype=np.float64)),
+        },
+        coords={
+            "station": ("station", station_names),
+            "component": ("component", ["x", "y", "z"]),
+            "time": ("time", time_coords),
+        },
+    )
+
+    with dask_cluster(host) as client:
+        result_ds = xr.map_blocks(
+            process_hf_dataset,
+            input_ds,
+            template=template,
+            kwargs={
+                "hf_sim_path": str(hf_sim_path),
+                "hf_input_template": hf_input_template,
+            },
+        )
+        result_ds = client.compute(result_ds).result()
 
     ds = create_hf_dataset(
-        waveform=waveform,
-        latitude=stations["latitude"],
-        longitude=stations["longitude"],
-        names=stations.index,
-        epicentre_distance=stations["epicentre_distance"],
-        seed=stations["seed"],
-        vref=stations["vs"],
-        dt=resolution.dt,
+        waveform=result_ds["waveform"].values,
+        latitude=input_ds["latitude"].values,
+        longitude=input_ds["longitude"].values,
+        names=station_names,
+        epicentre_distance=result_ds["epicentre_distance"].values,
+        seed=input_ds["seed"].values,
+        vref=input_ds["vref"].values,
+        dt=dt,
         start_sec=hf_config.t_sec,
     )
     ds.to_netcdf(out_file, engine="h5netcdf")
