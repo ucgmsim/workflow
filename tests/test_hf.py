@@ -250,6 +250,7 @@ def test_load_hf_dataset_chunking(tmp_path: Path) -> None:
     assert ds.chunks is not None
     station_chunks = ds.chunks["station"]
     assert all(c <= 3 for c in station_chunks)
+    assert sum(station_chunks) == 1500
 
 
 def test_process_hf_dataset_structure() -> None:

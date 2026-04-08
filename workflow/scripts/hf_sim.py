@@ -65,6 +65,15 @@ from workflow.realisations import (
 
 app = typer.Typer()
 
+_TARGET_TASK_COUNT = 500
+"""Target number of Dask tasks for station chunking.
+
+Chosen to balance scheduler overhead against parallelism: too few tasks
+under-utilise workers, while too many (e.g. one per station at 100 k+)
+flood the scheduler with graph overhead.  A value of 500–1 000 keeps the
+task graph manageable while still saturating a large cluster.
+"""
+
 
 class HostType(str, Enum):
     """Cluster host type for Dask scheduling."""
@@ -362,7 +371,7 @@ def load_hf_dataset(
     )
 
     total_stations = len(stations)
-    chunk_size = max(1, total_stations // 500)
+    chunk_size = max(1, total_stations // _TARGET_TASK_COUNT)
 
     ds = xr.Dataset(
         {
