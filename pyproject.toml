@@ -23,6 +23,8 @@ dependencies = [
   "pyyaml",
   "xarray[io]",
 
+  # Distributed Computing
+  "dask[distributed]",
   # Numerics
   "numpy",
   "scipy",
