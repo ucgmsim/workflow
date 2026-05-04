@@ -182,7 +182,7 @@ def gcmt_to_realisation(
         latitude = solution["location"]["latitude"]
         longitude = solution["location"]["longitude"]
         centroid_depth = solution["location"]["depth"]
-        solution_moment = solution["moment"]
+        solution_moment = float(solution["moment"])
         nodal_plane_1 = NodalPlane(**solution["nodalPlanes"][0])
         nodal_plane_2 = NodalPlane(**solution["nodalPlanes"][1])
 
