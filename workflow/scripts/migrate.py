@@ -19,7 +19,7 @@ from rich.console import Console
 from qcore import cli
 from workflow import realisations, utils
 from workflow.defaults import DefaultsVersion
-from workflow.realisations import RealisationMetadata, Seeds
+from workflow.realisations import Seeds
 
 app = typer.Typer()
 console = Console()

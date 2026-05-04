@@ -40,7 +40,7 @@ import typer
 
 from qcore import cli
 from qcore.uncertainties import distributions
-from source_modelling import community_fault_model, moment, magnitude_scaling, sources
+from source_modelling import community_fault_model, magnitude_scaling, moment, sources
 from source_modelling.community_fault_model import NodalPlane
 from workflow import realisations
 from workflow.defaults import DefaultsVersion
