@@ -653,7 +653,9 @@ def generate_point_source_srf(
     moment_newton_metre = moment.magnitude_to_moment(magnitude)
 
     velocity_model_df = params.velocity_model_1d.model
-    velocity_model_df["depth_km"] = velocity_model_df["thickness"].cumsum()
+    velocity_model_df["depth_km"] = (
+        velocity_model_df["thickness"].cumsum() - velocity_model_df["thickness"]
+    )
 
     # Get the source depth
     # divide by 1000 to convert depth from meters to kilometers
