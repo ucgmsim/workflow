@@ -40,7 +40,7 @@ import typer
 
 from qcore import cli
 from qcore.uncertainties import distributions
-from source_modelling import community_fault_model, moment, magnitude_scaling, sources
+from source_modelling import community_fault_model, magnitude_scaling, sources
 from source_modelling.community_fault_model import NodalPlane
 from workflow import realisations
 from workflow.defaults import DefaultsVersion
@@ -87,6 +87,9 @@ class SourceType(StrEnum):
     """Use a finite fault plane."""
     POINT_SOURCE = "point-source"
     """Use a point source approximation."""
+
+
+
 
 
 @cli.from_docstring(app)
@@ -163,17 +166,17 @@ def gcmt_to_realisation(
     if gcmt_event_id in gcmt_solutions.index:
         row = gcmt_solutions.loc[gcmt_event_id]
         latitude = float(row["Latitude"])  # type: ignore[invalid-argument-type]
-        longitude = float(gcmt_solutions.at[gcmt_event_id, "Longitude"])  # type: ignore[invalid-argument-type]
-        centroid_depth = float(gcmt_solutions.at[gcmt_event_id, "CD"])  # type: ignore[invalid-argument-type]
-        solution_moment = float(gcmt_solutions.at[gcmt_event_id, "Mo"])  # type: ignore[invalid-argument-type]
-
-        strike1 = float(gcmt_solutions.at[gcmt_event_id, "strike1"])  # type: ignore[invalid-argument-type]
-        dip1 = float(gcmt_solutions.at[gcmt_event_id, "dip1"])  # type: ignore[invalid-argument-type]
-        rake1 = float(gcmt_solutions.at[gcmt_event_id, "rake1"])  # type: ignore[invalid-argument-type]
-
-        strike2 = float(gcmt_solutions.at[gcmt_event_id, "strike2"])  # type: ignore[invalid-argument-type]
-        dip2 = float(gcmt_solutions.at[gcmt_event_id, "dip2"])  # type: ignore[invalid-argument-type]
-        rake2 = float(gcmt_solutions.at[gcmt_event_id, "rake2"])  # type: ignore[invalid-argument-type]
+        longitude = float(gcmt_solutions.at[gcmt_event_id, "Longitude"]) # type: ignore[invalid-argument-type]
+        centroid_depth = float(gcmt_solutions.at[gcmt_event_id, "CD"]) # type: ignore[invalid-argument-type]
+        magnitude = float(gcmt_solutions.at[gcmt_event_id, "Mw"]) # type: ignore[invalid-argument-type]
+        
+        strike1 = float(gcmt_solutions.at[gcmt_event_id, "strike1"]) # type: ignore[invalid-argument-type]
+        dip1 = float(gcmt_solutions.at[gcmt_event_id, "dip1"]) # type: ignore[invalid-argument-type]
+        rake1 = float(gcmt_solutions.at[gcmt_event_id, "rake1"]) # type: ignore[invalid-argument-type]
+        
+        strike2 = float(gcmt_solutions.at[gcmt_event_id, "strike2"]) # type: ignore[invalid-argument-type]
+        dip2 = float(gcmt_solutions.at[gcmt_event_id, "dip2"]) # type: ignore[invalid-argument-type]
+        rake2 = float(gcmt_solutions.at[gcmt_event_id, "rake2"]) # type: ignore[invalid-argument-type]
 
         nodal_plane_1 = NodalPlane(strike1, dip1, rake1)
         nodal_plane_2 = NodalPlane(strike2, dip2, rake2)
@@ -182,17 +185,15 @@ def gcmt_to_realisation(
         latitude = solution["location"]["latitude"]
         longitude = solution["location"]["longitude"]
         centroid_depth = solution["location"]["depth"]
-        solution_moment = solution["moment"]
+        magnitude = solution["magnitude"]
         nodal_plane_1 = NodalPlane(**solution["nodalPlanes"][0])
         nodal_plane_2 = NodalPlane(**solution["nodalPlanes"][1])
-
+        
     else:
         raise typer.BadParameter(
             f"GCMT event ID {gcmt_event_id} not found in either the published GCMT solutions or automated solutions.",
             param_hint="GCMT_EVENT_ID",
         )
-
-    magnitude = moment.moment_to_magnitude(solution_moment)
 
     model = community_fault_model.get_community_fault_model()
 
@@ -237,8 +238,8 @@ def gcmt_to_realisation(
         )
 
     else:
-        # Create plane source (default behaviour)
-        source_geometry = sources.Plane.from_centroid_strike_dip(
+        # Create plane source (default behavior)
+        plane = sources.Plane.from_centroid_strike_dip(
             centroid,
             selected_nodal_plane.dip,
             length,
@@ -246,12 +247,14 @@ def gcmt_to_realisation(
             strike=selected_nodal_plane.strike,
         )
 
-    if source_geometry.top_m < 0:
-        warnings.warn(
-            f"Scaling relationship produced a source geometry with negative top depth ({source_geometry.top_m:.2f}m)."
-            " Shifting the source down to correct."
-        )
-        source_geometry.bounds[:, 2] -= source_geometry.bounds[:, 2].min()
+        if plane.bounds[:, 2].min() < 0:
+            warnings.warn(
+                f"Scaling relationship produced a plane with negative depth ({plane.bounds[:, 2].min() / 1000:.2f}km)."
+                " Shifting the plane down to correct."
+            )
+            plane.bounds[:, 2] -= plane.bounds[:, 2].min()
+
+        source_geometry = sources.Fault([plane])
 
     if lat_hypo is not None and lon_hypo is not None:
         if source_type == SourceType.POINT_SOURCE:
