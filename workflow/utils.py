@@ -1,6 +1,5 @@
 """Miscellaneous workflow utilities that couldn't go anywhere else."""
 
-import inspect
 import hashlib
 import os
 import tempfile
@@ -15,7 +14,6 @@ import shapely
 from shapely import Geometry, Polygon, geometry
 
 from qcore import coordinates
-from workflow import defaults
 
 NZ_COASTLINE_URL = "https://www.dropbox.com/scl/fi/zkohh794y0s2189t7b1hi/NZ.gmt?rlkey=02011f4morc4toutt9nzojrw1&st=vpz2ri8x&dl=1"
 

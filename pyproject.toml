@@ -22,7 +22,6 @@ dependencies = [
   "pandas[parquet, hdf5]",
   "pyyaml",
   "xarray[io]",
-
   # Numerics
   "numpy",
   "scipy",
@@ -35,7 +34,8 @@ dependencies = [
   "schema",    # For loading realisations
   "structlog", # Logging.
   "psutil",    # To get the CPU affinity for jobs
-
+  "parse>=1.21.0",
+  "rich>=14.3.2",
 ]
 
 [project.optional-dependencies]
