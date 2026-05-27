@@ -3,7 +3,7 @@
 
 Description
 -----------
-Merge the output timeslice files of EMOD3D.
+Merge the output timeslice files of EMOD3D into a Zarr store.
 
 Inputs
 ------
@@ -11,7 +11,7 @@ Inputs
 
 Outputs
 -------
-1. A merged output timeslice file.
+1. A merged output zarr store.
 
 Environment
 -----------
@@ -19,22 +19,29 @@ Can be run in the cybershake container. Can also be run from your own computer u
 
 Usage
 -----
-`merge-ts XYTS_DIRECTORY output.h5`
+`merge-ts XYTS_DIRECTORY output.zarr`
 
 For More Help
 -------------
 See the output of `merge-ts --help`.
 """
 
+from numcodecs.zfpy import ZFPY
+
 import dataclasses
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
+from collections.abc import Hashable
 
+import dask.array as da
 import numpy as np
 import tqdm
 import typer
 import xarray as xr
+from dask.diagnostics import ProgressBar
+import zarr
+import zfpy
 
 from qcore import cli, coordinates, xyts
 
@@ -66,8 +73,7 @@ def read_component_xyts_files(
     ]
 
 
-WaveformArray = np.ndarray[tuple[int, int, int, int], np.dtype[np.float32]]
-QuantisedArray = np.ndarray[tuple[int, int, int], np.dtype[np.uint16]]
+WaveformArray = da.Array
 CoordinateArray = np.ndarray[tuple[int, int], np.dtype[np.float64]]
 TimeArray = np.ndarray[tuple[int], np.dtype[np.float64]]
 
@@ -85,14 +91,18 @@ class WaveformData:
     y_end: int
     """Global y-end of waveform data."""
     data: WaveformArray
-    """Waveform data."""
+    """Waveform data (Dask array)."""
+    z_start: int | None = None
+    """Global z-start of waveform data."""
+    z_end: int | None = None
+    """Global z-end of waveform data."""
 
 
 XYTS_PROC_HEADER_SIZE = 72
 
 
 def read_waveform_data(xyts_file: xyts.XYTSFile) -> WaveformData:
-    """Read waveform data from an XYTS file.
+    """Read waveform data from an XYTS file using Dask (lazy evaluation).
 
     Parameters
     ----------
@@ -102,7 +112,7 @@ def read_waveform_data(xyts_file: xyts.XYTSFile) -> WaveformData:
     Returns
     -------
     WaveformData
-        The extracted waveform data.
+        The extracted waveform data metadata and a lazy Dask array.
 
     Raises
     ------
@@ -115,6 +125,8 @@ def read_waveform_data(xyts_file: xyts.XYTSFile) -> WaveformData:
     components = len(xyts_file.comps)
     ny = xyts_file.local_ny
     nx = xyts_file.local_nx
+    nz = getattr(xyts_file, "local_nz", None)
+
     if not (ny and nx):
         raise ValueError(
             "Encountered invalid XYTS component file (must have local ny and local nx both set)."
@@ -124,10 +136,28 @@ def read_waveform_data(xyts_file: xyts.XYTSFile) -> WaveformData:
     x1 = x0 + nx
     y1 = y0 + ny
 
-    data = np.fromfile(
-        xyts_file.xyts_path, dtype=np.float32, offset=XYTS_PROC_HEADER_SIZE
-    ).reshape((nt, components, ny, nx))
-    waveform_data = WaveformData(x_start=x0, y_start=y0, x_end=x1, y_end=y1, data=data)
+    if nz is not None and nz > 0:
+        z0 = getattr(xyts_file, "z0", 0)
+        z1 = z0 + nz
+        shape = (nt, components, nz, ny, nx)
+    else:
+        z0 = None
+        z1 = None
+        shape = (nt, components, ny, nx)
+
+    lazy_data = da.from_array(
+        np.memmap(
+            xyts_file.xyts_path,
+            dtype=np.float32,
+            offset=XYTS_PROC_HEADER_SIZE,
+            shape=shape,
+            mode="r",
+        ),
+    )
+
+    waveform_data = WaveformData(
+        x_start=x0, y_start=y0, z_start=z0, x_end=x1, y_end=y1, z_end=z1, data=lazy_data
+    )
     return waveform_data
 
 
@@ -153,6 +183,8 @@ class Metadata:
     """Model origin latitude."""
     mrot: float
     """Model rotation."""
+    nz: int | None = None
+    """Number of z gridpoints (if present)."""
 
 
 def extract_metadata(xyts_file: xyts.XYTSFile) -> Metadata:
@@ -171,13 +203,14 @@ def extract_metadata(xyts_file: xyts.XYTSFile) -> Metadata:
     nt = xyts_file.nt
     nx = xyts_file.nx
     ny = xyts_file.ny
+    nz = getattr(xyts_file, "nz", None)
     resolution = xyts_file.hh
     dx = xyts_file.dx
     mlat = xyts_file.mlat
     mlon = xyts_file.mlon
     mrot = xyts_file.mrot
     dt = xyts_file.dt
-    # The casts here convert from numpy to python types
+
     return Metadata(
         resolution=float(resolution),
         dx=float(dx),
@@ -188,6 +221,7 @@ def extract_metadata(xyts_file: xyts.XYTSFile) -> Metadata:
         nx=int(nx),
         ny=int(ny),
         nt=int(nt),
+        nz=int(nz) if nz is not None else None,
     )
 
 
@@ -233,126 +267,25 @@ def xyts_lat_lon_coordinates(
     return lat, lon
 
 
-def create_xyts_dataset(
-    data: QuantisedArray,
-    lat: CoordinateArray,
-    lon: CoordinateArray,
-    time: TimeArray,
-    metadata: Metadata,
-) -> xr.Dataset:
-    """Create an XYTS dataset from given waveform data, coordinate meshgrid, time and metadata.
-
-    Parameters
-    ----------
-    data : (nt, ny, nx) array of uint16
-        Quantised waveform data.
-    lat : (ny, nx) array of float64
-        Latitude meshgrid.
-    lon : (ny, nx) array of float64
-        Longitude meshgrid.
-    time : (nt,) array of float64
-        Time array.
-    metadata : Metadata
-        Metadata object.
-
-    Returns
-    -------
-    xr.Dataset
-        An xarray dataset with coordinates ``time``, ``y`` and ``x``
-        indexing the waveform data, lat and lon arrays. Metadata
-        populates the attributes.
-    """
-    (nt, ny, nx) = data.shape
-    if metadata.nx != nx or metadata.ny != ny or metadata.nt != nt:
-        raise ValueError(
-            f"Metadata does not match data, {metadata.nx=}, {metadata.ny=}, {metadata.nt=} but data {nx=}, {ny=}, {nt=}"
+def create_zarr_datastore(
+    output: Path, dset: xr.Dataset, compress: set[Hashable], compressor: ZFPY
+) -> None:
+    for var_name, var_data in dset.data_vars.items():
+        zarr.create_array(
+            store=output / str(var_name),
+            shape=var_data.shape,
+            chunks="auto",
+            dtype=var_data.dtype,
+            serializer=compressor if var_name in compress else "auto",
+            zarr_format=3,
+            overwrite=True,
+            fill_value=np.nan if np.issubdtype(var_data.dtype, np.floating) else 0,
+            dimension_names=[str(dim) for dim in var_data.dims],
         )
-    elif lon.shape != (ny, nx):
-        raise ValueError(
-            f"Longitude shape incompatible, {lon.shape=} but {data.shape=}"
-        )
-    elif lat.shape != (ny, nx):
-        raise ValueError(f"Latitude shape incompatible, {lat.shape=} but {data.shape=}")
-    elif time.shape != (nt,):
-        raise ValueError(
-            f"Time shape incompatible, expected {(nt,)} but found {time.shape=}"
-        )
-
-    dset = xr.Dataset(
-        {
-            "waveform": (("time", "y", "x"), data),
-        },
-        coords={
-            "time": ("time", time),
-            "y": ("y", np.arange(metadata.ny)),
-            "x": ("x", np.arange(metadata.nx)),
-            "latitude": (("y", "x"), lat),
-            "longitude": (("y", "x"), lon),
-        },
-        attrs=dataclasses.asdict(metadata),
-    )
-
-    return dset
-
-
-def set_scale(dset: xr.Dataset, scale: float) -> None:
-    """Set dataset scale properties.
-
-    This function sets the appropriate netcdf properties and units to
-    transparently read the uint16 quantised waveform values as 64-bit
-    floating point arrays.
-
-    Parameters
-    ----------
-    dset : xr.Dataset
-        Dataset to update.
-    scale : float
-        Scale for waveform quantisation.
-    """
-    bounds = np.iinfo(np.uint16)
-    max_bound = bounds.max
-    dset["waveform"].attrs.update(
-        {
-            "scale_factor": scale,
-            "add_offset": 0.0,
-            "units": "cm/s",
-            "_FillValue": max_bound,  # Reserve max bound for NaN values
-        }
-    )
-
-
-def quantise_array(waveform_data: WaveformArray, scale: float) -> QuantisedArray:
-    r"""
-    Quantise a floating-point waveform array into 16-bit unsigned integers.
-
-    The transformation follows the formula:
-    $$output = \text{round}(\text{clip}(\frac{waveform\_data}{scale}, 0, 65534))$$
-
-    Parameters
-    ----------
-    waveform_data : WaveformArray
-        The input floating-point array. All values are expected to be >= 0.
-    scale : float
-        The quantisation step size (resolution). For example, a scale of 0.1
-        means the output represents increments of 0.1 from the input.
-
-    Returns
-    -------
-    QuantisedArray (uint16)
-        The discrete representation of the waveform. Values are capped at
-        65534 to reserve 65535 as a NaN indicator.
-    """
-    scaled = waveform_data / scale
-    bounds = np.iinfo(np.uint16)
-    max_bound = bounds.max
-    np.nan_to_num(scaled, nan=max_bound, copy=False)
-    np.clip(scaled, 0, max_bound - 1, out=scaled)
-    np.round(scaled, out=scaled)
-    return scaled.astype(np.uint16)
 
 
 @cli.from_docstring(app)
-def merge_ts_hdf5(
+def merge_ts_zarr(
     component_xyts_directory: Annotated[
         Path,
         typer.Argument(
@@ -364,26 +297,25 @@ def merge_ts_hdf5(
     ],
     output: Annotated[
         Path,
-        typer.Argument(dir_okay=False, writable=True),
+        typer.Argument(dir_okay=True, writable=True),
     ],
     glob_pattern: str = "*xyts-*.e3d",
     scale: Annotated[float, typer.Option(min=0)] = 0.1,
-    complevel: Annotated[int, typer.Option(min=1, max=9)] = 4,
 ) -> None:
-    """Merge XYTS files.
+    """Merge XYTS files into a Zarr store.
 
     Parameters
     ----------
     component_xyts_directory : Path
         The input xyts directory containing files to merge.
     output : Path
-        The output xyts file.
+        The output zarr store path.
     glob_pattern : str, optional
         Set a custom glob pattern for merging the xyts files, by default "*xyts-*.e3d".
     scale : float, optional
         Set the scale for quantising XYTS outputs. Defaults to 0.1.
     complevel : int, optional
-        Set the compression level for the output HDF5 file. Range
+        Set the compression level for the output Zarr file. Range
         between 1-9 (9 being the highest level of compression).
         Defaults to 4.
     """
@@ -401,34 +333,49 @@ def merge_ts_hdf5(
     metadata = extract_metadata(sample_xyts_file)
     bounds = np.iinfo(np.uint16)
     nan_value = bounds.max
-    waveform_data = np.full(
-        (metadata.nt, metadata.ny, metadata.nx), nan_value, dtype=np.uint16
-    )
 
-    for xyts_file in tqdm.tqdm(component_xyts_files, unit="files"):
+    arrays = []
+
+    for xyts_file in tqdm.tqdm(
+        component_xyts_files, desc="Building Dask Graph", unit="files"
+    ):
         local_data = read_waveform_data(xyts_file)
-        magnitude = np.linalg.norm(local_data.data, axis=1)
-        quantised = quantise_array(magnitude, scale)
-        waveform_data[
-            :,
-            local_data.y_start : local_data.y_end,
-            local_data.x_start : local_data.x_end,
-        ] = quantised
+        magnitude = da.linalg.norm(local_data.data, axis=1)
 
+        coords = {
+            "time": np.arange(metadata.nt, dtype=np.float64) * metadata.dt,
+            "y": np.arange(local_data.y_start, local_data.y_end),
+            "x": np.arange(local_data.x_start, local_data.x_end),
+        }
+
+        if local_data.z_end is not None:
+            coords["z"] = np.arange(local_data.z_start, local_data.z_end)
+            dims = ("time", "z", "y", "x")
+        else:
+            dims = ("time", "y", "x")
+
+        chunk_da = xr.DataArray(magnitude, dims=dims, coords=coords, name="waveform")
+        arrays.append(chunk_da.to_dataset())
+
+    merged_ds = xr.combine_by_coords(arrays, fill_value=nan_value)
+    assert isinstance(merged_ds, xr.Dataset)
+    merged_ds.attrs = dataclasses.asdict(metadata)
     lat, lon = xyts_lat_lon_coordinates(metadata)
-    time = np.arange(metadata.nt, dtype=np.float64) * metadata.dt
-    dset = create_xyts_dataset(waveform_data, lat, lon, time, metadata)
-    set_scale(dset, scale)
+    merged_ds["latitude"] = (("y", "x"), lat)
+    merged_ds["longitude"] = (("y", "x"), lon)
 
-    dset.to_netcdf(
-        output,
-        engine="h5netcdf",
-        encoding={
-            "waveform": {
-                "dtype": "uint16",
-                "compression": "zlib",
-                "complevel": complevel,
-                "shuffle": True,
-            }
-        },
+    compressor = ZFPY(mode=zfpy.mode_fixed_accuracy, tolerance=scale)
+    create_zarr_datastore(
+        output, merged_ds, compress={"waveform"}, compressor=compressor
     )
+
+    with ProgressBar():
+        merged_ds.to_zarr(output, mode="a", zarr_format=3, compute=False)
+        for var_name, var_data in merged_ds.data_vars.items():
+            var_region = {dim: slice(None) for dim in var_data.dims}
+
+            merged_ds[[var_name]].to_zarr(store=output, mode="a", region=var_region)
+
+
+if __name__ == "__main__":
+    app()
