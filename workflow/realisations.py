@@ -582,7 +582,7 @@ class SRFConfig(RealisationConfiguration):
     """SVR model weight."""
     target_savg: float | None
     """Target average slip (None = compute from magnitude)."""
-    use_Mw: bool
+    use_Mw: bool  # noqa: N815
     """Use moment magnitude for scaling."""
 
     # Aseismic & Segment Settings

@@ -37,7 +37,6 @@ You can visualise the output of this stage using the SRF plotting tools in the [
 """
 
 import dataclasses
-from enum import Enum
 import functools
 import multiprocessing
 import re
