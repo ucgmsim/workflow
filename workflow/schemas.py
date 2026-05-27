@@ -580,7 +580,7 @@ SRF_SCHEMA = Schema(
         Literal(
             "hyb_corlen_kmodel",
             description="Hybrid correlation length k-model index.",
-        ): And(NUMBER, _is_positive),
+        ): Use(KModel),
         Literal(
             "hyb_corlen_shal_wt_end",
             description="Hybrid correlation length shallow weight end.",
