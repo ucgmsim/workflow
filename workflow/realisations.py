@@ -460,7 +460,7 @@ class SRFConfig(RealisationConfiguration):
     hyb_corlen_flag: bool
     """Enable hybrid correlation length model."""
     hyb_corlen_kmodel: schemas.KModel
-    """Hybrid correlation length k-model index. Stored as float for schema compatibility."""
+    """Hybrid correlation length k-model (schemas.KModel), parsed/coerced from the schema value."""
     hyb_corlen_shal_wt_end: float
     """Hybrid correlation length shallow weight end."""
     hyb_corlen_shal_wt_start: float
