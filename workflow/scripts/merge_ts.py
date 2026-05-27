@@ -26,7 +26,7 @@ For More Help
 See the output of `merge-ts --help`.
 """
 
-from numcodecs.zfpy import ZFPY
+from zarr.codecs.numcodecs import ZFPY
 
 import dataclasses
 from dataclasses import dataclass
