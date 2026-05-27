@@ -207,7 +207,7 @@ srf:
   set_rake: null
   svr_wt: 0.0
   target_savg: null
-  use_Mw: true
+  use_Mw: false
   # Aseismic & Segment Settings
   aseis_flag: false
   aseis_smooth: false
