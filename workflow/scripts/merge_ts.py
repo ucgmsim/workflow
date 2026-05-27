@@ -268,13 +268,17 @@ def xyts_lat_lon_coordinates(
 
 
 def create_zarr_datastore(
-    output: Path, dset: xr.Dataset, compress: set[Hashable], compressor: ZFPY
+    output: Path,
+    dset: xr.Dataset,
+    chunks: dict[str, int],
+    compress: set[Hashable],
+    compressor: ZFPY,
 ) -> None:
     for var_name, var_data in dset.data_vars.items():
         zarr.create_array(
             store=output / str(var_name),
             shape=var_data.shape,
-            chunks="auto",
+            chunks=tuple(chunks[str(dim)] for dim in var_data.dims),
             dtype=var_data.dtype,
             serializer=compressor if var_name in compress else "auto",
             zarr_format=3,
@@ -366,7 +370,11 @@ def merge_ts_zarr(
 
     compressor = ZFPY(mode=zfpy.mode_fixed_accuracy, tolerance=scale)
     create_zarr_datastore(
-        output, merged_ds, compress={"waveform"}, compressor=compressor
+        output,
+        merged_ds,
+        chunks=merged_ds.chunksizes,
+        compress={"waveform"},
+        compressor=compressor,
     )
 
     with ProgressBar():
