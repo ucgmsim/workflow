@@ -26,22 +26,19 @@ For More Help
 See the output of `merge-ts --help`.
 """
 
-from zarr.codecs.numcodecs import ZFPY
-
 import dataclasses
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
-from collections.abc import Hashable
+from typing import Annotated, Any
 
+import dask
 import dask.array as da
 import numpy as np
 import tqdm
 import typer
 import xarray as xr
-from dask.diagnostics import ProgressBar
-import zarr
-import zfpy
+from tqdm.dask import TqdmCallback
+from zarr.codecs import BloscCodec, Quantize
 
 from qcore import cli, coordinates, xyts
 
@@ -99,6 +96,87 @@ class WaveformData:
 
 
 XYTS_PROC_HEADER_SIZE = 72
+def mmap_load_chunk(filename: Path, shape: tuple[int, ...], dtype: np.dtype, offset: int, sl: Any) -> np.ndarray:
+    '''
+    Memory map the given file with overall shape and dtype and return a slice
+    specified by :code:`sl`.
+
+    Parameters
+    ----------
+
+    filename : str
+    shape : tuple
+        Total shape of the data in the file
+    dtype:
+        NumPy dtype of the data in the file
+    offset : int
+        Skip :code:`offset` bytes from the beginning of the file.
+    sl:
+        Object that can be used for indexing or slicing a NumPy array to
+        extract a chunk
+
+    Returns
+    -------
+
+    numpy.memmap or numpy.ndarray
+        View into memory map created by indexing with :code:`sl`,
+        or NumPy ndarray in case no view can be created using :code:`sl`.
+    '''
+    data = np.memmap(filename, mode='r', shape=shape, dtype=dtype, offset=offset)
+    return data[sl]
+
+
+def mmap_dask_array(filename: Path, shape: tuple[int, ...], dtype: np.dtype, offset: int=0, blocksize: int=5) -> da.Array:
+    '''
+    Create a Dask array from raw binary data in :code:`filename`
+    by memory mapping.
+
+    This method is particularly effective if the file is already
+    in the file system cache and if arbitrary smaller subsets are
+    to be extracted from the Dask array without optimizing its
+    chunking scheme.
+
+    It may perform poorly on Windows if the file is not in the file
+    system cache. On Linux it performs well under most circumstances.
+
+    Parameters
+    ----------
+
+    filename : str
+    shape : tuple
+        Total shape of the data in the file
+    dtype:
+        NumPy dtype of the data in the file
+    offset : int, optional
+        Skip :code:`offset` bytes from the beginning of the file.
+    blocksize : int, optional
+        Chunk size for the outermost axis. The other axes remain unchunked.
+
+    Returns
+    -------
+
+    dask.array.Array
+        Dask array matching :code:`shape` and :code:`dtype`, backed by
+        memory-mapped chunks.
+    '''
+    load = dask.delayed(mmap_load_chunk)
+    chunks = []
+    for index in range(0, shape[0], blocksize):
+        # Truncate the last chunk if necessary
+        chunk_size = min(blocksize, shape[0] - index)
+        chunk = dask.array.from_delayed(
+            load(
+                filename,
+                shape=shape,
+                dtype=dtype,
+                offset=offset,
+                sl=slice(index, index + chunk_size)
+            ),
+            shape=(chunk_size, ) + shape[1:],
+            dtype=dtype
+        )
+        chunks.append(chunk)
+    return da.concatenate(chunks, axis=0)
 
 
 def read_waveform_data(xyts_file: xyts.XYTSFile) -> WaveformData:
@@ -145,14 +223,14 @@ def read_waveform_data(xyts_file: xyts.XYTSFile) -> WaveformData:
         z1 = None
         shape = (nt, components, ny, nx)
 
-    lazy_data = da.from_array(
-        np.memmap(
+    chunks = list(shape)
+    chunks[0] = 1
+    lazy_data = mmap_dask_array(
             xyts_file.xyts_path,
             dtype=np.float32,
             offset=XYTS_PROC_HEADER_SIZE,
+            blocksize=1,
             shape=shape,
-            mode="r",
-        ),
     )
 
     waveform_data = WaveformData(
@@ -267,26 +345,6 @@ def xyts_lat_lon_coordinates(
     return lat, lon
 
 
-def create_zarr_datastore(
-    output: Path,
-    dset: xr.Dataset,
-    chunks: dict[str, int],
-    compress: set[Hashable],
-    compressor: ZFPY,
-) -> None:
-    for var_name, var_data in dset.data_vars.items():
-        zarr.create_array(
-            store=output / str(var_name),
-            shape=var_data.shape,
-            chunks=tuple(chunks[str(dim)] for dim in var_data.dims),
-            dtype=var_data.dtype,
-            serializer=compressor if var_name in compress else "auto",
-            zarr_format=3,
-            overwrite=True,
-            fill_value=np.nan if np.issubdtype(var_data.dtype, np.floating) else 0,
-            dimension_names=[str(dim) for dim in var_data.dims],
-        )
-
 
 @cli.from_docstring(app)
 def merge_ts_zarr(
@@ -304,7 +362,11 @@ def merge_ts_zarr(
         typer.Argument(dir_okay=True, writable=True),
     ],
     glob_pattern: str = "*xyts-*.e3d",
-    scale: Annotated[float, typer.Option(min=0)] = 0.1,
+    scale: int = 1,
+    complevel: int = 5,
+    dx: int = 1,
+    dy: int = 1,
+    dz: int = 1
 ) -> None:
     """Merge XYTS files into a Zarr store.
 
@@ -339,50 +401,58 @@ def merge_ts_zarr(
     nan_value = bounds.max
 
     arrays = []
+    with TqdmCallback(), dask.config.set():
+        for xyts_file in tqdm.tqdm(
+            component_xyts_files, desc="Building Dask Graph", unit="files"
+        ):
+            local_data = read_waveform_data(xyts_file)
+            magnitude = da.linalg.norm(local_data.data, axis=1)
+            
+            coords = {
+                "time": np.arange(metadata.nt, dtype=np.float64) * metadata.dt,
+                "y": np.arange(local_data.y_start, local_data.y_end),
+                "x": np.arange(local_data.x_start, local_data.x_end),
+            }
 
-    for xyts_file in tqdm.tqdm(
-        component_xyts_files, desc="Building Dask Graph", unit="files"
-    ):
-        local_data = read_waveform_data(xyts_file)
-        magnitude = da.linalg.norm(local_data.data, axis=1)
+            if local_data.z_end is not None:
+                coords["z"] = np.arange(local_data.z_start, local_data.z_end)
+                dims = ("time", "z", "y", "x")
+            else:
+                dims = ("time", "y", "x")
 
-        coords = {
-            "time": np.arange(metadata.nt, dtype=np.float64) * metadata.dt,
-            "y": np.arange(local_data.y_start, local_data.y_end),
-            "x": np.arange(local_data.x_start, local_data.x_end),
-        }
+            chunk_da = xr.DataArray(magnitude, dims=dims, coords=coords, name="waveform")
+            arrays.append(chunk_da.to_dataset())
 
-        if local_data.z_end is not None:
-            coords["z"] = np.arange(local_data.z_start, local_data.z_end)
-            dims = ("time", "z", "y", "x")
-        else:
-            dims = ("time", "y", "x")
 
-        chunk_da = xr.DataArray(magnitude, dims=dims, coords=coords, name="waveform")
-        arrays.append(chunk_da.to_dataset())
+        filters = [
+            Quantize(digits=scale, dtype='float32'),
+        ]
+        compressors = [
+            BloscCodec(cname='zstd', clevel=complevel, shuffle='shuffle'),
+        ]
 
-    merged_ds = xr.combine_by_coords(arrays, fill_value=nan_value)
-    assert isinstance(merged_ds, xr.Dataset)
-    merged_ds.attrs = dataclasses.asdict(metadata)
-    # lat, lon = xyts_lat_lon_coordinates(metadata)
-    # merged_ds["latitude"] = (("y", "x"), lat)
-    # merged_ds["longitude"] = (("y", "x"), lon)
+        merged_ds = xr.combine_by_coords(arrays, fill_value=nan_value)
+        if (dx, dy, dz) != (1, 1, 1):
+            x_sel = range(0, metadata.nx, dx)
+            y_sel = range(0, metadata.nx, dy)
+            z_sel = range(0, metadata.nx, dz)
+            merged_ds = merged_ds.isel(x=x_sel, y=y_sel, z=z_sel)
+            
+        assert isinstance(merged_ds, xr.Dataset)
+        merged_ds.attrs = dataclasses.asdict(metadata)
+        merged_ds = merged_ds.chunk(time=1, x=256, y=256, z=256)
 
-    compressor = ZFPY(mode=zfpy.mode_fixed_accuracy, tolerance=scale)
-    create_zarr_datastore(
-        output,
-        merged_ds,
-        chunks=merged_ds.chunksizes,
-        compress={"waveform"},
-        compressor=compressor,
-    )
-
-    with ProgressBar():
-        merged_ds.to_zarr(output, mode="a", zarr_format=3, compute=False)
-        for var_name, var_data in merged_ds.data_vars.items():
-            var_region = {dim: slice(None) for dim in var_data.dims}
-
-            merged_ds[[var_name]].to_zarr(store=output, mode="a", region=var_region)
+        merged_ds.to_zarr(
+            output,
+            mode="w",
+            zarr_format=3,
+            encoding=dict(
+                waveform=dict(
+                    filters=filters,
+                    compressors=compressors
+                )
+            )
+        )
 
 
 if __name__ == "__main__":
