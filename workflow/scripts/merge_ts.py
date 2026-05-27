@@ -360,9 +360,9 @@ def merge_ts_zarr(
     merged_ds = xr.combine_by_coords(arrays, fill_value=nan_value)
     assert isinstance(merged_ds, xr.Dataset)
     merged_ds.attrs = dataclasses.asdict(metadata)
-    lat, lon = xyts_lat_lon_coordinates(metadata)
-    merged_ds["latitude"] = (("y", "x"), lat)
-    merged_ds["longitude"] = (("y", "x"), lon)
+    # lat, lon = xyts_lat_lon_coordinates(metadata)
+    # merged_ds["latitude"] = (("y", "x"), lat)
+    # merged_ds["longitude"] = (("y", "x"), lon)
 
     compressor = ZFPY(mode=zfpy.mode_fixed_accuracy, tolerance=scale)
     create_zarr_datastore(
