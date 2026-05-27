@@ -443,8 +443,8 @@ class SRFConfig(RealisationConfiguration):
     """Rise time randomness factor (0.0 = deterministic)."""
     rt_scalefac: float
     """Rise time scale factor."""
-    stype: str | None
-    """Slip time function type for genslip (None = use genslip default)."""
+    stype: schemas.Stype | None
+    """Slip time function type for genslip as a schemas.Stype (None = use genslip default)."""
 
     # Hybrid Correlation Length (hyb_corlen) Parameters
     hyb_corlen_deep_wt_end: float
