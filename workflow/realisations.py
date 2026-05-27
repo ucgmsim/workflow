@@ -518,11 +518,11 @@ class SRFConfig(RealisationConfiguration):
     """Kinematic model index."""
     kord: int
     """Wavenumber filter order."""
-    magC: float
+    magC: float  # noqa: N815
     """Magnitude corner frequency coefficient."""
-    mag_area_Acoef: float | None
+    mag_area_Acoef: float | None  # noqa: N815
     """Magnitude-area scaling A coefficient (None = disabled)."""
-    mag_area_Bcoef: float | None
+    mag_area_Bcoef: float | None  # noqa: N815
     """Magnitude-area scaling B coefficient (None = disabled)."""
     mai_wt: float
     """MAI model weight."""
