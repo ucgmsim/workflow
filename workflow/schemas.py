@@ -400,7 +400,7 @@ RUPTURE_VELOCITY_SCHEMA = Schema(
         Literal(
             "rvfrac_slip_sig",
             description="Rupture velocity fraction slip sigma (null = disabled)."): Or(
-            NUMBER, None
+            And(NUMBER, _is_non_negative), None
         ),
         Literal(
             "shallow_depth",
