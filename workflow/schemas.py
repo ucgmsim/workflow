@@ -7,7 +7,7 @@ for a description of realisations and the schemas.
 """
 
 import dataclasses
-from enum import StrEnum, IntEnum
+from enum import IntEnum, StrEnum
 
 import numpy as np
 import pandas as pd
@@ -32,6 +32,7 @@ class Stype(StrEnum):
     seki = "seki"
 
 class KModel(IntEnum):
+    """Correlation length models for genslip."""
     SOMERVILLE = 1
     MAI = 2
     FRANKEL = 3
