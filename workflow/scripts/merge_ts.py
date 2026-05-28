@@ -432,11 +432,17 @@ def merge_ts_zarr(
         ]
 
         merged_ds = xr.combine_by_coords(arrays, fill_value=nan_value)
-        if (dx, dy, dz) != (1, 1, 1):
-            x_sel = range(0, metadata.nx, dx)
-            y_sel = range(0, metadata.nx, dy)
-            z_sel = range(0, metadata.nx, dz)
-            merged_ds = merged_ds.isel(x=x_sel, y=y_sel, z=z_sel)
+        
+        selectors = dict()
+        if dx != 1:
+            selectors['x'] = range(0, metadata.nx, dx)
+        if dy != 1:
+            selectors['y'] = range(0, metadata.ny, dy)
+        if dz != 1 and metadata.nz:
+            selectors['z'] = range(0, metadata.nz, dz)
+
+        if selectors:
+            merged_ds = merged_ds.isel(selectors)
             
         assert isinstance(merged_ds, xr.Dataset)
         merged_ds.attrs = dataclasses.asdict(metadata)
