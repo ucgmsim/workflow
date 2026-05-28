@@ -7,7 +7,7 @@ for a description of realisations and the schemas.
 """
 
 import dataclasses
-from enum import StrEnum
+from enum import IntEnum, StrEnum
 
 import numpy as np
 import pandas as pd
@@ -30,6 +30,15 @@ class Stype(StrEnum):
     ucsb_varT1 = "ucsb-varT1"  # noqa: N815
     cos = "cos"
     seki = "seki"
+
+class KModel(IntEnum):
+    """Correlation length models for genslip."""
+    SOMERVILLE = 1
+    MAI = 2
+    FRANKEL = 3
+    MAI_SOMERVILLE = 4
+    SUZUKI = 5
+    INPUT_CORNERS = -1
 
 
 @dataclasses.dataclass
@@ -390,6 +399,11 @@ RUPTURE_VELOCITY_SCHEMA = Schema(
             NUMBER, _is_positive
         ),
         Literal(
+            "rvfrac_slip_sig",
+            description="Rupture velocity fraction slip sigma (null = disabled)."): Or(
+            And(NUMBER, _is_non_negative), None
+        ),
+        Literal(
             "shallow_depth",
             description="Shallow transition depth.",
         ): And(NUMBER, _is_positive),
@@ -471,6 +485,359 @@ SRF_SCHEMA = Schema(
             "risetime_coef",
             description="Risetime scaling coefficient.",
         ): And(NUMBER, _is_positive),
+        # Rise time and source time function values
+        Literal("beta_asp", description="Asperity beta parameter."): And(
+            NUMBER, _is_positive
+        ),
+        Literal(
+            "beta_deep", description="Deep beta parameter for rise time."
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "beta_mid", description="Mid-depth beta parameter for rise time."
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "beta_mid_depth",
+            description="Mid-depth level for beta depth scaling.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "beta_mid_depth_range",
+            description="Mid-depth range for beta depth scaling.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "beta_shal", description="Shallow beta parameter for rise time."
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "beta_shal_depth",
+            description="Shallow depth level for beta depth scaling.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "beta_shal_depth_range",
+            description="Shallow depth range for beta depth scaling.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "beta_subevt", description="Sub-event beta parameter for rise time."
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "deep_risetimedep",
+            description="Deep rise time depth dependency level.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "deep_risetimedep_range",
+            description="Deep rise time depth dependency range.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "deep_risetimefac",
+            description="Deep rise time scaling factor.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "risetimedep",
+            description="Rise time depth dependency level.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "risetimedep_range",
+            description="Rise time depth dependency range.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "risetimefac",
+            description="Rise time scaling factor.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "rt_rand",
+            description="Rise time randomness factor (0.0 = deterministic).",
+        ): And(NUMBER, _is_non_negative),
+        Literal(
+            "rt_scalefac",
+            description="Rise time scale factor.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "stype",
+            description="Slip time function type for genslip (null = use genslip default).",
+        ): Or(Use(Stype),None),
+        # Hybrid Correlation Length (hyb_corlen) Parameters
+        Literal(
+            "hyb_corlen_deep_wt_end",
+            description="Hybrid correlation length deep weight end.",
+        ): NUMBER,
+        Literal(
+            "hyb_corlen_deep_wt_start",
+            description="Hybrid correlation length deep weight start.",
+        ): NUMBER,
+        Literal(
+            "hyb_corlen_dep",
+            description="Hybrid correlation length depth scaling level.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "hyb_corlen_dep_range",
+            description="Hybrid correlation length depth scaling range.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "hyb_corlen_fac",
+            description="Hybrid correlation length factor.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "hyb_corlen_flag",
+            description="Enable hybrid correlation length model.",
+        ): bool,
+        Literal(
+            "hyb_corlen_kmodel",
+            description="Hybrid correlation length k-model index.",
+        ): Use(KModel),
+        Literal(
+            "hyb_corlen_shal_wt_end",
+            description="Hybrid correlation length shallow weight end.",
+        ): NUMBER,
+        Literal(
+            "hyb_corlen_shal_wt_start",
+            description="Hybrid correlation length shallow weight start.",
+        ): NUMBER,
+        Literal(
+            "hyb_corlen_side_taper",
+            description="Hybrid correlation length side taper.",
+        ): And(NUMBER, _is_non_negative),
+        # Rupture Velocity & Fault Dimensions
+        Literal(
+            "fdrup_scale_slip",
+            description="Scale slip by fault rupture area.",
+        ): bool,
+        Literal(
+            "fdrup_time",
+            description="Use fault rupture time.",
+        ): bool,
+        Literal(
+            "rupture_delay",
+            description="Delay (in seconds) before rupture starts.",
+        ): And(NUMBER, _is_non_negative),
+        Literal(
+            "rvfmax",
+            description="Maximum rupture velocity fraction.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "rvfmin",
+            description="Minimum rupture velocity fraction.",
+        ): And(NUMBER, _is_positive),
+
+        # Tapering & Slip Level Adjustments
+        Literal(
+            "truncate_zero_slip",
+            description="Truncate subfaults with zero slip.",
+        ): bool,
+        Literal(
+            "slip_water_level",
+            description="Water level for slip distribution (null = disabled).",
+        ): Or(NUMBER, None),
+        Literal(
+            "rake_sigma",
+            description="Standard deviation of rake perturbation (degrees).",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "fractal_rake",
+            description="Use fractal rake distribution.",
+        ): bool,
+        # Time Shift Factors (tsfac)
+        Literal(
+            "tsfac1_scor",
+            description="Time shift factor 1 spatial correlation.",
+        ): NUMBER,
+        Literal(
+            "tsfac1_sigma",
+            description="Time shift factor 1 sigma.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "tsfac2_lambda_max",
+            description="Time shift factor 2 maximum wavelength.",
+        ): NUMBER,
+        Literal(
+            "tsfac2_lambda_min",
+            description="Time shift factor 2 minimum wavelength (null = disabled).",
+        ): Or(NUMBER, None),
+        Literal(
+            "tsfac2_scor",
+            description="Time shift factor 2 spatial correlation.",
+        ): NUMBER,
+        Literal(
+            "tsfac2_sigma",
+            description="Time shift factor 2 sigma.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "tsfac_bzero",
+            description="Time shift factor b0 coefficient.",
+        ): NUMBER,
+        Literal(
+            "tsfac_coef",
+            description="Time shift factor coefficient.",
+        ): NUMBER,
+        Literal(
+            "tsfac_main",
+            description="Main time shift factor (null = use computed value).",
+        ): Or(NUMBER, None),
+        Literal(
+            "tsfac_slope",
+            description="Time shift factor slope.",
+        ): NUMBER,
+        # Kinematic Models & Corner Frequencies
+        Literal(
+            "circular_average",
+            description="Use circular average for slip correlation.",
+        ): bool,
+        Literal(
+            "kmodel",
+            description="Kinematic model index: 1=SOMERVILLE, 2=MAI, 3=FRANKEL, 4=MAI_SOMERVILLE, 5=SUZUKI, -1=INPUT_CORNERS",
+        ): Use(KModel),
+        Literal(
+            "kord",
+            description="Wavenumber filter order.",
+        ): And(int, _is_positive),
+        Literal(
+            "magC",
+            description="Magnitude corner frequency coefficient.",
+        ): NUMBER,
+        Literal(
+            "mag_area_Acoef",
+            description="Magnitude-area scaling A coefficient (null = disabled).",
+        ): Or(NUMBER, None),
+        Literal(
+            "mag_area_Bcoef",
+            description="Magnitude-area scaling B coefficient (null = disabled).",
+        ): Or(NUMBER, None),
+        Literal(
+            "mai_wt",
+            description="MAI model weight.",
+        ): And(NUMBER, _is_proportion),
+        Literal(
+            "modified_corners",
+            description="Use modified corner frequencies.",
+        ): bool,
+        Literal(
+            "somerville_wt",
+            description="Somerville model weight.",
+        ): And(NUMBER, _is_proportion),
+        Literal(
+            "stretch_kcorner",
+            description="Stretch corner wavenumber.",
+        ): bool,
+        Literal(
+            "use_gaus",
+            description="Use Gaussian slip distribution.",
+        ): bool,
+        Literal(
+            "use_median_mag",
+            description="Use median magnitude for scaling.",
+        ): bool,
+        # Roughness & Wavelength Limits
+        Literal(
+            "lambda_max",
+            description="Maximum wavelength for slip correlation (null = no limit).",
+        ): Or(NUMBER, None),
+        Literal(
+            "lambda_min",
+            description="Minimum wavelength for slip correlation (null = no limit).",
+        ): Or(NUMBER, None),
+        Literal(
+            "wavelength_max",
+            description="Maximum wavelength limit (null = no limit).",
+        ): Or(NUMBER, None),
+        Literal(
+            "wavelength_min",
+            description="Minimum wavelength limit (null = no limit).",
+        ): Or(NUMBER, None),
+        # Miscellaneous Slip/Rupture/Rake Vars
+        Literal(
+            "asp_taper_fac",
+            description="Asperity taper factor.",
+        ): And(NUMBER, _is_non_negative),
+        Literal(
+            "extend_fac",
+            description="Fault extension factor (null = disabled).",
+        ): Or(NUMBER, None),
+        Literal(
+            "flen_max",
+            description="Maximum fault length (null = no limit).",
+        ): Or(NUMBER, None),
+        Literal(
+            "fwid_max",
+            description="Maximum fault width (null = no limit).",
+        ): Or(NUMBER, None),
+        Literal(
+            "moment_fraction",
+            description="Fraction of seismic moment (null = use all).",
+        ): Or(NUMBER, None),
+        Literal(
+            "perturb_subfault_location",
+            description="Perturb subfault locations.",
+        ): bool,
+        Literal(
+            "rand_rake_degs",
+            description="Range of random rake perturbation (degrees).",
+        ): And(NUMBER, _is_non_negative),
+        Literal(
+            "rtime1_depth",
+            description="Rise time 1 depth level.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "rtime1_depth_range",
+            description="Rise time 1 depth range.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "rtime1_scor",
+            description="Rise time 1 spatial correlation.",
+        ): NUMBER,
+        Literal(
+            "rtime1_sigma",
+            description="Rise time 1 sigma.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "rtime2_scor",
+            description="Rise time 2 spatial correlation.",
+        ): NUMBER,
+        Literal(
+            "rtime2slip_exp",
+            description="Rise time 2 slip exponent.",
+        ): NUMBER,
+        Literal(
+            "rtime_rand",
+            description="Rise time randomness (null = disabled).",
+        ): Or(NUMBER, None),
+        Literal(
+            "set_rake",
+            description="Fixed rake angle (null = use fault rake).",
+        ): Or(NUMBER, None),
+        Literal(
+            "svr_wt",
+            description="SVR model weight.",
+        ): And(NUMBER, _is_non_negative),
+        Literal(
+            "target_savg",
+            description="Target average slip (null = compute from magnitude).",
+        ): Or(NUMBER, None),
+        Literal(
+            "use_Mw",
+            description="Use moment magnitude for scaling.",
+        ): bool,
+        # Aseismic & Segment Settings
+        Literal(
+            "aseis_flag",
+            description="Enable aseismic zone correction.",
+        ): bool,
+        Literal(
+            "aseis_smooth",
+            description="Enable smoothing of aseismic zones.",
+        ): bool,
+        Literal(
+            "aseis_dep",
+            description="Aseismic zone depth.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "aseis_fac",
+            description="Aseismic zone factor (null = disabled).",
+        ): Or(NUMBER, None),
+        Literal(
+            "xshift",
+            description="Along-strike shift of slip distribution.",
+        ): NUMBER,
+        Literal(
+            "yshift",
+            description="Down-dip shift of slip distribution.",
+        ): NUMBER,
     }
 )
 
