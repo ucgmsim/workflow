@@ -359,11 +359,6 @@ def merge_ts_zarr(
             assert isinstance(merged_ds, xr.Dataset)
             merged_ds.attrs = dataclasses.asdict(metadata)
             
-            if 'z' in merged_ds.coords:
-                merged_ds = merged_ds.chunk(time=8, x=256, y=256, z=256)
-            else:
-                merged_ds = merged_ds.chunk(time=2048, x=256, y=256)
-
             logger.debug(f"Writing dataset to Zarr at {output}. (Dask execution compute phase active)")
             merged_ds.to_zarr(
                 output,
