@@ -120,6 +120,7 @@ TimeArray = np.ndarray[tuple[int], np.dtype[np.float64]]
 
 XYTS_PROC_HEADER_SIZE = 72
 def mmap_load_chunk(filename: Path, shape: tuple[int, ...], dtype: np.dtype, offset: int, sl: Any) -> np.ndarray:
+    logger.debug(f"Reading chunk from {filename} at {sl}")
     data = np.memmap(filename, mode='r', shape=shape, dtype=dtype, offset=offset)
     return data[sl]
 
@@ -161,23 +162,26 @@ def read_waveform_data(xyts_file: xyts.XYTSFile) -> xr.DataArray:
     y1 = y0 + ny
     
     coords = {'time': np.arange(0, nt), 'x': np.arange(x0, x1), 'y': np.arange(y0, y1), 'component': np.arange(components)}
+    
     if nz is not None and nz > 0:
         z0 = getattr(xyts_file, "z0", 0)
         z1 = z0 + nz
         coords['z'] = np.arange(z0, z1)
         shape = (nt, components, nz, ny, nx)
         dims = ['time', 'component', 'z', 'y', 'x']
+        blocksize = 8
     else:
         z0 = None
         z1 = None
         shape = (nt, components, ny, nx)
         dims = ['time', 'component', 'y', 'x']
+        blocksize = 2048
         
     lazy_data = mmap_dask_array(
             xyts_file.xyts_path,
             dtype=np.float32,
             offset=XYTS_PROC_HEADER_SIZE,
-            blocksize=64,
+            blocksize=blocksize,
             shape=shape,
     )
     waveform_data = xr.DataArray(
@@ -321,7 +325,7 @@ def merge_ts_zarr(
 
         arrays = []
         logger.debug(f"Building Dask Graph using {n_threads} worker threads...")
-        with TqdmCallback(), dask.config.set(scheduler="processes", num_workers=n_threads):
+        with TqdmCallback(), dask.config.set(scheduler="threads", num_workers=n_threads):
             for xyts_file in tqdm.tqdm(
                 component_xyts_files, desc="Building Dask Graph", unit="files"
             ):
