@@ -40,6 +40,7 @@ import psutil
 import tqdm
 import typer
 import xarray as xr
+from dask.distributed import Client, LocalCluster
 from tqdm.dask import TqdmCallback
 from zarr.codecs import BloscCodec, Quantize
 
@@ -325,7 +326,8 @@ def merge_ts_zarr(
 
         arrays = []
         logger.debug(f"Building Dask Graph using {n_threads} worker threads...")
-        with TqdmCallback(), dask.config.set(scheduler="threads", num_workers=n_threads):
+        cluster = LocalCluster(n_workers=n_threads, threads_per_worker=1, memory_limit=None)
+        with Client(cluster):
             for xyts_file in tqdm.tqdm(
                 component_xyts_files, desc="Building Dask Graph", unit="files"
             ):
@@ -363,18 +365,17 @@ def merge_ts_zarr(
                 merged_ds = merged_ds.chunk(time=2048, x=256, y=256)
 
             logger.debug(f"Writing dataset to Zarr at {output}. (Dask execution compute phase active)")
-            with dask.config.set({"optimization.fuse.active": False}):
-                merged_ds.to_zarr(
-                    output,
-                    mode="w",
-                    zarr_format=3,
-                    encoding=dict(
-                        waveform=dict(
-                            filters=filters,
-                            compressors=compressors
-                        )
+            merged_ds.to_zarr(
+                output,
+                mode="w",
+                zarr_format=3,
+                encoding=dict(
+                    waveform=dict(
+                        filters=filters,
+                        compressors=compressors
                     )
                 )
+            )
             logger.debug("Zarr writing process successfully completed.")
 
     finally:
