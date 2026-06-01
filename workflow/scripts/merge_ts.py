@@ -330,13 +330,7 @@ def merge_ts_zarr(
                 component_xyts_files, desc="Building Dask Graph", unit="files"
             ):
                 local_data = read_waveform_data(xyts_file)
-                magnitude = xr.apply_ufunc(
-                    np.linalg.norm,
-                    local_data,
-                    input_core_dims=[['component']],
-                    kwargs=dict(axis=-1),
-                    dask='parallelized'
-                )
+                magnitude = np.sqrt((local_data ** 2).sum(dim='component'))
                 arrays.append(magnitude.to_dataset(name='waveform'))
 
             filters = [
