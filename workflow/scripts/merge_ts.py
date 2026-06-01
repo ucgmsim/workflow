@@ -25,7 +25,6 @@ For More Help
 -------------
 See the output of `merge-ts --help`.
 """
-
 import dataclasses
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,6 +40,7 @@ from tqdm.dask import TqdmCallback
 from zarr.codecs import BloscCodec, Quantize
 
 from qcore import cli, coordinates, xyts
+from workflow import utils
 
 app = typer.Typer()
 
@@ -74,25 +74,6 @@ WaveformArray = da.Array
 CoordinateArray = np.ndarray[tuple[int, int], np.dtype[np.float64]]
 TimeArray = np.ndarray[tuple[int], np.dtype[np.float64]]
 
-
-@dataclass
-class WaveformData:
-    """Waveform data object"""
-
-    x_start: int
-    """Global x-start of waveform data."""
-    x_end: int
-    """Global x-end of waveform data."""
-    y_start: int
-    """Global y-start of waveform data."""
-    y_end: int
-    """Global y-end of waveform data."""
-    data: WaveformArray
-    """Waveform data (Dask array)."""
-    z_start: int | None = None
-    """Global z-start of waveform data."""
-    z_end: int | None = None
-    """Global z-end of waveform data."""
 
 
 XYTS_PROC_HEADER_SIZE = 72
@@ -179,7 +160,7 @@ def mmap_dask_array(filename: Path, shape: tuple[int, ...], dtype: np.dtype, off
     return da.concatenate(chunks, axis=0)
 
 
-def read_waveform_data(xyts_file: xyts.XYTSFile) -> WaveformData:
+def read_waveform_data(xyts_file: xyts.XYTSFile) -> xr.DataArray:
     """Read waveform data from an XYTS file using Dask (lazy evaluation).
 
     Parameters
@@ -213,15 +194,21 @@ def read_waveform_data(xyts_file: xyts.XYTSFile) -> WaveformData:
     y0 = xyts_file.y0
     x1 = x0 + nx
     y1 = y0 + ny
-
+    
+    coords = {'time': np.arange(0, nt), 'x': np.arange(x0, x1), 'y': np.arange(y0, y1), 'component': np.arange(components)}
     if nz is not None and nz > 0:
         z0 = getattr(xyts_file, "z0", 0)
         z1 = z0 + nz
+        coords['z'] = np.arange(z0, z1)
         shape = (nt, components, nz, ny, nx)
+        dims = ['time', 'component', 'nz', 'ny', 'nx']
     else:
         z0 = None
         z1 = None
         shape = (nt, components, ny, nx)
+        dims = ['time', 'component', 'ny', 'nx']
+        
+
 
     chunks = list(shape)
     chunks[0] = 1
@@ -229,12 +216,13 @@ def read_waveform_data(xyts_file: xyts.XYTSFile) -> WaveformData:
             xyts_file.xyts_path,
             dtype=np.float32,
             offset=XYTS_PROC_HEADER_SIZE,
-            blocksize=1,
+            blocksize=10,
             shape=shape,
     )
-
-    waveform_data = WaveformData(
-        x_start=x0, y_start=y0, z_start=z0, x_end=x1, y_end=y1, z_end=z1, data=lazy_data
+    waveform_data = xr.DataArray(
+        lazy_data,
+        dims=dims,
+        coords=coords,
     )
     return waveform_data
 
@@ -366,7 +354,8 @@ def merge_ts_zarr(
     complevel: int = 5,
     dx: int = 1,
     dy: int = 1,
-    dz: int = 1
+    dz: int = 1,
+    n_threads: int = utils.get_available_cores() 
 ) -> None:
     """Merge XYTS files into a Zarr store.
 
@@ -397,11 +386,9 @@ def merge_ts_zarr(
     # a "sample" file for this common metadata.
     sample_xyts_file = component_xyts_files[0]
     metadata = extract_metadata(sample_xyts_file)
-    bounds = np.iinfo(np.uint16)
-    nan_value = bounds.max
 
     arrays = []
-    with TqdmCallback(), dask.config.set():
+    with TqdmCallback(), dask.config.set(scheduler="threads", num_workers=resolved_n_threads):
         for xyts_file in tqdm.tqdm(
             component_xyts_files, desc="Building Dask Graph", unit="files"
         ):
@@ -431,7 +418,7 @@ def merge_ts_zarr(
             BloscCodec(cname='zstd', clevel=complevel, shuffle='shuffle'),
         ]
 
-        merged_ds = xr.combine_by_coords(arrays, fill_value=nan_value)
+        merged_ds = xr.combine_by_coords(arrays)
         
         selectors = dict()
         if dx != 1:
