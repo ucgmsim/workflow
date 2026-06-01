@@ -179,7 +179,7 @@ def mmap_dask_array(filename: Path, shape: tuple[int, ...], dtype: np.dtype, off
     return da.concatenate(chunks, axis=0)
 
 
-def read_waveform_data(xyts_file: xyts.XYTSFile) -> xr.DataArray:
+def read_waveform_data(xyts_file: xyts.XYTSFile) -> WaveformData:
     """Read waveform data from an XYTS file using Dask (lazy evaluation).
 
     Parameters
@@ -213,21 +213,15 @@ def read_waveform_data(xyts_file: xyts.XYTSFile) -> xr.DataArray:
     y0 = xyts_file.y0
     x1 = x0 + nx
     y1 = y0 + ny
-    
-    coords = {'time': np.arange(0, nt), 'x': np.arange(x0, x1), 'y': np.arange(y0, y1), 'component': np.arange(components)}
+
     if nz is not None and nz > 0:
         z0 = getattr(xyts_file, "z0", 0)
         z1 = z0 + nz
-        coords['z'] = np.arange(z0, z1)
         shape = (nt, components, nz, ny, nx)
-        dims = ['time', 'component', 'nz', 'ny', 'nx']
     else:
         z0 = None
         z1 = None
         shape = (nt, components, ny, nx)
-        dims = ['time', 'component', 'ny', 'nx']
-        
-
 
     chunks = list(shape)
     chunks[0] = 1
@@ -238,10 +232,9 @@ def read_waveform_data(xyts_file: xyts.XYTSFile) -> xr.DataArray:
             blocksize=1,
             shape=shape,
     )
-    waveform_data = xr.DataArray(
-        lazy_data,
-        dims=dims,
-        coords=coords,
+
+    waveform_data = WaveformData(
+        x_start=x0, y_start=y0, z_start=z0, x_end=x1, y_end=y1, z_end=z1, data=lazy_data
     )
     return waveform_data
 
@@ -352,20 +345,6 @@ def xyts_lat_lon_coordinates(
     return lat, lon
 
 
-def dummy_zarr_template(metadata: Metadata) -> xr.Dataset:
-    global_shape = (metadata.nt, metadata.ny, metadata.nx)
-    dummy_data = da.zeros(global_shape, chunks=(100, 256, 256), dtype=np.float32) # Increase time chunk to hit ~100MB
-
-    return xr.Dataset(
-        {"waveform": (("time", "y", "x"), dummy_data)},
-        coords={
-            "time": np.arange(metadata.nt, dtype=np.float64) * metadata.dt,
-            "y": np.arange(0, metadata.ny),
-            "x": np.arange(0, metadata.nx),
-        },
-        attrs=dataclasses.asdict(metadata)
-    )
-
 
 @cli.from_docstring(app)
 def merge_ts_zarr(
@@ -418,41 +397,69 @@ def merge_ts_zarr(
     # a "sample" file for this common metadata.
     sample_xyts_file = component_xyts_files[0]
     metadata = extract_metadata(sample_xyts_file)
-    filters = [
-        Quantize(digits=scale, dtype='float32'),
-    ]
-    compressors = [
-        BloscCodec(cname='zstd', clevel=complevel, shuffle='shuffle'),
-    ]
+    bounds = np.iinfo(np.uint16)
+    nan_value = bounds.max
 
-    # Create all the zarr metadata *without* writing anything to disk
-    template = dummy_zarr_template(metadata)
-    template.to_zarr(output, compute=False, encoding={"waveform": {"filters": filters, "compressors": compressors}})
-    
-    for xyts_file in tqdm.tqdm(component_xyts_files, desc="Writing to Zarr"):
-        local_data = read_waveform_data(xyts_file)
-        magnitude = xr.apply_ufunc(
-            np.linalg.norm,
-            local_data,
-            input_core_dims=[['component']],            
+    arrays = []
+    with TqdmCallback(), dask.config.set():
+        for xyts_file in tqdm.tqdm(
+            component_xyts_files, desc="Building Dask Graph", unit="files"
+        ):
+            local_data = read_waveform_data(xyts_file)
+            magnitude = da.linalg.norm(local_data.data, axis=1)
+            
+            coords = {
+                "time": np.arange(metadata.nt, dtype=np.float64) * metadata.dt,
+                "y": np.arange(local_data.y_start, local_data.y_end),
+                "x": np.arange(local_data.x_start, local_data.x_end),
+            }
+
+            if local_data.z_end is not None:
+                coords["z"] = np.arange(local_data.z_start, local_data.z_end)
+                dims = ("time", "z", "y", "x")
+            else:
+                dims = ("time", "y", "x")
+
+            chunk_da = xr.DataArray(magnitude, dims=dims, coords=coords, name="waveform")
+            arrays.append(chunk_da.to_dataset())
+
+
+        filters = [
+            Quantize(digits=scale, dtype='float32'),
+        ]
+        compressors = [
+            BloscCodec(cname='zstd', clevel=complevel, shuffle='shuffle'),
+        ]
+
+        merged_ds = xr.combine_by_coords(arrays, fill_value=nan_value)
+        
+        selectors = dict()
+        if dx != 1:
+            selectors['x'] = range(0, metadata.nx, dx)
+        if dy != 1:
+            selectors['y'] = range(0, metadata.ny, dy)
+        if dz != 1 and metadata.nz:
+            selectors['z'] = range(0, metadata.nz, dz)
+
+        if selectors:
+            merged_ds = merged_ds.isel(selectors)
+            
+        assert isinstance(merged_ds, xr.Dataset)
+        merged_ds.attrs = dataclasses.asdict(metadata)
+        merged_ds = merged_ds.chunk(time=1, x=256, y=256, z=256)
+
+        merged_ds.to_zarr(
+            output,
+            mode="w",
+            zarr_format=3,
+            encoding=dict(
+                waveform=dict(
+                    filters=filters,
+                    compressors=compressors
+                )
+            )
         )
 
-        chunk_ds = magnitude.to_dataset('waveform') 
-
-        x_start, x_end = chunk_ds.coords['x'][0], chunk_ds.coords['x'][-1]
-        y_start, y_end = chunk_ds.coords['y'][0], chunk_ds.coords['y'][-1]
-
-        region = {
-            "time": slice(0, metadata.nt),
-            "y": slice(y_start, y_end),
-            "x": slice(x_start, x_end)
-        }
-
-        if 'z' in chunk_ds.coords:
-            region['z'] = slice(chunk_ds.coords['z'][0], chunk_ds.coords['z'][-1])
-
-        chunk_ds.to_zarr(output, mode='r+', region=region)
-    
 
 if __name__ == "__main__":
     app()
