@@ -177,7 +177,7 @@ def read_waveform_data(xyts_file: xyts.XYTSFile) -> xr.DataArray:
             xyts_file.xyts_path,
             dtype=np.float32,
             offset=XYTS_PROC_HEADER_SIZE,
-            blocksize=10,
+            blocksize=64,
             shape=shape,
     )
     waveform_data = xr.DataArray(
@@ -321,7 +321,7 @@ def merge_ts_zarr(
 
         arrays = []
         logger.debug(f"Building Dask Graph using {n_threads} worker threads...")
-        with TqdmCallback(), dask.config.set(scheduler="threads", num_workers=n_threads):
+        with TqdmCallback(), dask.config.set(scheduler="processes", num_workers=n_threads):
             for xyts_file in tqdm.tqdm(
                 component_xyts_files, desc="Building Dask Graph", unit="files"
             ):
