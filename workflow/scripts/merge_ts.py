@@ -201,12 +201,12 @@ def read_waveform_data(xyts_file: xyts.XYTSFile) -> xr.DataArray:
         z1 = z0 + nz
         coords['z'] = np.arange(z0, z1)
         shape = (nt, components, nz, ny, nx)
-        dims = ['time', 'component', 'nz', 'ny', 'nx']
+        dims = ['time', 'component', 'z', 'y', 'x']
     else:
         z0 = None
         z1 = None
         shape = (nt, components, ny, nx)
-        dims = ['time', 'component', 'ny', 'nx']
+        dims = ['time', 'component', 'y', 'x']
         
 
 
@@ -388,27 +388,20 @@ def merge_ts_zarr(
     metadata = extract_metadata(sample_xyts_file)
 
     arrays = []
-    with TqdmCallback(), dask.config.set(scheduler="threads", num_workers=resolved_n_threads):
+    with TqdmCallback(), dask.config.set(scheduler="threads", num_workers=n_threads):
         for xyts_file in tqdm.tqdm(
             component_xyts_files, desc="Building Dask Graph", unit="files"
         ):
             local_data = read_waveform_data(xyts_file)
-            magnitude = da.linalg.norm(local_data.data, axis=1)
-            
-            coords = {
-                "time": np.arange(metadata.nt, dtype=np.float64) * metadata.dt,
-                "y": np.arange(local_data.y_start, local_data.y_end),
-                "x": np.arange(local_data.x_start, local_data.x_end),
-            }
+            magnitude = xr.apply_ufunc(
+                np.linalg.norm,
+                local_data,
+                input_core_dims=[['component']],
+                kwargs=dict(axis=-1),
+                dask='allowed'
+            )
 
-            if local_data.z_end is not None:
-                coords["z"] = np.arange(local_data.z_start, local_data.z_end)
-                dims = ("time", "z", "y", "x")
-            else:
-                dims = ("time", "y", "x")
-
-            chunk_da = xr.DataArray(magnitude, dims=dims, coords=coords, name="waveform")
-            arrays.append(chunk_da.to_dataset())
+            arrays.append(magnitude.to_dataset(name='waveform'))
 
 
         filters = [
@@ -433,7 +426,10 @@ def merge_ts_zarr(
             
         assert isinstance(merged_ds, xr.Dataset)
         merged_ds.attrs = dataclasses.asdict(metadata)
-        merged_ds = merged_ds.chunk(time=1, x=256, y=256, z=256)
+        if 'z' in merged_ds.coords:
+            merged_ds = merged_ds.chunk(time=8, x=256, y=256, z=256)
+        else:
+            merged_ds = merged_ds.chunk(time=2048, x=256, y=256)
 
         merged_ds.to_zarr(
             output,
