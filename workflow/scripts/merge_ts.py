@@ -331,7 +331,7 @@ def merge_ts_zarr(
                     local_data,
                     input_core_dims=[['component']],
                     kwargs=dict(axis=-1),
-                    dask='allowed'
+                    dask='parallelized'
                 )
                 arrays.append(magnitude.to_dataset(name='waveform'))
 
