@@ -349,7 +349,7 @@ def merge_ts_zarr(
         Path,
         typer.Argument(dir_okay=True, writable=True),
     ],
-    glob_pattern: str = "*xyts-*.e3d",
+    glob_pattern: str = "*xyz?ts-*.e3d",
     scale: int = 1,
     complevel: int = 5,
     dx: int = 1,
