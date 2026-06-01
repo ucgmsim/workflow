@@ -363,17 +363,18 @@ def merge_ts_zarr(
                 merged_ds = merged_ds.chunk(time=2048, x=256, y=256)
 
             logger.debug(f"Writing dataset to Zarr at {output}. (Dask execution compute phase active)")
-            merged_ds.to_zarr(
-                output,
-                mode="w",
-                zarr_format=3,
-                encoding=dict(
-                    waveform=dict(
-                        filters=filters,
-                        compressors=compressors
+            with dask.config.set({"optimization.fuse.active": False}):
+                merged_ds.to_zarr(
+                    output,
+                    mode="w",
+                    zarr_format=3,
+                    encoding=dict(
+                        waveform=dict(
+                            filters=filters,
+                            compressors=compressors
+                        )
                     )
                 )
-            )
             logger.debug("Zarr writing process successfully completed.")
 
     finally:
