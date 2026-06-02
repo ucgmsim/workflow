@@ -143,6 +143,7 @@ def mmap_dask_array(filename: Path, shape: tuple[int, ...], dtype: np.dtype, off
         chunks.append(chunk)
     return da.concatenate(chunks, axis=0)
 
+TARGET_BLOCK_SIZE = 128 * 1024 * 1024
 
 def read_waveform_data(xyts_file: xyts.XYTSFile) -> xr.DataArray:
     nt = xyts_file.nt
@@ -168,13 +169,14 @@ def read_waveform_data(xyts_file: xyts.XYTSFile) -> xr.DataArray:
         coords['z'] = np.arange(z0, z1)
         shape = (nt, components, nz, ny, nx)
         dims = ['time', 'component', 'z', 'y', 'x']
-        blocksize = 64
+        
+        blocksize = TARGET_BLOCK_SIZE // (4 * components * nz * ny * nx)
     else:
         z0 = None
         z1 = None
         shape = (nt, components, ny, nx)
         dims = ['time', 'component', 'y', 'x']
-        blocksize = 2048
+        blocksize = TARGET_BLOCK_SIZE // (4 * components * ny * nx)
         
     lazy_data = mmap_dask_array(
             xyts_file.xyts_path,
@@ -354,6 +356,7 @@ def merge_ts_zarr(
             merged_ds['waveform'].attrs['scale_factor'] = np.float32(scale)
             merged_ds['waveform'].attrs['add_offset'] = np.float32(0.0)
             merged_ds['waveform'].attrs['_FillValue'] = np.nan
+            
             merged_ds.to_netcdf(output, engine='h5netcdf', encoding={'waveform': {
                 'complevel': complevel,
                 "dtype": "uint16",
