@@ -143,7 +143,7 @@ def mmap_dask_array(filename: Path, shape: tuple[int, ...], dtype: np.dtype, off
         chunks.append(chunk)
     return da.concatenate(chunks, axis=0)
 
-TARGET_BLOCK_SIZE = 128 * 1024 * 1024
+TARGET_BLOCK_SIZE = 512 * 1024 * 1024
 
 def read_waveform_data(xyts_file: xyts.XYTSFile) -> xr.DataArray:
     nt = xyts_file.nt
