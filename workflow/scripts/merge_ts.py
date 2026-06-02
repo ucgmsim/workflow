@@ -40,9 +40,7 @@ import psutil
 import tqdm
 import typer
 import xarray as xr
-from dask.distributed import Client, LocalCluster
 from tqdm.dask import TqdmCallback
-from zarr.codecs import BloscCodec, Quantize
 
 from qcore import cli, coordinates, xyts
 from workflow import utils
@@ -326,21 +324,13 @@ def merge_ts_zarr(
 
         arrays = []
         logger.debug(f"Building Dask Graph using {n_threads} worker threads...")
-        cluster = LocalCluster(n_workers=n_threads, threads_per_worker=1, memory_limit=None)
-        with Client(cluster):
+        with TqdmCallback(), dask.config.set(scheduler="threads", num_workers=n_threads):
             for xyts_file in tqdm.tqdm(
                 component_xyts_files, desc="Building Dask Graph", unit="files"
             ):
                 local_data = read_waveform_data(xyts_file)
                 magnitude = np.sqrt((local_data ** 2).sum(dim='component'))
                 arrays.append(magnitude.to_dataset(name='waveform'))
-
-            filters = [
-                Quantize(digits=scale, dtype='float32'),
-            ]
-            compressors = [
-                BloscCodec(cname='zstd', clevel=complevel, shuffle='shuffle'),
-            ]
 
             logger.debug("Combining datasets by coordinates...")
             merged_ds = xr.combine_by_coords(arrays)
@@ -359,19 +349,18 @@ def merge_ts_zarr(
             assert isinstance(merged_ds, xr.Dataset)
             merged_ds.attrs = dataclasses.asdict(metadata)
             
-            logger.debug(f"Writing dataset to Zarr at {output}. (Dask execution compute phase active)")
-            merged_ds.to_zarr(
-                output,
-                mode="w",
-                zarr_format=3,
-                encoding=dict(
-                    waveform=dict(
-                        filters=filters,
-                        compressors=compressors
-                    )
-                )
-            )
-            logger.debug("Zarr writing process successfully completed.")
+            logger.debug(f"Writing dataset to HDF5 at {output}. (Dask execution compute phase active)")
+            merged_ds['waveform'] = (merged_ds['waveform'] / scale).astype(np.uint16)
+            merged_ds['waveform'].attrs['scale_factor'] = np.float32(scale)
+            merged_ds['waveform'].attrs['add_offset'] = np.float32(0.0)
+            merged_ds['waveform'].attrs['_FillValue'] = np.nan
+            merged_ds.to_netcdf(output, engine='h5netcdf', encoding={'waveform': {
+                'complevel': complevel,
+                "dtype": "uint16",
+                'compression': 'zlib',
+                'shuffle': True,
+            }})
+            logger.debug("H5 writing process successfully completed.")
 
     finally:
         # Guarantee the thread winds down cleanly even if the main block errors out
