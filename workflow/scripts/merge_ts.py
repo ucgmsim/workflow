@@ -269,7 +269,7 @@ def merge_ts_zarr(
         typer.Argument(dir_okay=True, writable=True),
     ],
     glob_pattern: str = "*xyts-*.e3d",
-    scale: int = 1,
+    scale: float = 0.1,
     complevel: int = 5,
     dx: int = 1,
     dy: int = 1,
