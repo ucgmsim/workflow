@@ -168,7 +168,7 @@ def read_waveform_data(xyts_file: xyts.XYTSFile) -> xr.DataArray:
         coords['z'] = np.arange(z0, z1)
         shape = (nt, components, nz, ny, nx)
         dims = ['time', 'component', 'z', 'y', 'x']
-        blocksize = 8
+        blocksize = 64
     else:
         z0 = None
         z1 = None
