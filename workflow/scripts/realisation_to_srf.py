@@ -657,7 +657,7 @@ def generate_point_source_srf(
 
     # Get magnitude and convert to seismic moment
     magnitude = params.magnitudes.magnitudes[name]
-    moment_newton_metre = moment.magnitude_to_moment(magnitude)
+    moment_newton_metre = moment.magnitude_to_moment(magnitude, bold_m=True)
 
     velocity_model_df = params.velocity_model_1d.model.copy()
     velocity_model_df["depth_km"] = (

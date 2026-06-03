@@ -376,7 +376,9 @@ def generate_realisation(
         strategy=str(strategy),  # type: ignore
         jump_impossibility_limit_distance=round(jump_cutoff * 1000),
     )
-    magnitudes = Magnitudes(magnitudes)
+    # ty flags this because dict is invariant (dict[str, float] != dict[str, BoldM]),
+    # but BoldM is a float NewType, so this is a safe no-op at runtime.
+    magnitudes = Magnitudes(magnitudes)  # ty: ignore[invalid-argument-type]
     rakes = Rakes(rakes)
     rupture_propagation_config = RupturePropagationConfig(
         rupture_causality_tree=rupture_causality_tree,

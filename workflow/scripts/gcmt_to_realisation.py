@@ -284,7 +284,9 @@ def gcmt_to_realisation(
         hypocentre = np.array([1 / 2, 1 / 2])
 
     source_config = SourceConfig(source_geometries={gcmt_event_id: source_geometry})
-    magnitudes = Magnitudes(magnitudes={gcmt_event_id: float(magnitude)})
+    magnitudes = Magnitudes(
+        magnitudes={gcmt_event_id: magnitude_scaling.BoldM(float(magnitude))}
+    )
     rakes = Rakes(rakes={gcmt_event_id: float(rake)})
     rupture_config = RupturePropagationConfig(
         rupture_causality_tree={gcmt_event_id: None},

@@ -13,7 +13,7 @@ import pytest
 import schema
 
 from IM import im_calculation
-from source_modelling import rupture_propagation
+from source_modelling import magnitude_scaling, rupture_propagation
 from velocity_modelling import bounding_box
 from workflow import defaults, realisations, schemas
 from workflow.realisations import SourceConfig
@@ -493,7 +493,11 @@ def test_rupture_prop_config(tmp_path: Path) -> None:
 
 def test_magnitudes(tmp_path: Path) -> None:
     magnitudes = realisations.Magnitudes(
-        magnitudes={"A": 6.5, "B": 6.7, "C": 6.9},
+        magnitudes={
+            "A": magnitude_scaling.BoldM(6.5),
+            "B": magnitude_scaling.BoldM(6.7),
+            "C": magnitude_scaling.BoldM(6.9),
+        },
     )
 
     realisation_ffp = tmp_path / "realisation.json"

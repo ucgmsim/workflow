@@ -6,7 +6,7 @@ import shapely
 from hypothesis import given
 from hypothesis import strategies as st
 
-from source_modelling import sources
+from source_modelling import magnitude_scaling, sources
 from workflow.realisations import (
     Magnitudes,
     Rakes,
@@ -90,7 +90,7 @@ def test_generate_domain() -> None:
         dip_dir=180.0,
     )
     source_config = SourceConfig(dict(source=source))
-    magnitudes = Magnitudes(dict(source=6.0))
+    magnitudes = Magnitudes(dict(source=magnitude_scaling.BoldM(6.0)))
     rakes = Rakes(dict(source=180.0))
 
     velocity_model_parameters = VelocityModelParameters(
