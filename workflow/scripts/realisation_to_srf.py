@@ -456,7 +456,7 @@ def _build_genslip_command(
     cmd = [
         str(genslip_path),
         "plane_header=1",
-        "srf_version=1.0",
+        "srf_version=2.0",
         "read_erf=0",
         "write_srf=1",
         "read_gsf=1",
