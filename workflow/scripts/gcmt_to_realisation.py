@@ -285,7 +285,7 @@ def gcmt_to_realisation(
 
     source_config = SourceConfig(source_geometries={gcmt_event_id: source_geometry})
     magnitudes = Magnitudes(
-        magnitudes={gcmt_event_id: magnitude_scaling.BoldM(float(magnitude))}
+        magnitudes={gcmt_event_id: magnitude}
     )
     rakes = Rakes(rakes={gcmt_event_id: float(rake)})
     rupture_config = RupturePropagationConfig(
