@@ -158,7 +158,7 @@ def test_build_genslip_command_static_args() -> None:
         "nh=1",
         "read_erf=0",
         "plane_header=1",
-        "srf_version=1.0",
+        "srf_version=2.0",
         "read_gsf=1",
         "nstk=50",
         "ndip=25",
