@@ -192,7 +192,7 @@ def gcmt_to_realisation(
             param_hint="GCMT_EVENT_ID",
         )
 
-    magnitude = moment.moment_to_magnitude(solution_moment)
+    magnitude = moment.moment_to_magnitude(solution_moment, bold_m=True)
 
     model = community_fault_model.get_community_fault_model()
 
