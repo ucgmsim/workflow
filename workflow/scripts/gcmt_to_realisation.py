@@ -89,6 +89,10 @@ class SourceType(StrEnum):
     """Use a point source approximation."""
 
 
+# dyne-cm to newton metres conversion constant
+NEWTON_METRES = 1e-7
+
+    
 @cli.from_docstring(app)
 def gcmt_to_realisation(
     gcmt_event_id: Annotated[str, typer.Argument()],
@@ -192,7 +196,7 @@ def gcmt_to_realisation(
             param_hint="GCMT_EVENT_ID",
         )
 
-    magnitude = moment.moment_to_magnitude(solution_moment)
+    magnitude = moment.moment_to_magnitude(solution_moment * NEWTON_METRES)
 
     model = community_fault_model.get_community_fault_model()
 
