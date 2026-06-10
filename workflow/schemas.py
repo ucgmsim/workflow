@@ -31,8 +31,10 @@ class Stype(StrEnum):
     cos = "cos"
     seki = "seki"
 
+
 class KModel(IntEnum):
     """Correlation length models for genslip."""
+
     SOMERVILLE = 1
     MAI = 2
     FRANKEL = 3
@@ -400,9 +402,8 @@ RUPTURE_VELOCITY_SCHEMA = Schema(
         ),
         Literal(
             "rvfrac_slip_sig",
-            description="Rupture velocity fraction slip sigma (null = disabled)."): Or(
-            And(NUMBER, _is_non_negative), None
-        ),
+            description="Rupture velocity fraction slip sigma (null = disabled).",
+        ): Or(And(NUMBER, _is_non_negative), None),
         Literal(
             "shallow_depth",
             description="Shallow transition depth.",
@@ -489,12 +490,12 @@ SRF_SCHEMA = Schema(
         Literal("beta_asp", description="Asperity beta parameter."): And(
             NUMBER, _is_positive
         ),
-        Literal(
-            "beta_deep", description="Deep beta parameter for rise time."
-        ): And(NUMBER, _is_positive),
-        Literal(
-            "beta_mid", description="Mid-depth beta parameter for rise time."
-        ): And(NUMBER, _is_positive),
+        Literal("beta_deep", description="Deep beta parameter for rise time."): And(
+            NUMBER, _is_positive
+        ),
+        Literal("beta_mid", description="Mid-depth beta parameter for rise time."): And(
+            NUMBER, _is_positive
+        ),
         Literal(
             "beta_mid_depth",
             description="Mid-depth level for beta depth scaling.",
@@ -503,9 +504,9 @@ SRF_SCHEMA = Schema(
             "beta_mid_depth_range",
             description="Mid-depth range for beta depth scaling.",
         ): And(NUMBER, _is_positive),
-        Literal(
-            "beta_shal", description="Shallow beta parameter for rise time."
-        ): And(NUMBER, _is_positive),
+        Literal("beta_shal", description="Shallow beta parameter for rise time."): And(
+            NUMBER, _is_positive
+        ),
         Literal(
             "beta_shal_depth",
             description="Shallow depth level for beta depth scaling.",
@@ -552,7 +553,7 @@ SRF_SCHEMA = Schema(
         Literal(
             "stype",
             description="Slip time function type for genslip (null = use genslip default).",
-        ): Or(Use(Stype),None),
+        ): Or(Use(Stype), None),
         # Hybrid Correlation Length (hyb_corlen) Parameters
         Literal(
             "hyb_corlen_deep_wt_end",
@@ -615,7 +616,6 @@ SRF_SCHEMA = Schema(
             "rvfmin",
             description="Minimum rupture velocity fraction.",
         ): And(NUMBER, _is_positive),
-
         # Tapering & Slip Level Adjustments
         Literal(
             "truncate_zero_slip",

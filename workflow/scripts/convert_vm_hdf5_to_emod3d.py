@@ -72,4 +72,3 @@ def convert_vm_hdf5_to_emod3d(
     convert_hdf5_to_emod3d.convert_hdf5_to_emod3d(
         hdf5_output_file, velocity_model_output
     )
-

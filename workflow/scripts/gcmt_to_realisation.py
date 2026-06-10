@@ -192,7 +192,9 @@ def gcmt_to_realisation(
             param_hint="GCMT_EVENT_ID",
         )
 
-    magnitude = moment.moment_to_magnitude(solution_moment, bold_m=True)
+    magnitude = moment.moment_to_magnitude(
+        moment.dyne_cm_to_newton_metre(solution_moment), bold_m=True
+    )
     model = community_fault_model.get_community_fault_model()
 
     match nodal_plane:
@@ -220,8 +222,8 @@ def gcmt_to_realisation(
             point_coordinates=np.array(
                 [latitude, longitude, centroid_depth * 1000]
             ),  # Convert km to meters
-            length_m=length*1000,  # convert km to metres
-            width_m=width*1000,  # convert km to metres
+            length_m=length * 1000,  # convert km to metres
+            width_m=width * 1000,  # convert km to metres
             strike=selected_nodal_plane.strike,
             dip=selected_nodal_plane.dip,
             dip_dir=dip_direction,
@@ -231,8 +233,8 @@ def gcmt_to_realisation(
         plane = sources.Plane.from_centroid_strike_dip(
             centroid,
             selected_nodal_plane.dip,
-            length*1000,  # convert km to metres
-            width*1000,  # convert km to metres
+            length * 1000,  # convert km to metres
+            width * 1000,  # convert km to metres
             strike=selected_nodal_plane.strike,
         )
 
@@ -274,9 +276,7 @@ def gcmt_to_realisation(
         hypocentre = np.array([1 / 2, 1 / 2])
 
     source_config = SourceConfig(source_geometries={gcmt_event_id: source_geometry})
-    magnitudes = Magnitudes(
-        magnitudes={gcmt_event_id: magnitude}
-    )
+    magnitudes = Magnitudes(magnitudes={gcmt_event_id: magnitude})
     rakes = Rakes(rakes={gcmt_event_id: float(selected_nodal_plane.rake)})
     rupture_config = RupturePropagationConfig(
         rupture_causality_tree={gcmt_event_id: None},
