@@ -233,8 +233,8 @@ def gcmt_to_realisation(
         plane = sources.Plane.from_centroid_strike_dip(
             centroid,
             selected_nodal_plane.dip,
-            length * 1000,  # convert km to metres
-            width * 1000,  # convert km to metres
+            length,
+            width,
             strike=selected_nodal_plane.strike,
         )
 
