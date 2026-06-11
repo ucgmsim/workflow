@@ -456,7 +456,7 @@ def _build_genslip_command(
     cmd = [
         str(genslip_path),
         "plane_header=1",
-        "srf_version=1.0",
+        "srf_version=2.0",
         "read_erf=0",
         "write_srf=1",
         "read_gsf=1",
@@ -657,7 +657,7 @@ def generate_point_source_srf(
 
     # Get magnitude and convert to seismic moment
     magnitude = params.magnitudes.magnitudes[name]
-    moment_newton_metre = moment.magnitude_to_moment(magnitude)
+    moment_newton_metre = moment.magnitude_to_moment(magnitude, bold_m=True)
 
     velocity_model_df = params.velocity_model_1d.model.copy()
     velocity_model_df["depth_km"] = (

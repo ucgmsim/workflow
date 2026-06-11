@@ -26,6 +26,7 @@ from schema import Schema
 
 from IM import im_calculation
 from source_modelling import sources
+from source_modelling.magnitude_scaling import BoldM
 from source_modelling.rupture_propagation import JumpPair
 from source_modelling.sources import IsSource
 from velocity_modelling.bounding_box import BoundingBox
@@ -649,10 +650,10 @@ class Magnitudes(RealisationConfiguration):
     _config_key: ClassVar[str] = "magnitudes"
     _schema: ClassVar[Schema] = schemas.MAGNITUDE_SCHEMA
 
-    magnitudes: dict[str, float]
+    magnitudes: dict[str, BoldM]
     """A map from faults to their magnitudes."""
 
-    def __getitem__(self, key: str) -> float:
+    def __getitem__(self, key: str) -> BoldM:
         """Get the magnitude for a fault name.
 
         Parameters
@@ -662,7 +663,7 @@ class Magnitudes(RealisationConfiguration):
 
         Returns
         -------
-        float
+        BoldM
             The magnitude.
         """
         return self.magnitudes[key]

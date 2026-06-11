@@ -16,7 +16,7 @@ dependencies = [
   "nshmdb>=2025.12.1",
   "oq_wrapper>=2025.12.3",
   "qcore-utils>=2025.12.2",
-  "source_modelling>=2025.12.1",
+  "source_modelling>=2026.6.2",
   # Data Formats
   "geopandas",
   "pandas[parquet, hdf5]",

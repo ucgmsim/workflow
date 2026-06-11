@@ -192,8 +192,9 @@ def gcmt_to_realisation(
             param_hint="GCMT_EVENT_ID",
         )
 
-    magnitude = moment.moment_to_magnitude(solution_moment)
-
+    magnitude = moment.moment_to_magnitude(
+        moment.dyne_cm_to_newton_metre(solution_moment), bold_m=True
+    )
     model = community_fault_model.get_community_fault_model()
 
     match nodal_plane:
@@ -206,43 +207,34 @@ def gcmt_to_realisation(
                 model, np.array([latitude, longitude]), nodal_plane_1, nodal_plane_2
             )
 
-    rake = selected_nodal_plane.rake
-
     # Calculate dip direction from strike (strike + 90 degrees for right-hand rule)
     dip_direction = (selected_nodal_plane.strike + 90) % 360
 
     length, width = magnitude_scaling.magnitude_to_length_width(
-        scaling_relation, magnitude, rake
+        scaling_relation, magnitude, selected_nodal_plane.rake
     )
 
     centroid = np.array([latitude, longitude, centroid_depth])
 
     # Create source based on source_type parameter
     if source_type == SourceType.POINT_SOURCE:
-        length_km, width_km = magnitude_scaling.magnitude_to_length_width(
-            scaling_relation, magnitude, rake
-        )
-        length_m = length_km * 1000  # Convert km to meters
-        width_m = width_km * 1000  # Convert km to meters
-
         source_geometry = sources.Point.from_lat_lon_depth(
             point_coordinates=np.array(
                 [latitude, longitude, centroid_depth * 1000]
             ),  # Convert km to meters
-            length_m=length_m,  # Use calculated length from area
-            width_m=width_m,  # Use calculated width from area
+            length_m=length * 1000,  # convert km to metres
+            width_m=width * 1000,  # convert km to metres
             strike=selected_nodal_plane.strike,
             dip=selected_nodal_plane.dip,
             dip_dir=dip_direction,
         )
 
     else:
-        # Create plane source (default behavior)
         plane = sources.Plane.from_centroid_strike_dip(
             centroid,
             selected_nodal_plane.dip,
-            length,
-            width,
+            length * 1000,  # convert km to metres
+            width * 1000,  # convert km to metres
             strike=selected_nodal_plane.strike,
         )
 
@@ -284,8 +276,8 @@ def gcmt_to_realisation(
         hypocentre = np.array([1 / 2, 1 / 2])
 
     source_config = SourceConfig(source_geometries={gcmt_event_id: source_geometry})
-    magnitudes = Magnitudes(magnitudes={gcmt_event_id: float(magnitude)})
-    rakes = Rakes(rakes={gcmt_event_id: float(rake)})
+    magnitudes = Magnitudes(magnitudes={gcmt_event_id: magnitude})
+    rakes = Rakes(rakes={gcmt_event_id: float(selected_nodal_plane.rake)})
     rupture_config = RupturePropagationConfig(
         rupture_causality_tree={gcmt_event_id: None},
         jump_points={},

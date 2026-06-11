@@ -196,6 +196,7 @@ def merge_dictionaries(dict_a: dict[str, Any], dict_b: dict[str, Any]) -> None:
         else:
             dict_a[key] = value
 
+
 def stable_hash(value: str, size: int = 4) -> int:
     """Compute stable hashes for strings.
 

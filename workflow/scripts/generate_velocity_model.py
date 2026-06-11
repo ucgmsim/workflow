@@ -54,6 +54,7 @@ from workflow.realisations import (
 
 app = typer.Typer()
 
+
 def write_nzvm_config(
     resolution: Resolution,
     domain_parameters: DomainParameters,
