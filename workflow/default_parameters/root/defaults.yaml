@@ -301,13 +301,13 @@ velocity_model_1d:
   model:
     - thickness: 0.0500
       Vp: 1.8000
-      Vs: 0.3800
+      Vs: 0.5
       rho: 1.8100
       Qp: 38.00
       Qs: 19.00
     - thickness: 0.0500
       Vp: 1.8000
-      Vs: 0.4800
+      Vs: 0.5
       rho: 1.8100
       Qp: 48.00
       Qs: 24.00
