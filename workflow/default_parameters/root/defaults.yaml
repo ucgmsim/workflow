@@ -299,210 +299,210 @@ velocity_model:
     ]
 velocity_model_1d:
   model:
-    - thickness: 0.0500
-      Vp: 1.8000
-      Vs: 0.3800
-      rho: 1.8100
-      Qp: 38.00
-      Qs: 19.00
-    - thickness: 0.0500
-      Vp: 1.8000
-      Vs: 0.4800
-      rho: 1.8100
-      Qp: 48.00
-      Qs: 24.00
-    - thickness: 0.0500
-      Vp: 1.8000
-      Vs: 0.5800
-      rho: 1.8100
-      Qp: 58.00
-      Qs: 29.00
-    - thickness: 0.0500
-      Vp: 1.8000
-      Vs: 0.6800
-      rho: 1.8100
-      Qp: 68.00
-      Qs: 34.00
-    - thickness: 0.1000
-      Vp: 1.8000
-      Vs: 0.7500
-      rho: 1.8100
-      Qp: 75.00
-      Qs: 37.50
-    - thickness: 0.1000
-      Vp: 1.8000
-      Vs: 0.8300
-      rho: 1.8100
-      Qp: 83.00
-      Qs: 41.50
-    - thickness: 0.2000
-      Vp: 1.9000
-      Vs: 0.9000
-      rho: 1.8600
-      Qp: 90.00
-      Qs: 45.00
-    - thickness: 0.2000
-      Vp: 2.0300
-      Vs: 1.0000
-      rho: 1.9200
-      Qp: 100.00
-      Qs: 50.00
-    - thickness: 0.2000
-      Vp: 2.1400
-      Vs: 1.0500
-      rho: 1.9700
-      Qp: 105.00
-      Qs: 52.50
-    - thickness: 0.2000
-      Vp: 2.2000
-      Vs: 1.1000
-      rho: 1.9900
-      Qp: 110.00
-      Qs: 55.00
-    - thickness: 0.2000
-      Vp: 2.4000
-      Vs: 1.1500
-      rho: 2.0600
-      Qp: 115.00
-      Qs: 57.50
-    - thickness: 0.2000
-      Vp: 2.7000
-      Vs: 1.2000
-      rho: 2.1500
-      Qp: 120.00
-      Qs: 60.00
-    - thickness: 0.2000
-      Vp: 3.0000
-      Vs: 1.4300
-      rho: 2.2200
-      Qp: 143.00
-      Qs: 71.50
-    - thickness: 0.2000
-      Vp: 3.2700
-      Vs: 1.6400
-      rho: 2.2800
-      Qp: 164.00
-      Qs: 82.00
-    - thickness: 0.2000
-      Vp: 3.5300
-      Vs: 1.8600
-      rho: 2.3200
-      Qp: 186.00
-      Qs: 93.00
-    - thickness: 0.2000
-      Vp: 3.8000
-      Vs: 2.0700
-      rho: 2.3600
-      Qp: 207.00
-      Qs: 103.50
-    - thickness: 0.2000
-      Vp: 4.0700
-      Vs: 2.2800
-      rho: 2.4000
-      Qp: 228.00
-      Qs: 114.00
-    - thickness: 0.2000
-      Vp: 4.3300
-      Vs: 2.4900
-      rho: 2.4400
-      Qp: 249.00
-      Qs: 124.50
-    - thickness: 0.2000
-      Vp: 4.6000
-      Vs: 2.7000
-      rho: 2.4800
-      Qp: 270.00
-      Qs: 135.00
-    - thickness: 0.2000
-      Vp: 4.7100
-      Vs: 2.7700
-      rho: 2.4900
-      Qp: 277.00
-      Qs: 138.50
-    - thickness: 0.2000
-      Vp: 4.8200
-      Vs: 2.8400
-      rho: 2.5100
-      Qp: 284.00
-      Qs: 142.00
-    - thickness: 0.2000
-      Vp: 4.9300
-      Vs: 2.9100
-      rho: 2.5200
-      Qp: 291.00
-      Qs: 145.50
-    - thickness: 0.2000
-      Vp: 5.0400
-      Vs: 2.9800
-      rho: 2.5400
-      Qp: 298.00
-      Qs: 149.00
-    - thickness: 0.2000
-      Vp: 5.1500
-      Vs: 3.0500
-      rho: 2.5600
-      Qp: 305.00
-      Qs: 152.50
-    - thickness: 0.2000
-      Vp: 5.2600
-      Vs: 3.1200
-      rho: 2.5800
-      Qp: 312.00
-      Qs: 156.00
-    - thickness: 0.2000
-      Vp: 5.3700
-      Vs: 3.1900
-      rho: 2.6000
-      Qp: 319.00
-      Qs: 159.50
-    - thickness: 0.2000
-      Vp: 5.4800
-      Vs: 3.2600
-      rho: 2.6100
-      Qp: 326.00
-      Qs: 163.00
-    - thickness: 0.2000
-      Vp: 5.5900
-      Vs: 3.3300
-      rho: 2.6300
-      Qp: 333.00
-      Qs: 166.50
-    - thickness: 0.2000
-      Vp: 5.7000
-      Vs: 3.4000
-      rho: 2.6600
-      Qp: 340.00
-      Qs: 170.00
-    - thickness: 3.0000
-      Vp: 6.0000
-      Vs: 3.6000
-      rho: 2.7200
-      Qp: 360.00
-      Qs: 180.00
-    - thickness: 4.0000
-      Vp: 6.0000
-      Vs: 3.6000
-      rho: 2.7200
-      Qp: 360.00
-      Qs: 180.00
-    - thickness: 15.0000
-      Vp: 6.5000
-      Vs: 3.7000
-      rho: 2.8300
-      Qp: 370.00
-      Qs: 185.00
-    - thickness: 12.0000
-      Vp: 7.5000
-      Vs: 4.3000
-      rho: 3.1200
-      Qp: 430.00
-      Qs: 215.00
-    - thickness: 999.0000
-      Vp: 8.1000
-      Vs: 4.6000
-      rho: 3.3300
-      Qp: 460.00
-      Qs: 230.00
+    - thickness: 0.050
+      Vp: 1.80
+      Vs: 0.50
+      rho: 1.81
+      Qp: 116.00
+      Qs: 58.00
+    - thickness: 0.050
+      Vp: 1.80
+      Vs: 0.50
+      rho: 1.81
+      Qp: 116.00
+      Qs: 58.00
+    - thickness: 0.050
+      Vp: 1.80
+      Vs: 0.58
+      rho: 1.81
+      Qp: 121.44
+      Qs: 60.72
+    - thickness: 0.050
+      Vp: 1.80
+      Vs: 0.68
+      rho: 1.81
+      Qp: 128.24
+      Qs: 64.12
+    - thickness: 0.100
+      Vp: 1.80
+      Vs: 0.75
+      rho: 1.81
+      Qp: 133.00
+      Qs: 66.50
+    - thickness: 0.100
+      Vp: 1.80
+      Vs: 0.83
+      rho: 1.81
+      Qp: 138.44
+      Qs: 69.22
+    - thickness: 0.200
+      Vp: 1.90
+      Vs: 0.90
+      rho: 1.86
+      Qp: 143.20
+      Qs: 71.60
+    - thickness: 0.200
+      Vp: 2.03
+      Vs: 1.00
+      rho: 1.92
+      Qp: 150.00
+      Qs: 75.00
+    - thickness: 0.200
+      Vp: 2.14
+      Vs: 1.05
+      rho: 1.97
+      Qp: 153.40
+      Qs: 76.70
+    - thickness: 0.200
+      Vp: 2.20
+      Vs: 1.10
+      rho: 1.99
+      Qp: 156.80
+      Qs: 78.40
+    - thickness: 0.200
+      Vp: 2.40
+      Vs: 1.15
+      rho: 2.06
+      Qp: 160.20
+      Qs: 80.10
+    - thickness: 0.200
+      Vp: 2.70
+      Vs: 1.20
+      rho: 2.15
+      Qp: 163.60
+      Qs: 81.80
+    - thickness: 0.200
+      Vp: 3.00
+      Vs: 1.43
+      rho: 2.22
+      Qp: 179.24
+      Qs: 89.62
+    - thickness: 0.200
+      Vp: 3.27
+      Vs: 1.64
+      rho: 2.28
+      Qp: 193.52
+      Qs: 96.76
+    - thickness: 0.200
+      Vp: 3.53
+      Vs: 1.86
+      rho: 2.32
+      Qp: 208.48
+      Qs: 104.24
+    - thickness: 0.200
+      Vp: 3.80
+      Vs: 2.07
+      rho: 2.36
+      Qp: 222.76
+      Qs: 111.38
+    - thickness: 0.200
+      Vp: 4.07
+      Vs: 2.28
+      rho: 2.40
+      Qp: 237.04
+      Qs: 118.52
+    - thickness: 0.200
+      Vp: 4.33
+      Vs: 2.49
+      rho: 2.44
+      Qp: 251.32
+      Qs: 125.66
+    - thickness: 0.200
+      Vp: 4.60
+      Vs: 2.70
+      rho: 2.48
+      Qp: 265.60
+      Qs: 132.80
+    - thickness: 0.200
+      Vp: 4.71
+      Vs: 2.77
+      rho: 2.49
+      Qp: 270.36
+      Qs: 135.18
+    - thickness: 0.200
+      Vp: 4.82
+      Vs: 2.84
+      rho: 2.51
+      Qp: 275.12
+      Qs: 137.56
+    - thickness: 0.200
+      Vp: 4.93
+      Vs: 2.91
+      rho: 2.52
+      Qp: 279.88
+      Qs: 139.94
+    - thickness: 0.200
+      Vp: 5.04
+      Vs: 2.98
+      rho: 2.54
+      Qp: 284.64
+      Qs: 142.32
+    - thickness: 0.200
+      Vp: 5.15
+      Vs: 3.05
+      rho: 2.56
+      Qp: 289.40
+      Qs: 144.70
+    - thickness: 0.200
+      Vp: 5.26
+      Vs: 3.12
+      rho: 2.58
+      Qp: 294.16
+      Qs: 147.08
+    - thickness: 0.200
+      Vp: 5.37
+      Vs: 3.19
+      rho: 2.60
+      Qp: 298.92
+      Qs: 149.46
+    - thickness: 0.200
+      Vp: 5.48
+      Vs: 3.26
+      rho: 2.61
+      Qp: 303.68
+      Qs: 151.84
+    - thickness: 0.200
+      Vp: 5.59
+      Vs: 3.33
+      rho: 2.63
+      Qp: 308.44
+      Qs: 154.22
+    - thickness: 0.200
+      Vp: 5.70
+      Vs: 3.40
+      rho: 2.66
+      Qp: 313.20
+      Qs: 156.60
+    - thickness: 3.000
+      Vp: 6.00
+      Vs: 3.60
+      rho: 2.72
+      Qp: 326.80
+      Qs: 163.40
+    - thickness: 4.000
+      Vp: 6.00
+      Vs: 3.60
+      rho: 2.72
+      Qp: 326.80
+      Qs: 163.40
+    - thickness: 15.000
+      Vp: 6.50
+      Vs: 3.70
+      rho: 2.83
+      Qp: 333.60
+      Qs: 166.80
+    - thickness: 12.000
+      Vp: 7.50
+      Vs: 4.30
+      rho: 3.12
+      Qp: 374.40
+      Qs: 187.20
+    - thickness: 999.999
+      Vp: 8.10
+      Vs: 4.60
+      rho: 3.33
+      Qp: 394.80
+      Qs: 197.40
 im:
   ims: ["PGA", "PGV", "CAV", "AI", "Ds575", "Ds595", "pSA", "FAS"]
   valid_periods:
