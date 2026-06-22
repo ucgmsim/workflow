@@ -564,13 +564,13 @@ class SRFConfig(RealisationConfiguration):
     """Shift subfault location according to roughness (in addition to perturbing strike and dip). Only used if alpha_rough > 0"""
     rand_rake_degs: float
     """Appears to be unused in code, purpose unknown"""
-    rtime1_depth: float
+    rtime1_depth: float | None
     """This value sets the midpoint of the transition range for risetime-slip scaling. For depths above rtime_depth - rtime1_depth_range, risetime is directly proportional to slip. For depths below rtime_depth + rtime1_depth_range, risetime is correlated with slip + stochastic perturbations. The default value is set to beta_shal_depth."""
-    rtime1_depth_range: float
+    rtime1_depth_range: float | None
     """The default value is set to beta_shal_depth_range. See rtime1_depth for a description."""
     rtime1_scor: float
     """Correlation coefficient between slip and rise time. set between 0 (uncorrelated) and 1 (perfectly correlated)"""
-    rtime1_sigma: float
+    rtime1_sigma: float | None
     """The coefficient of variation of the risetime distribution. The default value is  slip_sigma."""
     rtime2_scor: float
     """Correlation coefficient for additional perturbation of rise time with roughness."""

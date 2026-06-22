@@ -455,7 +455,7 @@ SRF_SCHEMA = Schema(
             description="Width of per-segment delay zone, see rvfac_seg",
         ): [And(NUMBER, _is_positive)],
         Literal(
-            "rvfrac_seg",
+            "rvfac_seg",
             description="Per-segment delays for boundaries of segments",
         ): [And(NUMBER, _is_proportion)],
         Literal(
@@ -463,11 +463,11 @@ SRF_SCHEMA = Schema(
             description="If true, enable per segment delays",
         ): bool,
         Literal(
-            "ymag_exp",
+            "ymag_exponent",
             description="Sets correlation widths according to custom relation: clen_d = exp(bigM*(ymag_exponent*mag - ky_corner));",
         ): Or(NUMBER, None),
         Literal(
-            "xmag_exp",
+            "xmag_exponent",
             description="Sets correlation lengths according to custom relation: clen_s = exp(bigM*(xmag_exponent*mag - kx_corner))",
         ): Or(NUMBER, None),
         Literal(
@@ -777,11 +777,11 @@ SRF_SCHEMA = Schema(
         Literal(
             "rtime1_depth",
             description="This value sets the midpoint of the transition range for risetime-slip scaling. For depths above rtime_depth - rtime1_depth_range, risetime is directly proportional to slip. For depths below rtime_depth + rtime1_depth_range, risetime is correlated with slip + stochastic perturbations. The default value is set to beta_shal_depth.",
-        ): And(NUMBER, _is_positive),
+        ): Or(And(NUMBER, _is_positive), None),
         Literal(
             "rtime1_depth_range",
             description="The default value is set to beta_shal_depth_range. See rtime1_depth for a description.",
-        ): And(NUMBER, _is_positive),
+        ): Or(And(NUMBER, _is_positive), None),
         Literal(
             "rtime1_scor",
             description="Correlation coefficient between slip and rise time. set between 0 (uncorrelated) and 1 (perfectly correlated)",
@@ -789,7 +789,7 @@ SRF_SCHEMA = Schema(
         Literal(
             "rtime1_sigma",
             description="The coefficient of variation of the risetime distribution. The default value is  slip_sigma.",
-        ): And(NUMBER, _is_positive),
+        ): Or(And(NUMBER, _is_positive), None),
         Literal(
             "rtime2_scor",
             description="Correlation coefficient for additional perturbation of rise time with roughness.",
@@ -843,6 +843,39 @@ SRF_SCHEMA = Schema(
             "yshift",
             description="Shift phase of slip field",
         ): NUMBER,
+        # IO settings
+        Literal(
+            "read_erf",
+            description="If set, read an ERF file in (not sure what this is, but we don't need it)",
+        ): bool,
+        Literal(
+            "read_gsf",
+            description="If set, read a geometry input definition",
+        ): bool,
+        Literal(
+            "srf_version",
+            description="Version of SRF to output (1.0 = basic, 2.0 = rho and Vs, 3.0 = Vp, rho, Vs and optional moment tensor)",
+        ): str,
+        Literal(
+            "write_gsf",
+            description="Output geometry definition",
+        ): bool,
+        Literal(
+            "write_srf",
+            description="Output SRF",
+        ): bool,
+        Literal(
+            "dump_last_seed",
+            description="If true, write the final state of the SRF random seed generator to seedfile",
+        ): bool,
+        Literal(
+            "print_command",
+            description="If set, output SRF command to file",
+        ): bool,
+        Literal(
+            "print_seed",
+            description="If set, output SRF seed to file",
+        ): bool,
     }
 )
 

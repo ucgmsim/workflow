@@ -456,6 +456,8 @@ def _build_genslip_command(
     cmd = [
         str(genslip_path),
         f"infile={gsf_file_path}",
+        "nh=1",
+        "ns=1",
         f"nstk={nx}",
         f"ndip={ny}",
         f"seed={seed}",
