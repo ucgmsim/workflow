@@ -570,15 +570,15 @@ SRF_SCHEMA = Schema(
         ): NUMBER,
         Literal(
             "hyb_corlen_dep",
-            description="Center depth of the shallow-to-deeep transition zone (km) used for the hybrid slip model",
+            description="Center depth of the shallow-to-deep transition zone (km) used for the hybrid slip model",
         ): And(NUMBER, _is_positive),
         Literal(
             "hyb_corlen_dep_range",
-            description="Half-width of the shallow-to-deeep transition zone (km) used for the hybrid slip model",
+            description="Half-width of the shallow-to-deep transition zone (km) used for the hybrid slip model",
         ): And(NUMBER, _is_positive),
         Literal(
             "hyb_corlen_fac",
-            description="When using the Mai and Beroza (2022) model for both the shalow and deep regions in the hybrid slip approach, hyb_corlen_fac is the multiplicative factor used for adjusting the correlation length in the shallow region",
+            description="When using the Mai and Beroza (2022) model for both the shallow and deep regions in the hybrid slip approach, hyb_corlen_fac is the multiplicative factor used for adjusting the correlation length in the shallow region",
         ): And(NUMBER, _is_positive),
         Literal(
             "hyb_corlen_flag",
@@ -686,7 +686,7 @@ SRF_SCHEMA = Schema(
         ): bool,
         Literal(
             "kmodel",
-            description="Correlation lengths relationship. Defaults to Mai (I think Mai 2002? https://doi.org/10.1029/2001JB000588)",
+            description="Correlation lengths relationship. Defaults to Mai 2002.",
         ): Use(KModel),
         Literal(
             "kord",

@@ -453,11 +453,11 @@ class SRFConfig(RealisationConfiguration):
     hyb_corlen_deep_wt_start: float
     """Parameter setting the weighting in the hybrid slip approach"""
     hyb_corlen_dep: float
-    """Center depth of the shallow-to-deeep transition zone (km) used for the hybrid slip model"""
+    """Center depth of the shallow-to-deep transition zone (km) used for the hybrid slip model"""
     hyb_corlen_dep_range: float
-    """Half-width of the shallow-to-deeep transition zone (km) used for the hybrid slip model"""
+    """Half-width of the shallow-to-deep transition zone (km) used for the hybrid slip model"""
     hyb_corlen_fac: float
-    """When using the Mai and Beroza (2022) model for both the shalow and deep regions in the hybrid slip approach, hyb_corlen_fac is the multiplicative factor used for adjusting the correlation length in the shallow region"""
+    """When using the Mai and Beroza (2022) model for both the shallow and deep regions in the hybrid slip approach, hyb_corlen_fac is the multiplicative factor used for adjusting the correlation length in the shallow region"""
     hyb_corlen_flag: bool
     """If enabled, incorporate hybrid correlation lengths, using two different correlation models for shallow and deep regions."""
     hyb_corlen_kmodel: schemas.KModel
@@ -517,7 +517,7 @@ class SRFConfig(RealisationConfiguration):
     circular_average: bool
     """if set, correlation lengths are equal in both directions. only used if KModel is Mai or Sommerville."""
     kmodel: schemas.KModel
-    """Correlation lengths relationship. Defaults to Mai (I think Mai 2002? https://doi.org/10.1029/2001JB000588)"""
+    """Correlation lengths relationship. Defaults to Mai 2002"""
     kord: int
     """The von Karman filter order. I believe this determines the rolloff from the correlation lengths"""
     magC: float  # noqa: N815
