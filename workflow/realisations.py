@@ -413,15 +413,15 @@ class SRFConfig(RealisationConfiguration):
     beta_asp: float
     """Minimum value of $\beta$ applied to asperity patches. This functionality is not used (as asp_mask = 0)."""
     beta_deep: float
-    """Fraction of the rise time used in the computation of the slip-rate function used for deep subfaults. Default value according to Eq. 5 in \cite{Pitarka2022}."""
+    """Fraction of the rise time used in the computation of the slip-rate function used for deep subfaults. Default value according to Eq. 5 in Graves and Pitarka (2022)."""
     beta_mid: float
-    """Fraction of the rise time used in the computation of the slip-rate function for mid-crust depths. Default value according to Eq. 5 in \cite{Pitarka2022}."""
+    """Fraction of the rise time used in the computation of the slip-rate function for mid-crust depths. Default value according to Eq. 5 in Graves and Pitarka (2022)."""
     beta_mid_depth: float
-    """Center depth of the mid-to-deep transition zone (km). Default value according to Eq. 5 in \cite{Pitarka2022}."""
+    """Center depth of the mid-to-deep transition zone (km). Default value according to Eq. 5 in Graves and Pitarka (2022)."""
     beta_mid_depth_range: float
     """Half-width of the mid-to-deep transition zone (km)."""
     beta_shal: float
-    """Fraction of the rise time used in the computation of the slip-rate function for shallow subfaults. Default value according to Eq. 5 in \cite{Pitarka2022}."""
+    """Fraction of the rise time used in the computation of the slip-rate function for shallow subfaults. Default value according to Eq. 5 in Graves and Pitarka (2022)."""
     beta_shal_depth: float
     """Center depth of the shallow transition zone (km)."""
     beta_shal_depth_range: float
