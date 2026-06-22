@@ -467,7 +467,7 @@ class SRFConfig(RealisationConfiguration):
     hyb_corlen_shal_wt_start: float
     """Parameter setting the weighting in the hybrid slip approach"""
     hyb_corlen_side_taper: float
-    """It seems that this parameter is not actually used in the Genslip code."""
+    """Side taper of hybrid correlation structure."""
 
     # Rupture Velocity & Fault Dimensions
     fdrup_scale_slip: bool

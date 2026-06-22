@@ -598,7 +598,7 @@ SRF_SCHEMA = Schema(
         ): NUMBER,
         Literal(
             "hyb_corlen_side_taper",
-            description="It seems that this parameter is not actually used in the Genslip code.",
+            description="Side taper of hybrid correlation structure.",
         ): And(NUMBER, _is_non_negative),
         # Rupture Velocity & Fault Dimensions
         Literal(
