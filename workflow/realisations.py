@@ -377,6 +377,9 @@ class SRFConfig(RealisationConfiguration):
     point_source_params: schemas.PointSourceParams | None
     """Parameters for point source approximation, if applicable."""
 
+    alpha_rough: float
+    """Roughness (0.0 = smooth)"""
+
     side_taper: float
     """Side slip tapering, proportion of along-strike 0-1."""
     bot_taper: float
@@ -384,12 +387,9 @@ class SRFConfig(RealisationConfiguration):
     top_taper: float
     """Top slip tapering proportion of down-dip 0-1."""
 
-    alpha_rough: float
-    """Roughness (0.0 = smooth)"""
-
     gwid: list[float]
     """Width of delay zone around segment boundaries"""
-    rvfrac_seg: list[float]
+    rvfac_seg: list[float]
     """Rupture speed reduction (proportion) at segment boundaries."""
     seg_delay: bool
     """If true, delay rupture across slip boundaries according to specifications of rvfac_seg and gwid."""
@@ -400,9 +400,9 @@ class SRFConfig(RealisationConfiguration):
     risetime_coef: float
     """Risetime scaling coefficient."""
 
-    ymag_exp: float | None
+    ymag_exponent: float | None
     """Corner magnitude exponent for along-strike slip correlation length. See genslip_v5.6.2c:1385"""
-    xmag_exp: float | None
+    xmag_exponent: float | None
     """Corner magnitude exponent for down-dip slip correlation length. See genslip_v5.6.2c:1385"""
     kx_corner: float | None
     """Corner wavenumber for along-strike slip correlation length. See genslip_v5.6.2c:1385"""
@@ -599,6 +599,17 @@ class SRFConfig(RealisationConfiguration):
     """Along-strike shift of slip distribution."""
     yshift: float
     """Down-dip shift of slip distribution."""
+
+    # IO settings
+    read_erf: bool
+    read_gsf: bool
+    srf_version: str
+    write_gsf: bool
+    write_srf: bool
+    plane_header: bool
+    dump_last_seed: bool
+    print_command: bool
+    print_seed: bool
 
     def to_dict(self) -> dict[str, Any]:
         """
