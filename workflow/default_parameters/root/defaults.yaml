@@ -158,7 +158,6 @@ srf:
   perturb_subfault_location: true
   print_command: true
   print_seed: true
-  plane_header: true
   rake_sigma: 15.0
   rand_rake_degs: 60.0
   read_erf: false

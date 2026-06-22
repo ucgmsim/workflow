@@ -612,7 +612,6 @@ class SRFConfig(RealisationConfiguration):
     """Output geometry definition"""
     write_srf: bool
     """Output SRF"""
-    plane_header: bool
     dump_last_seed: bool
     """If true, write the final state of the SRF random seed generator to seedfile"""
     print_command: bool
