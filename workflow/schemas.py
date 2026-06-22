@@ -493,15 +493,15 @@ SRF_SCHEMA = Schema(
         ): And(NUMBER, _is_positive),
         Literal(
             "beta_deep",
-            description="Fraction of the rise time used in the computation of the slip-rate function used for deep subfaults. Default value according to Eq. 5 in \\cite{Pitarka2022}.",
+            description="Fraction of the rise time used in the computation of the slip-rate function used for deep subfaults. Default value according to Eq. 5 in Graves and Pitarka (2022).",
         ): And(NUMBER, _is_positive),
         Literal(
             "beta_mid",
-            description="Fraction of the rise time used in the computation of the slip-rate function for mid-crust depths. Default value according to Eq. 5 in \\cite{Pitarka2022}.",
+            description="Fraction of the rise time used in the computation of the slip-rate function for mid-crust depths. Default value according to Eq. 5 in Graves and Pitarka (2022).",
         ): And(NUMBER, _is_positive),
         Literal(
             "beta_mid_depth",
-            description="Center depth of the mid-to-deep transition zone (km). Default value according to Eq. 5 in \\cite{Pitarka2022}.",
+            description="Center depth of the mid-to-deep transition zone (km). Default value according to Eq. 5 in Graves and Pitarka (2022).",
         ): And(NUMBER, _is_positive),
         Literal(
             "beta_mid_depth_range",
@@ -509,7 +509,7 @@ SRF_SCHEMA = Schema(
         ): And(NUMBER, _is_positive),
         Literal(
             "beta_shal",
-            description="Fraction of the rise time used in the computation of the slip-rate function for shallow subfaults. Default value according to Eq. 5 in \\cite{Pitarka2022}.",
+            description="Fraction of the rise time used in the computation of the slip-rate function for shallow subfaults. Default value according to Eq. 5 in Graves and Pitarka (2022).",
         ): And(NUMBER, _is_positive),
         Literal(
             "beta_shal_depth",
