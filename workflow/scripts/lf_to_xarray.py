@@ -42,7 +42,7 @@ from workflow import log_utils
 
 app = typer.Typer()
 
-CM = 100.0
+CMS = 100.0
 # Unit to convert cm/s to m/s
 
 
@@ -59,17 +59,17 @@ def convert_sw4_station_recording(handle: h5py.File) -> xr.Dataset:
         if "NPTS" not in group:
             continue
         npts = int(group["NPTS"][0])
-        if npts is not None and npts != global_npts:
+        if global_npts is not None and npts != global_npts:
             raise ValueError(f"SW4 output is corrupted: {npts=} but {global_npts=}")
         global_npts = npts
         # Dask arrays here ensure that data is read chunkwise from the HDF5 file
         # without putting it all in-memory.
-        x = da.from_array(handle["X"], chunks="auto")
-        xs.append(x * CM)
-        y = da.from_array(handle["Y"], chunks="auto")
-        ys.append(y * CM)
-        z = da.from_array(handle["Z"], chunks="auto")
-        zs.append(z * CM)
+        x = da.from_array(group["X"], chunks=-1)
+        xs.append(x * CMS)
+        y = da.from_array(group["Y"], chunks=-1)
+        ys.append(y * CMS)
+        z = da.from_array(group["Z"], chunks=-1)
+        zs.append(z * CMS)
         stations.append(station_name)
     time = np.arange(global_npts) * dt
     x = da.stack(xs, axis=0)
@@ -84,6 +84,8 @@ def convert_sw4_station_recording(handle: h5py.File) -> xr.Dataset:
 
 
 class Format(StrEnum):
+    """Input format"""
+
     SW4 = auto()
     EMOD3D = auto()
 
@@ -115,6 +117,8 @@ def convert_lf_to_xarray_dataset(
                     {"component": "auto", "station": "auto", "time": -1}
                 )
                 lf_dataset.to_netcdf(output_ffp, engine="h5netcdf")
+        case Format.SW4:
+            raise ValueError("SW4 format requires station recording file.")
 
 
 if __name__ == "__main__":
