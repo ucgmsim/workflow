@@ -36,6 +36,7 @@ dependencies = [
   "psutil",    # To get the CPU affinity for jobs
   "parse>=1.21.0",
   "rich>=14.3.2",
+  "dask>=2026.6.0",
 ]
 
 [project.optional-dependencies]
