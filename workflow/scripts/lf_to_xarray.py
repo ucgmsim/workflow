@@ -137,7 +137,7 @@ def convert_lf_to_xarray_dataset(
             lf_dataset = timeseries.read_lfseis_directory(low_frequency_path)
             lf_dataset.to_netcdf(output_ffp, engine="h5netcdf")
         case Format.EMOD3D:
-            raise ValueError("EMOD3D format requires directory to LFSeis files")
+            raise ValueError("EMOD3D format requires directory containing LFSeis files")
         case Format.SW4 if low_frequency_path.is_file():
             with h5py.File(low_frequency_path, "r") as f:
                 lf_dataset = convert_sw4_station_recording(f)
