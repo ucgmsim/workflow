@@ -135,7 +135,7 @@ def resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
 
     # NOTE: I am not providing a default start second because we consider it an
     # error not to provide one (no implicit magic behaviour).
-    new_time = np.arange(nt) * dt - dset.attrs["start_sec"]
+    new_time = np.arange(nt) * dt + dset.attrs["start_sec"]
 
     resampled_waveform = xr.apply_ufunc(
         sp.signal.resample,
@@ -199,8 +199,10 @@ def combine_hf_and_lf(
     # load data stores
     lf = xr.open_dataset(low_frequency_waveform_file)
     hf = xr.open_dataset(high_frequency_waveform_file)
-    if lf.attrs["dt"] != bb_dt:
+    if not np.isclose(lf.attrs["dt"], bb_dt):
         lf = resample_signal(lf, bb_dt)
+    if not np.isclose(hf.attrs["dt"], bb_dt):
+        hf = resample_signal(hf, bb_dt)
 
     common_stations = list(
         set(map(str, hf.station.values)) & set(map(str, lf.station.values))
