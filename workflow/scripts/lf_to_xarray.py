@@ -47,6 +47,18 @@ CMS = 100.0
 
 
 def convert_sw4_station_recording(handle: h5py.File) -> xr.Dataset:
+    """Convert SW4 station recording to an xarray dataset.
+
+    Parameters
+    ----------
+    handle: h5py.File
+        Handle for HDF5 file.
+
+    Returns
+    -------
+    xr.Dataset
+        xarray dataset constructed from file.
+    """
     global_npts = None
 
     dt = np.float32(handle["DELTA"])
@@ -84,10 +96,12 @@ def convert_sw4_station_recording(handle: h5py.File) -> xr.Dataset:
 
 
 class Format(StrEnum):
-    """Input format"""
+    """Input low frequency file format."""
 
     SW4 = auto()
+    """SW4 HDF5 station recording."""
     EMOD3D = auto()
+    """EMOD3D LFSeis directory."""
 
 
 @cli.from_docstring(app)
