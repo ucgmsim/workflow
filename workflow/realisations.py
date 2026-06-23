@@ -377,166 +377,167 @@ class SRFConfig(RealisationConfiguration):
     point_source_params: schemas.PointSourceParams | None
     """Parameters for point source approximation, if applicable."""
 
-    side_taper: float
-    """Side slip tapering, proportion of along-strike 0-1."""
-    bot_taper: float
-    """Bottom slip tapering proportion of down-dip 0-1."""
-    top_taper: float
-    """Top slip tapering proportion of down-dip 0-1."""
-
     alpha_rough: float
-    """Roughness (0.0 = smooth)"""
+    """Scalar indicating fault roughness (0 = disabled)"""
+
+    side_taper: float
+    """Fraction of along-strike length used to taper slip to zero at the lateral fault edges"""
+    bot_taper: float
+    """Fraction of down-dip width used to taper slip to zero at the bottom edge."""
+    top_taper: float
+    """Fraction of down-dip width used to taper slip to zero at the top (shallow)"""
 
     gwid: list[float]
-    """Width of delay zone around segment boundaries"""
-    rvfrac_seg: list[float]
-    """Rupture speed reduction (proportion) at segment boundaries."""
+    """Width of per-segment delay zone, see rvfac_seg"""
+    rvfac_seg: list[float]
+    """Per-segment delays for boundaries of segments"""
     seg_delay: bool
-    """If true, delay rupture across slip boundaries according to specifications of rvfac_seg and gwid."""
+    """If true, enable per segment delays"""
 
     slip_sigma: float
-    """The stddev of slip distribution."""
+    """Target SRF slip CoV"""
 
     risetime_coef: float
-    """Risetime scaling coefficient."""
+    """Constant used to scale the average slip rise time with seismic moment."""
 
-    ymag_exp: float | None
-    """Corner magnitude exponent for along-strike slip correlation length. See genslip_v5.6.2c:1385"""
-    xmag_exp: float | None
-    """Corner magnitude exponent for down-dip slip correlation length. See genslip_v5.6.2c:1385"""
+    ymag_exponent: float | None
+    """Sets correlation widths according to custom relation: clen_d = exp(bigM*(ymag_exponent*mag - ky_corner));"""
+    xmag_exponent: float | None
+    """Sets correlation lengths according to custom relation: clen_s = exp(bigM*(xmag_exponent*mag - kx_corner))"""
     kx_corner: float | None
-    """Corner wavenumber for along-strike slip correlation length. See genslip_v5.6.2c:1385"""
+    """Note: variable depends on kmodel. Corner wavenumber for along-strike correlation lengths."""
     ky_corner: float | None
-    """Corner wavenumber for down-dip slip correlation length. See genslip_v5.6.2c:1385"""
+    """Note: variable depends on kmodel. Corner wavenumber for down-dip correlation lengths."""
 
     # Rise time and source time function values
     beta_asp: float
-    """Asperity beta parameter."""
+    """Minimum value of β applied to asperity patches. This functionality is not used (as asp_mask = 0)."""
     beta_deep: float
-    """Deep beta parameter for rise time."""
+    """Fraction of the rise time used in the computation of the slip-rate function used for deep subfaults. Default value according to Eq. 5 in Graves and Pitarka (2022)."""
     beta_mid: float
-    """Mid-depth beta parameter for rise time."""
+    """Fraction of the rise time used in the computation of the slip-rate function for mid-crust depths. Default value according to Eq. 5 in Graves and Pitarka (2022)."""
     beta_mid_depth: float
-    """Mid-depth level for beta depth scaling."""
+    """Center depth of the mid-to-deep transition zone (km). Default value according to Eq. 5 in Graves and Pitarka (2022)."""
     beta_mid_depth_range: float
-    """Mid-depth range for beta depth scaling."""
+    """Half-width of the mid-to-deep transition zone (km)."""
     beta_shal: float
-    """Shallow beta parameter for rise time."""
+    """Fraction of the rise time used in the computation of the slip-rate function for shallow subfaults. Default value according to Eq. 5 in Graves and Pitarka (2022)."""
     beta_shal_depth: float
-    """Shallow depth level for beta depth scaling."""
+    """Center depth of the shallow transition zone (km)."""
     beta_shal_depth_range: float
-    """Shallow depth range for beta depth scaling."""
+    """Half-width of the shallow transition zone (km)."""
     beta_subevt: float
-    """Sub-event beta parameter for rise time."""
+    """Minimum value of β enforced on subevent patches. This functionality is not used (as subevt_mask = 0)."""
     deep_risetimedep: float
-    """Deep rise time depth dependency level."""
+    """Sets the midpoint for the deep rise time adjustment zone."""
     deep_risetimedep_range: float
-    """Deep rise time depth dependency range."""
+    """Sets the range for the deep rise time adjustment zone."""
     deep_risetimefac: float
-    """Deep rise time scaling factor."""
+    """Risetime adjustment factor"""
     risetimedep: float
-    """Rise time depth dependency level."""
+    """Center depth of the shallow transition zone (km) used for local rise time"""
     risetimedep_range: float
-    """Rise time depth dependency range."""
+    """Half-width of the shallow transition zone (km) used for local rise time"""
     risetimefac: float
-    """Rise time scaling factor."""
+    """Depth-dependent scaling factor applied to the local rise time for shallow and deep depths. Value consistent with GP10 Eq. 7."""
     rt_rand: float
-    """Rise time randomness factor (0.0 = deterministic)."""
+    """Scales perturbation of risetimes so they are not 1:1 correlated with slip. ln(sigma)=rt_rand*trise"""
     rt_scalefac: float
-    """Rise time scale factor."""
+    """A value of 1 implies that local rise time is scaled with sqrt(slip), consistent with GP10 Eq.7."""
     stype: schemas.Stype | None
-    """Slip time function type for genslip as a schemas.Stype (None = use genslip default)."""
+    """Slip function type"""
 
     # Hybrid Correlation Length (hyb_corlen) Parameters
     hyb_corlen_deep_wt_end: float
-    """Hybrid correlation length deep weight end."""
+    """Parameter setting the weighting in the hybrid slip approach"""
     hyb_corlen_deep_wt_start: float
-    """Hybrid correlation length deep weight start."""
+    """Parameter setting the weighting in the hybrid slip approach"""
     hyb_corlen_dep: float
-    """Hybrid correlation length depth scaling level."""
+    """Center depth of the shallow-to-deep transition zone (km) used for the hybrid slip model"""
     hyb_corlen_dep_range: float
-    """Hybrid correlation length depth scaling range."""
+    """Half-width of the shallow-to-deep transition zone (km) used for the hybrid slip model"""
     hyb_corlen_fac: float
-    """Hybrid correlation length factor."""
+    """When using the Mai and Beroza (2022) model for both the shallow and deep regions in the hybrid slip approach, hyb_corlen_fac is the multiplicative factor used for adjusting the correlation length in the shallow region"""
     hyb_corlen_flag: bool
-    """Enable hybrid correlation length model."""
+    """If enabled, incorporate hybrid correlation lengths, using two different correlation models for shallow and deep regions."""
     hyb_corlen_kmodel: schemas.KModel
-    """Hybrid correlation length k-model (schemas.KModel), parsed/coerced from the schema value."""
+    """Model selected for the shallow region in the hybrid slip approach. Default=5 is the Suzuki (2022) model."""
     hyb_corlen_shal_wt_end: float
-    """Hybrid correlation length shallow weight end."""
+    """Parameter setting the weighting in the hybrid slip approach"""
     hyb_corlen_shal_wt_start: float
-    """Hybrid correlation length shallow weight start."""
+    """Parameter setting the weighting in the hybrid slip approach"""
     hyb_corlen_side_taper: float
-    """Hybrid correlation length side taper."""
+    """Side taper of hybrid correlation structure."""
 
     # Rupture Velocity & Fault Dimensions
     fdrup_scale_slip: bool
-    """Scale slip by fault rupture area."""
+    """Scale rslow with slip prior to computing FD times"""
     fdrup_time: bool
-    """Use fault rupture time."""
+    """Calculate rupture initiation times with wavefront propagation"""
     rupture_delay: float
-    """Delay (in seconds) before rupture starts."""
+    """Scalar delay to all rupture initiation times (s)"""
     rvfmax: float
-    """Maximum rupture velocity fraction."""
+    """Upper bound on how much faster rupture velocity can be than the average rupture velocity. Rupture velocity is adjusted to be faster in regions of high slip."""
     rvfmin: float
-    """Minimum rupture velocity fraction."""
+    """Lower bound on how much faster rupture velocity can be than the average rupture velocity. Rupture velocity is adjusted to be faster in regions of high slip."""
+
     # Tapering & Slip Level Adjustments
     truncate_zero_slip: bool
-    """Truncate subfaults with zero slip."""
+    """If true, truncates negative slip. This can skew the spectral distribution of slip but removes non-physical values."""
     slip_water_level: float | None
-    """Water level for slip distribution (None = disabled)."""
+    """Minimum background slip level given as a percentage of the average slip amount (basically fills-in very low/zero slip patches with long rise time, low slip)."""
     rake_sigma: float
-    """Standard deviation of rake perturbation (degrees)."""
+    """Target rake std deviation (absolute value, degrees)"""
     fractal_rake: bool
-    """Use fractal rake distribution."""
+    """If enabled, uses a von Karman filter for rake (producing self-similar fractal rake)."""
 
     # Time Shift Factors (tsfac)
     tsfac1_scor: float
-    """Time shift factor 1 spatial correlation."""
+    """Allow specification of correlation levels between slip and rupture time. Correlation can be between 0 (uncorrelated) and 1.0 (1:1 correlation)."""
     tsfac1_sigma: float
-    """Time shift factor 1 sigma."""
+    """Adjusts stddev of risetime perturbations given by gaussian random numbers (via tsfac1_r array) with zero mean and sigma set to tsfac1_sigma*tsfac."""
     tsfac2_lambda_max: float
-    """Time shift factor 2 maximum wavelength."""
+    """Maximum wavelength considered when band-pass filtering the wavenumber spectra associated with the fault roughness model, as explained in GP16. Value in km. (Not used as alpha_rough=0)"""
     tsfac2_lambda_min: float | None
-    """Time shift factor 2 minimum wavelength (None = disabled)."""
+    """Minimum wavelength considered when band-pass filtering the wavenumber spectra associated with the fault roughness model, as explained in GP16. Value in km. (Not used as alpha_rough=0)"""
     tsfac2_scor: float
-    """Time shift factor 2 spatial correlation."""
+    """Allow specification of correlation levels between roughness and rupture time. Correlation can be between 0 (uncorrelated) and 1.0 (1:1 correlation). (Not used as alpha_rough=0)"""
     tsfac2_sigma: float
-    """Time shift factor 2 sigma."""
+    """The standard deviation of the rupture time perturbations due to roughness."""
     tsfac_bzero: float
-    """Time shift factor b0 coefficient."""
+    """Offset constant value used when scaling the rupture time perturbation with seismic moment"""
     tsfac_coef: float
-    """Time shift factor coefficient."""
+    """Coefficient equal to 1.1 given in Eq. A2 from GP16 used to scale rupture time perturbation with seismic moment. Not used anymore in the code, as now this scaling is performed with tsfac_bzero and tsfac_slope"""
     tsfac_main: float | None
-    """Main time shift factor (None = use computed value)."""
+    """Depends on tsfac_bzero, tsfac_slope and moment"""
     tsfac_slope: float
-    """Time shift factor slope."""
+    """Coefficient used to scale rupture time perturbation with seismic moment, similar to Eq A2 from GP16 but now adding an offset value of tsfac_bzero"""
 
     # Kinematic Models & Corner Frequencies
     circular_average: bool
-    """Use circular average for slip correlation."""
+    """if set, correlation lengths are equal in both directions. only used if KModel is Mai or Sommerville."""
     kmodel: schemas.KModel
-    """Kinematic model index."""
+    """Correlation lengths relationship. Defaults to Mai 2002"""
     kord: int
-    """Wavenumber filter order."""
+    """The von Karman filter order. I believe this determines the rolloff from the correlation lengths"""
     magC: float  # noqa: N815
-    """Magnitude corner frequency coefficient."""
+    """magnitude clamping for down-dip correlation lengths. only used if the KModel is Suzuki (5)."""
     mag_area_Acoef: float | None  # noqa: N815
-    """Magnitude-area scaling A coefficient (None = disabled)."""
+    """the 'A' in M = A + B log10(area). only used if use_median_mag is true"""
     mag_area_Bcoef: float | None  # noqa: N815
-    """Magnitude-area scaling B coefficient (None = disabled)."""
+    """the 'B' in M = A + B log10(area). only used if use_median_mag is true"""
     mai_wt: float
-    """MAI model weight."""
+    """The weighting for Mai correlation model. Only used if KModel is set to hybrid Mai-Sommerville"""
     modified_corners: bool
-    """Use modified corner frequencies."""
+    """another correlation model of unknown origin. overrides the value of KModel"""
     somerville_wt: float
-    """Somerville model weight."""
+    """Parameter only used if kmodel is set as MAI_SOMERVILLE_HYBRID_FLAG, which is not the default value. weight of the Sommerville model in the hybrid Sommerville and Mai correlation model"""
     stretch_kcorner: bool
-    """Stretch corner wavenumber."""
+    """Appears to be unused, purpose unknown"""
     use_gaus: bool
-    """Use Gaussian slip distribution."""
+    """Unused"""
     use_median_mag: bool
-    """Use median magnitude for scaling."""
+    """If true set the magnitude of the rupture according to area"""
 
     # Roughness & Wavelength Limits
     lambda_max: float | None
@@ -544,61 +545,79 @@ class SRFConfig(RealisationConfiguration):
     lambda_min: float | None
     """Minimum wavelength for slip correlation (None = no limit)."""
     wavelength_max: float | None
-    """Maximum wavelength limit (None = no limit)."""
+    """Maximum wavelength considered when band-pass filtering the rake spectral distribution (only if fractal_rake=0). It is also used to bandpass filter the initial risetime, and rupture time (perturbations) in the spectral domain. When it is not set, it gets a value 80% of the Nyquist frequency, 2 * sqrt(dx * dy) / 0.8. Hardcoded, will be overridden if set."""
     wavelength_min: float | None
-    """Minimum wavelength limit (None = no limit)."""
+    """Minimum wavelength considered when band-pass filtering the rake spectral distribution (only if fractal_rake=0). It is also used to bandpass filter the initial risetime, and rupture time (perturbations) in the spectral domain. When it is not set, it gets a value 80% of the Nyquist frequency, 2 * sqrt(dx * dy) / 0.8."""
 
     # Miscellaneous Slip/Rupture/Rake Vars
     asp_taper_fac: float
-    """Asperity taper factor."""
+    """Size (proportion) of the asperity patch taper width."""
     extend_fac: float | None
-    """Fault extension factor (None = disabled)."""
+    """geometric scaling variable used during multi-segment fault simulations to adjust how spatial wavenumber spectra are evaluated. It scales individual segment dimensions up to the full aggregate dimensions of the parent multi-segment fault system, ensuring long-wavelength features are not artificially truncated."""
     flen_max: float | None
-    """Maximum fault length (None = no limit)."""
+    """Seems to be a maximum along-strike length to generate SRF output"""
     fwid_max: float | None
-    """Maximum fault width (None = no limit)."""
+    """Seems to be a maximum down-dip width to generate SRF output"""
     moment_fraction: float | None
-    """Fraction of seismic moment (None = use all)."""
+    """Scales seismic moment by fraction given"""
     perturb_subfault_location: bool
-    """Perturb subfault locations."""
+    """Shift subfault location according to roughness (in addition to perturbing strike and dip). Only used if alpha_rough > 0"""
     rand_rake_degs: float
-    """Range of random rake perturbation (degrees)."""
-    rtime1_depth: float
-    """Rise time 1 depth level."""
-    rtime1_depth_range: float
-    """Rise time 1 depth range."""
+    """Appears to be unused in code, purpose unknown"""
+    rtime1_depth: float | None
+    """This value sets the midpoint of the transition range for risetime-slip scaling. For depths above rtime_depth - rtime1_depth_range, risetime is directly proportional to slip. For depths below rtime_depth + rtime1_depth_range, risetime is correlated with slip + stochastic perturbations. The default value is set to beta_shal_depth."""
+    rtime1_depth_range: float | None
+    """The default value is set to beta_shal_depth_range. See rtime1_depth for a description."""
     rtime1_scor: float
-    """Rise time 1 spatial correlation."""
-    rtime1_sigma: float
-    """Rise time 1 sigma."""
+    """Correlation coefficient between slip and rise time. set between 0 (uncorrelated) and 1 (perfectly correlated)"""
+    rtime1_sigma: float | None
+    """The coefficient of variation of the risetime distribution. The default value is  slip_sigma."""
     rtime2_scor: float
-    """Rise time 2 spatial correlation."""
+    """Correlation coefficient for additional perturbation of rise time with roughness."""
     rtime2slip_exp: float
-    """Rise time 2 slip exponent."""
+    """Adjusts the power for the correlation between rise time and slip. Rise time is correlated with slip^p, defaulting to sqrt(slip)."""
     rtime_rand: float | None
-    """Rise time randomness (None = disabled)."""
+    """If true, correlate rise time with roughness"""
     set_rake: float | None
-    """Fixed rake angle (None = use fault rake)."""
+    """If set, fix rake at every location"""
     svr_wt: float
-    """SVR model weight."""
+    """Unclear to me (Jake) anyway what this does. this and a couple of other variable set rt_scalefac but so far as I can tell that variable is unused. to review further."""
     target_savg: float | None
-    """Target average slip (None = compute from magnitude)."""
+    """Target slip average"""
     use_Mw: bool  # noqa: N815
-    """Use moment magnitude for scaling."""
+    """If true, use Hanks and Kanamori (1979) Eq 4 for magnitude ('Mw'). Otherwise use Eq 7 ('M')."""
 
     # Aseismic & Segment Settings
     aseis_flag: bool
-    """Enable aseismic zone correction."""
+    """If true, enable aseismogenic creep adjustments."""
     aseis_smooth: bool
-    """Enable smoothing of aseismic zones."""
+    """If true, smooth aseismogenic factors with an averaging kernel of width 3."""
     aseis_dep: float
-    """Aseismic zone depth."""
+    """Terminal depth for aseismic scaling region. slip above this depth is scaled down linearly, according to asei_fac. Below this depth no adjust occurs."""
     aseis_fac: float | None
-    """Aseismic zone factor (None = disabled)."""
+    """Global setting for aseismic slip adjustment. Can be per subfault if read_aseis is set. only used if aseis_flag is true"""
     xshift: float
-    """Along-strike shift of slip distribution."""
+    """Shift phase of slip field"""
     yshift: float
-    """Down-dip shift of slip distribution."""
+    """Shift phase of slip field"""
+
+    # IO settings
+    read_erf: bool
+    """If true, read an ERF file."""
+    read_gsf: bool
+    """If set, read a geometry input definition"""
+    srf_version: str
+    """Version of SRF to output (1.0 = basic, 2.0 = rho and Vs, 3.0 = Vp, rho, Vs and optional moment tensor)"""
+    write_gsf: bool
+    """Output geometry definition"""
+    write_srf: bool
+    """Output SRF"""
+    dump_last_seed: bool
+    """If true, write the final state of the SRF random seed generator to seedfile"""
+    print_command: bool
+    """If set, output SRF command to file"""
+    print_seed: bool
+    """If set, output SRF seed to file"""
 
     def to_dict(self) -> dict[str, Any]:
         """

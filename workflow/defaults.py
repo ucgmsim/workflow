@@ -16,7 +16,6 @@ class DefaultsVersion(StrEnum):
     v24_2_2_1 = "24.2.2.1"
     v24_2_2_2 = "24.2.2.2"
     v24_2_2_4 = "24.2.2.4"
-    develop = "develop"
 
 
 def load_defaults(version: DefaultsVersion) -> dict[str, int | float | str]:
@@ -34,14 +33,9 @@ def load_defaults(version: DefaultsVersion) -> dict[str, int | float | str]:
         The keys are strings representing parameter names, and the values can be
         integers, floats, or strings depending on the parameter.
     """
-    if version == DefaultsVersion.develop:
-        defaults_package = importlib.import_module(
-            "workflow.default_parameters.develop"
-        )
-    else:
-        defaults_package = importlib.import_module(
-            f"workflow.default_parameters.v{version.value.replace('.', '_')}"
-        )
+    defaults_package = importlib.import_module(
+        f"workflow.default_parameters.v{version.value.replace('.', '_')}"
+    )
     root_defaults_path = resources.files(root) / "defaults.yaml"
     with root_defaults_path.open(encoding="utf-8") as root_defaults_handle:
         root_defaults = yaml.safe_load(root_defaults_handle)

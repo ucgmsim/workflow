@@ -127,12 +127,12 @@ def test_srf_config_example(tmp_path: Path) -> None:
         top_taper=0.0,
         alpha_rough=0.0,
         gwid=[],
-        rvfrac_seg=[],
+        rvfac_seg=[],
         seg_delay=False,
         slip_sigma=1.0,
         risetime_coef=1.6,
-        ymag_exp=None,
-        xmag_exp=None,
+        ymag_exponent=None,
+        xmag_exponent=None,
         kx_corner=None,
         ky_corner=None,
         beta_asp=0.3,
@@ -222,6 +222,14 @@ def test_srf_config_example(tmp_path: Path) -> None:
         aseis_fac=None,
         xshift=0.0,
         yshift=0.0,
+        read_erf=False,
+        read_gsf=False,
+        srf_version="1.0",
+        write_gsf=False,
+        write_srf=False,
+        dump_last_seed=False,
+        print_command=False,
+        print_seed=False,
     )
 
     realisation_ffp = tmp_path / "realisation.json"
@@ -255,10 +263,10 @@ def test_srf_config_example(tmp_path: Path) -> None:
                 "slip_sigma": 1.0,
                 "risetime_coef": 1.6,
                 "gwid": [],
-                "rvfrac_seg": [],
+                "rvfac_seg": [],
                 "seg_delay": False,
-                "ymag_exp": None,
-                "xmag_exp": None,
+                "ymag_exponent": None,
+                "xmag_exponent": None,
                 "kx_corner": None,
                 "ky_corner": None,
                 "beta_asp": 0.3,
@@ -348,6 +356,14 @@ def test_srf_config_example(tmp_path: Path) -> None:
                 "aseis_fac": None,
                 "xshift": 0.0,
                 "yshift": 0.0,
+                "read_erf": False,
+                "read_gsf": False,
+                "srf_version": "1.0",
+                "write_gsf": False,
+                "write_srf": False,
+                "dump_last_seed": False,
+                "print_command": False,
+                "print_seed": False,
             },
         }
 
@@ -392,7 +408,7 @@ def test_metadata(tmp_path: Path) -> None:
     metadata = realisations.RealisationMetadata(
         name="consecutive write test",
         version="1",
-        defaults_version=defaults.DefaultsVersion.develop,
+        defaults_version=defaults.DefaultsVersion.v24_2_2_1,
     )
     realisation_ffp = tmp_path / "realisation.json"
     metadata.write_to_realisation(realisation_ffp)
@@ -401,7 +417,7 @@ def test_metadata(tmp_path: Path) -> None:
             "metadata": {
                 "name": "consecutive write test",
                 "version": "1",
-                "defaults_version": "develop",
+                "defaults_version": "24.2.2.1",
                 "tag": None,
             },
         }
