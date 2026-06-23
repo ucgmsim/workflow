@@ -105,27 +105,15 @@ rupture_velocity:
   shallow_transition_range: 1.5
   deep_transition_range: 2.5
 srf:
-  plane_header: 1
-  read_erf: 0
-  write_srf: 1
-  read_gsf: 1
-  write_gsf: 0
-  ns: 1
-  nh: 1
-
-  srf_version: "2.0"
   side_taper: 0.02
   bot_taper: 0.02
   top_taper: 0.0
   alpha_rough: 0.0
-  dump_last_seed: true
-  generate_seed: false
-  hypotaperperc_bot:
   gwid: []
-  rvfac_seg: []
+  rvfrac_seg: []
   seg_delay: false
-  ymag_exponent: null
-  xmag_exponent: null
+  ymag_exp: null
+  xmag_exp: null
   kx_corner: null
   ky_corner: null
   resolution: 0.1
@@ -163,7 +151,7 @@ srf:
   hyb_corlen_side_taper: 0.08
   # Rupture Velocity & Fault Dimensions
   fdrup_scale_slip: false
-  fdrup_time: true
+  fdrup_time: false
   rupture_delay: 0.0
   rvfmax: 1.414
   rvfmin: 0.25
@@ -203,7 +191,7 @@ srf:
   wavelength_min: null
   # Miscellaneous Slip/Rupture/Rake Vars
   asp_taper_fac: 0.05
-
+  extend_fac: null
   flen_max: null
   fwid_max: null
   moment_fraction: null

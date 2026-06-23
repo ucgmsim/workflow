@@ -455,6 +455,14 @@ def _build_genslip_command(
     """
     cmd = [
         str(genslip_path),
+        "plane_header=1",
+        "srf_version=2.0",
+        "read_erf=0",
+        "write_srf=1",
+        "read_gsf=1",
+        "write_gsf=0",
+        "ns=1",
+        "nh=1",
         f"infile={gsf_file_path}",
         f"nstk={nx}",
         f"ndip={ny}",
