@@ -105,21 +105,12 @@ rupture_velocity:
   shallow_transition_range: 1.5
   deep_transition_range: 2.5
 srf:
-  side_taper: 0.02
-  bot_taper: 0.02
-  top_taper: 0.0
   alpha_rough: 0.0
-  gwid: []
-  rvfrac_seg: []
-  seg_delay: false
-  ymag_exp: null
-  xmag_exp: null
-  kx_corner: null
-  ky_corner: null
-  resolution: 0.1
-  slip_sigma: 0.75
-  risetime_coef: 1.6
-  # Rise time and source time function values
+  aseis_dep: 10.0
+  aseis_fac: null
+  aseis_flag: false
+  aseis_smooth: false
+  asp_taper_fac: 0.05
   beta_asp: 0.3
   beta_deep: 0.13
   beta_mid: 0.13
@@ -129,16 +120,19 @@ srf:
   beta_shal_depth: 2.0
   beta_shal_depth_range: 1.0
   beta_subevt: 0.1
+  bot_taper: 0.0
+  circular_average: false
   deep_risetimedep: 17.5
   deep_risetimedep_range: 2.5
   deep_risetimefac: 2.0
-  risetimedep: 6.5
-  risetimedep_range: 1.5
-  risetimefac: 2.0
-  rt_rand: 0.0
-  rt_scalefac: 1.0
-  stype: null
-  # Hybrid Correlation Length (hyb_corlen) Parameters
+  dump_last_seed: true
+  extend_fac: 1.10
+  fdrup_scale_slip: false
+  fdrup_time: true
+  flen_max: null
+  fractal_rake: false
+  fwid_max: null
+  gwid: []
   hyb_corlen_deep_wt_end: 1.0
   hyb_corlen_deep_wt_start: 0.0
   hyb_corlen_dep: 6.5
@@ -149,71 +143,76 @@ srf:
   hyb_corlen_shal_wt_end: 0.0
   hyb_corlen_shal_wt_start: 1.0
   hyb_corlen_side_taper: 0.08
-  # Rupture Velocity & Fault Dimensions
-  fdrup_scale_slip: false
-  fdrup_time: false
-  rupture_delay: 0.0
-  rvfmax: 1.414
-  rvfmin: 0.25
-  # Tapering & Slip Level Adjustments
-  truncate_zero_slip: true
-  slip_water_level: null
-  rake_sigma: 15.0
-  fractal_rake: false
-  # Time Shift Factors (tsfac)
-  tsfac1_scor: 0.8
-  tsfac1_sigma: 1.0
-  tsfac2_lambda_max: 5.0
-  tsfac2_lambda_min: null
-  tsfac2_scor: 0.5
-  tsfac2_sigma: 1.0
-  tsfac_bzero: -0.1
-  tsfac_coef: 1.1
-  tsfac_main: null
-  tsfac_slope: -0.5
-  # Kinematic Models & Corner Frequencies
-  circular_average: false
   kmodel: 2
   kord: 4
+  kx_corner: null
+  ky_corner: null
+  lambda_max: null
+  lambda_min: null
   magC: 6.3
   mag_area_Acoef: null
   mag_area_Bcoef: null
   mai_wt: 0.5
   modified_corners: false
-  somerville_wt: 0.5
-  stretch_kcorner: false
-  use_gaus: true
-  use_median_mag: false
-  # Roughness & Wavelength Limits
-  lambda_max: null
-  lambda_min: null
-  wavelength_max: null
-  wavelength_min: null
-  # Miscellaneous Slip/Rupture/Rake Vars
-  asp_taper_fac: 0.05
-  extend_fac: null
-  flen_max: null
-  fwid_max: null
   moment_fraction: null
   perturb_subfault_location: true
+  print_command: true
+  print_seed: true
+  rake_sigma: 15.0
   rand_rake_degs: 60.0
-  rtime1_depth: 2.0
-  rtime1_depth_range: 1.0
-  rtime1_scor: 0.8
-  rtime1_sigma: 0.85
+  read_erf: false
+  read_gsf: true
+  resolution: 0.1
+  risetime_coef: 1.6
+  risetimedep: 6.5
+  risetimedep_range: 1.5
+  risetimefac: 2.0
+  rt_rand: 0.0
+  rt_scalefac: 1.0
+  rtime1_depth: null
+  rtime1_depth_range: null
+  rtime1_scor: 0.9
+  rtime1_sigma: null
   rtime2_scor: 0.5
   rtime2slip_exp: 0.5
   rtime_rand: null
+  rupture_delay: 0.0
+  rvfac_seg: []
+  rvfmax: 1.414
+  rvfmin: 0.25
+  seg_delay: false
   set_rake: null
+  side_taper: 0.02
+  slip_sigma: 0.75
+  slip_water_level: null
+  somerville_wt: 0.5
+  srf_version: "2.0"
+  stretch_kcorner: false
+  stype: null
   svr_wt: 0.0
   target_savg: null
+  top_taper: 0.0
+  truncate_zero_slip: true
+  tsfac1_scor: 0.8
+  tsfac1_sigma: 1.0
+  tsfac2_lambda_max: 5.0
+  tsfac2_lambda_min: 0.08
+  tsfac2_scor: 0.5
+  tsfac2_sigma: 1.0e-10
+  tsfac_bzero: -0.1
+  tsfac_coef: 1.1
+  tsfac_main: null
+  tsfac_slope: -0.5
   use_Mw: false
-  # Aseismic & Segment Settings
-  aseis_flag: false
-  aseis_smooth: false
-  aseis_dep: 10.0
-  aseis_fac: null
+  use_gaus: true
+  use_median_mag: false
+  wavelength_max: null
+  wavelength_min: null
+  write_gsf: false
+  write_srf: true
+  xmag_exponent: null
   xshift: 0.0
+  ymag_exponent: null
   yshift: 0.0
   # The following parameters are only used for the point source approximation.
   point_source_params:
