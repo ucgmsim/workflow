@@ -115,15 +115,26 @@ def align_waveforms(
 
 
 def resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
-    """Resample waveform dataset to given dt.
+    """Resample waveform dataset to a new time step.
 
     Parameters
     ----------
+    dset : xr.Dataset
+        Input dataset with dimensions (component, station, time) and
+        attributes 'dt'.
+    dt : float
+        Desired time step in seconds.
 
+    Returns
+    -------
+    xr.Dataset
+        Resampled dataset with updated time coordinates and dt attribute.
     """
     duration = dset["waveform"].sizes["time"] * dset.attrs["dt"]
     nt = round(duration / dt)
 
+    # NOTE: I am not providing a default start second because we consider it an
+    # error not to provide one (no implicit magic behaviour).
     new_time = np.arange(nt) * dt - dset.attrs["start_sec"]
 
     resampled_waveform = xr.apply_ufunc(
@@ -189,7 +200,7 @@ def combine_hf_and_lf(
     lf = xr.open_dataset(low_frequency_waveform_file)
     hf = xr.open_dataset(high_frequency_waveform_file)
     if lf.attrs["dt"] != bb_dt:
-        lf = resample_signal(lf)
+        lf = resample_signal(lf, bb_dt)
 
     common_stations = list(
         set(map(str, hf.station.values)) & set(map(str, lf.station.values))

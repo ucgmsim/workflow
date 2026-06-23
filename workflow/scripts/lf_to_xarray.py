@@ -26,14 +26,12 @@ For More Help
 See the output of `lf-to-xarray --help`.
 """
 
-from enum import auto, StrEnum
-
+from enum import StrEnum, auto
 from pathlib import Path
 
-
 import dask.array as da
-import numpy as np
 import h5py
+import numpy as np
 import typer
 import xarray as xr
 
@@ -83,6 +81,10 @@ def convert_sw4_station_recording(handle: h5py.File) -> xr.Dataset:
         z = da.from_array(group["Z"], chunks=-1)
         zs.append(z * CMS)
         stations.append(station_name)
+    if global_npts is None:
+        raise ValueError(
+            "No valid station recordings found in file. Are you sure this is an SW4 station file? Use `h5ls` to check the file structure."
+        )
     time = np.arange(global_npts) * dt
     x = da.stack(xs, axis=0)
     y = da.stack(ys, axis=0)
