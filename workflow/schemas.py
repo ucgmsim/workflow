@@ -739,7 +739,7 @@ SRF_SCHEMA = Schema(
         ): Or(NUMBER, None),
         Literal(
             "wavelength_max",
-            description="Maximum wavelength considered when band-pass filtering the rake spectral distribution (only if fractal_rake=0). It is also used to bandpass filter the initial risetime, and rupture time (perturbations) in the spectral domain. When it is not set, it gets a value 80% of the Nyquist frequency, 2 * sqrt(dx * dy) / 0.8. Hardcoded, will be overriden if set.",
+            description="Maximum wavelength considered when band-pass filtering the rake spectral distribution (only if fractal_rake=0). It is also used to bandpass filter the initial risetime, and rupture time (perturbations) in the spectral domain. When it is not set, it gets a value 80% of the Nyquist frequency, 2 * sqrt(dx * dy) / 0.8. Hardcoded, will be overridden if set.",
         ): Or(NUMBER, None),
         Literal(
             "wavelength_min",
@@ -846,7 +846,7 @@ SRF_SCHEMA = Schema(
         # IO settings
         Literal(
             "read_erf",
-            description="If set, read an ERF file in (not sure what this is, but we don't need it)",
+            description="If true, read an ERF file.",
         ): bool,
         Literal(
             "read_gsf",

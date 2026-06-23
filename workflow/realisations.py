@@ -411,7 +411,7 @@ class SRFConfig(RealisationConfiguration):
 
     # Rise time and source time function values
     beta_asp: float
-    """Minimum value of $\beta$ applied to asperity patches. This functionality is not used (as asp_mask = 0)."""
+    """Minimum value of β applied to asperity patches. This functionality is not used (as asp_mask = 0)."""
     beta_deep: float
     """Fraction of the rise time used in the computation of the slip-rate function used for deep subfaults. Default value according to Eq. 5 in Graves and Pitarka (2022)."""
     beta_mid: float
@@ -427,7 +427,7 @@ class SRFConfig(RealisationConfiguration):
     beta_shal_depth_range: float
     """Half-width of the shallow transition zone (km)."""
     beta_subevt: float
-    """Minimum value of $\beta$ enforced on subevent patches. This functionality is not used (as subevt_mask = 0)."""
+    """Minimum value of β enforced on subevent patches. This functionality is not used (as subevt_mask = 0)."""
     deep_risetimedep: float
     """Sets the midpoint for the deep rise time adjustment zone."""
     deep_risetimedep_range: float
@@ -485,7 +485,7 @@ class SRFConfig(RealisationConfiguration):
     truncate_zero_slip: bool
     """If true, truncates negative slip. This can skew the spectral distribution of slip but removes non-physical values."""
     slip_water_level: float | None
-    """Minimum background slip level given as a percentage of the average slip amount (basically fills-in very low/zero slip patches with long rise time low slip."""
+    """Minimum background slip level given as a percentage of the average slip amount (basically fills-in very low/zero slip patches with long rise time, low slip)."""
     rake_sigma: float
     """Target rake std deviation (absolute value, degrees)"""
     fractal_rake: bool
@@ -507,7 +507,7 @@ class SRFConfig(RealisationConfiguration):
     tsfac_bzero: float
     """Offset constant value used when scaling the rupture time perturbation with seismic moment"""
     tsfac_coef: float
-    """Coefficient equal to 1.1 given in Eq. A2 from GP16 used to scale rupture time perturbation with seismic moment. Not used anymore in the code, as now this scaling is performed with tsfac_bzero and tsfac_slop"""
+    """Coefficient equal to 1.1 given in Eq. A2 from GP16 used to scale rupture time perturbation with seismic moment. Not used anymore in the code, as now this scaling is performed with tsfac_bzero and tsfac_slope"""
     tsfac_main: float | None
     """Depends on tsfac_bzero, tsfac_slope and moment"""
     tsfac_slope: float
@@ -545,7 +545,7 @@ class SRFConfig(RealisationConfiguration):
     lambda_min: float | None
     """Minimum wavelength for slip correlation (None = no limit)."""
     wavelength_max: float | None
-    """Maximum wavelength considered when band-pass filtering the rake spectral distribution (only if fractal_rake=0). It is also used to bandpass filter the initial risetime, and rupture time (perturbations) in the spectral domain. When it is not set, it gets a value 80% of the Nyquist frequency, 2 * sqrt(dx * dy) / 0.8. Hardcoded, will be overriden if set."""
+    """Maximum wavelength considered when band-pass filtering the rake spectral distribution (only if fractal_rake=0). It is also used to bandpass filter the initial risetime, and rupture time (perturbations) in the spectral domain. When it is not set, it gets a value 80% of the Nyquist frequency, 2 * sqrt(dx * dy) / 0.8. Hardcoded, will be overridden if set."""
     wavelength_min: float | None
     """Minimum wavelength considered when band-pass filtering the rake spectral distribution (only if fractal_rake=0). It is also used to bandpass filter the initial risetime, and rupture time (perturbations) in the spectral domain. When it is not set, it gets a value 80% of the Nyquist frequency, 2 * sqrt(dx * dy) / 0.8."""
 
@@ -603,7 +603,7 @@ class SRFConfig(RealisationConfiguration):
 
     # IO settings
     read_erf: bool
-    """If set, read an ERF file in (not sure what this is, but we don't need it)"""
+    """If true, read an ERF file."""
     read_gsf: bool
     """If set, read a geometry input definition"""
     srf_version: str
