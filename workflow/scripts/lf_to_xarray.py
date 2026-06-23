@@ -28,12 +28,25 @@ See the output of `lf-to-xarray --help`.
 
 from pathlib import Path
 
+import h5py
 import typer
+import xarray as xr
 
 from qcore import cli, timeseries
 from workflow import log_utils
 
 app = typer.Typer()
+
+
+def convert_sw4_station_recording(station_file: Path) -> xr.Dataset:
+    global_npts = None
+    with h5py.File(station_file, "r") as f:
+        for group in f:
+            if "NPTS" not in group:
+                continue
+            npts = int(group["NPTS"][0])
+            if npts is not None and npts != global_npts:
+                raise ValueError(f"SW4 output is corrupted: {npts=} but {global_npts=}")
 
 
 @cli.from_docstring(app)
