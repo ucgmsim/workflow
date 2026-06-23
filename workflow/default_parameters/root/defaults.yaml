@@ -193,7 +193,7 @@ srf:
   target_savg: null
   top_taper: 0.0
   truncate_zero_slip: true
-  tsfac1_scor: 0.9
+  tsfac1_scor: 0.8
   tsfac1_sigma: 1.0
   tsfac2_lambda_max: 5.0
   tsfac2_lambda_min: 0.08
