@@ -41,7 +41,7 @@ from workflow import log_utils
 app = typer.Typer()
 
 CMS = 100.0
-# Unit to convert cm/s to m/s
+# Unit to convert m/s to cm/s
 
 
 def convert_sw4_station_recording(handle: h5py.File) -> xr.Dataset:
@@ -65,7 +65,7 @@ def convert_sw4_station_recording(handle: h5py.File) -> xr.Dataset:
     """
     global_npts = None
 
-    dt = np.float32(handle["DELTA"])
+    dt = np.float32(handle["DELTA"][()])
     xs = []
     ys = []
     zs = []
@@ -74,7 +74,7 @@ def convert_sw4_station_recording(handle: h5py.File) -> xr.Dataset:
     for station_name, group in handle.items():
         if "NPTS" not in group:
             continue
-        npts = int(group["NPTS"][0])
+        npts = int(group["NPTS"][()])
         if global_npts is not None and npts != global_npts:
             raise RuntimeError(f"SW4 output is corrupted: {npts=} but {global_npts=}")
         global_npts = npts
