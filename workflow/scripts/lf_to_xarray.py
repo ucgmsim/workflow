@@ -49,13 +49,13 @@ def convert_sw4_station_recording(handle: h5py.File) -> xr.Dataset:
 
     Parameters
     ----------
-    handle: h5py.File
+    handle : h5py.File
         Handle for HDF5 file.
 
     Returns
     -------
     xr.Dataset
-        xarray dataset constructed from file.
+        An xarray dataset constructed from the HDF5 file.
 
     Raises
     ------
@@ -121,10 +121,16 @@ def convert_lf_to_xarray_dataset(
 
     Parameters
     ----------
-    lfseis_directory : Path
+    low_frequency_path : Path
         Directory containing station seismogram outputs.
     output_ffp : Path
         Path to write the xarray dataset
+    format : Format, optional
+        Format for the low-frequency inputs (EMOD3D or SW4). If format is SW4,
+        the low frequency path should be an HDF5 file in the SW4 station format
+        (Section 12.9 of the SW4 User Guide). If format is instead EMOD3D, the
+        low frequency path should be a directory containing LFSeis files.
+        Defaults to EMOD3D.
     """
     match format:
         case Format.EMOD3D if low_frequency_path.is_dir():
