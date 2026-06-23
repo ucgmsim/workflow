@@ -56,6 +56,12 @@ def convert_sw4_station_recording(handle: h5py.File) -> xr.Dataset:
     -------
     xr.Dataset
         xarray dataset constructed from file.
+
+    Raises
+    ------
+    RuntimeError
+        If the HDF5 file is not in the format expected for an SW4 recording file
+        (see Section 12.9 of the SW4 User Guide).
     """
     global_npts = None
 
@@ -70,7 +76,7 @@ def convert_sw4_station_recording(handle: h5py.File) -> xr.Dataset:
             continue
         npts = int(group["NPTS"][0])
         if global_npts is not None and npts != global_npts:
-            raise ValueError(f"SW4 output is corrupted: {npts=} but {global_npts=}")
+            raise RuntimeError(f"SW4 output is corrupted: {npts=} but {global_npts=}")
         global_npts = npts
         # Dask arrays here ensure that data is read chunkwise from the HDF5 file
         # without putting it all in-memory.
@@ -82,7 +88,7 @@ def convert_sw4_station_recording(handle: h5py.File) -> xr.Dataset:
         zs.append(z * CMS)
         stations.append(station_name)
     if global_npts is None:
-        raise ValueError(
+        raise RuntimeError(
             "No valid station recordings found in file. Are you sure this is an SW4 station file? Use `h5ls` to check the file structure."
         )
     time = np.arange(global_npts) * dt
