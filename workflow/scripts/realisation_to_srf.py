@@ -654,6 +654,30 @@ def _velocity_model_vs_den(
     )
 
 
+def _rewrite_point_source_srf_as_v2(
+    srf_ffp: Path, velocity_model_df: pd.DataFrame
+) -> None:
+    """Rewrite a version-1.0 SRF in place as version 2.0 with per-point vs and den.
+
+    Parameters
+    ----------
+    srf_ffp : Path
+        Path to the version-1.0 SRF written by ``generic_slip2srf``; overwritten as v2.0.
+    velocity_model_df : pd.DataFrame
+        The 1-D velocity model (with ``depth_km`` top depths, ``Vs``, ``rho``) used for the
+        slip calculation, supplying vs and den by depth.
+    """
+    srf_file = srf.read_srf(srf_ffp)
+    vs, den = _velocity_model_vs_den(
+        velocity_model_df, srf_file.points["dep"].to_numpy()
+    )
+    dt_index = srf_file.points.columns.get_loc("dt")
+    srf_file.points.insert(dt_index + 1, "vs", vs)
+    srf_file.points.insert(dt_index + 2, "den", den)
+    srf_file.version = "2.0"
+    srf.write_srf(srf_ffp, srf_file)
+
+
 def generate_point_source_srf(
     name: str,
     params: SRFRealisationContext,
@@ -750,6 +774,17 @@ def generate_point_source_srf(
         )
         raise
     logger.info("command completed", stderr=proc.stderr.decode("utf-8"))
+
+    if params.srf_config.srf_version == "2.0":
+        _rewrite_point_source_srf_as_v2(
+            environment.srf_directory / (normalise_name(name) + ".srf"),
+            velocity_model_df,
+        )
+    elif params.srf_config.srf_version != "1.0":
+        raise NotImplementedError(
+            f"Point sources support SRF versions 1.0 and 2.0, not "
+            f"{params.srf_config.srf_version!r}"
+        )
 
 
 @cli.from_docstring(app)

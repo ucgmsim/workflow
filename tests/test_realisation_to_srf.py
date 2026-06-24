@@ -1,7 +1,9 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from workflow import schemas
 from workflow.realisations import RuptureVelocity, SRFConfig
@@ -287,3 +289,67 @@ def test_velocity_model_vs_den() -> None:
 
     np.testing.assert_allclose(vs, [0.73e5, 1.57e5, 2.91e5, 2.91e5, 4.18e5])
     np.testing.assert_allclose(den, [1.93, 2.34, 2.76, 2.76, 3.42])
+
+
+def test_rewrite_point_source_srf_as_v2(monkeypatch: pytest.MonkeyPatch) -> None:
+    points = pd.DataFrame(
+        [
+            {
+                "lon": 172.8,
+                "lat": -43.5,
+                "dep": 8.06,
+                "stk": 64.0,
+                "dip": 58.0,
+                "area": 1.0e8,
+                "tinit": 0.0,
+                "dt": 0.02,
+                "rake": 131.0,
+                "slip": 12.5,
+                "rise": 0.5,
+            }
+        ]
+    )
+    fake_srf = SimpleNamespace(points=points, version="1.0")
+    monkeypatch.setattr(realisation_to_srf.srf, "read_srf", lambda _ffp: fake_srf)
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        realisation_to_srf.srf,
+        "write_srf",
+        lambda ffp, srf_file: captured.update(ffp=ffp, srf_file=srf_file),
+    )
+
+    velocity_model_df = pd.DataFrame(
+        {
+            "thickness": [3.0, 5.0, 5.0, 5.0, 100.0],
+            "Vs": [0.73, 1.57, 2.91, 3.64, 4.18],
+            "rho": [1.93, 2.34, 2.76, 3.11, 3.42],
+        }
+    )
+    velocity_model_df["depth_km"] = (
+        velocity_model_df["thickness"].cumsum() - velocity_model_df["thickness"]
+    )
+
+    realisation_to_srf._rewrite_point_source_srf_as_v2(
+        Path("unused.srf"), velocity_model_df
+    )
+
+    written = captured["srf_file"]
+    assert isinstance(written, SimpleNamespace)
+    assert written.version == "2.0"
+    assert list(written.points.columns) == [
+        "lon",
+        "lat",
+        "dep",
+        "stk",
+        "dip",
+        "area",
+        "tinit",
+        "dt",
+        "vs",
+        "den",
+        "rake",
+        "slip",
+        "rise",
+    ]
+    assert written.points["vs"].iloc[0] == pytest.approx(2.91e5)
+    assert written.points["den"].iloc[0] == pytest.approx(2.76)
