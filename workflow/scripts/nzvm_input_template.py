@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 from pathlib import Path
 
+import typer
+
 from workflow import domain
 from workflow.domain import Refinement
 from workflow.realisations import DomainParameters
+
+app = typer.Typer()
 
 TEMPLATE = """
 [grid]

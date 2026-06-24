@@ -45,7 +45,7 @@ def generate_sw4_input(
     top_refinement = refinements[0]
     dx = top_refinement.resolution
     topography_zmax = top_refinement.bottom
-
+    low_frequency_output = work_directory / "out.h5"
     output_path.write_text(
         SW4_TEMPLATE.format(
             # NOTE: In SW4 x = north, but in the workflow y = north.
@@ -63,6 +63,6 @@ def generate_sw4_input(
             srf=srf_path,
             station_file_name=output_path,
             work_directory=work_directory,
-            station_output_file_path=output_path,
+            station_output_file_path=low_frequency_output,
         )
     )
