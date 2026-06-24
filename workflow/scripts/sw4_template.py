@@ -29,6 +29,7 @@ def generate_sw4_input(
     work_directory: Path,
     output_path: Path,
 ) -> None:
+
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
 
     nx = domain_parameters.nx
@@ -39,7 +40,7 @@ def generate_sw4_input(
 
     depth = domain_parameters.depth
     time = domain_parameters.duration
-    refinements = domain.domain_refinements(depth)
+    refinements = domain.domain_refinements(depth * 1000.0)
     top_refinement = refinements[0]
     dx = top_refinement.resolution
     topography_zmax = top_refinement.bottom
@@ -55,11 +56,11 @@ def generate_sw4_input(
             lon=lon,
             azimuth=azimuth,
             topography_zmax=topography_zmax,
-            velocity_file_name=velocity_model.name,
+            velocity_model_name=velocity_model.name,
             velocity_model_directory=velocity_model.parent,
             time=time,
             srf=srf_path,
-            station_file_name=station_path,
+            station_file_name=output_path,
             work_directory=work_directory,
             station_output_file_path=output_path,
         )
