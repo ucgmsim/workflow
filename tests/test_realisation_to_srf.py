@@ -1,5 +1,8 @@
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
+
 from workflow import schemas
 from workflow.realisations import RuptureVelocity, SRFConfig
 from workflow.scripts import realisation_to_srf
@@ -263,3 +266,24 @@ def test_build_genslip_command_static_args() -> None:
         "print_command=0",
         "print_seed=0",
     }
+
+
+def test_velocity_model_vs_den() -> None:
+    velocity_model_df = pd.DataFrame(
+        {
+            "thickness": [3.0, 5.0, 5.0, 5.0, 100.0],
+            "Vs": [0.73, 1.57, 2.91, 3.64, 4.18],
+            "rho": [1.93, 2.34, 2.76, 3.11, 3.42],
+        }
+    )
+    velocity_model_df["depth_km"] = (
+        velocity_model_df["thickness"].cumsum() - velocity_model_df["thickness"]
+    )
+
+    # Layer tops: [0, 3, 8, 13, 18] km. vs is cm/s (Vs km/s * 1e5); den is g/cm^3 unchanged.
+    # An exact-boundary depth (8.0) takes the deeper layer, matching point_source_slip.
+    depths_km = np.array([0.0, 5.0, 8.0, 8.06, 25.0])
+    vs, den = realisation_to_srf._velocity_model_vs_den(velocity_model_df, depths_km)
+
+    np.testing.assert_allclose(vs, [0.73e5, 1.57e5, 2.91e5, 2.91e5, 4.18e5])
+    np.testing.assert_allclose(den, [1.93, 2.34, 2.76, 2.76, 3.42])
