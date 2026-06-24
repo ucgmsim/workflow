@@ -30,7 +30,25 @@ def generate_sw4_input(
     work_directory: Path,
     output_path: Path,
 ) -> None:
+    """Generate SW4 template for realisation
 
+
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        Path to realisation file.
+    station_path : Path
+        Path to station file.
+    srf_path : Path
+        Path to srf file.
+    velocity_model : Path
+        Path to velocity model file.
+    work_directory : Path
+        Path to work directory.
+    output_path : Path
+        Path to output SW4 file.
+    """
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
 
     nx = domain_parameters.nx
