@@ -621,18 +621,16 @@ def generate_fault_srfs_multi(
 def _velocity_model_vs_den(
     velocity_model_df: pd.DataFrame, depths_km: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Look up shear-wave velocity and density at given depths.
+    """Look up shear-wave velocity (cm/s) and density (g/cm^3) at given depths.
 
-    Uses the same layer selection as ``source_modelling.moment.point_source_slip`` (which
-    computes this point source's slip): the layer containing the depth, looked up on layer
-    *top* depths, with an exact-boundary depth assigned to the deeper layer. Sharing the
-    convention keeps a point source's slip and its vs/den on the same layer.
+    The layer for each depth is chosen by ``moment.velocity_model_layer_index`` (shared with
+    ``point_source_slip``); vs is converted km/s -> cm/s and den passes through g/cm^3.
 
     Parameters
     ----------
     velocity_model_df : pd.DataFrame
-        The 1-D velocity model with a ``depth_km`` column of layer *top* depths (as built
-        for the ``point_source_slip`` call), plus ``Vs`` (km/s) and ``rho`` (g/cm^3).
+        The 1-D velocity model with a ``depth_km`` column of layer top depths, plus ``Vs``
+        (km/s) and ``rho`` (g/cm^3).
     depths_km : np.ndarray
         Point depths, in kilometres.
 
@@ -641,15 +639,7 @@ def _velocity_model_vs_den(
     tuple[np.ndarray, np.ndarray]
         ``vs`` in cm/s and ``den`` in g/cm^3, one value per input depth.
     """
-    # depth_km must be top depths starting at 0 km; point_source_slip validates
-    # this on the same DataFrame earlier, so a bad model raises before this runs.
-    layer = np.maximum(
-        np.searchsorted(
-            velocity_model_df["depth_km"].to_numpy(), depths_km, side="right"
-        )
-        - 1,
-        0,
-    )
+    layer = moment.velocity_model_layer_index(velocity_model_df, depths_km)
     return (
         velocity_model_df["Vs"].to_numpy()[layer] * 1e5,
         velocity_model_df["rho"].to_numpy()[layer],
