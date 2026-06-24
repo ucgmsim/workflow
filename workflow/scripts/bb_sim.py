@@ -41,6 +41,7 @@ from typing import Annotated
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import scipy as sp
 import typer
 import xarray as xr
 
@@ -113,6 +114,51 @@ def align_waveforms(
     return lf_aligned, hf_aligned, common_time
 
 
+def resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
+    """Resample waveform dataset to a new time step.
+
+    Parameters
+    ----------
+    dset : xr.Dataset
+        Input dataset with dimensions (component, station, time) and
+        attributes 'dt'.
+    dt : float
+        Desired time step in seconds.
+
+    Returns
+    -------
+    xr.Dataset
+        Resampled dataset with updated time coordinates and dt attribute.
+    """
+    duration = dset["waveform"].sizes["time"] * dset.attrs["dt"]
+    nt = round(duration / dt)
+
+    # NOTE: I am not providing a default start second because we consider it an
+    # error not to provide one (no implicit magic behaviour).
+    new_time = np.arange(nt) * dt + dset.attrs["start_sec"]
+
+    resampled_waveform = xr.apply_ufunc(
+        sp.signal.resample,
+        dset["waveform"],
+        # This tells xarray that resample expects an array with all of the time component intact.
+        # So it will be passed arrays of shape (n_component, n_stations, n_time) = (i, j, nt)
+        input_core_dims=[["time"]],
+        # This tells xarray that the time dimension is going to be returned in
+        # its entirety by scipy resample.
+        output_core_dims=[["time"]],
+        # This tells xarray that the time coordinates from the dset dataset are no
+        # longer any good. They will be dropped from the output array.
+        exclude_dims=set(["time"]),
+        kwargs=dict(num=nt),
+    )
+
+    resampled_waveform = resampled_waveform.assign_coords(time=new_time)
+
+    new_dset = dset.assign(waveform=resampled_waveform)
+    new_dset.attrs["dt"] = dt
+    return new_dset
+
+
 @cli.from_docstring(app)
 @log_utils.log_call()
 def combine_hf_and_lf(
@@ -153,6 +199,11 @@ def combine_hf_and_lf(
     # load data stores
     lf = xr.open_dataset(low_frequency_waveform_file)
     hf = xr.open_dataset(high_frequency_waveform_file)
+    if not np.isclose(lf.attrs["dt"], bb_dt):
+        lf = resample_signal(lf, bb_dt)
+    if not np.isclose(hf.attrs["dt"], bb_dt):
+        hf = resample_signal(hf, bb_dt)
+
     common_stations = list(
         set(map(str, hf.station.values)) & set(map(str, lf.station.values))
     )
