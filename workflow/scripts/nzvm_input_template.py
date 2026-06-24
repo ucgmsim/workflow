@@ -117,7 +117,8 @@ def refinement_template(refinement: Refinement) -> str:
     )
 
 
-def generate_template(realisation_ffp: Path, output_path: Path):
+def generate_template(realisation_ffp: Path, output_path: Path) -> None:
+
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     refinements = domain.domain_refinements(domain_parameters.depth * 1000.0)
     refinement_str = "\n".join(
