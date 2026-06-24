@@ -10,6 +10,7 @@ supergrid gp=30
 time t={time}
 
 # NZTM equivalent projection without the false northing and easting (which are unsupported by SW4)
+# NOTE: x=north, y=east, z=down
 grid nx={nx} ny={ny} nz={nz} h={dx} az={azimuth} lon={lon} lat={lat} proj=tmerc datum=NZGD2000 lon_p=173.0 lat_p=0.0 scale=0.9996
 rupturehdf5 file={srf}
 
