@@ -81,12 +81,13 @@ def check_srf(
         np.searchsorted(velocity_model["depth"], srf_file.points["dep"]),
     )
     mu = velocity_model["mu"].iloc[indices].values
-    srf_magnitude = mag_scaling.mom2mag(
+    srf_magnitude = moment.moment_to_magnitude(
         (
             np.array(srf_file.points["area"].values)
             * np.array(srf_file.points["slip"].values)
             * mu
-        ).sum()
+        ).sum(),
+        bold_m=True,
     )
     logger = log_utils.get_logger("__name__")
 
@@ -131,7 +132,7 @@ def check_srf(
         magnitudes = Magnitudes.read_from_realisation(realisation_ffp)
         magnitude = moment.moment_to_magnitude(
             sum(
-                moment.magnitude_to_moment(mag)
+                moment.magnitude_to_moment(mag, bold_m=True)
                 for mag in magnitudes.magnitudes.values()
             )
         )
