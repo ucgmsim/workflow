@@ -2,6 +2,7 @@
 from pathlib import Path
 
 from workflow import domain
+from workflow.domain import Refinement
 from workflow.realisations import DomainParameters
 
 TEMPLATE = """
@@ -121,7 +122,7 @@ def generate_template(realisation_ffp: Path, output_path: Path):
     origin = domain_parameters.domain.origin
     origin_lat = origin[0]
     origin_lon = origin[1]
-    azimuth = domain_parameters.domain.bearing
+    azimuth = domain_parameters.domain.great_circle_bearing
     extent_y = domain_parameters.domain.extent_y
     extent_x = domain_parameters.domain.extent_x
     output_path.write_text(
