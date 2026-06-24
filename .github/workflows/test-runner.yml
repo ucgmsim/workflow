@@ -1,0 +1,11 @@
+name: Test Runner
+on:
+  pull_request:
+  push:
+
+jobs:
+  test:
+    runs-on: [self-hosted, Linux, X64]
+    steps:
+      - run: echo "Runner is alive!"
+
