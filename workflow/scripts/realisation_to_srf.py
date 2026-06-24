@@ -641,6 +641,8 @@ def _velocity_model_vs_den(
     tuple[np.ndarray, np.ndarray]
         ``vs`` in cm/s and ``den`` in g/cm^3, one value per input depth.
     """
+    # depth_km must be top depths starting at 0 km; point_source_slip validates
+    # this on the same DataFrame earlier, so a bad model raises before this runs.
     layer = np.maximum(
         np.searchsorted(
             velocity_model_df["depth_km"].to_numpy(), depths_km, side="right"
