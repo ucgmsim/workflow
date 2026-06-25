@@ -618,54 +618,36 @@ def generate_fault_srfs_multi(
             )
 
 
-def _velocity_model_vs_den(
-    velocity_model_df: pd.DataFrame, depths_km: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
-    """Look up shear-wave velocity (cm/s) and density (g/cm^3) at given depths.
-
-    The layer for each depth is chosen by ``moment.velocity_model_layer_index`` (shared with
-    ``point_source_slip``); vs is converted km/s -> cm/s and den passes through g/cm^3.
-
-    Parameters
-    ----------
-    velocity_model_df : pd.DataFrame
-        The 1-D velocity model with a ``depth_km`` column of layer top depths, plus ``Vs``
-        (km/s) and ``rho`` (g/cm^3).
-    depths_km : np.ndarray
-        Point depths, in kilometres.
-
-    Returns
-    -------
-    tuple[np.ndarray, np.ndarray]
-        ``vs`` in cm/s and ``den`` in g/cm^3, one value per input depth.
-    """
-    layer = moment.velocity_model_layer_index(velocity_model_df, depths_km)
-    return (
-        velocity_model_df["Vs"].to_numpy()[layer] * 1e5,
-        velocity_model_df["rho"].to_numpy()[layer],
-    )
-
-
-def _rewrite_point_source_srf_as_v2(
+def rewrite_point_source_srf_as_v2(
     srf_ffp: Path, velocity_model_df: pd.DataFrame
 ) -> None:
-    """Rewrite a version-1.0 SRF in place as version 2.0 with per-point vs and den.
+    """Rewrite a version 1.0 SRF in place as version 2.0 with per-point vs and den.
 
     Parameters
     ----------
     srf_ffp : Path
-        Path to the version-1.0 SRF written by ``generic_slip2srf``; overwritten as v2.0.
+        Path to the version 1.0 SRF written by ``generic_slip2srf``; overwritten as v2.0.
     velocity_model_df : pd.DataFrame
-        The 1-D velocity model (with ``depth_km`` top depths, ``Vs``, ``rho``) used for the
-        slip calculation, supplying vs and den by depth.
+        The 1D velocity model containing columns:
+            ``depth_km``: layer top depths (km)
+            ``Vs``: layer shear-wave velocity (km/s)
+            ``rho``: layer density (g/cm^3)
     """
     srf_file = srf.read_srf(srf_ffp)
-    vs, den = _velocity_model_vs_den(
+    layer_idx = moment.velocity_model_layer_index(
         velocity_model_df, srf_file.points["dep"].to_numpy()
     )
-    dt_index = srf_file.points.columns.get_loc("dt")
-    srf_file.points.insert(dt_index + 1, "vs", vs)
-    srf_file.points.insert(dt_index + 2, "den", den)
+
+    srf_file.points.insert(
+        srf_file.points.columns.get_loc("dt") + 1,
+        "vs",
+        velocity_model_df["Vs"].to_numpy()[layer_idx] * 1e5,
+    )  # *1e5 to convert km/s to cm/s
+    srf_file.points.insert(
+        srf_file.points.columns.get_loc("dt") + 2,
+        "den",
+        velocity_model_df["rho"].to_numpy()[layer_idx],
+    )
     srf_file.version = "2.0"
     srf.write_srf(srf_ffp, srf_file)
 
@@ -768,7 +750,7 @@ def generate_point_source_srf(
     logger.info("command completed", stderr=proc.stderr.decode("utf-8"))
 
     if params.srf_config.srf_version == "2.0":
-        _rewrite_point_source_srf_as_v2(
+        rewrite_point_source_srf_as_v2(
             environment.srf_directory / (normalise_name(name) + ".srf"),
             velocity_model_df,
         )
