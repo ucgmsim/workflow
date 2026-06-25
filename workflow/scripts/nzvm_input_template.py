@@ -3,6 +3,7 @@ from pathlib import Path
 
 import typer
 
+from qcore import cli
 from workflow import domain
 from workflow.domain import Refinement
 from workflow.realisations import DomainParameters
@@ -117,8 +118,17 @@ def refinement_template(refinement: Refinement) -> str:
     )
 
 
+@cli.from_docstring(app)
 def generate_template(realisation_ffp: Path, output_path: Path) -> None:
+    """Generate a template VM file from a realisation file.
 
+    Parameters
+    ----------
+    realisation_ffp : Path
+        Path to the realisation file containing domain parameters.
+    output_path : Path
+        Path where the generated template will be written.
+    """
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     refinements = domain.domain_refinements(domain_parameters.depth * 1000.0)
     refinement_str = "\n".join(
