@@ -1,8 +1,12 @@
 from pathlib import Path
 
+import typer
+
+from qcore import cli
 from workflow import domain
 from workflow.realisations import DomainParameters
 
+app = typer.Typer()
 SW4_TEMPLATE = """
 fileio path={work_directory}
 
@@ -22,6 +26,7 @@ rechdf5 infile={station_file_name} outfile={station_output_file_path} writeEvery
 """
 
 
+@cli.from_docstring(app)
 def generate_sw4_input(
     realisation_ffp: Path,
     station_path: Path,
