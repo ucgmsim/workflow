@@ -15,7 +15,7 @@ time t={time}
 
 # NZTM equivalent projection without the false northing and easting (which are unsupported by SW4)
 # NOTE: x=north, y=east, z=down
-grid nx={nx} ny={ny} nz={nz} h={dx} az={azimuth} lon={lon} lat={lat} proj=tmerc datum=NZGD2000 lon_p=173.0 lat_p=0.0 scale=0.9996
+grid x={x} y={y} z={z} h={dx} az={azimuth} lon={lon} lat={lat} proj=tmerc datum=NZGD2000 lon_p=173.0 lat_p=0.0 scale=0.9996
 rupturehdf5 file={srf}
 
 attenuation maxfreq=1.0
@@ -64,7 +64,11 @@ def generate_sw4_input(
 
     depth = domain_parameters.depth
     time = domain_parameters.duration
-    refinements = domain.domain_refinements(depth * 1000.0)
+    refinements = domain.domain_refinements(depth)
+    refinements_str = '\n'.join(
+        f'refinement {refinement.bottom}'
+        for refinement in refinements[:-1]
+    )
     top_refinement = refinements[0]
     dx = top_refinement.resolution
     topography_zmax = top_refinement.bottom
