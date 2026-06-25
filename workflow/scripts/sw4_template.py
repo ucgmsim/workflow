@@ -78,8 +78,8 @@ def generate_sw4_input(
     output_path.write_text(
         SW4_TEMPLATE.format(
             # NOTE: In SW4 x = north, but in the workflow y = north.
-            x=x,
-            y=y,
+            x=y,
+            y=x,
             z=depth * 1000.0,
             dx=dx,
             lat=lat,
