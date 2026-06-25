@@ -632,8 +632,18 @@ def rewrite_point_source_srf_as_v2(
             ``depth_km``: layer top depths (km)
             ``Vs``: layer shear-wave velocity (km/s)
             ``rho``: layer density (g/cm^3)
+
+    Raises
+    ------
+    ValueError
+        If the SRF at ``srf_ffp`` is not version 1.0.
     """
     srf_file = srf.read_srf(srf_ffp)
+    if srf_file.version != "1.0":
+        raise ValueError(
+            f"Expected a version 1.0 SRF to rewrite as 2.0, but {srf_ffp} is version "
+            f"{srf_file.version}."
+        )
     layer_idx = moment.velocity_model_layer_index(
         velocity_model_df, srf_file.points["dep"].to_numpy()
     )
