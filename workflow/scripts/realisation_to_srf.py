@@ -672,6 +672,16 @@ def generate_point_source_srf(
     -------
     None
         This function does not return a value; it writes the SRF file to disk.
+
+    Raises
+    ------
+    ValueError
+        If the realisation provides no point-source parameters
+        (``srf_config.point_source_params`` is ``None``).
+    subprocess.CalledProcessError
+        If the ``generic_slip2srf`` command exits with a non-zero status.
+    NotImplementedError
+        If ``srf_config.srf_version`` is neither ``"1.0"`` nor ``"2.0"``.
     """
 
     if params.srf_config.point_source_params is None:
