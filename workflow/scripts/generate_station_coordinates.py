@@ -28,9 +28,12 @@ For More Help
 See the output of `generate-station-coordinates --help`.
 """
 
+from enum import StrEnum, auto
 from pathlib import Path
 from typing import Annotated
 
+import h5py
+import numpy as np
 import pandas as pd
 import typer
 
@@ -41,29 +44,48 @@ from workflow.realisations import DomainParameters, Resolution
 app = typer.Typer()
 
 
-@cli.from_docstring(app)
-@log_utils.log_call()
-def generate_fd_files(
-    realisation_ffp: Annotated[Path, typer.Argument(readable=True, dir_okay=False)],
-    stat_file: Annotated[Path, typer.Argument(readable=True, dir_okay=False)],
-    output_path: Annotated[Path, typer.Argument(file_okay=False, writable=True)],
+class Format(StrEnum):
+    EMOD3D = auto()
+    SW4 = auto()
+
+
+def write_ascii_station_locations(
+    stations: pd.DataFrame,
+    ll_out: Path,
+    lon_col: str = "lon",
+    lat_col: str = "lat",
+    name_col: str = "name",
 ) -> None:
-    """Generate station coordinate files.
+    with open(ll_out, "w", encoding="utf-8") as llf:
+        stations.apply(
+            lambda station: llf.write(
+                f"{station[lon_col]:11.5f} {station[lat_col]:11.5f} {station[name_col]}\n"
+            ),
+            axis=1,
+        )
+
+
+def write_emod3d_station_format(
+    domain_parameters: DomainParameters,
+    resolution_parameters: Resolution,
+    stations: pd.DataFrame,
+    output_path: Path,
+) -> None:
+    """Write station coordinates in EMOD3D format to two output files.
 
     Parameters
     ----------
-    realisation_ffp : Path
-        Path to realisation json file.
-    stat_file : Path
-        The location of the station files.
+    domain_parameters : DomainParameters
+        Object containing domain definition and methods to compute grid dimensions.
+    resolution_parameters : Resolution
+        Object containing the grid resolution.
+    stations : pd.DataFrame
+        DataFrame with columns `lat`, `lon`, and `name`. Latitude and longitude
+        are in degrees.
     output_path : Path
-        Output path for station files.
+        Directory path where the output files will be written.
     """
-    output_path.mkdir(exist_ok=True)
-    domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
-    resolution_parameters = Resolution.read_from_realisation(realisation_ffp)
     domain = domain_parameters.domain
-
     nx = domain_parameters.nx(resolution_parameters.resolution)
     ny = domain_parameters.ny(resolution_parameters.resolution)
     mlat, mlon = domain.origin
@@ -73,14 +95,6 @@ def generate_fd_files(
     # where to save gridpoint and longlat station files
     gp_out = output_path / "stations.statcords"
     ll_out = output_path / "stations.ll"
-
-    # retrieve in station names, latitudes and longitudes
-    stations = pd.read_csv(
-        stat_file,
-        delimiter=r"\s+",
-        comment="#",
-        names=["lon", "lat", "name"],
-    )
 
     x, y = proj(
         lat=stations["lat"].to_numpy(float), lon=stations["lon"].to_numpy(float)
@@ -127,13 +141,62 @@ def generate_fd_files(
             axis=1,
         )
 
-    # create ll file
-    with open(ll_out, "w", encoding="utf-8") as llf:
-        stations.apply(
-            lambda station: llf.write(
-                f"{station['grid_lon']:11.5f} {station['grid_lat']:11.5f} {station['name']}\n"
-            ),
-            axis=1,
-        )
+    write_ascii_station_locations(
+        stations, ll_out, lon_col="grid_lon", lat_col="grid_lat"
+    )
+
+
+def write_sw4_station_format(stations: pd.DataFrame, output_path: Path) -> None:
+    with h5py.File(output_path / "stations.h5", "w") as f:
+        for station_name, position in stations.set_index("name").iterrows():
+            station_dset = f.create_group(station_name)
+            location = station_dset.create_dataset(
+                "STLA,STLO,STDP", (3), dtype=np.float64
+            )
+            location[0] = position["lat"]
+            location[1] = position["lon"]
+            location[2] = 0.0
+
+    write_ascii_station_locations(stations, output_path / "stations.ll")
+
+
+@cli.from_docstring(app)
+@log_utils.log_call()
+def generate_fd_files(
+    realisation_ffp: Annotated[Path, typer.Argument(readable=True, dir_okay=False)],
+    stat_file: Annotated[Path, typer.Argument(readable=True, dir_okay=False)],
+    output_path: Annotated[Path, typer.Argument(file_okay=False, writable=True)],
+    format: Format = Format.EMOD3D,
+) -> None:
+    """Generate station coordinate files.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        Path to realisation json file.
+    stat_file : Path
+        The location of the station files.
+    output_path : Path
+        Output path for station files.
+    """
+    output_path.mkdir(exist_ok=True)
+    domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
+    resolution_parameters = Resolution.read_from_realisation(realisation_ffp)
+
+    # retrieve in station names, latitudes and longitudes
+    stations = pd.read_csv(
+        stat_file,
+        delimiter=r"\s+",
+        comment="#",
+        names=["lon", "lat", "name"],
+    )
+
+    match format:
+        case Format.EMOD3D:
+            write_emod3d_station_format(
+                domain_parameters, resolution_parameters, stations, output_path
+            )
+        case Format.SW4:
+            write_sw4_station_format(stations, output_path)
 
     realisations.append_log_entry(realisation_ffp)
