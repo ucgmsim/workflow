@@ -56,9 +56,8 @@ def generate_sw4_input(
     """
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
 
-    nx = domain_parameters.nx
-    ny = domain_parameters.ny
-    nz = domain_parameters.nz
+    x = domain_parameters.domain.extent_x * 1000.0
+    y = domain_parameters.domain.extent_y * 1000.0
     azimuth = domain_parameters.domain.great_circle_bearing
     lat, lon = domain_parameters.domain.origin
 
@@ -69,16 +68,17 @@ def generate_sw4_input(
         f'refinement {refinement.bottom}'
         for refinement in refinements[:-1]
     )
+    bottom_refinement = refinements[-1]
+    dx = bottom_refinement.resolution
     top_refinement = refinements[0]
-    dx = top_refinement.resolution
     topography_zmax = top_refinement.bottom
     low_frequency_output = work_directory / "out.h5"
     output_path.write_text(
         SW4_TEMPLATE.format(
             # NOTE: In SW4 x = north, but in the workflow y = north.
-            nx=ny,
-            ny=nx,
-            nz=nz,
+            x=y,
+            y=x,
+            z=depth * 1000.0,
             dx=dx,
             lat=lat,
             lon=lon,
