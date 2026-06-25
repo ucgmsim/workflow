@@ -18,6 +18,8 @@ time t={time}
 grid x={x} y={y} z={z} h={dx} az={azimuth} lon={lon} lat={lat} proj=tmerc datum=NZGD2000 lon_p=173.0 lat_p=0.0 scale=0.9996
 rupturehdf5 file={srf}
 
+{refinement_str}
+
 attenuation maxfreq=1.0
 
 sfile filename={velocity_model_name} directory={velocity_model_directory}
@@ -65,7 +67,7 @@ def generate_sw4_input(
     time = domain_parameters.duration
     refinements = domain.domain_refinements(depth)
     refinements_str = '\n'.join(
-        f'refinement {refinement.bottom}'
+        f'refinement {refinement.bottom:.1f}'
         for refinement in refinements[:-1]
     )
     bottom_refinement = refinements[-1]
@@ -91,5 +93,6 @@ def generate_sw4_input(
             station_file_name=output_path,
             work_directory=work_directory,
             station_output_file_path=low_frequency_output,
+            refinement_str=refinements_str
         )
     )
