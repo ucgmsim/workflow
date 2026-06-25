@@ -71,8 +71,9 @@ ENV LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
 # Setup Virtual Environment and Install via pip
-ARG WORKFLOW_BRANCH=pegasus
+ARG WORKFLOW_BRANCH=ab95927
+ARG VM_BRANCH=master
 RUN python3 -m venv $VIRTUAL_ENV && \
     pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir "git+https://github.com/ucgmsim/workflow@${WORKFLOW_BRANCH}" --no-binary=h5py && \
+    pip install --no-cache-dir "git+https://github.com/lispandfound/nzcvm@${VM_BRANCH}" "git+https://github.com/ucgmsim/workflow@${WORKFLOW_BRANCH}" --no-binary=h5py && \
     chmod -R a+rX /sw

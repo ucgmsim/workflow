@@ -1,5 +1,5 @@
-Bootstrap: docker
-From: earthquakesuc/workflow-bootstrap:latest
+Bootstrap: docker-daemon
+From: earthquakesuc/workflow:latest
 
 %files
     EMOD3D /EMOD3D
