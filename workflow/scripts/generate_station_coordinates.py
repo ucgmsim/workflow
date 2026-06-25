@@ -160,7 +160,7 @@ def write_sw4_station_format(
         for station_name, position in stations.set_index("name").iterrows():
             station_dset = f.create_group(station_name)
             location = station_dset.create_dataset(
-                "STLA,STLO,STDP", (3), dtype=np.float64
+                "STLA,STLO,STDP", (3,), dtype=np.float64
             )
             location[0] = position["lat"]
             location[1] = position["lon"]
