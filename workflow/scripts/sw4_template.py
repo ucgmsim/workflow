@@ -15,7 +15,7 @@ time t={time}
 
 # NZTM equivalent projection without the false northing and easting (which are unsupported by SW4)
 # NOTE: x=north, y=east, z=down
-grid x={x} y={y} z={z} h={dx} az={azimuth} lon={lon} lat={lat} proj=tmerc datum=NZGD2000 lon_p=173.0 lat_p=0.0 scale=0.9996
+grid x={x} y={y} z={z} h={dx} az={azimuth} lon={lon} lat={lat} proj=tmerc ellps=GRS80 lon_p=173.0 lat_p=0.0 scale=0.9996
 rupturehdf5 file={srf}
 
 {refinement_str}
@@ -78,8 +78,8 @@ def generate_sw4_input(
     output_path.write_text(
         SW4_TEMPLATE.format(
             # NOTE: In SW4 x = north, but in the workflow y = north.
-            x=y,
-            y=x,
+            x=x,
+            y=y,
             z=depth * 1000.0,
             dx=dx,
             lat=lat,
