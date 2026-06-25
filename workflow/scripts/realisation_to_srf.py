@@ -638,13 +638,15 @@ def rewrite_point_source_srf_as_v2(
         velocity_model_df, srf_file.points["dep"].to_numpy()
     )
 
+    # `: int` narrows get_loc's int|slice|ndarray return for ty ("dt" is unique -> always an int).
+    dt_index: int = srf_file.points.columns.get_loc("dt")
     srf_file.points.insert(
-        srf_file.points.columns.get_loc("dt") + 1,
+        dt_index + 1,
         "vs",
         velocity_model_df["Vs"].to_numpy()[layer_idx] * 1e5,
     )  # *1e5 to convert km/s to cm/s
     srf_file.points.insert(
-        srf_file.points.columns.get_loc("dt") + 2,
+        dt_index + 2,
         "den",
         velocity_model_df["rho"].to_numpy()[layer_idx],
     )
