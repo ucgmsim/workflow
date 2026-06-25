@@ -35,6 +35,7 @@ from typing import Annotated
 import h5py
 import numpy as np
 import pandas as pd
+import shapely
 import typer
 
 from qcore import cli, coordinates
@@ -146,7 +147,15 @@ def write_emod3d_station_format(
     )
 
 
-def write_sw4_station_format(stations: pd.DataFrame, output_path: Path) -> None:
+def write_sw4_station_format(
+    domain_parameters: DomainParameters, stations: pd.DataFrame, output_path: Path
+) -> None:
+    lat_lon = stations[["lat", "lon"]].to_numpy()
+    nzvm_coordinates = coordinates.wgs_depth_to_nztm(lat_lon)
+    poly = domain_parameters.domain.polygon
+    mask = shapely.contains_xy(poly, nzvm_coordinates[:, 0], nzvm_coordinates[:, 1])
+    stations = stations.loc[mask]
+
     with h5py.File(output_path / "stations.h5", "w") as f:
         for station_name, position in stations.set_index("name").iterrows():
             station_dset = f.create_group(station_name)
@@ -197,6 +206,6 @@ def generate_fd_files(
                 domain_parameters, resolution_parameters, stations, output_path
             )
         case Format.SW4:
-            write_sw4_station_format(stations, output_path)
+            write_sw4_station_format(domain_parameters, stations, output_path)
 
     realisations.append_log_entry(realisation_ffp)
