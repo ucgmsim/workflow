@@ -30,8 +30,8 @@ origin_lat = {origin_lat}
 
 # Chunks for internal calculations.
 [grid.chunks]
-i = 256
-j = 256
+i = 128
+j = 128
 k = 128
 
 [[layers]]
