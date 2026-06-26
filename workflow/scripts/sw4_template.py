@@ -68,7 +68,7 @@ def generate_sw4_input(
     time = domain_parameters.duration
     refinements = domain.domain_refinements(depth)
     refinements_str = "\n".join(
-        f"refinement zmax={refinement.bottom:.1f}" for refinement in refinements[:-1]
+        f"refinement zmax={refinement.bottom:.1f}" for refinement in refinements
     )
     bottom_refinement = refinements[-1]
     dx = bottom_refinement.resolution
