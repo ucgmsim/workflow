@@ -60,14 +60,15 @@ def generate_sw4_input(
 
     x = domain_parameters.domain.extent_x * 1000.0
     y = domain_parameters.domain.extent_y * 1000.0
-    azimuth = domain_parameters.domain.great_circle_bearing
-    lat, lon = domain_parameters.domain.origin
+    azimuth = domain_parameters.domain.bearing
+    # In SW4 the domain should always begin from the bottom-left (which is corners[0] by construction)
+    lat, lon = domain_parameters.domain.corners[0]
 
     depth = domain_parameters.depth
     time = domain_parameters.duration
     refinements = domain.domain_refinements(depth)
     refinements_str = '\n'.join(
-        f'refinement {refinement.bottom:.1f}'
+        f'refinement zmax={refinement.bottom:.1f}'
         for refinement in refinements[:-1]
     )
     bottom_refinement = refinements[-1]
