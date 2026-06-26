@@ -30,9 +30,9 @@ origin_lat = {origin_lat}
 
 # Chunks for internal calculations.
 [grid.chunks]
-i = 128
-j = 128
-k = 128
+i = 64
+j = 64
+k = 512
 
 [[layers]]
 type = "clamp"
