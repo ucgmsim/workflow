@@ -5,6 +5,7 @@ the [Realisations page](https://github.com/ucgmsim/workflow/wiki/Realisations), 
 [Realisations Proposal page](https://github.com/ucgmsim/workflow/wiki/Realisation-Proposal))
 for a description of realisations and the schemas.
 """
+from pathlib import Path
 from nzcvm.coordinates import Coordinate
 from nzcvm.config.layers import LayerConfig
 
@@ -958,7 +959,8 @@ VELOCITY_MODEL_SCHEMA = Schema(
             NUMBER, _is_positive
         ),
         Literal('layers'): Or(None, [Use(LayerConfig.from_dict)]),
-        Literal('chunks'): Or(dict(), {Use(Coordinate): int})
+        Literal('chunks'): Or(dict(), {Use(Coordinate): int}),
+        Literal('surface'): Or(None, Use(Path))
     }
 )
 

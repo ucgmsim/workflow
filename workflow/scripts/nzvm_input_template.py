@@ -1,121 +1,22 @@
 #!/usr/bin/env python3
+import functools
+import json
+from nzcvm.config.metadata import ModelMetadata
+import pyproj
+from nzcvm.config.grids.sw4 import SW4GridConfig, MeshRefinement
+from nzcvm.config import VelocityModelConfig
+from nzcvm.config.grids.model import Model
 from pathlib import Path
 
 import typer
 
 from qcore import cli
 from workflow import domain
-from workflow.domain import Refinement
-from workflow.realisations import DomainParameters
+
+from workflow.realisations import DomainParameters, VelocityModelParameters
 
 app = typer.Typer()
 
-TEMPLATE = """
-[grid]
-type = "sw4"
-
-surface = "${{NZCVM_DATA_ROOT}}/resources/dem.zarr"
-
-extent_x = {extent_x}
-extent_y = {extent_y}
-
-[grid.orientation]
-crs = 'EPSG:2193'
-azimuth = {azimuth}
-origin_lon = {origin_lon}
-origin_lat = {origin_lat}
-
-{refinements}
-
-
-# Chunks for internal calculations.
-[grid.chunks]
-i = 64
-j = 64
-k = 512
-
-[[layers]]
-type = "clamp"
-# Enforce Vp/Vs ratios
-min_vp_vs_ratio = 1.73
-max_vp_vs_ratio = 4.0
-
-[layers.clamps.vs]
-min = 500.0
-
-[[layers]]
-type = "coastline"
-# Coastline to measure distances from.
-coastline = "${{NZCVM_DATA_ROOT}}/resources/coastline.wkb.gz"
-
-[[layers]]
-type = "offshore"
-model = [
-{{bottom_depth = 50.0, rho = 1810.0, vp = 1800.0, vs = 380.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 150.0, rho = 1810.0, vp = 1800.0, vs = 480.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 300.0, rho = 1810.0, vp = 1800.0, vs = 580.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 500.0, rho = 1810.0, vp = 1800.0, vs = 680.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 800.0, rho = 1810.0, vp = 1800.0, vs = 750.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 1200.0, rho = 1810.0, vp = 1800.0, vs = 830.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 1800.0, rho = 1860.0, vp = 1900.0, vs = 900.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 2600.0, rho = 1920.0, vp = 2030.0, vs = 1000.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 3600.0, rho = 1970.0, vp = 2140.0, vs = 1050.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 4800.0, rho = 1990.0, vp = 2200.0, vs = 1100.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 6200.0, rho = 2060.0, vp = 2400.0, vs = 1150.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 7800.0, rho = 2150.0, vp = 2700.0, vs = 1200.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 9600.0, rho = 2220.0, vp = 3000.0, vs = 1430.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 11600.0, rho = 2280.0, vp = 3270.0, vs = 1640.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 13800.0, rho = 2320.0, vp = 3530.0, vs = 1860.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 16200.0, rho = 2360.0, vp = 3800.0, vs = 2070.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 18800.0, rho = 2400.0, vp = 4070.0, vs = 2280.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 21600.0, rho = 2440.0, vp = 4330.0, vs = 2490.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 24600.0, rho = 2480.0, vp = 4600.0, vs = 2700.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 27800.0, rho = 2490.0, vp = 4710.0, vs = 2770.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 31200.0, rho = 2510.0, vp = 4820.0, vs = 2840.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 34800.0, rho = 2520.0, vp = 4930.0, vs = 2910.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 38600.0, rho = 2540.0, vp = 5040.0, vs = 2980.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 42600.0, rho = 2560.0, vp = 5150.0, vs = 3050.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 46800.0, rho = 2580.0, vp = 5260.0, vs = 3120.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 51200.0, rho = 2600.0, vp = 5370.0, vs = 3190.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 55800.0, rho = 2610.0, vp = 5480.0, vs = 3260.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 60600.0, rho = 2630.0, vp = 5590.0, vs = 3330.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 65600.0, rho = 2660.0, vp = 5700.0, vs = 3400.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 73600.0, rho = 2720.0, vp = 6000.0, vs = 3600.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 85600.0, rho = 2720.0, vp = 6000.0, vs = 3600.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 112600.0, rho = 2830.0, vp = 6500.0, vs = 3700.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 151600.0, rho = 3120.0, vp = 7500.0, vs = 4300.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-{{bottom_depth = 10151599.0, rho = 3330.0, vp = 8100.0, vs = 4600.0, qp = 100.0, qs = 50.0, alpha = 1.0}},
-]
-basin_depth = [
-    {{distance =  0.0, bottom_depth = 0.0}},
-    {{distance = 20000.0, bottom_depth = 2000.0}},
-    {{distance = 50000.0, bottom_depth = 3000.0}}
-]
-
-[[layers]]
-# Geotechnical weathering layer.
-type = "ely"
-vs30 = "${{NZCVM_DATA_ROOT}}/resources/vs30.zarr"
-depth_t = 450.0
-
-[[layers]]
-# Query layer for complex tomography and 3D basin models.
-type = "query"
-model_path = "${{NZCVM_DATA_ROOT}}/models"
-model_globs = ["*.zarr"]
-"""
-
-
-REFINEMENT_TEMPLATE = """[grid.refinements.{name}]
-resolution = {resolution:.1f}
-bottom = {bottom:.1f}"""
-
-
-def refinement_template(refinement: Refinement) -> str:
-    name = f"layer_{int(refinement.resolution)}m"
-    return REFINEMENT_TEMPLATE.format(
-        name=name, resolution=refinement.resolution, bottom=refinement.bottom
-    )
 
 
 @cli.from_docstring(app)
@@ -130,11 +31,9 @@ def generate_template(realisation_ffp: Path, output_path: Path) -> None:
         Path where the generated template will be written.
     """
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
+    velocity_model_parameters = VelocityModelParameters.read_from_realisation(realisation_ffp)
     offset = 10.0
     refinements = domain.domain_refinements(domain_parameters.depth + offset)
-    refinement_str = "\n".join(
-        refinement_template(refinement) for refinement in refinements
-    )
     origin = domain_parameters.domain.origin
     origin_lat = origin[0]
     origin_lon = origin[1]
@@ -143,13 +42,29 @@ def generate_template(realisation_ffp: Path, output_path: Path) -> None:
     buffer = 1.10
     extent_y = buffer * domain_parameters.domain.extent_y * 1000.0
     extent_x = buffer * domain_parameters.domain.extent_x * 1000.0
-    output_path.write_text(
-        TEMPLATE.format(
-            azimuth=azimuth,
-            origin_lon=origin_lon,
-            origin_lat=origin_lat,
+    if not velocity_model_parameters.surface:
+        raise ValueError('NZCVM requires defined surface path.')
+    if not velocity_model_parameters.layers:
+        raise ValueError('NZCVM requires at least one defined layer.')
+    config = VelocityModelConfig(
+        grid=SW4GridConfig(
             extent_x=extent_x,
             extent_y=extent_y,
-            refinements=refinement_str,
-        )
+            orientation=Model(
+                origin_lon=origin_lon,
+                origin_lat=origin_lat,
+                crs=pyproj.CRS(2193),
+                azimuth=azimuth
+            ),
+            surface=velocity_model_parameters.surface,
+            chunks=velocity_model_parameters.chunks,
+            refinements=
+                {
+                    f'layer_{refinement.resolution}m': MeshRefinement(resolution=refinement.resolution, bottom=refinement.bottom)
+                 for refinement in refinements
+                }
+        ),
+        layers=velocity_model_parameters.layers
     )
+    with open(output_path, 'w') as f:
+        f.write(config.to_json(encoder=functools.partial(json.dumps, indent=4))) # ty: ignore

@@ -80,6 +80,12 @@ class RealisationParseError(Exception):
     pass
 
 
+def path_serialiser(obj: Any) -> Any:
+    if isinstance(obj, Path):
+        return str(obj)
+    return obj
+
+
 @dataclasses.dataclass
 class RealisationConfiguration(ABC):
     """Abstract base class for RealisationConfiguration."""
@@ -223,7 +229,7 @@ class RealisationConfiguration(ABC):
                 realisation_configuration = json.load(realisation_file_handle)
         realisation_configuration.update({self._config_key: self.to_dict()})
         with open(realisation_ffp, "w", encoding="utf-8") as realisation_file_handle:
-            json.dump(realisation_configuration, realisation_file_handle, indent=4)
+            json.dump(realisation_configuration, realisation_file_handle, indent=4, default=path_serialiser)
 
 
 @dataclasses.dataclass
@@ -859,10 +865,12 @@ class VelocityModelParameters(RealisationConfiguration):
     """Target RRup values at specific magnitudes, used to estimate domain size."""
     fault_buffer: float
     """Buffer width (km) around sources in rupture. Domain edge is guaranteed not be within this distance from any source."""
-    layers: LayerConfig | None
+    layers: list[LayerConfig] | None
     """nzcvm layer config"""
     chunks: dict[Coordinate, int]
     """nzcvm chunk configuration"""
+    surface: Path | None
+    
 
     def to_dict(self) -> dict:
         """
@@ -875,8 +883,7 @@ class VelocityModelParameters(RealisationConfiguration):
         """
         _dict = dataclasses.asdict(self)
         _dict["rrup_interpolants"] = _dict["rrup_interpolants"].tolist()
-        if (layers := _dict.get('layers')):
-            _dict['layers'] = [layer.to_dict() for layer in layers]
+        
         return _dict
 
 

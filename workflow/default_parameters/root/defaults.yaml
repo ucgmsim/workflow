@@ -231,6 +231,7 @@ velocity_model:
   vs30: 500.0
   s_wave_velocity: 3500.0
   fault_buffer: 2.0
+  surface: ${NZCVM_DATA_ROOT}/resources/dem.zarr
   chunks:
     i: 64
     j: 64
