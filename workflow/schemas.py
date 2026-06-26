@@ -5,6 +5,8 @@ the [Realisations page](https://github.com/ucgmsim/workflow/wiki/Realisations), 
 [Realisations Proposal page](https://github.com/ucgmsim/workflow/wiki/Realisation-Proposal))
 for a description of realisations and the schemas.
 """
+from nzcvm.coordinates import Coordinate
+from nzcvm.config.layers import LayerConfig
 
 import dataclasses
 from enum import IntEnum, StrEnum
@@ -17,6 +19,7 @@ from IM import im_calculation
 from source_modelling import rupture_propagation, sources
 from velocity_modelling.bounding_box import BoundingBox
 from workflow.defaults import DefaultsVersion
+from nzcvm.config import VelocityModelConfig
 
 
 class Stype(StrEnum):
@@ -954,6 +957,8 @@ VELOCITY_MODEL_SCHEMA = Schema(
         Literal("fault_buffer", "Buffer width (km) around sources in rupture."): And(
             NUMBER, _is_positive
         ),
+        Literal('layers'): Or(None, [Use(LayerConfig.from_dict)]),
+        Literal('chunks'): Or(dict(), {Use(Coordinate): int})
     }
 )
 

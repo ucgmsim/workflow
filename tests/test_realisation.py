@@ -438,6 +438,8 @@ def test_velocity_model(tmp_path: Path) -> None:
         fault_buffer=2000.0,
         s_wave_velocity=3500.0,
         rrup_interpolants=np.ones(shape=(2, 2), dtype=np.float32),
+        chunks=dict(),
+        layers=None
     )
     realisation_ffp = tmp_path / "realisation.json"
     velocity_model.write_to_realisation(realisation_ffp)
@@ -452,6 +454,8 @@ def test_velocity_model(tmp_path: Path) -> None:
                 "fault_buffer": 2000.0,
                 "s_wave_velocity": 3500.0,
                 "rrup_interpolants": [[1, 1], [1, 1]],
+                'chunks': dict(),
+                'layers': None
             }
         }
 

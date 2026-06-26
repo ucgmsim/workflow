@@ -22,6 +22,8 @@ from typing import Any, ClassVar, Literal, Self, Union
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from nzcvm.config.layers import LayerConfig
+from nzcvm.coordinates import Coordinate
 from schema import Schema
 
 from IM import im_calculation
@@ -857,6 +859,10 @@ class VelocityModelParameters(RealisationConfiguration):
     """Target RRup values at specific magnitudes, used to estimate domain size."""
     fault_buffer: float
     """Buffer width (km) around sources in rupture. Domain edge is guaranteed not be within this distance from any source."""
+    layers: LayerConfig | None
+    """nzcvm layer config"""
+    chunks: dict[Coordinate, int]
+    """nzcvm chunk configuration"""
 
     def to_dict(self) -> dict:
         """
@@ -869,6 +875,8 @@ class VelocityModelParameters(RealisationConfiguration):
         """
         _dict = dataclasses.asdict(self)
         _dict["rrup_interpolants"] = _dict["rrup_interpolants"].tolist()
+        if (layers := _dict.get('layers')):
+            _dict['layers'] = [layer.to_dict() for layer in layers]
         return _dict
 
 
