@@ -67,9 +67,8 @@ def generate_sw4_input(
     depth = domain_parameters.depth
     time = domain_parameters.duration
     refinements = domain.domain_refinements(depth)
-    refinements_str = '\n'.join(
-        f'refinement zmax={refinement.bottom:.1f}'
-        for refinement in refinements[:-1]
+    refinements_str = "\n".join(
+        f"refinement zmax={refinement.bottom:.1f}" for refinement in refinements[:-1]
     )
     bottom_refinement = refinements[-1]
     dx = bottom_refinement.resolution
@@ -94,6 +93,6 @@ def generate_sw4_input(
             station_file_name=output_path,
             work_directory=work_directory,
             station_output_file_path=low_frequency_output,
-            refinement_str=refinements_str
+            refinement_str=refinements_str,
         )
     )
