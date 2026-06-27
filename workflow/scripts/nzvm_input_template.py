@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 import functools
 import json
-from nzcvm.config.metadata import ModelMetadata
-import pyproj
-from nzcvm.config.grids.sw4 import SW4GridConfig, MeshRefinement
-from nzcvm.config import VelocityModelConfig
-from nzcvm.config.grids.model import Model
 from pathlib import Path
 
+import pyproj
 import typer
+from nzcvm.config import VelocityModelConfig
+from nzcvm.config.grids.model import Model
+from nzcvm.config.grids.sw4 import MeshRefinement, SW4GridConfig
+from nzcvm.config.metadata import ModelMetadata
 
 from qcore import cli
 from workflow import domain
-
 from workflow.realisations import DomainParameters, VelocityModelParameters
 
 app = typer.Typer()
@@ -38,6 +37,7 @@ def generate_template(realisation_ffp: Path, output_path: Path) -> None:
     origin_lat = origin[0]
     origin_lon = origin[1]
     azimuth = domain_parameters.domain.great_circle_bearing
+
     
     buffer = 1.10
     extent_y = buffer * domain_parameters.domain.extent_y * 1000.0
@@ -46,6 +46,7 @@ def generate_template(realisation_ffp: Path, output_path: Path) -> None:
         raise ValueError('NZCVM requires defined surface path.')
     if not velocity_model_parameters.layers:
         raise ValueError('NZCVM requires at least one defined layer.')
+
     config = VelocityModelConfig(
         grid=SW4GridConfig(
             extent_x=extent_x,
@@ -66,5 +67,7 @@ def generate_template(realisation_ffp: Path, output_path: Path) -> None:
         ),
         layers=velocity_model_parameters.layers
     )
+        
+
     with open(output_path, 'w') as f:
         f.write(config.to_json(encoder=functools.partial(json.dumps, indent=4))) # ty: ignore
