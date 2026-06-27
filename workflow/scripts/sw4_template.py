@@ -90,7 +90,7 @@ def generate_sw4_input(
             velocity_model_directory=velocity_model.parent,
             time=time,
             srf=srf_path,
-            station_file_name=output_path,
+            station_file_name=station_path,
             work_directory=work_directory,
             station_output_file_path=low_frequency_output,
             refinement_str=refinements_str,
