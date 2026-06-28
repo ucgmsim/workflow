@@ -71,7 +71,7 @@ ENV LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
 # Setup Virtual Environment and Install via pip
-ARG WORKFLOW_BRANCH=00b2612e2cb22d6fdbc686378f0cb1ffdab32b36
+ARG WORKFLOW_BRANCH=pegasus
 ARG VM_BRANCH=master
 RUN python3 -m venv $VIRTUAL_ENV && \
     pip install --no-cache-dir --upgrade pip setuptools wheel && \
