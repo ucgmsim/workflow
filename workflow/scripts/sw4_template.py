@@ -1,6 +1,8 @@
 from pathlib import Path
 
+import h5py
 import typer
+from nzcvm.formats import sfile
 
 from qcore import cli
 from workflow import domain
@@ -24,8 +26,44 @@ attenuation maxfreq=1.0
 
 sfile filename={velocity_model_name} directory={velocity_model_directory}
 topography input=sfile zmax={topography_zmax} order=3 file={velocity_model_directory}/{velocity_model_name}
-rechdf5 infile={station_file_name} outfile={station_output_file_path} writeEvery=1
+rechdf5 infile={station_file_name} outfile={station_output_file_path}
 """
+
+
+def azimuth_from_velocity_model(velocity_model: h5py.File) -> float:
+    """
+    Extract the azimuth value from a velocity model HDF5 file.
+
+    Parameters
+    ----------
+    velocity_model : h5py.File
+        HDF5 file object containing velocity model attributes.
+
+    Returns
+    -------
+    float
+        The azimuth value stored in the file's attribute.
+    """
+    _, _, azimuth = velocity_model.attrs[sfile.ORIGIN_AZIM_ATTR]
+    return float(azimuth)
+
+
+def topography_height_from_velocity_model(velocity_model: h5py.File) -> float:
+    """
+    Extract the minimum topography height from a velocity model HDF5 file.
+
+    Parameters
+    ----------
+    velocity_model : h5py.File
+        HDF5 file object containing velocity model attributes.
+
+    Returns
+    -------
+    float
+        The minimum depth (topography height) stored in the file's attribute.
+    """
+    global_min, _ = velocity_model.attrs[sfile.MIN_MAX_DEPTH_ATTR]
+    return float(global_min)
 
 
 @cli.from_docstring(app)
@@ -38,8 +76,6 @@ def generate_sw4_input(
     output_path: Path,
 ) -> None:
     """Generate SW4 template for realisation
-
-
 
     Parameters
     ----------
@@ -60,20 +96,39 @@ def generate_sw4_input(
 
     x = domain_parameters.domain.extent_x * 1000.0
     y = domain_parameters.domain.extent_y * 1000.0
-    azimuth = domain_parameters.domain.bearing
+    with h5py.File(velocity_model, "r") as f:
+        # Azimuth must be the same as the velocity model inside SW4
+        azimuth = azimuth_from_velocity_model(f)
+        topography_height = topography_height_from_velocity_model(f)
+
+    # HACK: SW4 User Guide (Chapter 5) suggests
+    # z_max >= -e_min + 3 (e_max - e_min) where e_min, e_max are the minimum
+    # and maximum topography level of the velocity model we will assume that the
+    # minimum elevation is zero (i.e. every simulation contains ocean, and there
+    # is no ocean bathymetry).
+    topography_zmax = 3 * topography_height
+
     # In SW4 the domain should always begin from the bottom-left (which is corners[0] by construction)
     lat, lon = domain_parameters.domain.corners[0]
 
     depth = domain_parameters.depth
     time = domain_parameters.duration
     refinements = domain.domain_refinements(depth)
+    # TODO: Do I actually need this buffer?
+    # Buffer the curvilinear grid from the
+    # top layer cartesian grid. I am not sure if this is strictly required.
+    topography_buffer = 500.0
+    refinements[0].bottom = max(topography_zmax + topography_buffer, refinements[0].bottom)
+    
     refinements_str = "\n".join(
-        f"refinement zmax={refinement.bottom:.1f}" for refinement in refinements[:-1] # Last refinement layer is implicitly to the bottom of the domain
+        f"refinement zmax={refinement.bottom:.1f}"
+        for refinement in refinements[
+            :-1
+        ]  # Last refinement layer is implicitly the bottom of the domain
     )
     bottom_refinement = refinements[-1]
     dx = bottom_refinement.resolution
-    top_refinement = refinements[0]
-    topography_zmax = top_refinement.bottom
+
     low_frequency_output = work_directory / "out.h5"
     output_path.write_text(
         SW4_TEMPLATE.format(

@@ -8,7 +8,6 @@ import typer
 from nzcvm.config import VelocityModelConfig
 from nzcvm.config.grids.model import Model
 from nzcvm.config.grids.sw4 import MeshRefinement, SW4GridConfig
-from nzcvm.config.metadata import ModelMetadata
 
 from qcore import cli
 from workflow import domain
