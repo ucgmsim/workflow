@@ -16,8 +16,7 @@ dependencies = [
   "nshmdb>=2025.12.1",
   "oq_wrapper>=2025.12.3",
   "qcore-utils>=2025.12.2",
-  # PENDING: bump to the source_modelling release containing moment.velocity_model_layer_index
-  "source_modelling>=2026.6.6",
+  "source_modelling>=2026.07.1",
   # Data Formats
   "geopandas",
   "pandas[parquet, hdf5]",
