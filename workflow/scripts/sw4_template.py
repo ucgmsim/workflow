@@ -114,11 +114,6 @@ def generate_sw4_input(
     depth = domain_parameters.depth
     time = domain_parameters.duration
     refinements = domain.domain_refinements(depth)
-    # TODO: Do I actually need this buffer?
-    # Buffer the curvilinear grid from the
-    # top layer cartesian grid. I am not sure if this is strictly required.
-    topography_buffer = 500.0
-    refinements[0].bottom = max(topography_zmax + topography_buffer, refinements[0].bottom)
     
     refinements_str = "\n".join(
         f"refinement zmax={refinement.bottom:.1f}"
