@@ -71,3 +71,16 @@ def adjust_for_topography(
     topography_zmax = topography.bottom
 
     return real_refinements, topography_zmax
+
+
+def gridpoints_from_domain(domain_parameters: DomainParameters) -> int:
+    depth = domain_parameters.depth
+    area = domain_parameters.domain.area * (1000**2)
+    refinements = domain_refinements(depth)
+    top = 0.0
+    gridpoints = 0
+    for refinement in refinements:
+        volume = (refinement.bottom - top) * area
+        gridpoints += int(volume // (refinement.resolution) ** 3)
+        top = refinement.bottom
+    return gridpoints
