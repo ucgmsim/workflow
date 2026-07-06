@@ -63,7 +63,7 @@ def topography_height_from_velocity_model(velocity_model: h5py.File) -> float:
         The minimum depth (topography height) stored in the file's attribute.
     """
     global_min, _ = velocity_model.attrs[sfile.MIN_MAX_DEPTH_ATTR]
-    return float(global_min)
+    return -float(global_min)
 
 
 @cli.from_docstring(app)
