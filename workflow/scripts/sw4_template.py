@@ -1,3 +1,4 @@
+import itertools
 from pathlib import Path
 
 import h5py
@@ -48,7 +49,9 @@ def azimuth_from_velocity_model(velocity_model: h5py.File) -> float:
     return float(azimuth)
 
 
-def topography_height_from_velocity_model(velocity_model: h5py.File) -> float:
+def topography_height_from_velocity_model(
+    velocity_model: h5py.File,
+) -> tuple[float, float]:
     """
     Extract the minimum topography height from a velocity model HDF5 file.
 
@@ -62,8 +65,8 @@ def topography_height_from_velocity_model(velocity_model: h5py.File) -> float:
     float
         The minimum depth (topography height) stored in the file's attribute.
     """
-    global_min, _ = velocity_model.attrs[sfile.MIN_MAX_DEPTH_ATTR]
-    return -float(global_min)
+    global_min, zmax = velocity_model.attrs[sfile.MIN_MAX_DEPTH_ATTR]
+    return -float(global_min), float(zmax)
 
 
 @cli.from_docstring(app)
@@ -99,7 +102,7 @@ def generate_sw4_input(
     with h5py.File(velocity_model, "r") as f:
         # Azimuth must be the same as the velocity model inside SW4
         azimuth = azimuth_from_velocity_model(f)
-        topography_height = topography_height_from_velocity_model(f)
+        topography_height, sfile_zmax = topography_height_from_velocity_model(f)
 
     # HACK: SW4 User Guide (Chapter 5) suggests
     # z_max >= -e_min + 3 (e_max - e_min) where e_min, e_max are the minimum
@@ -114,15 +117,21 @@ def generate_sw4_input(
     depth = domain_parameters.depth
     time = domain_parameters.duration
     refinements = domain.domain_refinements(depth)
-    
+
+    refinements, topography_zmax = domain.adjust_for_topography(
+        refinements, topography_zmax
+    )
+    refinements = sorted(refinements, key=lambda r: r.bottom)
+    if refinements[-1].bottom > sfile_zmax:
+        raise ValueError("Bottom of domain exceeds velocity model bounds")
+
     refinements_str = "\n".join(
         f"refinement zmax={refinement.bottom:.1f}"
         for refinement in refinements[
             :-1
         ]  # Last refinement layer is implicitly the bottom of the domain
     )
-    bottom_refinement = refinements[-1]
-    dx = bottom_refinement.resolution
+    dx = refinements[-1].resolution
 
     low_frequency_output = work_directory / "out.h5"
     output_path.write_text(
