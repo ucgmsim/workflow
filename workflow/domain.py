@@ -50,7 +50,12 @@ def adjust_for_topography(
     # By shallow copying the refinements before modifying them this view into the refinements will only have the updated refinements, and not the topography and bottom.
     real_refinements = refinements.copy()
     topography_resolution = min(
-        refinement for refinement in refinements if refinement.bottom > topography_zmax
+        (
+            refinement
+            for refinement in refinements
+            if refinement.bottom > topography_zmax
+        ),
+        key=lambda r: r.bottom,
     ).resolution
     topography = Refinement(bottom=topography_zmax, resolution=topography_resolution)
     refinements.append(topography)
