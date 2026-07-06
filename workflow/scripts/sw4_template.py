@@ -10,7 +10,7 @@ from workflow.realisations import DomainParameters
 
 app = typer.Typer()
 SW4_TEMPLATE = """
-fileio path={work_directory}
+fileio path={work_directory} verbose=3 printcycle=10
 
 supergrid gp=30
 time t={time}
