@@ -75,5 +75,5 @@ ARG WORKFLOW_BRANCH=pegasus
 ARG VM_BRANCH=master
 RUN python3 -m venv $VIRTUAL_ENV && \
     pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir "git+https://github.com/lispandfound/nzcvm@${VM_BRANCH}" "git+https://github.com/ucgmsim/workflow@${WORKFLOW_BRANCH}" --no-binary=h5py && \
+    pip install --no-cache-dir "git+https://github.com/lispandfound/nzcvm@${VM_BRANCH}" "git+https://github.com/ucgmsim/workflow@${WORKFLOW_BRANCH}" && \
     chmod -R a+rX /sw
