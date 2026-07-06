@@ -151,7 +151,7 @@ def generate_sw4_input(
             srf=srf_path,
             station_file_name=station_path,
             work_directory=work_directory,
-            station_output_file_path=low_frequency_output,
+            station_output_file_path=low_frequency_output.relative_to(work_directory),
             refinement_str=refinements_str,
         )
     )
