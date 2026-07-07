@@ -30,10 +30,10 @@ dependencies = [
   "tqdm",
   "typer",
   # Misc.
-  "requests",  # For gcmt-to-realisation
-  "schema",    # For loading realisations
-  "structlog", # Logging.
-  "psutil",    # To get the CPU affinity for jobs
+  "requests",       # For gcmt-to-realisation
+  "schema",         # For loading realisations
+  "structlog",      # Logging.
+  "psutil",         # To get the CPU affinity for jobs
   "parse>=1.21.0",
   "rich>=14.3.2",
   "dask>=2026.6.0",
@@ -78,6 +78,7 @@ gcmt-auto-simulate = "workflow.scripts.gcmt_auto_simulate:app"
 import-realisation = "workflow.scripts.import_realisation:app"
 lf-to-xarray = "workflow.scripts.lf_to_xarray:app"
 migrate = "workflow.scripts.migrate:app"
+validate-sfile = "workflow.scripts.validate_sfile:app"
 
 [tool.setuptools.package-dir]
 workflow = "workflow"
