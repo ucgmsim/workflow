@@ -1,4 +1,3 @@
-import itertools
 from pathlib import Path
 
 import h5py
@@ -28,6 +27,8 @@ attenuation maxfreq=1.0
 sfile filename={velocity_model_name} directory={velocity_model_directory}
 topography input=sfile zmax={topography_zmax} order=3 file={velocity_model_directory}/{velocity_model_name}
 rechdf5 infile={station_file_name} outfile={station_output_file_path}
+
+developer reporttiming=1 ctol=1e-4 checkfornan=1
 """
 
 
