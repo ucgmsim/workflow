@@ -12,7 +12,7 @@ class Refinement:
 
 
 THEORETICAL_REFINEMENTS = [
-    Refinement(resolution=100.0, bottom=10000.0),
+    Refinement(resolution=100.0, bottom=4500.0),
     Refinement(resolution=200.0, bottom=25000.0),
 ]
 UNBOUNDED_REFINEMENT_RESOLUTION = 400.0
