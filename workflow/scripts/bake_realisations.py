@@ -17,6 +17,7 @@ Usage
 
 import dataclasses
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
@@ -24,6 +25,38 @@ import pandas as pd
 import typer
 
 app = typer.Typer()
+
+
+# Canonical top-level key order: matches felipe_3528839_realisation.json, with
+# rupture_velocity (absent from Felipe's file) appended last.
+FELIPE_SECTION_ORDER: list[str] = [
+    "metadata",
+    "sources",
+    "rupture_propagation",
+    "magnitudes",
+    "rakes",
+    "log_trail",
+    "velocity_model",
+    "domain",
+    "im",
+    "seeds",
+    "emod3d",
+    "resolution",
+    "srf",
+    "velocity_model_1d",
+    "hf_velocity_model_1d",
+    "hf",
+    "bb",
+    "rupture_velocity",
+]
+
+# A minimal file can be baked only if it carries the source-side sections.
+REQUIRED_MINIMAL_SECTIONS: tuple[str, ...] = (
+    "sources",
+    "magnitudes",
+    "rakes",
+    "rupture_propagation",
+)
 
 
 @dataclasses.dataclass
@@ -89,6 +122,47 @@ def load_overrides(felipe_scripts_dir: Path, vm_version: str = "2.09") -> Overri
         valid_periods=valid_periods,
         fas_frequencies=fas_frequencies,
     )
+
+
+def is_valid_minimal(realisation: dict[str, Any]) -> bool:
+    """Return whether a minimal realisation carries all source-side sections.
+
+    Parameters
+    ----------
+    realisation : dict
+        The parsed realisation JSON.
+
+    Returns
+    -------
+    bool
+        True if every section in ``REQUIRED_MINIMAL_SECTIONS`` is present.
+    """
+    return all(section in realisation for section in REQUIRED_MINIMAL_SECTIONS)
+
+
+def normalize_key_order(realisation: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of the realisation with top-level keys in canonical order.
+
+    Keys listed in ``FELIPE_SECTION_ORDER`` come first, in that order; any
+    unexpected keys are preserved afterwards in their original order.
+
+    Parameters
+    ----------
+    realisation : dict
+        The parsed realisation JSON.
+
+    Returns
+    -------
+    dict
+        A new dict with keys reordered.
+    """
+    ordered = {
+        key: realisation[key] for key in FELIPE_SECTION_ORDER if key in realisation
+    }
+    for key in realisation:
+        if key not in ordered:
+            ordered[key] = realisation[key]
+    return ordered
 
 
 if __name__ == "__main__":
