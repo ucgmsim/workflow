@@ -24,6 +24,20 @@ rupturehdf5 file={srf}
 
 attenuation maxfreq=1.0
 
+imagehdf5 mode=topo z=0 file=topo cycle=0 precision=float
+imagehdf5 mode=grid z=0 file=grid cycle=0 precision=float
+
+imagehdf5 mode=p   z=0 file=surf_vp  cycle=0 precision=float
+imagehdf5 mode=s   z=0 file=surf_vs  cycle=0 precision=float
+imagehdf5 mode=rho z=0 file=surf_rho cycle=0 precision=float
+
+imagehdf5 mode=mag    z=0 file=surf_mag    timeInterval=0.5 precision=float
+imagehdf5 mode=velmag z=0 file=surf_velmag timeInterval=0.5 precision=float
+imagehdf5 mode=uz     z=0 file=surf_uz     timeInterval=0.5 precision=float
+
+imagehdf5 mode=hmax z=0 file=surf_hmax time={time} precision=float
+imagehdf5 mode=vmax z=0 file=surf_vmax time={time} precision=float
+
 sfile filename={velocity_model_name} directory={velocity_model_directory}
 topography input=sfile zmax={topography_zmax} order=3 file={velocity_model_directory}/{velocity_model_name}
 rechdf5 infile={station_file_name} outfile={station_output_file_path}
