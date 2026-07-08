@@ -1,0 +1,239 @@
+{
+    "metadata": {
+        "name": "Rupture 114741",
+        "version": "1",
+        "defaults_version": "24.2.2.4",
+        "tag": "nshm"
+    },
+    "srf": {
+        "resolution": 0.1,
+        "point_source_params": {
+            "stype": "cos",
+            "risetime": 0.5,
+            "risetimefac": 1.0,
+            "risetimedep": 0.0,
+            "inittime": 0.0
+        },
+        "alpha_rough": 0.0,
+        "side_taper": 0.02,
+        "bot_taper": 0.0,
+        "top_taper": 0.0,
+        "gwid": [],
+        "rvfac_seg": [],
+        "seg_delay": false,
+        "slip_sigma": 0.75,
+        "risetime_coef": 1.6,
+        "ymag_exponent": null,
+        "xmag_exponent": null,
+        "kx_corner": null,
+        "ky_corner": null,
+        "beta_asp": 0.3,
+        "beta_deep": 0.13,
+        "beta_mid": 0.13,
+        "beta_mid_depth": 6.5,
+        "beta_mid_depth_range": 1.5,
+        "beta_shal": 0.5,
+        "beta_shal_depth": 2.0,
+        "beta_shal_depth_range": 1.0,
+        "beta_subevt": 0.1,
+        "deep_risetimedep": 17.5,
+        "deep_risetimedep_range": 2.5,
+        "deep_risetimefac": 2.0,
+        "risetimedep": 6.5,
+        "risetimedep_range": 1.5,
+        "risetimefac": 2.0,
+        "rt_rand": 0.0,
+        "rt_scalefac": 1.0,
+        "stype": null,
+        "hyb_corlen_deep_wt_end": 1.0,
+        "hyb_corlen_deep_wt_start": 0.0,
+        "hyb_corlen_dep": 6.5,
+        "hyb_corlen_dep_range": 1.5,
+        "hyb_corlen_fac": 2.0,
+        "hyb_corlen_flag": false,
+        "hyb_corlen_kmodel": 5,
+        "hyb_corlen_shal_wt_end": 0.0,
+        "hyb_corlen_shal_wt_start": 1.0,
+        "hyb_corlen_side_taper": 0.08,
+        "fdrup_scale_slip": false,
+        "fdrup_time": true,
+        "rupture_delay": 0.0,
+        "rvfmax": 1.414,
+        "rvfmin": 0.25,
+        "truncate_zero_slip": true,
+        "slip_water_level": null,
+        "rake_sigma": 15.0,
+        "fractal_rake": false,
+        "tsfac1_scor": 0.8,
+        "tsfac1_sigma": 1.0,
+        "tsfac2_lambda_max": 5.0,
+        "tsfac2_lambda_min": 0.08,
+        "tsfac2_scor": 0.5,
+        "tsfac2_sigma": 1e-10,
+        "tsfac_bzero": -0.1,
+        "tsfac_coef": 1.1,
+        "tsfac_main": null,
+        "tsfac_slope": -0.5,
+        "circular_average": false,
+        "kmodel": 2,
+        "kord": 4,
+        "magC": 6.3,
+        "mag_area_Acoef": null,
+        "mag_area_Bcoef": null,
+        "mai_wt": 0.5,
+        "modified_corners": false,
+        "somerville_wt": 0.5,
+        "stretch_kcorner": false,
+        "use_gaus": true,
+        "use_median_mag": false,
+        "lambda_max": null,
+        "lambda_min": null,
+        "wavelength_max": null,
+        "wavelength_min": null,
+        "asp_taper_fac": 0.05,
+        "extend_fac": 1.1,
+        "flen_max": null,
+        "fwid_max": null,
+        "moment_fraction": null,
+        "perturb_subfault_location": true,
+        "rand_rake_degs": 60.0,
+        "rtime1_depth": null,
+        "rtime1_depth_range": null,
+        "rtime1_scor": 0.9,
+        "rtime1_sigma": null,
+        "rtime2_scor": 0.5,
+        "rtime2slip_exp": 0.5,
+        "rtime_rand": null,
+        "set_rake": null,
+        "svr_wt": 0.0,
+        "target_savg": null,
+        "use_Mw": false,
+        "aseis_flag": false,
+        "aseis_smooth": false,
+        "aseis_dep": 10.0,
+        "aseis_fac": null,
+        "xshift": 0.0,
+        "yshift": 0.0,
+        "read_erf": false,
+        "read_gsf": true,
+        "srf_version": "2.0",
+        "write_gsf": false,
+        "write_srf": true,
+        "dump_last_seed": true,
+        "print_command": true,
+        "print_seed": true
+    },
+    "seeds": {
+        "nshm_to_realisation_seed": 1692293616,
+        "rupture_propagation_seed": 1470008794,
+        "genslip_seed": 57681274,
+        "srfgen_seed": 582447538,
+        "hf_seed": 1220025018
+    },
+    "sources": {
+        "source_geometries": {
+            "Cardrona - Hawea": {
+                "type": "fault",
+                "corners": [
+                    {
+                        "latitude": -44.5686,
+                        "longitude": 169.2859,
+                        "depth": 0.0
+                    },
+                    {
+                        "latitude": -44.645399999999995,
+                        "longitude": 169.2301,
+                        "depth": 0.0
+                    },
+                    {
+                        "latitude": -44.59461598734047,
+                        "longitude": 169.09076276896715,
+                        "depth": 21520.0
+                    },
+                    {
+                        "latitude": -44.517888369216344,
+                        "longitude": 169.1466886451637,
+                        "depth": 21520.0
+                    },
+                    {
+                        "latitude": -44.645399999999995,
+                        "longitude": 169.2301,
+                        "depth": 0.0
+                    },
+                    {
+                        "latitude": -44.651227000000006,
+                        "longitude": 169.224032,
+                        "depth": 0.0
+                    },
+                    {
+                        "latitude": -44.60045101294815,
+                        "longitude": 169.08467571787503,
+                        "depth": 21520.0
+                    },
+                    {
+                        "latitude": -44.59463169738429,
+                        "longitude": 169.09075152801543,
+                        "depth": 21520.0
+                    },
+                    {
+                        "latitude": -44.651227000000006,
+                        "longitude": 169.224032,
+                        "depth": 0.0
+                    },
+                    {
+                        "latitude": -44.72650000000001,
+                        "longitude": 169.1455,
+                        "depth": 0.0
+                    },
+                    {
+                        "latitude": -44.67582804829303,
+                        "longitude": 169.0058970625951,
+                        "depth": 21520.0
+                    },
+                    {
+                        "latitude": -44.60065469135103,
+                        "longitude": 169.08453033279295,
+                        "depth": 21520.0
+                    }
+                ]
+            }
+        }
+    },
+    "rupture_propagation": {
+        "rupture_causality_tree": {
+            "Cardrona - Hawea": null
+        },
+        "jump_points": {},
+        "hypocentre": {
+            "s": 0.3716259874151645,
+            "d": 0.2741765985042414
+        }
+    },
+    "magnitudes": {
+        "magnitudes": {
+            "Cardrona - Hawea": 6.7472676223189625
+        }
+    },
+    "rakes": {
+        "rakes": {
+            "Cardrona - Hawea": 110.0
+        }
+    },
+    "log_trail": {
+        "log": [
+            {
+                "utility": "nshm2022-to-realisation",
+                "version": "0.1.dev1271+g72548bd4e.d20260708",
+                "timestamp": "2026-07-08T14:25:29.041645",
+                "args": [
+                    "nshmdb.db",
+                    "114741",
+                    "realisations/realisation_114741.json",
+                    "24.2.2.4",
+                    "--dip-delta",
+                    "20"
+                ]
+            }
+        ]
+    }
+}
