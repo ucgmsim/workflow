@@ -18,13 +18,15 @@ Usage
 import dataclasses
 import json
 import shutil
+from multiprocessing import Pool, cpu_count
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import typer
+from tqdm import tqdm
 
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import (
@@ -286,6 +288,136 @@ def summary_row(realisation: dict[str, Any], rupture_id: str) -> dict[str, Any]:
         "defaults_version": realisation["metadata"]["defaults_version"],
         "vm_version": realisation["velocity_model"]["version"],
     }
+
+
+@dataclasses.dataclass
+class BakeResult:
+    """Outcome of baking a single realisation."""
+
+    rupture_id: str
+    ok: bool
+    error: str | None = None
+    summary: dict[str, Any] | None = None
+
+
+def _rupture_id_from_path(path: Path) -> str:
+    """Return the rupture id from a ``realisation_<id>.json`` path."""
+    return path.stem.removeprefix("realisation_")
+
+
+def _bake_worker(
+    args: tuple[Path, Path, DefaultsVersion, Overrides],
+) -> BakeResult:
+    """Bake one realisation, capturing any error for aggregate reporting.
+
+    Parameters
+    ----------
+    args : tuple
+        ``(src, dst, defaults_version, overrides)``.
+
+    Returns
+    -------
+    BakeResult
+        Success carries a ``summary``; failure carries an ``error`` and the
+        partial output is removed.
+    """
+    src, dst, defaults_version, overrides = args
+    rupture_id = _rupture_id_from_path(src)
+    try:
+        bake_one(src, dst, defaults_version, overrides)
+        with open(dst, encoding="utf-8") as handle:
+            baked = json.load(handle)
+        return BakeResult(rupture_id, ok=True, summary=summary_row(baked, rupture_id))
+    except Exception as exc:  # noqa: BLE001 -- report, don't crash the batch
+        if dst.exists():
+            dst.unlink()
+        return BakeResult(rupture_id, ok=False, error=f"{type(exc).__name__}: {exc}")
+
+
+@app.command()
+def bake_realisations(
+    input_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+    output_dir: Annotated[Path, typer.Argument()],
+    defaults_version: Annotated[
+        DefaultsVersion, typer.Option()
+    ] = DefaultsVersion.v24_2_2_1,
+    felipe_scripts_dir: Annotated[
+        Path, typer.Option(exists=True, file_okay=False)
+    ] = Path("felipe_scripts"),
+    vm_version: Annotated[str, typer.Option()] = "2.09",
+    workers: Annotated[int, typer.Option(min=1)] = min(8, cpu_count()),
+) -> None:
+    """Bake every minimal realisation in ``input_dir`` into a complete file.
+
+    Parameters
+    ----------
+    input_dir : Path
+        Directory of ``realisation_<id>.json`` minimal stubs (read-only).
+    output_dir : Path
+        Directory to write complete realisations, ``bake_summary.csv`` and
+        ``error_log.txt``.
+    defaults_version : DefaultsVersion
+        Scientific defaults version to materialise.
+    felipe_scripts_dir : Path
+        Directory containing the override files.
+    vm_version : str
+        Velocity-model version to force.
+    workers : int
+        Number of parallel processes (1 = serial).
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    overrides = load_overrides(felipe_scripts_dir, vm_version)
+
+    valid_files: list[Path] = []
+    broken_ids: list[str] = []
+    for realisation_ffp in sorted(input_dir.glob("realisation_*.json")):
+        with open(realisation_ffp, encoding="utf-8") as handle:
+            realisation = json.load(handle)
+        if is_valid_minimal(realisation):
+            valid_files.append(realisation_ffp)
+        else:
+            broken_ids.append(_rupture_id_from_path(realisation_ffp))
+
+    work = [
+        (src, output_dir / src.name, defaults_version, overrides)
+        for src in valid_files
+    ]
+    results: list[BakeResult] = []
+    if workers == 1:
+        for job in tqdm(work, desc="Baking realisations"):
+            results.append(_bake_worker(job))
+    else:
+        with Pool(processes=workers) as pool:
+            for result in tqdm(
+                pool.imap_unordered(_bake_worker, work),
+                total=len(work),
+                desc="Baking realisations",
+            ):
+                results.append(result)
+
+    baked = [result for result in results if result.ok]
+    failed = [result for result in results if not result.ok]
+
+    if baked:
+        summary_df = pd.DataFrame([result.summary for result in baked]).sort_values(
+            "rupture_id"
+        )
+        summary_df.to_csv(output_dir / "bake_summary.csv", index=False)
+
+    with open(output_dir / "error_log.txt", "w", encoding="utf-8") as handle:
+        handle.write(
+            f"Skipped {len(broken_ids)} broken minimal stub(s) (no source sections):\n"
+        )
+        for rupture_id in broken_ids:
+            handle.write(f"  SKIPPED rupture {rupture_id}\n")
+        handle.write(f"\nFailed to bake {len(failed)} realisation(s):\n")
+        for result in failed:
+            handle.write(f"  FAILED rupture {result.rupture_id}: {result.error}\n")
+
+    print(f"\nBaked {len(baked)} realisation(s) -> {output_dir}")
+    print(f"Skipped {len(broken_ids)} broken stub(s); {len(failed)} failed to bake.")
+    print(f"Summary : {output_dir / 'bake_summary.csv'}")
+    print(f"Errors  : {output_dir / 'error_log.txt'}")
 
 
 if __name__ == "__main__":

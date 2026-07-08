@@ -110,3 +110,31 @@ def test_summary_row_fields() -> None:
     assert row["n_fas_frequencies"] == 389
     assert isinstance(row["total_magnitude_mw"], float)
     assert row["domain_depth_km"] == felipe["domain"]["depth"]
+
+
+@pytest.mark.slow
+def test_bake_realisations_end_to_end(tmp_path: Path) -> None:
+    input_dir = tmp_path / "in"
+    input_dir.mkdir()
+    output_dir = tmp_path / "out"
+    shutil.copy(SAMPLE, input_dir / "realisation_114741.json")
+    shutil.copy(BROKEN, input_dir / "realisation_59421.json")
+
+    br.bake_realisations(
+        input_dir,
+        output_dir,
+        defaults_version=DefaultsVersion.v24_2_2_1,
+        felipe_scripts_dir=FELIPE_SCRIPTS,
+        vm_version="2.09",
+        workers=1,
+    )
+
+    baked = output_dir / "realisation_114741.json"
+    assert baked.exists()
+    assert list(json.loads(baked.read_text())) == br.FELIPE_SECTION_ORDER
+    # Broken stub skipped, not written.
+    assert not (output_dir / "realisation_59421.json").exists()
+    # Reports written.
+    assert (output_dir / "bake_summary.csv").exists()
+    assert "114741" in (output_dir / "bake_summary.csv").read_text()
+    assert "59421" in (output_dir / "error_log.txt").read_text()
