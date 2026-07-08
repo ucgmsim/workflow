@@ -16,6 +16,8 @@ Usage
 """
 
 import dataclasses
+import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +25,21 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import typer
+
+from workflow.defaults import DefaultsVersion
+from workflow.realisations import (
+    BroadbandParameters,
+    EMOD3DParameters,
+    HFConfig,
+    HFVelocityModel1D,
+    IntensityMeasureCalculationParameters,
+    RealisationMetadata,
+    Resolution,
+    RuptureVelocity,
+    VelocityModel1D,
+    VelocityModelParameters,
+)
+from workflow.scripts.generate_domain import generate_domain_from_realisation
 
 app = typer.Typer()
 
@@ -56,6 +73,18 @@ REQUIRED_MINIMAL_SECTIONS: tuple[str, ...] = (
     "magnitudes",
     "rakes",
     "rupture_propagation",
+)
+
+# Sections materialised verbatim from the scientific defaults (order irrelevant;
+# normalize_key_order fixes the final layout).
+_DEFAULTS_SECTION_CLASSES = (
+    EMOD3DParameters,
+    Resolution,
+    BroadbandParameters,
+    HFConfig,
+    VelocityModel1D,
+    HFVelocityModel1D,
+    RuptureVelocity,
 )
 
 
@@ -163,6 +192,62 @@ def normalize_key_order(realisation: dict[str, Any]) -> dict[str, Any]:
         if key not in ordered:
             ordered[key] = realisation[key]
     return ordered
+
+
+def bake_one(
+    src: Path, dst: Path, defaults_version: DefaultsVersion, overrides: Overrides
+) -> None:
+    """Bake a single minimal realisation into a complete realisation at ``dst``.
+
+    The source file is copied, never modified. Section-write order matters:
+    the velocity model is written before domain generation, which reads it.
+
+    Parameters
+    ----------
+    src : Path
+        The minimal realisation to read.
+    dst : Path
+        Where to write the complete realisation.
+    defaults_version : DefaultsVersion
+        Scientific defaults version to materialise (and record in metadata).
+    overrides : Overrides
+        Velocity-model and intensity-measure overrides.
+    """
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(src, dst)
+
+    # 1. Point metadata at the target defaults version.
+    metadata = RealisationMetadata.read_from_realisation(dst)
+    metadata.defaults_version = defaults_version
+    metadata.write_to_realisation(dst)
+
+    # 2. Velocity model (defaults + overrides) -- MUST precede domain generation.
+    velocity_model = VelocityModelParameters.read_from_defaults(defaults_version)
+    velocity_model.version = overrides.vm_version
+    velocity_model.rrup_interpolants = overrides.rrup_interpolants
+    velocity_model.write_to_realisation(dst)
+
+    # 3. Domain (computed; reads the velocity model written above).
+    generate_domain_from_realisation(dst)
+
+    # 4. Intensity measures (defaults + overrides).
+    intensity_measures = IntensityMeasureCalculationParameters.read_from_defaults(
+        defaults_version
+    )
+    intensity_measures.valid_periods = overrides.valid_periods
+    intensity_measures.fas_frequencies = overrides.fas_frequencies
+    intensity_measures.write_to_realisation(dst)
+
+    # 5. Remaining sections verbatim from the scientific defaults.
+    for section_cls in _DEFAULTS_SECTION_CLASSES:
+        section_cls.read_from_defaults(defaults_version).write_to_realisation(dst)
+
+    # 6. Normalise key order for clean diffing against the reference.
+    with open(dst, encoding="utf-8") as handle:
+        realisation = json.load(handle)
+    realisation = normalize_key_order(realisation)
+    with open(dst, "w", encoding="utf-8") as handle:
+        json.dump(realisation, handle, indent=4)
 
 
 if __name__ == "__main__":
