@@ -39,7 +39,10 @@ from workflow.realisations import (
     VelocityModel1D,
     VelocityModelParameters,
 )
-from workflow.scripts.generate_domain import generate_domain_from_realisation
+from workflow.scripts.generate_domain import (
+    generate_domain_from_realisation,
+    total_magnitude,
+)
 
 app = typer.Typer()
 
@@ -248,6 +251,41 @@ def bake_one(
     realisation = normalize_key_order(realisation)
     with open(dst, "w", encoding="utf-8") as handle:
         json.dump(realisation, handle, indent=4)
+
+
+def summary_row(realisation: dict[str, Any], rupture_id: str) -> dict[str, Any]:
+    """Extract a one-row scrutiny summary from a baked realisation.
+
+    Parameters
+    ----------
+    realisation : dict
+        A complete (baked) realisation.
+    rupture_id : str
+        The rupture identifier for this realisation.
+
+    Returns
+    -------
+    dict
+        Summary fields suitable for a review CSV. ``total_magnitude_mw`` is the
+        moment-summed total in the Mw convention (as used for domain sizing).
+    """
+    sources = realisation["sources"]["source_geometries"]
+    magnitudes = realisation["magnitudes"]["magnitudes"]
+    domain = realisation["domain"]
+    return {
+        "rupture_id": rupture_id,
+        "n_faults": len(sources),
+        "fault_names": ";".join(sources),
+        "total_magnitude_mw": round(
+            float(total_magnitude(list(magnitudes.values()))), 4
+        ),
+        "domain_depth_km": domain["depth"],
+        "domain_duration_s": round(float(domain["duration"]), 2),
+        "n_valid_periods": len(realisation["im"]["valid_periods"]),
+        "n_fas_frequencies": len(realisation["im"]["fas_frequencies"]),
+        "defaults_version": realisation["metadata"]["defaults_version"],
+        "vm_version": realisation["velocity_model"]["version"],
+    }
 
 
 if __name__ == "__main__":

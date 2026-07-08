@@ -97,3 +97,16 @@ def test_bake_one_does_not_touch_source(tmp_path: Path) -> None:
     except Exception:  # noqa: BLE001 -- even on failure src must be untouched
         pass
     assert src.read_bytes() == before
+
+
+def test_summary_row_fields() -> None:
+    felipe = json.loads(FELIPE.read_text())
+    row = br.summary_row(felipe, "3528839")
+    assert row["rupture_id"] == "3528839"
+    assert row["n_faults"] == 1
+    assert row["fault_names"] == "3528839"
+    assert row["vm_version"] == "2.09"
+    assert row["n_valid_periods"] == 111
+    assert row["n_fas_frequencies"] == 389
+    assert isinstance(row["total_magnitude_mw"], float)
+    assert row["domain_depth_km"] == felipe["domain"]["depth"]
