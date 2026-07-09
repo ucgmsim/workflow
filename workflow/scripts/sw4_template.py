@@ -140,7 +140,9 @@ def generate_sw4_input(
     # Per the SW4 User Guide, the supergrid sponge (30 gridpoints by default) at the bottom of the domain
     # must be contained in the bottom refinement.
     supergrid_padding = 30
-    refinements[-1].bottom += supergrid_padding * refinements[-1].resolution
+    supergrid_width = supergrid_padding * refinements[-1].resolution
+    refinements[-1].bottom += supergrid_width
+    depth += supergrid_width / 1000.0
 
     if refinements[-1].bottom > sfile_zmax:
         raise ValueError("Bottom of domain exceeds velocity model bounds")
