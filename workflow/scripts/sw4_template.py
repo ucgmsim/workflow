@@ -22,7 +22,7 @@ rupturehdf5 file={srf}
 
 {refinement_str}
 
-attenuation maxfreq=1.0
+attenuation maxfreq=10.0 phasefreq=2.5 nmech=3
 
 imagehdf5 mode=topo z=0 file=topo cycle=0 precision=float
 imagehdf5 mode=grid z=0 file=grid cycle=0 precision=float
