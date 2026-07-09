@@ -6,9 +6,11 @@ Checks performed
   Structure    : required groups/attributes, dataset counts match ngrids
   Attributes   : types, value ranges, NaN/Inf
   Z_interfaces : NaN/Inf, strict monotonicity z_values_0 < z_values_1 < ... at
-                 every (i,j), zero/negative-thickness layers (triggers hv=0
-                 division in SW4), large topographic gradients between cells,
-                 consistency between Min/max depth attribute and actual data
+                 every (i,j) (interfaces stored at different resolutions are
+                 nearest-resampled to a common grid, not skipped),
+                 zero/negative-thickness layers (triggers hv=0 division in
+                 SW4), large topographic gradients between cells, consistency
+                 between Min/max depth attribute and actual data
   Material     : NaN/Inf, Rho > 0 (zero density is the most common SW4 crash),
                  Cp > 0, Cs >= 0, Qp/Qs > 0 (when attenuation=1), Vp/Vs >= 1,
                  nk >= 2 (nk=1 causes 0*inf=NaN in SW4 interpolation)
@@ -78,6 +80,46 @@ class Validator:
 
     def info(self, msg):
         print(f"         {msg}")
+
+    # ── resampling helpers ─────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _resample_to(src, shape):
+        """Nearest-neighbour resample 2-D `src` onto `shape`, treating both
+        arrays as covering the same physical extent corner-to-corner (as SW4's
+        nested sfile interface grids do). Nearest (not bilinear) is deliberate:
+        it preserves every stored node value — mirroring how SW4 samples
+        interfaces via integer strides — so a crossing sitting on a single
+        coarse node is never smoothed away, and well-separated layers never
+        produce a spurious crossing."""
+        sr, sc = src.shape
+        tr, tc = shape
+        if (sr, sc) == (tr, tc):
+            return src
+        ri = np.rint(np.linspace(0.0, sr - 1, tr)).astype(int)
+        ci = np.rint(np.linspace(0.0, sc - 1, tc)).astype(int)
+        return src[np.ix_(ri, ci)]
+
+    @classmethod
+    def _align(cls, a, b):
+        """Resample the coarser of `a`, `b` onto the finer one's grid so they
+        can be compared elementwise. Returns (a, b, resampled?)."""
+        if a.shape == b.shape:
+            return a, b, False
+        target = a.shape if a.size >= b.size else b.shape
+        return cls._resample_to(a, target), cls._resample_to(b, target), True
+
+    @staticmethod
+    def _worst_loc(field, want_max=True):
+        """(i, j, fx%, fy%) of the extremum of `field` — for locating the worst
+        crossing/pinch as a fraction of the domain (axis0=i/x, axis1=j/y)."""
+        idx = np.unravel_index(
+            int(np.argmax(field) if want_max else np.argmin(field)), field.shape
+        )
+        ni, nj = field.shape
+        fx = 100.0 * idx[0] / (ni - 1) if ni > 1 else 0.0
+        fy = 100.0 * idx[1] / (nj - 1) if nj > 1 else 0.0
+        return idx[0], idx[1], fx, fy
 
     # ── entry ────────────────────────────────────────────────────────────────────
 
@@ -226,21 +268,24 @@ class Validator:
                 f"{name}: shape={ds.shape}  z=[{z_lo:.2f}, {z_hi:.2f}] m  elev=[{-z_hi:.1f}, {-z_lo:.1f}] m ASL"
             )
 
-        # Monotonicity — compare each consecutive pair
+        # Monotonicity — compare each consecutive pair. Interface grids may be
+        # stored at different resolutions; resample the coarser onto the finer
+        # rather than skip (crossed/pinched layers are a leading cause of
+        # localized SW4 instabilities right at the grid-refinement interfaces).
         for a_name, b_name in zip(keys, keys[1:]):
             a, b = arrays.get(a_name), arrays.get(b_name)
             if a is None or b is None:
                 continue
-            if a.shape != b.shape:
-                self.warn(
-                    f"{b_name} shape {b.shape} != {a_name} shape {a.shape}; skipping monotonicity check"
-                )
-                continue
-            bad = b <= a
-            if bad.any():
+            a, b, resampled = self._align(a, b)
+            note = " (after nearest resample to common grid)" if resampled else ""
+            diff = a - b  # >= 0 where b <= a: deeper interface not below shallower
+            n_bad = int((diff >= 0.0).sum())
+            if n_bad:
+                i, j, fx, fy = self._worst_loc(diff, want_max=True)
                 self.error(
-                    f"{b_name} <= {a_name} at {bad.sum()} point(s) "
-                    f"(worst: {a_name}={float(a[bad].max()):.2f} >= {b_name}={float(b[bad].min()):.2f}) — "
+                    f"{b_name} <= {a_name} at {n_bad} point(s){note} — "
+                    f"worst gap {float(diff.max()):.2f} m at (i,j)=({i},{j}) "
+                    f"≈ ({fx:.1f}%, {fy:.1f}%) of domain — "
                     f"SW4 patch-selection requires strict depth ordering"
                 )
 
@@ -491,19 +536,24 @@ class Validator:
             nk = shape[2]
             top = zi[top_key][()].astype(np.float64)
             bot = zi[bot_key][()].astype(np.float64)
-            if top.shape != bot.shape:
-                continue
+            # Bracketing interfaces may be at different resolutions — resample
+            # to a common grid rather than silently skip the thickness check.
+            top, bot, resampled = self._align(top, bot)
+            note = " (interfaces resampled to common grid)" if resampled else ""
 
             thickness = bot - top
             t_min, t_max = float(thickness.min()), float(thickness.max())
             self.info(
-                f"{gname} ({top_key}→{bot_key}): thickness=[{t_min:.1f}, {t_max:.1f}] m  nk={nk}"
+                f"{gname} ({top_key}→{bot_key}): thickness=[{t_min:.1f}, {t_max:.1f}] m  nk={nk}{note}"
             )
 
             n_bad = int((thickness <= 0).sum())
             if n_bad:
+                i, j, fx, fy = self._worst_loc(thickness, want_max=False)
                 self.error(
-                    f"{gname}: {n_bad} point(s) with zero/negative thickness — SW4 hv=thickness/(nk-1) → NaN"
+                    f"{gname}: {n_bad} point(s) with zero/negative thickness{note} — "
+                    f"min {t_min:.2f} m at (i,j)=({i},{j}) ≈ ({fx:.1f}%, {fy:.1f}%) of domain — "
+                    f"SW4 hv=thickness/(nk-1) → NaN"
                 )
                 ok = False
             elif nk >= 2 and 0 < t_min / (nk - 1) < 0.01:

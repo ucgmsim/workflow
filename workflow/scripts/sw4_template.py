@@ -42,7 +42,7 @@ sfile filename={velocity_model_name} directory={velocity_model_directory}
 topography input=sfile zmax={topography_zmax} order=3 file={velocity_model_directory}/{velocity_model_name}
 rechdf5 infile={station_file_name} outfile={station_output_file_path}
 
-developer reporttiming=1 ctol=1e-4 checkfornan=1
+developer reporttiming=1 ctol=1e-4 failonnan=1
 """
 
 
@@ -137,6 +137,11 @@ def generate_sw4_input(
         refinements, topography_zmax
     )
     refinements = sorted(refinements, key=lambda r: r.bottom)
+    # Per the SW4 User Guide, the supergrid sponge (30 gridpoints by default) at the bottom of the domain
+    # must be contained in the bottom refinement.
+    supergrid_padding = 30
+    refinements[-1].bottom += supergrid_padding * refinements[-1].resolution
+
     if refinements[-1].bottom > sfile_zmax:
         raise ValueError("Bottom of domain exceeds velocity model bounds")
 

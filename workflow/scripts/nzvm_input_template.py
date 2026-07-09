@@ -16,7 +16,6 @@ from workflow.realisations import DomainParameters, VelocityModelParameters
 app = typer.Typer()
 
 
-
 @cli.from_docstring(app)
 def generate_template(realisation_ffp: Path, output_path: Path) -> None:
     """Generate a template VM file from a realisation file.
@@ -29,22 +28,31 @@ def generate_template(realisation_ffp: Path, output_path: Path) -> None:
         Path where the generated template will be written.
     """
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
-    velocity_model_parameters = VelocityModelParameters.read_from_realisation(realisation_ffp)
+    velocity_model_parameters = VelocityModelParameters.read_from_realisation(
+        realisation_ffp
+    )
+
     offset = 10.0
     refinements = domain.domain_refinements(domain_parameters.depth + offset)
+    # Per the SW4 User Guide, the supergrid sponge (30 gridpoints) at the bottom of the domain
+    # must be contained in the bottom refinement. To ensure that the velocity
+    # model always has values here, we extend the bottom of the velocity model
+    # by 50 grid points.
+    supergrid_padding = 50
+    refinements[-1].bottom += supergrid_padding * refinements[-1].resolution
+
     origin = domain_parameters.domain.origin
     origin_lat = origin[0]
     origin_lon = origin[1]
     azimuth = domain_parameters.domain.great_circle_bearing
 
-    
     buffer = 1.10
     extent_y = buffer * domain_parameters.domain.extent_y * 1000.0
     extent_x = buffer * domain_parameters.domain.extent_x * 1000.0
     if not velocity_model_parameters.surface:
-        raise ValueError('NZCVM requires defined surface path.')
+        raise ValueError("NZCVM requires defined surface path.")
     if not velocity_model_parameters.layers:
-        raise ValueError('NZCVM requires at least one defined layer.')
+        raise ValueError("NZCVM requires at least one defined layer.")
 
     config = VelocityModelConfig(
         grid=SW4GridConfig(
@@ -54,19 +62,19 @@ def generate_template(realisation_ffp: Path, output_path: Path) -> None:
                 origin_lon=origin_lon,
                 origin_lat=origin_lat,
                 crs=pyproj.CRS(2193),
-                azimuth=azimuth
+                azimuth=azimuth,
             ),
             surface=velocity_model_parameters.surface,
             chunks=velocity_model_parameters.chunks,
-            refinements=
-                {
-                    f'layer_{refinement.resolution}m': MeshRefinement(resolution=refinement.resolution, bottom=refinement.bottom)
-                 for refinement in refinements
-                }
+            refinements={
+                f"layer_{refinement.resolution}m": MeshRefinement(
+                    resolution=refinement.resolution, bottom=refinement.bottom
+                )
+                for refinement in refinements
+            },
         ),
-        layers=velocity_model_parameters.layers
+        layers=velocity_model_parameters.layers,
     )
-        
 
-    with open(output_path, 'w') as f:
-        f.write(config.to_json(encoder=functools.partial(json.dumps, indent=4))) # ty: ignore
+    with open(output_path, "w") as f:
+        f.write(config.to_json(encoder=functools.partial(json.dumps, indent=4)))  # ty: ignore
