@@ -149,7 +149,9 @@ def resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
         # This tells xarray that the time coordinates from the dset dataset are no
         # longer any good. They will be dropped from the output array.
         exclude_dims=set(["time"]),
-        kwargs=dict(num=nt),
+        # Array passed to resample will have time in the inner-most axis and the
+        # default axis for resample is 0.
+        kwargs=dict(num=nt, axis=-1),
     )
 
     resampled_waveform = resampled_waveform.assign_coords(time=new_time)
