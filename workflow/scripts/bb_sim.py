@@ -266,8 +266,6 @@ def combine_hf_and_lf(
             "component": ("component", ["x", "y", "z"]),
             "station": ("station", common_stations),
             "time": ("time", new_time_coords),
-            "x": ("station", lf.x.values),
-            "y": ("station", lf.y.values),
             "latitude": ("station", lf.lat.values),
             "longitude": ("station", lf.lon.values),
         },

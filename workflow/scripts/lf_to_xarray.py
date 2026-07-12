@@ -104,6 +104,8 @@ def convert_sw4_station_recording(sw4_ffp: Path) -> xr.Dataset:
     global_npts = None
 
     stations = []
+    latitudes = []
+    longitudes = []
     with h5py.File(sw4_ffp, "r") as handle:
         dt = np.float32(handle["DELTA"][:].squeeze())
         for station_name, group in handle.items():
@@ -116,6 +118,10 @@ def convert_sw4_station_recording(sw4_ffp: Path) -> xr.Dataset:
                 )
             global_npts = npts
             stations.append(station_name)
+            latitude, longitude, _ = group["STLA,STLO,STDP"][:]
+            latitudes.append(latitude)
+            longitudes.append(longitude)
+
     if global_npts is None:
         raise RuntimeError(
             "No valid station recordings found in file. Are you sure this is an SW4 station file? Use `h5ls` to check the file structure."
@@ -137,8 +143,13 @@ def convert_sw4_station_recording(sw4_ffp: Path) -> xr.Dataset:
         axis=1,
     )
     time = np.arange(global_npts) * dt
+
     return xr.Dataset(
-        {"waveform": (("component", "station", "time"), waveform)},
+        {
+            "waveform": (("component", "station", "time"), waveform),
+            "lat": (("station",), latitudes),
+            "lon": (("station",), longitudes),
+        },
         coords=dict(component=["x", "y", "z"], station=stations, time=time),
         attrs={"start_sec": 0.0, "dt": dt},
     )
