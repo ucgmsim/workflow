@@ -339,8 +339,17 @@ def stitch_srf_files(
         for fault_srf in srf_file_map.values()
     )
     assert combined_slipt_array is not None
+
+    versions = {srf_file.version for srf_file in srf_file_map.values()}
+    if len(versions) != 1:
+        raise ValueError(
+            f"SRF versions must all be the same: found versions {','.join(map(str, versions))}"
+        )
+
+    version = next(iter(versions))
+
     combined_srf = srf.SrfFile(
-        version="1.0",
+        version=version,
         header=pd.concat([fault_srf.header for fault_srf in srf_file_map.values()]),
         points=pd.concat([fault_srf.points for fault_srf in srf_file_map.values()]),
         slipt1_array=combined_slipt_array,
