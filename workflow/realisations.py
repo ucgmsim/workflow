@@ -8,8 +8,10 @@ node) should be done outside this module. This is to avoid having this
 module become an "everything" module.
 """
 
+import copy
 import dataclasses
 import datetime
+import itertools
 import json
 import random
 import struct
@@ -229,7 +231,12 @@ class RealisationConfiguration(ABC):
                 realisation_configuration = json.load(realisation_file_handle)
         realisation_configuration.update({self._config_key: self.to_dict()})
         with open(realisation_ffp, "w", encoding="utf-8") as realisation_file_handle:
-            json.dump(realisation_configuration, realisation_file_handle, indent=4, default=path_serialiser)
+            json.dump(
+                realisation_configuration,
+                realisation_file_handle,
+                indent=4,
+                default=path_serialiser,
+            )
 
 
 @dataclasses.dataclass
@@ -843,6 +850,55 @@ class DomainParameters(RealisationConfiguration):
 
 
 @dataclasses.dataclass
+class Refinement:
+    resolution: float
+    bottom: float
+
+
+@dataclasses.dataclass
+class Refinements(RealisationConfiguration):
+    refinements: list[Refinement]
+    unbounded_refinement_resolution: float
+
+    def refinements_for_depth(self, depth: float) -> list[Refinement]:
+        depth_m = depth * 1000.0
+        refinements = []
+        for refinement in self.refinements:
+            refinements.append(
+                dataclasses.replace(refinement, bottom=min(refinement.bottom, depth_m))
+            )
+            if refinement.bottom > depth_m:
+                break
+        else:
+            # This block only runs when we finish the loop without breaking, i.e. we
+            # exhaust the refinement list.
+            refinements.append(
+                Refinement(
+                    resolution=self.unbounded_refinement_resolution, bottom=depth_m
+                )
+            )
+
+        match refinements:
+            case [*_, previous_layer, last_layer]:
+                # Ensure a minimum amount in the last layer.
+                last_layer.bottom = max(
+                    previous_layer.bottom + last_layer.resolution * 2, last_layer.bottom
+                )
+
+        return refinements
+
+
+@dataclasses.dataclass
+class NZCVMSettings(RealisationConfiguration):
+    layers: list[LayerConfig]
+    """nzcvm layer config"""
+    chunks: dict[Coordinate, int]
+    """nzcvm chunk configuration"""
+    surface: Path | None
+    """nzcvm DEM surface"""
+
+
+@dataclasses.dataclass
 class VelocityModelParameters(RealisationConfiguration):
     """Parameters defining the velocity model."""
 
@@ -865,12 +921,6 @@ class VelocityModelParameters(RealisationConfiguration):
     """Target RRup values at specific magnitudes, used to estimate domain size."""
     fault_buffer: float
     """Buffer width (km) around sources in rupture. Domain edge is guaranteed not be within this distance from any source."""
-    layers: list[LayerConfig] | None
-    """nzcvm layer config"""
-    chunks: dict[Coordinate, int]
-    """nzcvm chunk configuration"""
-    surface: Path | None
-    
 
     def to_dict(self) -> dict:
         """
@@ -883,7 +933,7 @@ class VelocityModelParameters(RealisationConfiguration):
         """
         _dict = dataclasses.asdict(self)
         _dict["rrup_interpolants"] = _dict["rrup_interpolants"].tolist()
-        
+
         return _dict
 
 

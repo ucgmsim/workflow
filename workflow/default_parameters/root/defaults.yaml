@@ -248,267 +248,267 @@ velocity_model:
       type: clamp
     - coastline: ${NZCVM_DATA_ROOT}/resources/coastline.wkb.gz
       provides:
-      - coastline
+        - coastline
       requires: []
       type: coastline
     - basin_depth:
-      - bottom_depth: 0
-        distance: 0
-      - bottom_depth: 2000
-        distance: 20000
-      - bottom_depth: 3000
-        distance: 50000
+        - bottom_depth: 0
+          distance: 0
+        - bottom_depth: 2000
+          distance: 20000
+        - bottom_depth: 3000
+          distance: 50000
       model:
-      - alpha: 1.0
-        bottom_depth: 50
-        qp: 100.0
-        qs: 50.0
-        rho: 1810.0
-        vp: 1800.0
-        vs: 380.0
-      - alpha: 1.0
-        bottom_depth: 150
-        qp: 100.0
-        qs: 50.0
-        rho: 1810.0
-        vp: 1800.0
-        vs: 480.0
-      - alpha: 1.0
-        bottom_depth: 300
-        qp: 100.0
-        qs: 50.0
-        rho: 1810.0
-        vp: 1800.0
-        vs: 580.0
-      - alpha: 1.0
-        bottom_depth: 500
-        qp: 100.0
-        qs: 50.0
-        rho: 1810.0
-        vp: 1800.0
-        vs: 680.0
-      - alpha: 1.0
-        bottom_depth: 800
-        qp: 100.0
-        qs: 50.0
-        rho: 1810.0
-        vp: 1800.0
-        vs: 750.0
-      - alpha: 1.0
-        bottom_depth: 1200
-        qp: 100.0
-        qs: 50.0
-        rho: 1810.0
-        vp: 1800.0
-        vs: 830.0
-      - alpha: 1.0
-        bottom_depth: 1800
-        qp: 100.0
-        qs: 50.0
-        rho: 1860.0
-        vp: 1900.0
-        vs: 900.0
-      - alpha: 1.0
-        bottom_depth: 2600
-        qp: 100.0
-        qs: 50.0
-        rho: 1920.0
-        vp: 2030.0
-        vs: 1000.0
-      - alpha: 1.0
-        bottom_depth: 3600
-        qp: 100.0
-        qs: 50.0
-        rho: 1970.0
-        vp: 2140.0
-        vs: 1050.0
-      - alpha: 1.0
-        bottom_depth: 4800
-        qp: 100.0
-        qs: 50.0
-        rho: 1990.0
-        vp: 2200.0
-        vs: 1100.0
-      - alpha: 1.0
-        bottom_depth: 6200
-        qp: 100.0
-        qs: 50.0
-        rho: 2060.0
-        vp: 2400.0
-        vs: 1150.0
-      - alpha: 1.0
-        bottom_depth: 7800
-        qp: 100.0
-        qs: 50.0
-        rho: 2150.0
-        vp: 2700.0
-        vs: 1200.0
-      - alpha: 1.0
-        bottom_depth: 9600
-        qp: 100.0
-        qs: 50.0
-        rho: 2220.0
-        vp: 3000.0
-        vs: 1430.0
-      - alpha: 1.0
-        bottom_depth: 11600
-        qp: 100.0
-        qs: 50.0
-        rho: 2280.0
-        vp: 3270.0
-        vs: 1640.0
-      - alpha: 1.0
-        bottom_depth: 13800
-        qp: 100.0
-        qs: 50.0
-        rho: 2320.0
-        vp: 3530.0
-        vs: 1860.0
-      - alpha: 1.0
-        bottom_depth: 16200
-        qp: 100.0
-        qs: 50.0
-        rho: 2360.0
-        vp: 3800.0
-        vs: 2070.0
-      - alpha: 1.0
-        bottom_depth: 18800
-        qp: 100.0
-        qs: 50.0
-        rho: 2400.0
-        vp: 4070.0
-        vs: 2280.0
-      - alpha: 1.0
-        bottom_depth: 21600
-        qp: 100.0
-        qs: 50.0
-        rho: 2440.0
-        vp: 4330.0
-        vs: 2490.0
-      - alpha: 1.0
-        bottom_depth: 24600
-        qp: 100.0
-        qs: 50.0
-        rho: 2480.0
-        vp: 4600.0
-        vs: 2700.0
-      - alpha: 1.0
-        bottom_depth: 27800
-        qp: 100.0
-        qs: 50.0
-        rho: 2490.0
-        vp: 4710.0
-        vs: 2770.0
-      - alpha: 1.0
-        bottom_depth: 31200
-        qp: 100.0
-        qs: 50.0
-        rho: 2510.0
-        vp: 4820.0
-        vs: 2840.0
-      - alpha: 1.0
-        bottom_depth: 34800
-        qp: 100.0
-        qs: 50.0
-        rho: 2520.0
-        vp: 4930.0
-        vs: 2910.0
-      - alpha: 1.0
-        bottom_depth: 38600
-        qp: 100.0
-        qs: 50.0
-        rho: 2540.0
-        vp: 5040.0
-        vs: 2980.0
-      - alpha: 1.0
-        bottom_depth: 42600
-        qp: 100.0
-        qs: 50.0
-        rho: 2560.0
-        vp: 5150.0
-        vs: 3050.0
-      - alpha: 1.0
-        bottom_depth: 46800
-        qp: 100.0
-        qs: 50.0
-        rho: 2580.0
-        vp: 5260.0
-        vs: 3120.0
-      - alpha: 1.0
-        bottom_depth: 51200
-        qp: 100.0
-        qs: 50.0
-        rho: 2600.0
-        vp: 5370.0
-        vs: 3190.0
-      - alpha: 1.0
-        bottom_depth: 55800
-        qp: 100.0
-        qs: 50.0
-        rho: 2610.0
-        vp: 5480.0
-        vs: 3260.0
-      - alpha: 1.0
-        bottom_depth: 60600
-        qp: 100.0
-        qs: 50.0
-        rho: 2630.0
-        vp: 5590.0
-        vs: 3330.0
-      - alpha: 1.0
-        bottom_depth: 65600
-        qp: 100.0
-        qs: 50.0
-        rho: 2660.0
-        vp: 5700.0
-        vs: 3400.0
-      - alpha: 1.0
-        bottom_depth: 73600
-        qp: 100.0
-        qs: 50.0
-        rho: 2720.0
-        vp: 6000.0
-        vs: 3600.0
-      - alpha: 1.0
-        bottom_depth: 85600
-        qp: 100.0
-        qs: 50.0
-        rho: 2720.0
-        vp: 6000.0
-        vs: 3600.0
-      - alpha: 1.0
-        bottom_depth: 112600
-        qp: 100.0
-        qs: 50.0
-        rho: 2830.0
-        vp: 6500.0
-        vs: 3700.0
-      - alpha: 1.0
-        bottom_depth: 151600
-        qp: 100.0
-        qs: 50.0
-        rho: 3120.0
-        vp: 7500.0
-        vs: 4300.0
-      - alpha: 1.0
-        bottom_depth: 10151599
-        qp: 100.0
-        qs: 50.0
-        rho: 3330.0
-        vp: 8100.0
-        vs: 4600.0
+        - alpha: 1.0
+          bottom_depth: 50
+          qp: 100.0
+          qs: 50.0
+          rho: 1810.0
+          vp: 1800.0
+          vs: 380.0
+        - alpha: 1.0
+          bottom_depth: 150
+          qp: 100.0
+          qs: 50.0
+          rho: 1810.0
+          vp: 1800.0
+          vs: 480.0
+        - alpha: 1.0
+          bottom_depth: 300
+          qp: 100.0
+          qs: 50.0
+          rho: 1810.0
+          vp: 1800.0
+          vs: 580.0
+        - alpha: 1.0
+          bottom_depth: 500
+          qp: 100.0
+          qs: 50.0
+          rho: 1810.0
+          vp: 1800.0
+          vs: 680.0
+        - alpha: 1.0
+          bottom_depth: 800
+          qp: 100.0
+          qs: 50.0
+          rho: 1810.0
+          vp: 1800.0
+          vs: 750.0
+        - alpha: 1.0
+          bottom_depth: 1200
+          qp: 100.0
+          qs: 50.0
+          rho: 1810.0
+          vp: 1800.0
+          vs: 830.0
+        - alpha: 1.0
+          bottom_depth: 1800
+          qp: 100.0
+          qs: 50.0
+          rho: 1860.0
+          vp: 1900.0
+          vs: 900.0
+        - alpha: 1.0
+          bottom_depth: 2600
+          qp: 100.0
+          qs: 50.0
+          rho: 1920.0
+          vp: 2030.0
+          vs: 1000.0
+        - alpha: 1.0
+          bottom_depth: 3600
+          qp: 100.0
+          qs: 50.0
+          rho: 1970.0
+          vp: 2140.0
+          vs: 1050.0
+        - alpha: 1.0
+          bottom_depth: 4800
+          qp: 100.0
+          qs: 50.0
+          rho: 1990.0
+          vp: 2200.0
+          vs: 1100.0
+        - alpha: 1.0
+          bottom_depth: 6200
+          qp: 100.0
+          qs: 50.0
+          rho: 2060.0
+          vp: 2400.0
+          vs: 1150.0
+        - alpha: 1.0
+          bottom_depth: 7800
+          qp: 100.0
+          qs: 50.0
+          rho: 2150.0
+          vp: 2700.0
+          vs: 1200.0
+        - alpha: 1.0
+          bottom_depth: 9600
+          qp: 100.0
+          qs: 50.0
+          rho: 2220.0
+          vp: 3000.0
+          vs: 1430.0
+        - alpha: 1.0
+          bottom_depth: 11600
+          qp: 100.0
+          qs: 50.0
+          rho: 2280.0
+          vp: 3270.0
+          vs: 1640.0
+        - alpha: 1.0
+          bottom_depth: 13800
+          qp: 100.0
+          qs: 50.0
+          rho: 2320.0
+          vp: 3530.0
+          vs: 1860.0
+        - alpha: 1.0
+          bottom_depth: 16200
+          qp: 100.0
+          qs: 50.0
+          rho: 2360.0
+          vp: 3800.0
+          vs: 2070.0
+        - alpha: 1.0
+          bottom_depth: 18800
+          qp: 100.0
+          qs: 50.0
+          rho: 2400.0
+          vp: 4070.0
+          vs: 2280.0
+        - alpha: 1.0
+          bottom_depth: 21600
+          qp: 100.0
+          qs: 50.0
+          rho: 2440.0
+          vp: 4330.0
+          vs: 2490.0
+        - alpha: 1.0
+          bottom_depth: 24600
+          qp: 100.0
+          qs: 50.0
+          rho: 2480.0
+          vp: 4600.0
+          vs: 2700.0
+        - alpha: 1.0
+          bottom_depth: 27800
+          qp: 100.0
+          qs: 50.0
+          rho: 2490.0
+          vp: 4710.0
+          vs: 2770.0
+        - alpha: 1.0
+          bottom_depth: 31200
+          qp: 100.0
+          qs: 50.0
+          rho: 2510.0
+          vp: 4820.0
+          vs: 2840.0
+        - alpha: 1.0
+          bottom_depth: 34800
+          qp: 100.0
+          qs: 50.0
+          rho: 2520.0
+          vp: 4930.0
+          vs: 2910.0
+        - alpha: 1.0
+          bottom_depth: 38600
+          qp: 100.0
+          qs: 50.0
+          rho: 2540.0
+          vp: 5040.0
+          vs: 2980.0
+        - alpha: 1.0
+          bottom_depth: 42600
+          qp: 100.0
+          qs: 50.0
+          rho: 2560.0
+          vp: 5150.0
+          vs: 3050.0
+        - alpha: 1.0
+          bottom_depth: 46800
+          qp: 100.0
+          qs: 50.0
+          rho: 2580.0
+          vp: 5260.0
+          vs: 3120.0
+        - alpha: 1.0
+          bottom_depth: 51200
+          qp: 100.0
+          qs: 50.0
+          rho: 2600.0
+          vp: 5370.0
+          vs: 3190.0
+        - alpha: 1.0
+          bottom_depth: 55800
+          qp: 100.0
+          qs: 50.0
+          rho: 2610.0
+          vp: 5480.0
+          vs: 3260.0
+        - alpha: 1.0
+          bottom_depth: 60600
+          qp: 100.0
+          qs: 50.0
+          rho: 2630.0
+          vp: 5590.0
+          vs: 3330.0
+        - alpha: 1.0
+          bottom_depth: 65600
+          qp: 100.0
+          qs: 50.0
+          rho: 2660.0
+          vp: 5700.0
+          vs: 3400.0
+        - alpha: 1.0
+          bottom_depth: 73600
+          qp: 100.0
+          qs: 50.0
+          rho: 2720.0
+          vp: 6000.0
+          vs: 3600.0
+        - alpha: 1.0
+          bottom_depth: 85600
+          qp: 100.0
+          qs: 50.0
+          rho: 2720.0
+          vp: 6000.0
+          vs: 3600.0
+        - alpha: 1.0
+          bottom_depth: 112600
+          qp: 100.0
+          qs: 50.0
+          rho: 2830.0
+          vp: 6500.0
+          vs: 3700.0
+        - alpha: 1.0
+          bottom_depth: 151600
+          qp: 100.0
+          qs: 50.0
+          rho: 3120.0
+          vp: 7500.0
+          vs: 4300.0
+        - alpha: 1.0
+          bottom_depth: 10151599
+          qp: 100.0
+          qs: 50.0
+          rho: 3330.0
+          vp: 8100.0
+          vs: 4600.0
       provides: []
       requires:
-      - coastline
+        - coastline
       type: offshore
     - depth_t: 450.0
       provides: []
       requires:
-      - coastline
+        - coastline
       type: ely
       vs30: ${NZCVM_DATA_ROOT}/resources/vs30.zarr
     - model_globs:
-      - '*.zarr'
+        - "*.zarr"
       model_path: ${NZCVM_DATA_ROOT}/models
       provides: []
       requires: []

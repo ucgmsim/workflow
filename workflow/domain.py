@@ -1,46 +1,7 @@
 import itertools
 from copy import deepcopy
-from dataclasses import dataclass, replace
 
-from workflow.realisations import DomainParameters
-
-
-@dataclass
-class Refinement:
-    resolution: float
-    bottom: float
-
-
-THEORETICAL_REFINEMENTS = [
-    Refinement(resolution=50.0, bottom=2000.0),
-    Refinement(resolution=100.0, bottom=5000.0),
-    Refinement(resolution=200.0, bottom=25000.0),
-]
-UNBOUNDED_REFINEMENT_RESOLUTION = 400.0
-
-
-def domain_refinements(depth: float) -> list[Refinement]:
-    depth_m = depth * 1000.0
-    refinements = []
-    for refinement in THEORETICAL_REFINEMENTS:
-        refinements.append(replace(refinement, bottom=min(refinement.bottom, depth_m)))
-        if refinement.bottom > depth_m:
-            break
-    else:
-        # This block only runs when we finish the loop without breaking, i.e. we
-        # exhaust the refinement list.
-        refinements.append(
-            Refinement(resolution=UNBOUNDED_REFINEMENT_RESOLUTION, bottom=depth_m)
-        )
-
-    match refinements:
-        case [*_, previous_layer, last_layer]:
-            # Ensure a minimum amount in the last layer.
-            last_layer.bottom = max(
-                previous_layer.bottom + last_layer.resolution * 2, last_layer.bottom
-            )
-
-    return refinements
+from workflow.realisations import DomainParameters, Refinement, Refinements
 
 
 def adjust_for_topography(
@@ -74,13 +35,15 @@ def adjust_for_topography(
     return real_refinements, topography_zmax
 
 
-def gridpoints_from_domain(domain_parameters: DomainParameters) -> int:
+def gridpoints_from_domain(
+    domain_parameters: DomainParameters, refinements: Refinements
+) -> int:
     depth = domain_parameters.depth
     area = domain_parameters.domain.area * (1000**2)
-    refinements = domain_refinements(depth)
+    domain_refinements = refinements.refinements_for_depth(depth)
     top = 0.0
     gridpoints = 0
-    for refinement in refinements:
+    for refinement in domain_refinements:
         volume = (refinement.bottom - top) * area
         gridpoints += int(volume // (refinement.resolution) ** 3)
         top = refinement.bottom
