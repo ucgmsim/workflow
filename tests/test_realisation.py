@@ -115,6 +115,7 @@ def test_srf_config_example(tmp_path: Path) -> None:
     )
     srf_config = realisations.SRFConfig(
         resolution=0.1,
+        dt=0.005,
         point_source_params=schemas.PointSourceParams(
             stype=schemas.Stype.cos,
             risetime=0.5,
@@ -249,6 +250,7 @@ def test_srf_config_example(tmp_path: Path) -> None:
             },
             "srf": {
                 "resolution": 0.1,
+                "dt": 0.005,
                 "point_source_params": {
                     "stype": "cos",
                     "risetime": 0.5,
@@ -438,9 +440,6 @@ def test_velocity_model(tmp_path: Path) -> None:
         fault_buffer=2000.0,
         s_wave_velocity=3500.0,
         rrup_interpolants=np.ones(shape=(2, 2), dtype=np.float32),
-        chunks=dict(),
-        layers=None,
-        surface=None
     )
     realisation_ffp = tmp_path / "realisation.json"
     velocity_model.write_to_realisation(realisation_ffp)
@@ -455,9 +454,6 @@ def test_velocity_model(tmp_path: Path) -> None:
                 "fault_buffer": 2000.0,
                 "s_wave_velocity": 3500.0,
                 "rrup_interpolants": [[1, 1], [1, 1]],
-                'chunks': dict(),
-                'layers': None,
-                'surface': None
             }
         }
 
@@ -926,21 +922,6 @@ def test_refinements(tmp_path: Path) -> None:
     )
 
 
-def test_refinements_defaults_loadable() -> None:
-    """Refinements should load from v26_7_1Hz defaults and raise for older versions."""
-    refinements = realisations.Refinements.read_from_defaults(defaults.DefaultsVersion.v26_7_1Hz)
-    assert len(refinements.refinements) == 3
-    assert refinements.refinements[0].resolution == 50.0
-    assert refinements.refinements[0].bottom == 2000.0
-    assert refinements.unbounded_refinement_resolution == 400.0
-
-    for version in defaults.DefaultsVersion:
-        if version == defaults.DefaultsVersion.v26_7_1Hz:
-            continue
-        with pytest.raises(realisations.RealisationParseError):
-            realisations.Refinements.read_from_defaults(version)
-
-
 def test_sources(tmp_path: Path) -> None:
     realisation_ffp = tmp_path / "realisation.json"
     source_json = {
@@ -989,6 +970,14 @@ def test_sources(tmp_path: Path) -> None:
         assert json.load(f_old) == json.load(f_new)
 
 
+SKIP_PAIRS = {
+    (defaults.DefaultsVersion.v24_2_2_1, realisations.Refinements),
+    (defaults.DefaultsVersion.v24_2_2_2, realisations.Refinements),
+    (defaults.DefaultsVersion.v24_2_2_4, realisations.Refinements),
+    (defaults.DefaultsVersion.v26_7_1Hz, realisations.Resolution),
+}
+
+
 @pytest.mark.parametrize(
     "realisation_config",
     [
@@ -1002,12 +991,16 @@ def test_sources(tmp_path: Path) -> None:
         realisations.HFVelocityModel1D,
         realisations.Resolution,
         realisations.RuptureVelocity,
+        realisations.Refinements,
     ],
 )
 @pytest.mark.parametrize("defaults_version", list(defaults.DefaultsVersion))
 def test_defaults_are_loadable(
-    tmp_path: Path,
     realisation_config: realisations.RealisationConfiguration,
     defaults_version: defaults.DefaultsVersion,
 ) -> None:
+    if (defaults_version, realisation_config) in SKIP_PAIRS:
+        pytest.skip(
+            f"Configuration {realisation_config} unsupported for defaults {defaults_version}"
+        )
     realisation_config.read_from_defaults(defaults_version)

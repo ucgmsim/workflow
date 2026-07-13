@@ -54,7 +54,6 @@ from workflow.realisations import (
     HFConfig,
     HFVelocityModel1D,
     RealisationMetadata,
-    Resolution,
     RuptureVelocity,
     Seeds,
 )
@@ -96,7 +95,7 @@ def rupture_velocity_hf_transition_bands(
 def build_hf_input(
     stoch_ffp: Path,
     velocity_model: Path,
-    resolution: Resolution,
+    dt: float,
     hf_config: HFConfig,
     rupture_velocity: RuptureVelocity,
     domain_parameters: DomainParameters,
@@ -109,8 +108,8 @@ def build_hf_input(
         The path to the stoch file.
     velocity_model : Path
         The path to the velocity model.
-    resolution : Resolution
-        HF simulation resolution.
+    dt : float
+        HF simulation timestep.
     hf_config : HFConfig
         The high-frequency config.
     rupture_velocity : RuptureVelocity
@@ -139,7 +138,7 @@ def build_hf_input(
         f"{hf_config.nbu} {hf_config.ift} {hf_config.flo} {hf_config.fhi}",
         "{seed}",
         1,  # one station in the input
-        f"{domain_parameters.duration} {resolution.dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",  # TODO(refinements): HF needs an independent timestep
+        f"{domain_parameters.duration} {dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",
         f"{rupture_velocity.rvfrac} {rupture_velocity.rvfrac_shal} {rupture_velocity.rvfrac_deep} {hf_config.czero} {hf_config.calpha}",
         # TODO: This requires PR from EMOD3D to merge before we can do this!
         # f"{shallow_min} {shallow_max} {deep_min} {deep_max}",
@@ -401,9 +400,6 @@ def run_hf(
     rupture_velocity = RuptureVelocity.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
-    resolution = Resolution.read_from_realisation_or_defaults(
-        realisation_ffp, metadata.defaults_version
-    )
 
     stations = pd.read_csv(
         station_file,
@@ -414,16 +410,12 @@ def run_hf(
     stations["seed"] = station_seeds(seeds.hf_seed, stations.index)
     velocity_model_path = work_directory / "velocity_model"
     velocity_model.write_velocity_model(velocity_model_path)
+    dt = hf_config.dt
     nt = int(
-        np.float32(domain_parameters.duration)
-        / np.float32(
-            resolution.dt
-        )  # TODO(refinements): HF needs an independent timestep
+        np.float32(domain_parameters.duration) / np.float32(dt)
     )  # Match Fortran's single-precision for consistent nt calculation
     waveform_template = da.empty((3, len(stations), nt), dtype=np.float32)
-    time = (
-        hf_config.t_sec + np.arange(nt) * resolution.dt
-    )  # TODO(refinements): HF needs an independent timestep
+    time = hf_config.t_sec + np.arange(nt) * dt
     waveform_array_template = xr.DataArray(
         waveform_template,
         dims=["component", "station", "time"],
@@ -433,7 +425,7 @@ def run_hf(
     hf_input_template = build_hf_input(
         stoch_ffp,
         velocity_model_path,
-        resolution,
+        dt,
         hf_config,
         rupture_velocity,
         domain_parameters,

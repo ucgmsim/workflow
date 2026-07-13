@@ -5,22 +5,22 @@ the [Realisations page](https://github.com/ucgmsim/workflow/wiki/Realisations), 
 [Realisations Proposal page](https://github.com/ucgmsim/workflow/wiki/Realisation-Proposal))
 for a description of realisations and the schemas.
 """
-from pathlib import Path
-from nzcvm.coordinates import Coordinate
-from nzcvm.config.layers import LayerConfig
 
 import dataclasses
 from enum import IntEnum, StrEnum
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from nzcvm.config import VelocityModelConfig
+from nzcvm.config.layers import LayerConfig
+from nzcvm.coordinates import Coordinate
 from schema import And, Literal, Optional, Or, Schema, Use
 
 from IM import im_calculation
 from source_modelling import rupture_propagation, sources
 from velocity_modelling.bounding_box import BoundingBox
 from workflow.defaults import DefaultsVersion
-from nzcvm.config import VelocityModelConfig
 
 
 class Stype(StrEnum):
@@ -439,6 +439,9 @@ SRF_SCHEMA = Schema(
         Literal(
             "resolution", description="The resolution of the SRF discretisation."
         ): And(NUMBER, _is_positive),
+        Literal("dt", description="SRF temporal resolution (timestep)."): And(
+            NUMBER, _is_positive
+        ),
         Optional(
             Literal(
                 "point_source_params",
@@ -965,12 +968,17 @@ VELOCITY_MODEL_SCHEMA = Schema(
         Literal("fault_buffer", "Buffer width (km) around sources in rupture."): And(
             NUMBER, _is_positive
         ),
-        Literal('layers'): Or(None, [Use(LayerConfig.from_dict)]),
-        Literal('chunks'): Or(dict(), {Use(Coordinate): int}),
-        Literal('surface'): Or(None, Use(Path))
     }
 )
 
+
+NZCVM_SCHEMA = Schema(
+    {
+        Literal("layers"): Or(None, [Use(LayerConfig.from_dict)]),
+        Literal("chunks"): Or(dict(), {Use(Coordinate): int}),
+        Literal("surface"): Or(None, Use(Path)),
+    }
+)
 SEED_SCHEMA = Schema(
     {
         Literal("genslip_seed", description="The random seed passed to genslip."): int,
@@ -1083,6 +1091,9 @@ HF_CONFIG_SCHEMA = Schema(
         Literal(
             "stress_parameter_adjustment_fault_area", "Fault area (or inferred if null)"
         ): Or(NUMBER, None),
+        Literal("dt", description="High frequency simulation timestep."): And(
+            NUMBER, _is_positive
+        ),
         Literal("stoch_dx", description="Stoch file dx"): And(NUMBER, _is_positive),
         Literal("stoch_dy", description="Stoch file dy"): And(NUMBER, _is_positive),
     }
@@ -1229,12 +1240,12 @@ RESOLUTION_SCHEMA = Schema(
 
 REFINEMENT_SCHEMA = Schema(
     {
-        Literal("resolution", description="Vertical mesh resolution in this layer."): And(
-            NUMBER, _is_positive
-        ),
-        Literal("bottom", description="Bottom depth of this refinement layer (m)."): And(
-            NUMBER, _is_positive
-        ),
+        Literal(
+            "resolution", description="Vertical mesh resolution in this layer."
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "bottom", description="Bottom depth of this refinement layer (m)."
+        ): And(NUMBER, _is_positive),
     }
 )
 

@@ -102,9 +102,6 @@ def test_generate_domain() -> None:
         fault_buffer=2000,
         s_wave_velocity=3500,
         rrup_interpolants=np.array([[5.0, 8.0], [50.0, 50.0]]),
-        layers=None,
-        chunks=dict(),
-        surface=None
     )
     domain_parameters = generate_domain.generate_domain(
         source_config,

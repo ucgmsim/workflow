@@ -389,6 +389,9 @@ class SRFConfig(RealisationConfiguration):
     resolution: float
     """The resolution of the SRF discretisation (different, in general, from the simulation resolution)."""
 
+    dt: float
+    """SRF temporal resolution (timestep)."""
+
     point_source_params: schemas.PointSourceParams | None
     """Parameters for point source approximation, if applicable."""
 
@@ -1108,6 +1111,8 @@ class HFConfig(RealisationConfiguration):
     """Target magnitude (or inferred if None)"""
     stress_parameter_adjustment_fault_area: float | None
     """Target magnitude (or inferred if None)"""
+    dt: float
+    """High frequency simulation timestep."""
     # these are used in stoch generation, rather than HF invocation
     stoch_dx: float
     """stoch file resolution in x."""

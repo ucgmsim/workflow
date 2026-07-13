@@ -3,12 +3,12 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+import xarray as xr
 from hypothesis import given
 from hypothesis import strategies as st
 
 from workflow.realisations import (
     HFConfig,
-    Resolution,
     RuptureVelocity,
 )
 from workflow.scripts import hf_sim
@@ -53,9 +53,9 @@ def test_build_hf_input_serialisation() -> None:
         stress_parameter_adjustment_fault_area=None,
         stress_parameter_adjustment_target_magnitude=None,
         stress_parameter_adjustment_tect_type=0,
+        dt=0.005,
     )
 
-    res = Resolution(resolution=0.1)
     rv = RuptureVelocity(
         rvfrac=0.8,
         rvfrac_shal=0.7,
@@ -64,7 +64,7 @@ def test_build_hf_input_serialisation() -> None:
         shallow_transition_range=1,
         deep_depth=2.0,
         deep_transition_range=1,
-        rvfrac_slip_sig=None
+        rvfrac_slip_sig=None,
     )
     # Rather than create DomainParameters with a bounding box, we simplify with a mock object
     domain = SimpleNamespace(duration=100.0)
@@ -72,7 +72,7 @@ def test_build_hf_input_serialisation() -> None:
     result = hf_sim.build_hf_input(
         stoch_ffp,
         velocity_model,
-        res,
+        hf_config.dt,
         hf_config,
         rv,
         domain,  # type: ignore[invalid-argument-type]
@@ -134,26 +134,38 @@ def test_create_hf_dataset_structure() -> None:
     n_time = 100
 
     names = ["station_a", "station_b"]
-    waveform = np.random.rand(n_components, n_stations, n_time).astype(np.float32)
+    dt = 0.02
+    start_sec = 0.0
+    time = start_sec + np.arange(n_time) * dt
+
+    waveform = xr.DataArray(
+        np.random.rand(n_components, n_stations, n_time).astype(np.float32),
+        dims=["component", "station", "time"],
+        coords=dict(
+            component=["x", "y", "z"],
+            station=names,
+            time=time,
+        ),
+        name="waveform",
+    )
     lat = np.array([-43.5, -43.6])
     lon = np.array([172.6, 172.7])
     dist = np.array([10.5, 20.1])
     seeds = np.array([123, 456])
     vrefs = np.array([300.0, 350.0])
-    dt = 0.02
-    start_sec = 0.0
 
-    ds = hf_sim.create_hf_dataset(
-        waveform=waveform,
-        latitude=lat,
-        longitude=lon,
-        names=names,
-        epicentre_distance=dist,
-        seed=seeds,
-        vref=vrefs,
-        dt=dt,
-        start_sec=start_sec,
+    station_inputs = xr.Dataset(
+        {
+            "lat": ("station", lat),
+            "lon": ("station", lon),
+            "epicentre_distance": ("station", dist),
+            "seed": ("station", seeds),
+            "vs": ("station", vrefs),
+        },
+        coords={"station": names},
     )
+
+    ds = hf_sim.create_hf_dataset(waveform, station_inputs)
 
     assert ds.sizes == {"component": 3, "station": 2, "time": 100}
 
@@ -165,7 +177,7 @@ def test_create_hf_dataset_structure() -> None:
 
     assert "waveform" in ds.data_vars
     assert ds.waveform.dims == ("component", "station", "time")
-    np.testing.assert_allclose(ds.waveform.values, waveform)
+    np.testing.assert_allclose(ds.waveform.values, waveform.values)
 
     assert ds.attrs["dt"] == dt
     assert ds.attrs["nt"] == n_time

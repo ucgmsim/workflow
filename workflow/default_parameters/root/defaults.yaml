@@ -163,6 +163,7 @@ srf:
   read_erf: false
   read_gsf: true
   resolution: 0.1
+  dt: 0.005
   risetime_coef: 1.6
   risetimedep: 6.5
   risetimedep_range: 1.5
@@ -223,14 +224,7 @@ srf:
     risetimefac: 1.0
     risetimedep: 0.0
     inittime: 0.0
-velocity_model:
-  min_vs: 0.5
-  ds_multiplier: 1.2
-  version: "2.07"
-  topo_type: "SQUASHED_TAPERED"
-  vs30: 500.0
-  s_wave_velocity: 3500.0
-  fault_buffer: 2.0
+nzcvm:
   surface: ${NZCVM_DATA_ROOT}/resources/dem.zarr
   chunks:
     i: 64
@@ -513,6 +507,15 @@ velocity_model:
       provides: []
       requires: []
       type: query
+
+velocity_model:
+  min_vs: 0.5
+  ds_multiplier: 1.2
+  version: "2.07"
+  topo_type: "SQUASHED_TAPERED"
+  vs30: 500.0
+  s_wave_velocity: 3500.0
+  fault_buffer: 2.0
   rrup_interpolants:
     [
       [
@@ -1137,3 +1140,9 @@ hf_velocity_model_1d:
       rho: 3.33
       Qp: 394.80
       Qs: 197.40
+bb:
+  fmin: 0.2
+  fmidbot: 0.5
+  fhightop: 100.0
+  fmax: 101.0
+  site_amp_version: "ba2018"
