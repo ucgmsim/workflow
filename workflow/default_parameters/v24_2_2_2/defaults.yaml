@@ -3,8 +3,8 @@ resolution:
   resolution: 0.2
 bb:
   flo: 0.5
+  fmin: 0.2
   fmidbot: 0.5
-  fmin: 0.25
-  fhightop: 15.0
-  fmax: 25.0
+  fhightop: 100.0
+  fmax: 101.0
   site_amp_version: "ba2018"
