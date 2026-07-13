@@ -347,6 +347,8 @@ def combine_hf_and_lf(
         attrs={"units": "g"},
     ).chunk(chunking)
 
+    combined = combined.unify_chunks()
+
     template = (
         combined["lf_waveform"].astype(np.float32).rename("waveform").to_dataset()
     )
