@@ -1,3 +1,5 @@
+import copy
+import itertools
 from pathlib import Path
 
 import h5py
@@ -6,7 +8,12 @@ from nzcvm.formats import sfile
 
 from qcore import cli
 from workflow import domain
-from workflow.realisations import DomainParameters
+from workflow.realisations import (
+    DomainParameters,
+    RealisationMetadata,
+    Refinement,
+    Refinements,
+)
 
 app = typer.Typer()
 SW4_TEMPLATE = """
@@ -84,6 +91,37 @@ def topography_height_from_velocity_model(
     return -float(global_min), float(zmax)
 
 
+def adjust_for_topography(
+    refinements: list[Refinement], topography_zmax: float, nzmin: int = 12
+) -> tuple[list[Refinement], float]:
+    # Ensure no side effects
+    refinements = copy.deepcopy(refinements)
+    # By shallow copying the refinements before modifying them this view into the refinements will only have the updated refinements, and not the topography and bottom.
+    real_refinements = refinements.copy()
+    topography_resolution = min(
+        (
+            refinement
+            for refinement in refinements
+            if refinement.bottom > topography_zmax
+        ),
+        key=lambda r: r.bottom,
+    ).resolution
+    topography = Refinement(bottom=topography_zmax, resolution=topography_resolution)
+    refinements.append(topography)
+    refinements.sort(key=lambda r: r.bottom)
+
+    for above, below in itertools.pairwise(refinements):
+        thickness = below.bottom - above.bottom
+        nz = thickness // below.resolution
+        cells_needed = nzmin - nz
+        if cells_needed > 0:
+            below.bottom += cells_needed * below.resolution
+
+    topography_zmax = topography.bottom
+
+    return real_refinements, topography_zmax
+
+
 @cli.from_docstring(app)
 def generate_sw4_input(
     realisation_ffp: Path,
@@ -110,7 +148,11 @@ def generate_sw4_input(
     output_path : Path
         Path to output SW4 file.
     """
+    metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
+    theoretical_refinements = Refinements.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
 
     x = domain_parameters.domain.extent_x * 1000.0
     y = domain_parameters.domain.extent_y * 1000.0
@@ -131,11 +173,9 @@ def generate_sw4_input(
 
     depth = domain_parameters.depth
     time = domain_parameters.duration
-    refinements = domain.domain_refinements(realisation_ffp, depth)
+    refinements = theoretical_refinements.refinements_for_depth(depth)
 
-    refinements, topography_zmax = domain.adjust_for_topography(
-        refinements, topography_zmax
-    )
+    refinements, topography_zmax = adjust_for_topography(refinements, topography_zmax)
     refinements = sorted(refinements, key=lambda r: r.bottom)
     # Per the SW4 User Guide, the supergrid sponge (30 gridpoints by default) at the bottom of the domain
     # must be contained in the bottom refinement.

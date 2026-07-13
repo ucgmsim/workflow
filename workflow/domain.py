@@ -1,52 +1,7 @@
-import itertools
-from copy import deepcopy
-from pathlib import Path
-
 from workflow.realisations import (
     DomainParameters,
-    RealisationMetadata,
-    Refinement,
     Refinements,
 )
-
-
-def domain_refinements(realisation_ffp: Path, depth: float) -> list[Refinement]:
-    metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
-    refinements = Refinements.read_from_realisation_or_defaults(
-        realisation_ffp, metadata.defaults_version
-    )
-    return refinements.refinements_for_depth(depth)
-
-
-def adjust_for_topography(
-    refinements: list[Refinement], topography_zmax: float, nzmin: int = 12
-) -> tuple[list[Refinement], float]:
-    # Ensure no side effects
-    refinements = deepcopy(refinements)
-    # By shallow copying the refinements before modifying them this view into the refinements will only have the updated refinements, and not the topography and bottom.
-    real_refinements = refinements.copy()
-    topography_resolution = min(
-        (
-            refinement
-            for refinement in refinements
-            if refinement.bottom > topography_zmax
-        ),
-        key=lambda r: r.bottom,
-    ).resolution
-    topography = Refinement(bottom=topography_zmax, resolution=topography_resolution)
-    refinements.append(topography)
-    refinements.sort(key=lambda r: r.bottom)
-
-    for above, below in itertools.pairwise(refinements):
-        thickness = below.bottom - above.bottom
-        nz = thickness // below.resolution
-        cells_needed = nzmin - nz
-        if cells_needed > 0:
-            below.bottom += cells_needed * below.resolution
-
-    topography_zmax = topography.bottom
-
-    return real_refinements, topography_zmax
 
 
 def gridpoints_from_domain(

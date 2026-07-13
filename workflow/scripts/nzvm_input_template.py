@@ -10,10 +10,11 @@ from nzcvm.config.grids.model import Model
 from nzcvm.config.grids.sw4 import MeshRefinement, SW4GridConfig
 
 from qcore import cli
-from workflow import domain
 from workflow.realisations import (
     DomainParameters,
     NZCVMSettings,
+    RealisationMetadata,
+    Refinements,
 )
 
 app = typer.Typer()
@@ -30,12 +31,17 @@ def generate_template(realisation_ffp: Path, output_path: Path) -> None:
     output_path : Path
         Path where the generated template will be written.
     """
+    metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     nzcvm_settings = NZCVMSettings.read_from_realisation(realisation_ffp)
 
+    theoretical_refinements = Refinements.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
+
     offset = 10.0
-    refinements = domain.domain_refinements(
-        realisation_ffp, domain_parameters.depth + offset
+    refinements = theoretical_refinements.refinements_for_depth(
+        domain_parameters.depth + offset
     )
     # Per the SW4 User Guide, the supergrid sponge (30 gridpoints) at the bottom of the domain
     # must be contained in the bottom refinement. To ensure that the velocity
