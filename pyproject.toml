@@ -17,6 +17,7 @@ dependencies = [
   "oq_wrapper>=2025.12.3",
   "qcore-utils>=2025.12.2",
   "source_modelling>=2026.6.2",
+  "site-calculation",
   # Data Formats
   "geopandas",
   "pandas[parquet, hdf5]",
@@ -135,6 +136,7 @@ known-first-party = [
   "IM",
   "mera",
   "velocity_modelling",
+  "site_calculation",
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -172,3 +174,4 @@ exclude = [ # don't report on objects that match any of these regex
 
 [tool.uv.sources]
 nzcvm = { git = "https://github.com/lispandfound/nzcvm" }
+site-calculation = { git = "https://github.com/ucgmsim/site_calculation", branch = "basic_implementation" }

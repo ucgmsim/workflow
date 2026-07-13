@@ -5,4 +5,6 @@ bb:
   flo: 0.5
   fmidbot: 0.5
   fmin: 0.25
-  site_amp_version: "2014"
+  fhightop: 15.0
+  fmax: 25.0
+  site_amp_version: "ba2018"

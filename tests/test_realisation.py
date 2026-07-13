@@ -608,7 +608,12 @@ def test_emod3d(tmp_path: Path) -> None:
 def test_broadband_parameters(tmp_path: Path) -> None:
     test_realisation = tmp_path / "realisation.json"
     broadband_parameters = realisations.BroadbandParameters(
-        flo=0.5, fmidbot=0.5, fmin=0.25, site_amp_version="2014"
+        flo=0.5,
+        fmidbot=0.5,
+        fmin=0.25,
+        fhightop=15.0,
+        fmax=25.0,
+        site_amp_version=schemas.SiteAmpModel.BA2018,
     )
     broadband_parameters.write_to_realisation(test_realisation)
     with open(test_realisation, "r") as realisation_handle:
@@ -617,7 +622,9 @@ def test_broadband_parameters(tmp_path: Path) -> None:
                 "flo": 0.5,
                 "fmidbot": 0.5,
                 "fmin": 0.25,
-                "site_amp_version": "2014",
+                "fhightop": 15.0,
+                "fmax": 25.0,
+                "site_amp_version": "ba2018",
             }
         }
     assert (

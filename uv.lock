@@ -2781,6 +2781,16 @@ wheels = [
 ]
 
 [[package]]
+name = "site-calculation"
+version = "0.1.dev59+ge12d4c07d"
+source = { git = "https://github.com/ucgmsim/site_calculation?branch=basic_implementation#e12d4c07df42ba06eb7efa9fcaf3b7ab19773fb0" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pyfftw" },
+    { name = "scipy" },
+]
+
+[[package]]
 name = "six"
 version = "1.17.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3286,6 +3296,7 @@ dependencies = [
     { name = "schema" },
     { name = "scipy" },
     { name = "shapely" },
+    { name = "site-calculation" },
     { name = "source-modelling" },
     { name = "structlog" },
     { name = "tqdm" },
@@ -3339,6 +3350,7 @@ requires-dist = [
     { name = "scipy" },
     { name = "scipy-stubs", marker = "extra == 'types'" },
     { name = "shapely" },
+    { name = "site-calculation", git = "https://github.com/ucgmsim/site_calculation?branch=basic_implementation" },
     { name = "source-modelling", specifier = ">=2026.6.2" },
     { name = "structlog" },
     { name = "tqdm" },

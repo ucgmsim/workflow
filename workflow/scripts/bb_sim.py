@@ -39,79 +39,84 @@ from pathlib import Path
 from typing import Annotated
 
 import numpy as np
-import numpy.typing as npt
 import pandas as pd
+import pyfftw
 import scipy as sp
 import typer
 import xarray as xr
 
-from qcore import cli, siteamp_models, timeseries
+from qcore import cli, timeseries
+from site_calculation import amplification
 from workflow import log_utils, realisations
 from workflow.realisations import (
     BroadbandParameters,
     RealisationMetadata,
     Resolution,
 )
+from workflow.schemas import SiteAmpModel
+
+# Site amplification model -> (amplification function, model frequencies).
+# Both models share the same (vs30, vs30_sim, pga) calling convention.
+SITE_AMP_MODELS = {
+    SiteAmpModel.CB2014: (
+        amplification.campbell_bozorgnia_2014,
+        amplification.CAMPBELL_BOZORGNIA_2014_FREQUENCIES,
+    ),
+    SiteAmpModel.BA2018: (
+        amplification.bayless_abrahamson_2018,
+        amplification.BAYLESS_ABRAHAMSON_2018_FREQUENCIES,
+    ),
+}
 
 app = typer.Typer()
 
 G = 1 / 981.0
 
 
-def align_waveforms(
-    lf_waveform: npt.NDArray[np.floating],
-    hf_waveform: npt.NDArray[np.floating],
-    lf_start: float,
-    hf_start: float,
-    dt: float,
-) -> tuple[
-    npt.NDArray[np.floating], npt.NDArray[np.floating], npt.NDArray[np.floating]
-]:
-    """Align LF and HF waveforms to a common time axis.
+def align_datasets(
+    lf: xr.Dataset, hf: xr.Dataset, dt: float
+) -> tuple[xr.DataArray, xr.DataArray]:
+    """Lazily align LF and HF waveforms onto a common time axis.
+
+    Both waveforms are zero-padded to span the same time domain,
+    running from the earliest start to the latest end of the two
+    simulations.
 
     Parameters
     ----------
-    lf_waveform : array of floats
-        The low-frequency waveform to align.
-    hf_waveform : array of floats
-        The high-frequency waveform to align.
-    lf_start : float
-        The start of the LF simulation.
-    hf_start : float
-        The start of the HF simulation.
+    lf : xr.Dataset
+        The low-frequency dataset, with a 'start_sec' attribute.
+    hf : xr.Dataset
+        The high-frequency dataset, with a 'start_sec' attribute.
     dt : float
-        The timestep for the simulation.
+        The shared timestep of both datasets.
 
     Returns
     -------
-    array of floats
-        The aligned low-frequency results.
-    array of floats
-        The aligned high-frequency results.
-    array of floats
-        The new time values.
+    xr.DataArray
+        The aligned low-frequency waveform.
+    xr.DataArray
+        The aligned high-frequency waveform.
     """
+    lf_start = lf.attrs["start_sec"]
+    hf_start = hf.attrs["start_sec"]
+    start = min(lf_start, hf_start)
+    lf_offset = round((lf_start - start) / dt)
+    hf_offset = round((hf_start - start) / dt)
+    common_nt = max(lf_offset + lf.sizes["time"], hf_offset + hf.sizes["time"])
+    common_time = start + np.arange(common_nt) * dt
 
-    lf_nt = lf_waveform.shape[1]
-    hf_nt = hf_waveform.shape[1]
+    def pad_waveform(waveform: xr.DataArray, offset: int) -> xr.DataArray:
+        padded = waveform.pad(
+            time=(offset, common_nt - offset - waveform.sizes["time"]),
+            constant_values=0.0,
+        )
+        return padded.assign_coords(time=common_time)
 
-    lf_time = lf_start + np.arange(lf_nt) * dt
-    hf_time = hf_start + np.arange(hf_nt) * dt
-
-    start = min(lf_time[0], hf_time[0])
-    end = max(lf_time[-1], hf_time[-1])
-    common_time = np.arange(start, end + dt / 2, dt)
-
-    lf_aligned = np.zeros((lf_waveform.shape[0], common_time.size), dtype=np.float32)
-    hf_aligned = np.zeros((hf_waveform.shape[0], common_time.size), dtype=np.float32)
-
-    lf_indices = ((lf_time - start) / dt).round().astype(int)
-    hf_indices = ((hf_time - start) / dt).round().astype(int)
-
-    lf_aligned[:, lf_indices] = lf_waveform
-    hf_aligned[:, hf_indices] = hf_waveform
-
-    return lf_aligned, hf_aligned, common_time
+    return (
+        pad_waveform(lf["waveform"], lf_offset),
+        pad_waveform(hf["waveform"], hf_offset),
+    )
 
 
 def resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
@@ -152,6 +157,10 @@ def resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
         # Array passed to resample will have time in the inner-most axis and the
         # default axis for resample is 0.
         kwargs=dict(num=nt, axis=-1),
+        dask="parallelized",
+        # The size of the resampled time dimension cannot be inferred by
+        # dask, so it must be given explicitly.
+        dask_gufunc_kwargs=dict(output_sizes={"time": nt}),
     )
 
     resampled_waveform = resampled_waveform.assign_coords(time=new_time)
@@ -159,6 +168,105 @@ def resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
     new_dset = dset.assign(waveform=resampled_waveform)
     new_dset.attrs["dt"] = dt
     return new_dset
+
+
+# Reference Vs30 (m/s) of the high-frequency simulation, i.e. the Vs30
+# the waveforms are amplified *from* towards each station's target Vs30.
+VS30_SIM = 500.0
+
+
+def _process_bb_chunk(
+    dset: xr.Dataset,
+    dt: float,
+    flo: float,
+    fmin: float,
+    fmidbot: float,
+    fhightop: float,
+    fmax: float,
+    site_amp_model: SiteAmpModel,
+) -> xr.Dataset:
+    """Compute broadband waveforms for a chunk of stations.
+
+    Applies the selected site amplification model to the high-frequency
+    waveforms, then merges them with the low-frequency waveforms using a
+    matched pair of high-pass and low-pass Butterworth filters.
+
+    Parameters
+    ----------
+    dset : xr.Dataset
+        Dataset with variables ``lf_waveform`` and ``hf_waveform``
+        (dims component, station, time) on a common time axis, and
+        ``vs30`` (dims station).
+    dt : float
+        Broadband timestep.
+    flo : float
+        The frequency (Hz) at which the low-frequency and
+        high-frequency waveforms are merged.
+    fmin : float
+        Frequency (Hz) below which the site amplification is tapered
+        out (lowpass end of the amplification band).
+    fmidbot : float
+        Frequency (Hz) above which the site amplification is applied in
+        full at the lowpass end.
+    fhightop : float
+        Frequency (Hz) below which the site amplification is applied in
+        full at the highpass end.
+    fmax : float
+        Frequency (Hz) above which the site amplification is tapered out
+        (highpass end of the amplification band).
+    site_amp_model : SiteAmpModel
+        The site amplification model to apply.
+
+    Returns
+    -------
+    xr.Dataset
+        Dataset with a single ``waveform`` variable containing the
+        broadband waveforms in units of g.
+    """
+    lf_waveform = dset["lf_waveform"].values
+    hf_waveform = dset["hf_waveform"].values
+    nt = lf_waveform.shape[-1]
+
+    amp_model_fn, amp_model_freqs = SITE_AMP_MODELS[site_amp_model]
+
+    # Zero-pad to a length pyfftw can transform efficiently, and
+    # pre-compute the FFT output frequencies the amplification is
+    # sampled at.
+    n_fft = pyfftw.next_fast_len(nt)
+    fft_freqs = np.fft.rfftfreq(n_fft, dt)
+
+    # The amplification models require float64 inputs.
+    vs30 = dset["vs30"].values.astype(np.float64)
+    vs30_sim = np.full_like(vs30, VS30_SIM)
+
+    bb_waveform = np.empty(lf_waveform.shape, dtype=np.float32)
+    # Site amplification depends on each component's PGA, so amplify
+    # component-by-component (vectorised over stations).
+    for i in range(bb_waveform.shape[0]):
+        pga = np.abs(hf_waveform[i]).max(axis=-1).astype(np.float64) * G
+
+        amp = amp_model_fn(vs30, vs30_sim, pga)
+        amp = amplification.interpolate_frequencies(amp_model_freqs, fft_freqs, amp)
+        # Constrain the amplification to the [fmin, fmax] band, tapering
+        # logarithmically at either end.
+        amplification.amp_lowpass(fft_freqs, amp, fmin, fmidbot)
+        amplification.amp_highpass(fft_freqs, amp, fhightop, fmax)
+
+        # Taper the tail of the HF waveform (5%) to limit spectral
+        # leakage before amplification.
+        hf_component = hf_waveform[i].copy()
+        amplification.taper(hf_component, 0.05)
+        hf_amped = amplification.amplify_waveform(hf_component, amp, n_fft)
+
+        hf_filtered = timeseries.bwfilter(hf_amped, dt, flo, timeseries.Band.HIGHPASS)
+        lf_filtered = timeseries.bwfilter(
+            lf_waveform[i], dt, flo, timeseries.Band.LOWPASS
+        )
+        bb_waveform[i] = (hf_filtered + lf_filtered) * G
+
+    return dset.drop_vars(["lf_waveform", "hf_waveform", "vs30"]).assign(
+        waveform=(("component", "station", "time"), bb_waveform)
+    )
 
 
 @cli.from_docstring(app)
@@ -198,15 +306,17 @@ def combine_hf_and_lf(
     )
     bb_dt = resolution.dt
 
-    # load data stores
-    lf = xr.open_dataset(low_frequency_waveform_file)
-    hf = xr.open_dataset(high_frequency_waveform_file)
+    # Chunk over stations only, so every chunk holds complete time
+    # series for resampling, alignment and filtering.
+    chunking = {"component": -1, "station": "auto", "time": -1}
+    lf = xr.open_dataset(low_frequency_waveform_file, chunks={}).chunk(chunking)
+    hf = xr.open_dataset(high_frequency_waveform_file, chunks={}).chunk(chunking)
     if not np.isclose(lf.attrs["dt"], bb_dt):
         lf = resample_signal(lf, bb_dt)
     if not np.isclose(hf.attrs["dt"], bb_dt):
         hf = resample_signal(hf, bb_dt)
 
-    common_stations = list(
+    common_stations = sorted(
         set(map(str, hf.station.values)) & set(map(str, lf.station.values))
     )
     hf = hf.sel(station=common_stations)
@@ -219,60 +329,45 @@ def combine_hf_and_lf(
     ).set_index("station")
     vs30_df["vsite"] = vs30_df["vsite"].astype(np.float32)
     vs30_df = vs30_df.loc[common_stations]
-    vs30_df["vref"] = 500.0
-    vs30_df["vpga"] = 500.0
 
-    bb_waveforms = []
-    new_time_coords = None
+    lf_aligned, hf_aligned = align_datasets(lf, hf, bb_dt)
 
-    for i, (lf_component, hf_component) in enumerate(zip(lf.component, hf.component)):
-        hf_waveform_raw = hf.sel(component=hf_component).waveform.values
-        lf_waveform_raw = lf.sel(component=lf_component).waveform.values
-
-        temp_lf_padded, temp_hf_padded, new_time_coords = align_waveforms(
-            lf_waveform_raw,
-            hf_waveform_raw,
-            lf.attrs["start_sec"],
-            hf.attrs["start_sec"],
-            bb_dt,
-        )
-        bb_nt = temp_lf_padded.shape[1]
-
-        vs30_df["pga"] = np.abs(temp_hf_padded).max(axis=1) * G
-
-        assert isinstance(vs30_df, pd.DataFrame)
-        hf_amp_val = siteamp_models.cb_amp_multi(vs30_df)
-        hf_amp_fas_vals = siteamp_models.cb2014_to_fas_amplification_factors(
-            hf_amp_val,
-            bb_dt,
-            bb_nt,
-        )
-        hf_waveform_amped = timeseries.ampdeamp(
-            temp_hf_padded, hf_amp_fas_vals, amplify=True
-        )
-        hf_filtered = timeseries.bwfilter(
-            hf_waveform_amped, bb_dt, broadband_config.flo, timeseries.Band.HIGHPASS
-        )
-        lf_filtered = timeseries.bwfilter(
-            temp_lf_padded, bb_dt, broadband_config.flo, timeseries.Band.LOWPASS
-        )
-        bb_waveforms.append((hf_filtered + lf_filtered) * G)
-
-    bb_waveform = np.stack(bb_waveforms, dtype=np.float32)
-
-    xr.Dataset(
-        {"waveform": (["component", "station", "time"], bb_waveform)},
+    combined = xr.Dataset(
+        {
+            "lf_waveform": lf_aligned,
+            # reset_coords drops the HF lat/lon coordinates, which would
+            # otherwise conflict with the LF-derived latitude/longitude.
+            "hf_waveform": hf_aligned.reset_coords(drop=True),
+            "vs30": ("station", vs30_df["vsite"].values),
+        },
         coords={
-            "component": ("component", ["x", "y", "z"]),
-            "station": ("station", common_stations),
-            "time": ("time", new_time_coords),
-            "latitude": ("station", lf.lat.values),
-            "longitude": ("station", lf.lon.values),
+            "latitude": ("station", lf["lat"].values),
+            "longitude": ("station", lf["lon"].values),
         },
-        attrs={
-            "units": "g",
-        },
-    ).to_netcdf(
+        attrs={"units": "g"},
+    ).chunk(chunking)
+
+    template = (
+        combined["lf_waveform"].astype(np.float32).rename("waveform").to_dataset()
+    )
+    template.attrs = combined.attrs
+
+    bb = xr.map_blocks(
+        _process_bb_chunk,
+        combined,
+        kwargs=dict(
+            dt=bb_dt,
+            flo=broadband_config.flo,
+            fmin=broadband_config.fmin,
+            fmidbot=broadband_config.fmidbot,
+            fhightop=broadband_config.fhightop,
+            fmax=broadband_config.fmax,
+            site_amp_model=broadband_config.site_amp_version,
+        ),
+        template=template,
+    )
+
+    bb.to_netcdf(
         output_ffp,
         engine="h5netcdf",
         encoding={
