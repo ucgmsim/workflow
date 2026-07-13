@@ -974,9 +974,9 @@ VELOCITY_MODEL_SCHEMA = Schema(
 
 NZCVM_SCHEMA = Schema(
     {
-        Literal("layers"): Or(None, [Use(LayerConfig.from_dict)]),
+        Literal("layers"): [Use(LayerConfig.from_dict)],
         Literal("chunks"): Or(dict(), {Use(Coordinate): int}),
-        Literal("surface"): Or(None, Use(Path)),
+        Literal("surface"): Use(Path),
     }
 )
 SEED_SCHEMA = Schema(

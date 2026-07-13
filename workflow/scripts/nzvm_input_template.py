@@ -11,7 +11,10 @@ from nzcvm.config.grids.sw4 import MeshRefinement, SW4GridConfig
 
 from qcore import cli
 from workflow import domain
-from workflow.realisations import DomainParameters, VelocityModelParameters
+from workflow.realisations import (
+    DomainParameters,
+    NZCVMSettings,
+)
 
 app = typer.Typer()
 
@@ -28,12 +31,12 @@ def generate_template(realisation_ffp: Path, output_path: Path) -> None:
         Path where the generated template will be written.
     """
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
-    velocity_model_parameters = VelocityModelParameters.read_from_realisation(
-        realisation_ffp
-    )
+    nzcvm_settings = NZCVMSettings.read_from_realisation(realisation_ffp)
 
     offset = 10.0
-    refinements = domain.domain_refinements(realisation_ffp, domain_parameters.depth + offset)
+    refinements = domain.domain_refinements(
+        realisation_ffp, domain_parameters.depth + offset
+    )
     # Per the SW4 User Guide, the supergrid sponge (30 gridpoints) at the bottom of the domain
     # must be contained in the bottom refinement. To ensure that the velocity
     # model always has values here, we extend the bottom of the velocity model
@@ -49,9 +52,8 @@ def generate_template(realisation_ffp: Path, output_path: Path) -> None:
     buffer = 1.10
     extent_y = buffer * domain_parameters.domain.extent_y * 1000.0
     extent_x = buffer * domain_parameters.domain.extent_x * 1000.0
-    if not velocity_model_parameters.surface:
-        raise ValueError("NZCVM requires defined surface path.")
-    if not velocity_model_parameters.layers:
+
+    if not nzcvm_settings.layers:
         raise ValueError("NZCVM requires at least one defined layer.")
 
     config = VelocityModelConfig(
@@ -64,8 +66,8 @@ def generate_template(realisation_ffp: Path, output_path: Path) -> None:
                 crs=pyproj.CRS(2193),
                 azimuth=azimuth,
             ),
-            surface=velocity_model_parameters.surface,
-            chunks=velocity_model_parameters.chunks,
+            surface=nzcvm_settings.surface,
+            chunks=nzcvm_settings.chunks,
             refinements={
                 f"layer_{refinement.resolution}m": MeshRefinement(
                     resolution=refinement.resolution, bottom=refinement.bottom
@@ -73,7 +75,7 @@ def generate_template(realisation_ffp: Path, output_path: Path) -> None:
                 for refinement in refinements
             },
         ),
-        layers=velocity_model_parameters.layers,
+        layers=nzcvm_settings.layers,
     )
 
     with open(output_path, "w") as f:

@@ -225,10 +225,10 @@ srf:
     risetimedep: 0.0
     inittime: 0.0
 nzcvm:
-  surface: ${NZCVM_DATA_ROOT}/resources/dem.zarr
+  surface: /nzcvm/resources/dem.zarr
   chunks:
-    i: 64
-    j: 64
+    i: 256
+    j: 256
     k: 256
   layers:
     - clamps:
@@ -240,7 +240,7 @@ nzcvm:
       provides: []
       requires: []
       type: clamp
-    - coastline: ${NZCVM_DATA_ROOT}/resources/coastline.wkb.gz
+    - coastline: /nzcvm/resources/coastline.wkb.gz
       provides:
         - coastline
       requires: []
@@ -500,10 +500,10 @@ nzcvm:
       requires:
         - coastline
       type: ely
-      vs30: ${NZCVM_DATA_ROOT}/resources/vs30.zarr
+      vs30: /nzcvm/resources/vs30.zarr
     - model_globs:
         - "*.zarr"
-      model_path: ${NZCVM_DATA_ROOT}/models
+      model_path: /nzcvm/models
       provides: []
       requires: []
       type: query

@@ -899,11 +899,14 @@ class Refinements(RealisationConfiguration):
 
 @dataclasses.dataclass
 class NZCVMSettings(RealisationConfiguration):
+    _config_key: ClassVar[str] = "nzcvm"
+    _schema: ClassVar[Schema] = schemas.NZCVM_SCHEMA
+
     layers: list[LayerConfig]
     """nzcvm layer config"""
     chunks: dict[Coordinate, int]
     """nzcvm chunk configuration"""
-    surface: Path | None
+    surface: Path
     """nzcvm DEM surface"""
 
 

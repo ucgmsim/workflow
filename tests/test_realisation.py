@@ -992,6 +992,7 @@ SKIP_PAIRS = {
         realisations.Resolution,
         realisations.RuptureVelocity,
         realisations.Refinements,
+        realisations.NZCVMSettings,
     ],
 )
 @pytest.mark.parametrize("defaults_version", list(defaults.DefaultsVersion))
