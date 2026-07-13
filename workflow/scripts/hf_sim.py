@@ -32,11 +32,9 @@ For More Help
 See the output of `hf-sim --help`.
 """
 
-import concurrent.futures
 import subprocess
 import tempfile
 from collections.abc import Iterable
-from concurrent.futures.thread import ThreadPoolExecutor
 from pathlib import Path
 from typing import Annotated
 

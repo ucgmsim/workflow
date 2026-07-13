@@ -7,7 +7,6 @@ import typer
 from nzcvm.formats import sfile
 
 from qcore import cli
-from workflow import domain
 from workflow.realisations import (
     DomainParameters,
     RealisationMetadata,

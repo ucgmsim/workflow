@@ -1,6 +1,4 @@
 """Check that realisation can be loaded, if it can't automatically trim extraneous tags and offer to fill in default values."""
-from os import path
-
 import difflib
 import inspect
 import json
@@ -21,7 +19,6 @@ from qcore import cli
 from workflow import realisations, utils
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import Seeds
-from workflow import realisations
 
 app = typer.Typer()
 console = Console()
