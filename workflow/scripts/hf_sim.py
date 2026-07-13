@@ -40,6 +40,7 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from pathlib import Path
 from typing import Annotated
 
+import dask.array as da
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -59,6 +60,8 @@ from workflow.realisations import (
 )
 
 app = typer.Typer()
+TARGET_CHUNK_BYTES = 128 * 2**20
+# Target size of a dask chunk (all components for a batch of stations).
 
 
 def rupture_velocity_hf_transition_bands(
@@ -272,18 +275,42 @@ def station_seeds(seed: int, stations: Iterable[str]) -> npt.NDArray[np.int32]:
     return np.int32(seed) ^ station_hashes
 
 
+def hf_simulate_chunk(
+    station_chunk: xr.Dataset,
+    time: np.ndarray,
+    hf_sim_path: Path,
+    input_template_hf: str,
+) -> xr.DataArray:
+    waveform = np.empty((3, len(station_chunk), len(time)))
+    stations = []
+
+    for i, (name, station) in enumerate(station_chunk.groupby("station")):
+        latitude = station["latitude"].item()
+        longitude = station["longitude"].item()
+        seed = station["seed"].item()
+        _, _, hf_waveform = hf_simulate_station(
+            hf_sim_path,
+            input_template_hf,
+            latitude,
+            longitude,
+            str(name),
+            int(seed),
+        )
+        stations.append(station)
+        waveform[:, i] = hf_waveform.T
+
+    return xr.DataArray(
+        waveform,
+        dims=["component", "station", "time"],
+        coords=dict(component=["x", "y", "z"], station=stations, time=time),
+    )
+
+
 def create_hf_dataset(
     # array-like used here to reduce the number of times we have to
     # change the types if the downstream function inputs change.
-    waveform: npt.ArrayLike,
-    latitude: npt.ArrayLike,
-    longitude: npt.ArrayLike,
-    names: npt.ArrayLike,
-    epicentre_distance: npt.ArrayLike,
-    seed: npt.ArrayLike,
-    vref: npt.ArrayLike,
-    dt: float,
-    start_sec: float,
+    waveform: xr.DataArray,
+    station_inputs: xr.Dataset,
 ) -> xr.Dataset:
     """
     Create a structured xarray Dataset for HF simulation data.
@@ -293,63 +320,25 @@ def create_hf_dataset(
     waveform : ArrayLike
         The waveform data. Expected shape is (3, n_stations, nt),
         representing the three components (x, y, z).
-    latitude : ArrayLike
-        Latitude coordinates for each station. Shape (n_stations,).
-    longitude : ArrayLike
-        Longitude coordinates for each station. Shape (n_stations,).
-    names : ArrayLike
-        Names/IDs for each station. Shape (n_stations,). Used as the
-        primary index for the 'station' dimension.
-    epicentre_distance : ArrayLike
-        Distance from the station to the epicentre. Shape (n_stations,).
-    seed : ArrayLike
-        Random seed values associated with each station. Shape (n_stations,).
-    vref : ArrayLike
-        Reference velocity (Vs30 or similar) for each station. Shape (n_stations,).
-    dt : float
-        Time step increment in seconds.
-    start_sec : float
-        The start time of the simulation in seconds.
+    station_inputs: DataArray
+        Data array inputs for HF simulation.
 
     Returns
     -------
     xr.Dataset
         A dataset containing the waveforms and associated station metadata,
         indexed by station, component, and time.
-
-    Notes
-    -----
-    The dataset follows specific dimensional mapping:
-    * **waveform**: mapped to (component, station, time).
-    * **coordinates**: 'lat' and 'lon' are non-index coordinates tied to
-      the 'station' dimension.
-    * **attributes**: global metadata includes 'units' (fixed to cm/s^2),
-      'nt', and 'dt'.
     """
-    waveform = np.asarray(waveform)
-    nt = waveform.shape[-1]
-    time = np.arange(nt) * dt
-    return xr.Dataset(
-        {
-            "waveform": (["component", "station", "time"], waveform),
-            "epicentre_distance": (["station"], epicentre_distance),
-            "seed": (["station"], seed),
-            "vref": (["station"], vref),
-        },
-        coords={
-            "station": ("station", names),
-            "component": ("component", ["x", "y", "z"]),
-            "time": ("time", time),
-            "lat": (["station"], latitude),
-            "lon": (["station"], longitude),
-        },
-        attrs={
-            "start_sec": start_sec,
-            "nt": nt,
-            "dt": dt,
-            "units": "cm/s^2",
-        },
+    nt = waveform.sizes["time"]
+    dt = waveform.time.values[1] - waveform.time.values[0]
+    dset = xr.merge(
+        [waveform, station_inputs],
     )
+    dset.attrs["start_sec"] = waveform.time.values[0]
+    dset.attrs["dt"] = dt
+    dset.attrs["nt"] = nt
+    dset.attrs["units"] = "cm/s^2"
+    return dset
 
 
 @cli.from_docstring(app)
@@ -420,15 +409,26 @@ def run_hf(
         station_file,
         delimiter=r"\s+",
         header=None,
-        names=["longitude", "latitude", "name"],
-    ).set_index("name")
+        names=["longitude", "latitude", "station"],
+    ).set_index("station")
     stations["seed"] = station_seeds(seeds.hf_seed, stations.index)
     velocity_model_path = work_directory / "velocity_model"
     velocity_model.write_velocity_model(velocity_model_path)
     nt = int(
-        np.float32(domain_parameters.duration) / np.float32(resolution.dt)  # TODO(refinements): HF needs an independent timestep
+        np.float32(domain_parameters.duration)
+        / np.float32(
+            resolution.dt
+        )  # TODO(refinements): HF needs an independent timestep
     )  # Match Fortran's single-precision for consistent nt calculation
-    waveform = np.empty((3, len(stations), nt), dtype=np.float32)
+    waveform_template = da.empty((3, len(stations), nt), dtype=np.float32)
+    time = (
+        hf_config.t_sec + np.arange(nt) * resolution.dt
+    )  # TODO(refinements): HF needs an independent timestep
+    waveform_array_template = xr.DataArray(
+        waveform_template,
+        dims=["component", "station", "time"],
+        coords=dict(component=["x", "y", "z"], station=stations.index, time=time),
+    )
 
     hf_input_template = build_hf_input(
         stoch_ffp,
@@ -440,41 +440,24 @@ def run_hf(
     )
     stations["epicentre_distance"] = np.nan
 
-    with ThreadPoolExecutor(max_workers=utils.get_available_cores()) as executor:
-        station_index = {station: i for i, station in enumerate(stations.index)}
-        futures = [
-            executor.submit(
-                hf_simulate_station,
-                hf_sim_path,
-                hf_input_template,
-                station["latitude"],
-                station["longitude"],
-                str(name),
-                int(station["seed"]),
-            )
-            for name, station in stations.iterrows()
-        ]
-        for future in concurrent.futures.as_completed(futures):
-            station, epicentre, station_waveform = future.result()
-            stations.loc[station, "epicentre_distance"] = epicentre
-            i = station_index[station]
-
-            for component in range(3):
-                waveform[component, i] = station_waveform[:, component]
+    stations_input = stations.to_xarray()
+    chunk_size = max(1, TARGET_CHUNK_BYTES // (3 * nt * np.float32().itemsize))
+    stations_input = stations_input.chunk(
+        {"station": chunk_size, "component": -1, "time": -1}
+    )
+    waveforms = stations_input.map_blocks(
+        hf_simulate_chunk,
+        template=waveform_array_template,
+        kwargs=dict(
+            hf_sim_path=hf_sim_path,
+            input_template=hf_input_template,
+        ),
+    )
+    waveforms = waveforms.rename("waveform")
 
     vs = velocity_model.model["Vs"].iloc[0] * 1000
-    stations["vs"] = vs
+    stations_input["vs"] = xr.full_like(stations_input["latitude"], vs)
 
-    ds = create_hf_dataset(
-        waveform=waveform,
-        latitude=stations["latitude"],
-        longitude=stations["longitude"],
-        names=stations.index,
-        epicentre_distance=stations["epicentre_distance"],
-        seed=stations["seed"],
-        vref=stations["vs"],
-        dt=resolution.dt,  # TODO(refinements): HF needs an independent timestep
-        start_sec=hf_config.t_sec,
-    )
+    ds = create_hf_dataset(waveforms, stations_input)
     ds.to_netcdf(out_file, engine="h5netcdf")
     realisations.append_log_entry(realisation_ffp)
