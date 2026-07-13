@@ -164,8 +164,9 @@ def resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
     )
 
     resampled_waveform = resampled_waveform.assign_coords(time=new_time)
-
-    new_dset = dset.assign(waveform=resampled_waveform)
+    # Must drop both waveform variable and time dimension to avoid xarray
+    # automatically reindexing the waveform according to the new axes.
+    new_dset = dset.drop_vars(["waveform", "time"]).assign(waveform=resampled_waveform)
     new_dset.attrs["dt"] = dt
     return new_dset
 
