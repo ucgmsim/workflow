@@ -33,7 +33,6 @@ from typing import Annotated
 
 import numpy as np
 import pandas as pd
-import tqdm
 import typer
 import xarray as xr
 
@@ -50,6 +49,7 @@ from workflow.realisations import (
 )
 
 PSA_STEP = 10000
+STATION_CHUNK_SIZE = 1000
 
 app = typer.Typer()
 
@@ -65,6 +65,7 @@ def calculate_instensity_measures(
     output_path: Annotated[Path, typer.Argument(dir_okay=False, writable=True)],
     simulated_stations: Annotated[bool, typer.Option()] = True,
     psa_step: Annotated[int, typer.Option()] = PSA_STEP,
+    station_chunk_size: Annotated[int, typer.Option(min=1)] = STATION_CHUNK_SIZE,
     ko_directory: Annotated[
         Path | None, typer.Option(exists=True, file_okay=False)
     ] = None,
@@ -85,6 +86,9 @@ def calculate_instensity_measures(
         If passed, calculate for simulated stations.
     psa_step : int
         Maximum number of stations to read from disk at once for pSA calculation
+    station_chunk_size : int
+        Number of stations to load and process at once. Bounds peak
+        memory use by only holding one chunk of waveforms in memory.
     ko_directory : Path
         Directory containing the KO matrix files for FAS calculation. Not required for other IMs.
     override_ims : list of str
@@ -218,20 +222,33 @@ def calculate_instensity_measures(
         attrs={"hypo_lat": hypocentre[0], "hypo_lon": hypocentre[1]},
     )
 
-    waveform = broadband.waveform.values.astype(np.float64)
+    n_stations = broadband.sizes["station"]
+    # Process stations in chunks so only one chunk of waveforms is held
+    # in memory at a time, rather than the whole (component, station,
+    # time) array.
+    chunk_results: dict[IM, list] = {im_name: [] for im_name in intensity_measures}
+    for start in range(0, n_stations, station_chunk_size):
+        station_slice = slice(start, start + station_chunk_size)
+        waveform = broadband.waveform.isel(station=station_slice).values.astype(
+            np.float64
+        )
+        chunk_stations = broadband.station.isel(station=station_slice).values
 
-    for im_name in (pbar := tqdm.tqdm(intensity_measures)):
-        pbar.set_description(im_name)
-        im_fn = im_function_map[im_name]
+        for im_name in intensity_measures:
+            im_fn = im_function_map[im_name]
+            result = im_fn(waveform)
 
-        result = im_fn(waveform)
+            if isinstance(result, pd.DataFrame):
+                result["station"] = chunk_stations
+                result = (
+                    result.set_index("station").to_xarray().to_array(dim="component")
+                )
+            elif isinstance(result, xr.DataArray):
+                result = result.assign_coords(station=chunk_stations)
+            chunk_results[im_name].append(result)
 
-        if isinstance(result, pd.DataFrame):
-            result["station"] = broadband.station.values
-            result = result.set_index("station").to_xarray().to_array(dim="component")
-        elif isinstance(result, xr.DataArray):
-            result = result.assign_coords(station=broadband.station)
-        dataset[im_name] = result
+    for im_name in intensity_measures:
+        dataset[im_name] = xr.concat(chunk_results[im_name], dim="station")
         im_reader.write_intensity_measures(dataset, output_path)
 
     realisations.append_log_entry(realisation_ffp)
