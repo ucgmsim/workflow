@@ -1,7 +1,21 @@
 import itertools
 from copy import deepcopy
+from pathlib import Path
 
-from workflow.realisations import DomainParameters, Refinement, Refinements
+from workflow.realisations import (
+    DomainParameters,
+    RealisationMetadata,
+    Refinement,
+    Refinements,
+)
+
+
+def domain_refinements(realisation_ffp: Path, depth: float) -> list[Refinement]:
+    metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
+    refinements = Refinements.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
+    return refinements.refinements_for_depth(depth)
 
 
 def adjust_for_topography(

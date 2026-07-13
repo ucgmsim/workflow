@@ -51,7 +51,6 @@ from workflow import log_utils, realisations
 from workflow.realisations import (
     BroadbandParameters,
     RealisationMetadata,
-    Resolution,
 )
 from workflow.schemas import SiteAmpModel
 
@@ -302,16 +301,13 @@ def combine_hf_and_lf(
     broadband_config = BroadbandParameters.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
-    resolution = Resolution.read_from_realisation_or_defaults(
-        realisation_ffp, metadata.defaults_version
-    )
-    bb_dt = resolution.dt
 
     # Chunk over stations only, so every chunk holds complete time
     # series for resampling, alignment and filtering.
     chunking = {"component": -1, "station": "auto", "time": -1}
     lf = xr.open_dataset(low_frequency_waveform_file, chunks={}).chunk(chunking)
     hf = xr.open_dataset(high_frequency_waveform_file, chunks={}).chunk(chunking)
+    bb_dt = min(lf.attrs["dt"], hf.attrs["dt"])
     if not np.isclose(lf.attrs["dt"], bb_dt):
         lf = resample_signal(lf, bb_dt)
     if not np.isclose(hf.attrs["dt"], bb_dt):

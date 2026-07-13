@@ -33,7 +33,7 @@ def generate_template(realisation_ffp: Path, output_path: Path) -> None:
     )
 
     offset = 10.0
-    refinements = domain.domain_refinements(domain_parameters.depth + offset)
+    refinements = domain.domain_refinements(realisation_ffp, domain_parameters.depth + offset)
     # Per the SW4 User Guide, the supergrid sponge (30 gridpoints) at the bottom of the domain
     # must be contained in the bottom refinement. To ensure that the velocity
     # model always has values here, we extend the bottom of the velocity model

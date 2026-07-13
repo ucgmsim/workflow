@@ -1226,3 +1226,27 @@ RESOLUTION_SCHEMA = Schema(
         )
     }
 )
+
+REFINEMENT_SCHEMA = Schema(
+    {
+        Literal("resolution", description="Vertical mesh resolution in this layer."): And(
+            NUMBER, _is_positive
+        ),
+        Literal("bottom", description="Bottom depth of this refinement layer (m)."): And(
+            NUMBER, _is_positive
+        ),
+    }
+)
+
+REFINEMENTS_SCHEMA = Schema(
+    {
+        Literal(
+            "refinements",
+            description="List of vertical mesh refinements from top to bottom.",
+        ): [REFINEMENT_SCHEMA],
+        Literal(
+            "unbounded_refinement_resolution",
+            description="Resolution below the last refinement layer.",
+        ): And(NUMBER, _is_positive),
+    }
+)

@@ -131,7 +131,7 @@ def generate_sw4_input(
 
     depth = domain_parameters.depth
     time = domain_parameters.duration
-    refinements = domain.domain_refinements(depth)
+    refinements = domain.domain_refinements(realisation_ffp, depth)
 
     refinements, topography_zmax = domain.adjust_for_topography(
         refinements, topography_zmax

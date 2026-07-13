@@ -358,6 +358,7 @@ class SRFRealisationContext:
 
     resolution: Resolution
     """The spatial/temporal resolution"""
+    # TODO(refinements): dt should come from SRF config schema when refinements are active
     source_config: SourceConfig
     """The sources to generate"""
     rupture_propagation_config: RupturePropagationConfig
@@ -555,7 +556,7 @@ def generate_fault_srf(
         shypo=genslip_hypocentre_coords[0],
         dhypo=genslip_hypocentre_coords[1],
         magnitude=params.magnitudes.magnitudes[name],
-        dt=params.resolution.dt,
+        dt=params.resolution.dt,  # TODO(refinements): dt should come from SRF config schema
         srf_config=params.srf_config,
         rupture_velocity=params.rupture_velocity,
     )
@@ -687,7 +688,7 @@ def generate_point_source_srf(
         f"outfile={environment.srf_directory / (normalise_name(name) + '.srf')}",
         "outbin=0",
         f"stype={params.srf_config.point_source_params.stype}",
-        f"dt={params.resolution.dt}",
+        f"dt={params.resolution.dt}",  # TODO(refinements): dt should come from SRF config schema
         "plane_header=1",
         f"risetime={params.srf_config.point_source_params.risetime}",
         f"risetimefac={params.srf_config.point_source_params.risetimefac}",

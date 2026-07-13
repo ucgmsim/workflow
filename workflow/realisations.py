@@ -857,8 +857,14 @@ class Refinement:
 
 @dataclasses.dataclass
 class Refinements(RealisationConfiguration):
+    _config_key: ClassVar[str] = "refinements"
+    _schema: ClassVar[Schema] = schemas.REFINEMENTS_SCHEMA
     refinements: list[Refinement]
     unbounded_refinement_resolution: float
+
+    def __post_init__(self) -> None:
+        if self.refinements and not isinstance(self.refinements[0], Refinement):
+            self.refinements = [Refinement(**item) for item in self.refinements]  # type: ignore
 
     def refinements_for_depth(self, depth: float) -> list[Refinement]:
         depth_m = depth * 1000.0

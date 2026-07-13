@@ -136,7 +136,7 @@ def build_hf_input(
         f"{hf_config.nbu} {hf_config.ift} {hf_config.flo} {hf_config.fhi}",
         "{seed}",
         1,  # one station in the input
-        f"{domain_parameters.duration} {resolution.dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",
+        f"{domain_parameters.duration} {resolution.dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",  # TODO(refinements): HF needs an independent timestep
         f"{rupture_velocity.rvfrac} {rupture_velocity.rvfrac_shal} {rupture_velocity.rvfrac_deep} {hf_config.czero} {hf_config.calpha}",
         # TODO: This requires PR from EMOD3D to merge before we can do this!
         # f"{shallow_min} {shallow_max} {deep_min} {deep_max}",
@@ -426,7 +426,7 @@ def run_hf(
     velocity_model_path = work_directory / "velocity_model"
     velocity_model.write_velocity_model(velocity_model_path)
     nt = int(
-        np.float32(domain_parameters.duration) / np.float32(resolution.dt)
+        np.float32(domain_parameters.duration) / np.float32(resolution.dt)  # TODO(refinements): HF needs an independent timestep
     )  # Match Fortran's single-precision for consistent nt calculation
     waveform = np.empty((3, len(stations), nt), dtype=np.float32)
 
@@ -473,7 +473,7 @@ def run_hf(
         epicentre_distance=stations["epicentre_distance"],
         seed=stations["seed"],
         vref=stations["vs"],
-        dt=resolution.dt,
+        dt=resolution.dt,  # TODO(refinements): HF needs an independent timestep
         start_sec=hf_config.t_sec,
     )
     ds.to_netcdf(out_file, engine="h5netcdf")

@@ -897,6 +897,50 @@ def test_resolution(tmp_path: Path) -> None:
     assert realisations.Resolution.read_from_realisation(realisation_path) == resolution
 
 
+def test_refinements(tmp_path: Path) -> None:
+    refinements = realisations.Refinements(
+        refinements=[
+            realisations.Refinement(resolution=50.0, bottom=2000.0),
+            realisations.Refinement(resolution=100.0, bottom=5000.0),
+            realisations.Refinement(resolution=200.0, bottom=25000.0),
+        ],
+        unbounded_refinement_resolution=400.0,
+    )
+
+    realisation_path = tmp_path / "realisation.json"
+    refinements.write_to_realisation(realisation_path)
+    with open(realisation_path, "r") as realisation_handle:
+        assert json.load(realisation_handle) == {
+            "refinements": {
+                "refinements": [
+                    {"resolution": 50.0, "bottom": 2000.0},
+                    {"resolution": 100.0, "bottom": 5000.0},
+                    {"resolution": 200.0, "bottom": 25000.0},
+                ],
+                "unbounded_refinement_resolution": 400.0,
+            }
+        }
+
+    assert (
+        realisations.Refinements.read_from_realisation(realisation_path) == refinements
+    )
+
+
+def test_refinements_defaults_loadable() -> None:
+    """Refinements should load from v26_7_1Hz defaults and raise for older versions."""
+    refinements = realisations.Refinements.read_from_defaults(defaults.DefaultsVersion.v26_7_1Hz)
+    assert len(refinements.refinements) == 3
+    assert refinements.refinements[0].resolution == 50.0
+    assert refinements.refinements[0].bottom == 2000.0
+    assert refinements.unbounded_refinement_resolution == 400.0
+
+    for version in defaults.DefaultsVersion:
+        if version == defaults.DefaultsVersion.v26_7_1Hz:
+            continue
+        with pytest.raises(realisations.RealisationParseError):
+            realisations.Refinements.read_from_defaults(version)
+
+
 def test_sources(tmp_path: Path) -> None:
     realisation_ffp = tmp_path / "realisation.json"
     source_json = {
