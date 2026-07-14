@@ -49,7 +49,7 @@ TARGET_CHUNK_BYTES = 128 * 2**20
 
 
 def _read_station_batch(
-    sw4_ffp: Path, station_names: list[str], npts: int
+    sw4_ffp: Path, station_names: list[str], npts: int, dt: float
 ) -> np.ndarray:
     """Read waveforms for a batch of stations from an SW4 recording file.
 
@@ -77,8 +77,9 @@ def _read_station_batch(
             waveforms[0, i] = group[x_key][:]
             waveforms[1, i] = group[y_key][:]
             waveforms[2, i] = group["UP"][:]
-    waveforms *= CMS
-    return waveforms
+    waveforms_accel = np.gradient(waveforms_filtered, dt, axis=-1)
+
+    return waveforms_accel.astype(np.float32)
 
 
 def convert_sw4_station_recording(sw4_ffp: Path) -> xr.Dataset:
@@ -131,7 +132,7 @@ def convert_sw4_station_recording(sw4_ffp: Path) -> xr.Dataset:
     waveform = da.concatenate(
         [
             da.from_delayed(
-                dask.delayed(_read_station_batch)(sw4_ffp, batch, global_npts),
+                dask.delayed(_read_station_batch)(sw4_ffp, batch, global_npts, dt),
                 shape=(3, len(batch), global_npts),
                 dtype=np.float32,
             )
