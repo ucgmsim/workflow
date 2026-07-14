@@ -332,9 +332,6 @@ def generate_realisation(
             ]
         )
     else:
-        # The ty ignore below can be removed once NSHM2022DB merges the change to
-        # accept dict[str, BoldM] in most_likely_fault (branch support-BoldM-in-workflow).
-
         areas = np.array([fault.area() for fault in faults.values()])
         areas /= areas.sum()
         initial_fault = np.random.choice(list(faults), p=areas)
