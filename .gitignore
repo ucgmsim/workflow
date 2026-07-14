@@ -189,3 +189,17 @@ devenv.local.nix
 
 # pre-commit
 .pre-commit-config.yaml
+
+# JetBrains IDE
+.idea/
+
+# Large local inputs, fetched/built rather than tracked
+/nshmdb.db
+/runner.sif
+
+# Generated realisation sets (produced by generate-realisations-from-csv and
+# complete-realisations; each holds the run's error_log.txt / summary CSV too)
+/minimal_realisations/
+/complete_realisations/
+/full_realisations/
+/OLD_realisations/
