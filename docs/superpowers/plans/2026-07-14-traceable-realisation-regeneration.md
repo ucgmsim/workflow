@@ -2056,20 +2056,35 @@ version fix."
 
 - [ ] **Step 7: Report what is now stale**
 
-Do not push or open a PR without flagging this. The following in
-`cybershake_nshm_2022` derive from the **old** realisations and are now wrong:
+Do not push or open a PR without flagging this. Everything downstream of the
+realisations derives from the **old** ones and is now wrong: the 54 GB of
+generated SRFs, the slip animations, and the local scratch derived from them
+(`srf_version_audit.csv`, `mislabelled_multi_fault_srfs.txt`,
+`correct_single_fault_srfs.txt`, `srf_frame_counts.csv`, `srf_chunk_*.txt`).
 
-- `srf_version_audit.csv`
-- `mislabelled_multi_fault_srfs.txt`
-- `correct_single_fault_srfs.txt`
-- `srf_frame_counts.csv`
-- `srf_chunk_{1,2,3,4}.txt`
-- `149379_realisation.srf`
-- any generated SRFs and slip animations
+**No cleanup is needed for those files** — they are all gitignored, and the
+scripts that produce them overwrite them on the next run. (`srf_frame_counts.csv`
+was the lone exception, tracked while every sibling was ignored; it was untracked
+in `cybershake_nshm_2022@a623667`.)
 
-These must be regenerated from the new realisations, using the merged
-`realisation-to-srf` — which now carries the multi-segment SRF version fix from
-Task 1. That is a separate piece of work and is **not** in this plan.
+What *does* matter is the audit baseline. `srf_version_audit_BEFORE_20260714.csv`
+and `mislabelled_multi_fault_srfs_BEFORE_20260714.txt` are committed
+(`cybershake_nshm_2022@a623667`) precisely because regenerating the SRFs
+overwrites the live audit files. They record the state before the multi-segment
+SRF version fix: **219 mislabelled, all multi-fault; 72 correct, all
+single-fault** — the two sets coinciding exactly, which is the signature of
+`stitch_srf_files` hardcoding `version="1.0"`.
+
+So the SRF regeneration has a free verification step built into it: re-run
+`scripts/audit_srf_versions.py` afterwards and expect **0 mislabelled, all 291
+`consistent=True`**. That converts "we merged Jake's fix" into "we demonstrated
+Jake's fix works". `docs/srf-version-mislabelling.md` is already marked
+*fixed upstream, pending verification* (`cybershake_nshm_2022@e62c8df`) and
+should be updated to *verified* once that audit comes back clean.
+
+The SRF regeneration itself is a separate piece of work and is **not** in this
+plan. Note `scripts/fix_srf_version.py` must be **kept** regardless — the BSC and
+Dropbox copies are still mislabelled and still need repairing.
 
 ---
 
