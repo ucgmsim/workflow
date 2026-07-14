@@ -77,7 +77,7 @@ def _read_station_batch(
             waveforms[0, i] = group[x_key][:]
             waveforms[1, i] = group[y_key][:]
             waveforms[2, i] = group["UP"][:]
-    waveforms_accel = np.gradient(waveforms_filtered, dt, axis=-1)
+    waveforms_accel = np.gradient(waveforms, dt, axis=-1)
 
     return waveforms_accel.astype(np.float32)
 
