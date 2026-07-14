@@ -1290,6 +1290,18 @@ class SW4ImageOutput:
 
 
 @dataclasses.dataclass
+class Prefilter:
+    order: int
+    """Prefilter order for SRF source time function (STF)."""
+    passes: int
+    """Number of passes for STF filter. Setting this to 1 results in casual filter, setting it to 2 results in a zero-lag acausal filter."""
+    fc1: float
+    """Corner frequency for prefilter (lower)."""
+    fc2: float
+    """Corner frequency for prefilter (upper)."""
+
+
+@dataclasses.dataclass
 class SW4Parameters(RealisationConfiguration):
     """Parameters for SW4 simulation."""
 
@@ -1332,10 +1344,13 @@ class SW4Parameters(RealisationConfiguration):
     """Abort on NaN values."""
     image_outputs: list[SW4ImageOutput]
     """List of SW4 imagehdf5 output commands."""
+    prefilter: Prefilter | None = None
 
     def __post_init__(self) -> None:
         if self.image_outputs and not isinstance(self.image_outputs[0], SW4ImageOutput):
             self.image_outputs = [SW4ImageOutput(**item) for item in self.image_outputs]  # type: ignore
+        if isinstance(self.prefilter, dict):
+            self.prefilter = Prefilter(**self.prefilter)
 
 
 @dataclasses.dataclass

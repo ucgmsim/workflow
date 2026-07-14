@@ -1264,10 +1264,13 @@ REFINEMENTS_SCHEMA = Schema(
 
 SW4_IMAGE_OUTPUT_SCHEMA = Schema(
     {
-        Literal("mode", description="Image mode (e.g. ux, uy, uz, rho, mag, hmax, topo, grid, etc)."): str,
         Literal(
-            "plane", description="Coordinate plane to output on."
-        ): Or("x", "y", "z"),
+            "mode",
+            description="Image mode (e.g. ux, uy, uz, rho, mag, hmax, topo, grid, etc).",
+        ): str,
+        Literal("plane", description="Coordinate plane to output on."): Or(
+            "x", "y", "z"
+        ),
         Literal(
             "plane_value",
             description="Coordinate value for the output plane.",
@@ -1282,11 +1285,9 @@ SW4_IMAGE_OUTPUT_SCHEMA = Schema(
                 description="Time interval between image outputs.",
             )
         ): Or(And(NUMBER, _is_positive), None),
-        Optional(
-            Literal(
-                "cycle", description="Cycle number for image output."
-            )
-        ): Or(And(int, lambda x: x >= 0), None),
+        Optional(Literal("cycle", description="Cycle number for image output.")): Or(
+            And(int, lambda x: x >= 0), None
+        ),
         Optional(
             Literal(
                 "cycle_interval",
@@ -1298,6 +1299,8 @@ SW4_IMAGE_OUTPUT_SCHEMA = Schema(
         ): Or("float", "double"),
     }
 )
+
+PREFILTER_SCHEMA = Schema({"passes": int, "order": int, "fc1": NUMBER, "fc2": NUMBER})
 
 SW4_PARAMETERS_SCHEMA = Schema(
     {
@@ -1314,9 +1317,7 @@ SW4_PARAMETERS_SCHEMA = Schema(
             "nz_min",
             description="Minimum vertical cells in each refinement layer.",
         ): int,
-        Literal(
-            "projection_ellps", description="SW4 projection ellipsoid."
-        ): str,
+        Literal("projection_ellps", description="SW4 projection ellipsoid."): str,
         Literal(
             "projection_lon_p",
             description="SW4 projection central meridian.",
@@ -1349,14 +1350,15 @@ SW4_PARAMETERS_SCHEMA = Schema(
             "topography_order",
             description="Topography interpolation order.",
         ): int,
-        Literal(
-            "cfl", description="SW4 CFL stability number."
-        ): And(NUMBER, _is_positive),
+        Literal("cfl", description="SW4 CFL stability number."): And(
+            NUMBER, _is_positive
+        ),
         Literal("reporttiming", description="Enable timestep timing reports."): bool,
         Literal("failonnan", description="Abort on NaN values."): bool,
         Literal(
             "image_outputs",
             description="List of SW4 imagehdf5 output commands.",
         ): [SW4_IMAGE_OUTPUT_SCHEMA],
+        Literal("prefilter"): Or(None, PREFILTER_SCHEMA),
     }
 )

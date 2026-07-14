@@ -16,7 +16,7 @@ from IM import im_calculation
 from source_modelling import magnitude_scaling, rupture_propagation
 from velocity_modelling import bounding_box
 from workflow import defaults, realisations, schemas
-from workflow.realisations import SourceConfig
+from workflow.realisations import Prefilter, SourceConfig
 
 
 def test_bounding_box_example(tmp_path: Path) -> None:
@@ -957,6 +957,7 @@ def test_sw4_parameters(tmp_path: Path) -> None:
         cfl=0.9,
         reporttiming=True,
         failonnan=True,
+        prefilter=Prefilter(order=2, passes=2, fc1=0.0, fc2=1.0),
         image_outputs=[
             realisations.SW4ImageOutput(
                 mode="topo",
@@ -991,6 +992,7 @@ def test_sw4_parameters(tmp_path: Path) -> None:
         assert written["sw4"]["verbose"] == 2
         assert written["sw4"]["reporttiming"] is True
         assert len(written["sw4"]["image_outputs"]) == 3
+        assert written["sw4"]["prefilter"]["passes"] == 2
         assert written["sw4"]["image_outputs"][2] == {
             "mode": "hmax",
             "plane": "z",
