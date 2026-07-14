@@ -5,9 +5,12 @@ From: earthquakesuc/workflow-bootstrap:latest
     EMOD3D /EMOD3D
 
 %post
+    # Genslip's sources are pre-C23 K&R C, but the base image's GCC defaults to
+    # C23 (where empty parens mean (void), so every fopfile() call is an error)
+    # and errors on implicit declarations. -std=gnu17 -fpermissive are load-bearing.
     cd /EMOD3D && \
       mkdir build && cd build && \
-      cmake -DHF_TIME_WINDOW=off -DUSE_FFTW=on -DCMAKE_C_FLAGS="-march=x86-64 -mtune=generic" .. && \
+      cmake -DHF_TIME_WINDOW=off -DUSE_FFTW=on -DCMAKE_C_FLAGS="-march=x86-64 -mtune=generic -std=gnu17 -fpermissive" .. && \
       make -j $(nproc) genslip_v5.6.2 srf2stoch generic_slip2srf \
                       hb_high_binmod_v6.0.3
 
