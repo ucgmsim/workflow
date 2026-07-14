@@ -70,6 +70,7 @@ SITE_AMP_MODELS = {
 app = typer.Typer()
 
 G = 1 / 981.0
+TARGET_CHUNK_BYTES = 256 * 2**20
 
 
 def align_datasets(
@@ -160,7 +161,7 @@ def resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
         # The size of the resampled time dimension cannot be inferred by
         # dask, so it must be given explicitly.
         dask_gufunc_kwargs=dict(output_sizes={"time": nt}),
-    )
+    ).chunk({"time": -1, "component": -1, "station": dset.chunksizes["station"]})
 
     resampled_waveform = resampled_waveform.assign_coords(time=new_time)
     # Must drop both waveform variable and time dimension to avoid xarray
@@ -302,17 +303,32 @@ def combine_hf_and_lf(
         realisation_ffp, metadata.defaults_version
     )
 
+    # Open lazily (no dask) and select the common stations *before* chunking.
+    # The LF and HF files store stations in different orders, so selecting after
+    # chunking is an all-to-all dask shuffle in which every output chunk depends
+    # on every input chunk. This will result in materialising the whole array
+    # in-memory. Selecting on the lazy backend arrays instead lets each dask
+    # chunk read just its own stations from disk.
+    lf = xr.open_dataset(low_frequency_waveform_file)
+    hf = xr.open_dataset(high_frequency_waveform_file)
+
+    common_stations = sorted(
+        set(map(str, hf.station.values)) & set(map(str, lf.station.values))
+    )
     # Chunk over stations only, so every chunk holds complete time
     # series for resampling, alignment and filtering.
-    chunking = {"component": -1, "station": "auto", "time": -1}
-    lf = xr.open_dataset(low_frequency_waveform_file, chunks={}).chunk(chunking)
-    hf = xr.open_dataset(high_frequency_waveform_file, chunks={}).chunk(chunking)
+    nt = max(len(lf["time"]), len(hf["time"]))
+    n_stations = round(TARGET_CHUNK_BYTES / (3 * nt * np.float64().itemsize))
+    chunking = {"component": -1, "station": n_stations, "time": -1}
+    lf = lf.sel(station=common_stations).chunk(chunking)
+    hf = hf.sel(station=common_stations).chunk(chunking)
+
     bb_dt = min(lf.attrs["dt"], hf.attrs["dt"])
+
     if not np.isclose(lf.attrs["dt"], bb_dt):
         lf = resample_signal(lf, bb_dt)
     if not np.isclose(hf.attrs["dt"], bb_dt):
         hf = resample_signal(hf, bb_dt)
-
     common_stations = sorted(
         set(map(str, hf.station.values)) & set(map(str, lf.station.values))
     )
@@ -345,7 +361,6 @@ def combine_hf_and_lf(
     ).chunk(chunking)
 
     combined = combined.unify_chunks()
-
     template = (
         combined["lf_waveform"].astype(np.float32).rename("waveform").to_dataset()
     )
@@ -365,6 +380,16 @@ def combine_hf_and_lf(
         ),
         template=template,
     )
+    attributes = dict(
+        dt=bb_dt,
+        flo=broadband_config.flo,
+        fmin=broadband_config.fmin,
+        fmidbot=broadband_config.fmidbot,
+        fhightop=broadband_config.fhightop,
+        fmax=broadband_config.fmax,
+        site_amp_model=str(broadband_config.site_amp_version),
+    )
+    bb.attrs.update(attributes)
 
     bb.to_netcdf(
         output_ffp,
