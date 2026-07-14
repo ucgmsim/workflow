@@ -278,6 +278,19 @@ contain them.
 4. **`PROVENANCE.md` + `manifest.csv`** — written after the run, committed both
    to `workflow` and alongside the artifacts in `cybershake_nshm_2022`.
 
+5. **`pyproject.toml`** — exclude `felipe_scripts/` from the `ruff` and `ty`
+   gates. Discovered while writing the implementation plan: committing
+   `felipe_scripts/` as a reference input **broke two CI gates that had been
+   passing** — `ruff` reports 17 errors in it and `ty` one. It is Felipe's
+   original code, kept verbatim; it was never meant to be linted. A
+   config-file exclusion (rather than a workflow-file change) applies both in CI
+   and locally, since CI invokes `ty check --exclude workflow/schemas.py
+   --exclude setup.py` and `ruff check` with no path arguments.
+
+   Verified: with the exclusion, `ty` reports `All checks passed!` and `ruff` is
+   left with a single `D103` in `copy_realisations_to_event_dirs.py`, which
+   component 2 above removes.
+
 ## Run protocol
 
 Ordering is load-bearing. The pinned SHA must exist before the run; the record
@@ -286,9 +299,17 @@ unproven is ever tagged.
 
 1. Merge `origin/pegasus`; verify the generation path is untouched.
 2. Land the three code changes.
-3. **Run the test suite.** `tests/test_complete_realisations.py` was renamed and
-   has never been run. Also `uv run ty check --all-extras` — a bare `ty check`
-   gives a false pass. No commit is pinned on unverified code.
+3. **Run every CI gate**, exactly as CI runs them. `tests/test_complete_realisations.py`
+   was renamed and has never been run; no commit is pinned on unverified code.
+
+   ```
+   uv sync --all-extras --dev      # required first: without pandas-stubs, ty false-passes
+   uv run pytest -q
+   uv run ruff check
+   uv run ty check --exclude workflow/schemas.py --exclude setup.py
+   uv run deptry .
+   fdfind . workflow/ -E "__init__.py" --extension py | xargs numpydoc lint
+   ```
 4. Commit. Confirm `git status --porcelain` is empty, and push the branch — a
    SHA that exists only on one laptop is not auditable. **This is commit N.**
 5. Rebuild and verify `nshmdb.db` (Decision 5).
