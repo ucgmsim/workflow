@@ -27,6 +27,9 @@ RUN apt-get update && apt-get install -y \
         libffi-dev \
         liblzma-dev \
         libexpat1-dev \
+        libpq-dev \
+        gdal-bin \
+        libgdal-dev \
         libgdbm-dev \
         libgdbm-compat-dev \
         libncurses5-dev \
