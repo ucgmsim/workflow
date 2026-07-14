@@ -1300,7 +1300,9 @@ SW4_IMAGE_OUTPUT_SCHEMA = Schema(
     }
 )
 
-PREFILTER_SCHEMA = Schema({"passes": int, "order": int, "fc1": NUMBER, "fc2": NUMBER})
+PREFILTER_SCHEMA = Schema(
+    {"passes": int, "order": int, "fc1": NUMBER, "fc2": NUMBER, "type": str}
+)
 
 SW4_PARAMETERS_SCHEMA = Schema(
     {

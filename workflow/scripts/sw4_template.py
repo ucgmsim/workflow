@@ -5,6 +5,7 @@ from pathlib import Path
 import h5py
 import typer
 from nzcvm.formats import sfile
+from nzcvm.grids import sw4
 
 from qcore import cli
 from workflow.realisations import (
@@ -24,8 +25,9 @@ supergrid gp={supergrid_gp}
 time t={time}
 
 grid x={x} y={y} z={z} h={dx} az={azimuth} lon={lon} lat={lat} proj={projection_type} ellps={projection_ellps} lon_p={projection_lon_p} lat_p={projection_lat_p} scale={projection_scale}
-rupturehdf5 file={srf}
 
+rupturehdf5 file={srf}
+{prefilter}
 {refinement_str}
 
 attenuation maxfreq={attenuation_maxfreq} phasefreq={attenuation_phasefreq} nmech={attenuation_nmech}
@@ -217,7 +219,10 @@ def generate_sw4_input(
     dx = refinements[-1].resolution
 
     image_output_str = build_image_output_lines(sw4_params.image_outputs, time)
-
+    if sw4_params.prefilter:
+        prefilter = f"prefilter type={sw4_params.prefilter.type} fc1={sw4_params.prefilter.fc1} fc2={sw4_params.prefilter.fc2} passes={sw4_params.prefilter.passes} order={sw4_params.prefilter.order}"
+    else:
+        prefilter = ""
     low_frequency_output = work_directory / "out.h5"
     output_path.write_text(
         SW4_TEMPLATE.format(
@@ -254,5 +259,6 @@ def generate_sw4_input(
             cfl=sw4_params.cfl,
             failonnan=int(sw4_params.failonnan),
             image_output_str=image_output_str,
+            prefilter=prefilter,
         )
     )

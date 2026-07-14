@@ -957,7 +957,7 @@ def test_sw4_parameters(tmp_path: Path) -> None:
         cfl=0.9,
         reporttiming=True,
         failonnan=True,
-        prefilter=Prefilter(order=2, passes=2, fc1=0.0, fc2=1.0),
+        prefilter=Prefilter(order=2, passes=2, fc1=0.0, fc2=1.0, type="bandpass"),
         image_outputs=[
             realisations.SW4ImageOutput(
                 mode="topo",

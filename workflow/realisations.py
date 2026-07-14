@@ -1299,6 +1299,8 @@ class Prefilter:
     """Corner frequency for prefilter (lower)."""
     fc2: float
     """Corner frequency for prefilter (upper)."""
+    type: str
+    "Type of filter (lowpass, bandpass, highpass)"
 
 
 @dataclasses.dataclass
