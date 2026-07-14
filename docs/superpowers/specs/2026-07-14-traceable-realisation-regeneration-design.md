@@ -13,7 +13,7 @@ incomplete — every field of `log_trail` is misleading:
 | field | recorded value | why it is wrong |
 | --- | --- | --- |
 | `utility` | `bake_realisations.py` | the script's pre-rename name, and it was run as `python <file>` rather than through its entry point |
-| `version` | `0.1.dev1277+g41974dfa1.d20260709` | the `.d20260709` suffix means the tree was **dirty**; the code that ran was demonstrably *not* commit `41974df` (the area-weighted fault-selection change was uncommitted at the time, confirmed by regenerating from the persisted seeds) |
+| `version` | `0.1.dev1277+g41974dfa1.d20260709` | a **stale build stamp**, not a statement about the code that ran. The dirty suffix is a symptom; the disease is that `importlib.metadata` reads a cached `.dist-info` frozen at the last *reinstall*. The code that ran demonstrably was **not** `41974df` — the area-weighted fault-selection change was uncommitted at the time, confirmed by regenerating from the persisted seeds. See "How the SHA gets into `log_trail`, and why it lies". |
 | `args` | `["minimal_realisations/", "full_realisations"]` | `full_realisations` does not exist; the stub step likewise records `realisations/`, which does not exist either |
 
 Shell history shows the run was assembled over several attempts that even mixed
@@ -76,22 +76,60 @@ Dependency versions are pinned by `uv.lock` (sha256 `27358cba5f0ade50…`):
 `nshmdb` 2025.12.1, `source_modelling` 2026.6.2, `velocity-modelling` 2026.2.1,
 `qcore-utils` 2025.12.2, `im-calculation` 2025.12.5, `oq-wrapper` 2025.12.5.
 
-### How the SHA gets into `log_trail`
+### How the SHA gets into `log_trail`, and why it lies
 
-`LogEntry.from_utility` calls `importlib.metadata.version("workflow")` — the
-*installed* distribution metadata, stamped by `setuptools-scm` at install time,
-not at run time. Two facts, both verified experimentally:
+`LogEntry.from_utility` calls `importlib.metadata.version("workflow")`. This
+reads the **cached `.dist-info/METADATA` on disk**, which `setuptools-scm`
+stamped when the package was last *built*. For an editable install, source
+changes are picked up at import — but **the version metadata is not**. It stays
+frozen until the package is reinstalled.
 
-- `uv run` re-derives that metadata on every invocation. Dirtying a tracked
-  source file immediately changes the reported string.
-- **Untracked and gitignored files do not dirty it.** Only modifications to
-  *tracked* files do.
+`uv run` re-syncs only when `pyproject.toml` or `uv.lock` change. It does **not**
+rebuild when source files change, or when `HEAD` moves. Demonstrated on this
+repo, on a clean tree at `b541da03a`:
 
-The second fact matters: `minimal_realisations/` and `complete_realisations/`
-are gitignored, so **the run cannot dirty its own tree**. The clean SHA is
-stable for the whole campaign. A clean tree therefore yields
-`0.1.dev<N>+g<sha>` with no `.d<date>` suffix, which is exactly the property we
-need — and Goal 4 turns it from a hope into an assertion.
+```
+git HEAD                      b541da03a
+git status --porcelain        (empty — clean)
+.dist-info Version:           0.1.dev1285+g12172130f.d20260714
+```
+
+The recorded version named the wrong commit **and** carried a phantom dirty
+flag, on a clean tree. It was simply the stamp from an earlier build.
+
+**This is the true root cause of the original defect.** The 291 existing files
+record `g41974dfa1`, yet regenerating from their persisted seeds proved the code
+that ran contained the area-weighted fault-selection change, which was *not* in
+`41974df`. The tree being dirty was a symptom; the disease is that the version
+string was never a claim about the code that ran at all. It was a claim about
+whenever someone last happened to rebuild.
+
+Consequences for this design, and they are not optional:
+
+1. **The package must be force-rebuilt immediately before the run**, on a clean
+   tree, at the pinned commit:
+
+   ```
+   uv sync --reinstall-package workflow --all-extras --dev
+   ```
+
+   Verified to re-stamp correctly:
+   `0.1.dev1285+g12172130f.d20260714` → `0.1.dev1286+gb541da03a`.
+
+2. **A pre-flight gate must assert the stamp matches reality before any
+   realisation is written** — clean tree, and installed metadata equal to the
+   version derived from `HEAD`. Without this, a stale stamp is undetectable at
+   run time and silently poisons all 291 files.
+
+3. Goal 4 stops being belt-and-braces and becomes essential. Had the campaign
+   been run as originally specced — clean tree, `uv run`, no forced rebuild —
+   every file would have been stamped `0.1.dev1285+g12172130f.d20260714`: wrong
+   SHA, spurious dirty flag, and nobody the wiser.
+
+One helpful fact does survive: **untracked and gitignored files do not dirty the
+tree.** `minimal_realisations/` and `complete_realisations/` are gitignored, so
+the run cannot dirty its own tree mid-campaign. Once the stamp is correct at the
+start, it stays correct.
 
 ## Decisions
 
@@ -217,12 +255,21 @@ contain them.
    machine-specific.
 
 3. **`workflow/scripts/verify_realisation_provenance.py`** (new, entry point
-   `verify-realisation-provenance`) — reads every realisation in a directory and
-   asserts:
+   `verify-realisation-provenance`) — two modes, because the stale-metadata bug
+   means checking after the fact is too late.
+
+   **Pre-flight** (`--preflight`), run *before* any realisation is written, and
+   refusing to proceed unless all hold:
+   - `git status --porcelain` is empty;
+   - `importlib.metadata.version("workflow")` **equals the version derived from
+     the current `HEAD`** — this is the check that catches a stale `.dist-info`,
+     and the one whose absence would have silently poisoned the whole campaign;
+   - the version carries no `.d` suffix.
+
+   **Post-hoc** (default), over an output directory:
    - exactly two `log_trail` entries, in order;
    - `utility` ∈ {`nshm2022-to-realisation`, `complete-realisations`};
-   - `version` equals the expected `0.1.dev<N>+g<sha>` string, with **no `.d`
-     suffix** (a dirty tree at run time is thereby impossible to miss);
+   - `version` equals the expected `0.1.dev<N>+g<sha>` string in every file;
    - all 18 sections present, in `FELIPE_SECTION_ORDER`.
 
    This is the component that discharges Goal 4. It exits non-zero on any
@@ -245,12 +292,24 @@ unproven is ever tagged.
 4. Commit. Confirm `git status --porcelain` is empty, and push the branch — a
    SHA that exists only on one laptop is not auditable. **This is commit N.**
 5. Rebuild and verify `nshmdb.db` (Decision 5).
-6. `uv sync --all-extras --dev`, to re-stamp the editable install at commit N.
-7. Smoke-test: run both steps over a three-rupture subset of the CSV into a
-   scratch directory, and confirm `verify-realisation-provenance` passes and the
-   emitted `version` string carries no `.d` suffix. Only then commit to the full
-   run — a dirty-tree mistake discovered after 291 files is 291 files wasted.
-8. Run the campaign from the repo root, through the **entry points** — not
+6. **Force-rebuild the package so the version stamp is not stale:**
+
+   ```
+   uv sync --reinstall-package workflow --all-extras --dev
+   ```
+
+   `uv sync` alone is **not** sufficient — it will not rebuild when only `HEAD`
+   has moved, and will happily serve a `.dist-info` stamped days ago at a
+   different commit.
+7. **Pre-flight gate:** `uv run verify-realisation-provenance --preflight`.
+   Refuses to proceed unless the tree is clean and the installed metadata
+   matches `HEAD`. This is the single check that stands between the campaign and
+   291 files stamped with the wrong commit.
+8. Smoke-test: run both steps over a three-rupture subset of the CSV into a
+   scratch directory, and confirm `verify-realisation-provenance` passes on the
+   output. Only then commit to the full run — a bad stamp discovered after 291
+   files is 291 files wasted.
+9. Run the campaign from the repo root, through the **entry points** — not
    `python <script>.py`, which is what produced `utility: bake_realisations.py`:
 
    ```
@@ -263,10 +322,12 @@ unproven is ever tagged.
    Paths are relative to the repo root, so the `args` recorded in `log_trail`
    remain meaningful — unlike the previous run's `realisations/` and
    `full_realisations`.
-9. `uv run verify-realisation-provenance complete_realisations --expect-version <string>`.
-10. Tag commit N as `cs-nshm2022-realisations-v1` (annotated) and push the tag.
-11. Write `PROVENANCE.md` and `manifest.csv`; commit as **commit N+1**.
-12. Distribute to `cybershake_nshm_2022`; commit the events, `PROVENANCE.md` and
+10. `uv run verify-realisation-provenance complete_realisations --expect-version <string>`.
+11. Tag commit N as `cs-nshm2022-realisations-v1` (annotated) and push the tag.
+    See the tagging risk below — verify the tag does not perturb the version
+    scheme before relying on it.
+12. Write `PROVENANCE.md` and `manifest.csv`; commit as **commit N+1**.
+13. Distribute to `cybershake_nshm_2022`; commit the events, `PROVENANCE.md` and
     `manifest.csv` there.
 
 ## Acceptance criteria
@@ -285,6 +346,24 @@ unproven is ever tagged.
 - The test suite and `ty check --all-extras` pass at commit N.
 
 ## Risks
+
+- **Stale version metadata — the one that nearly sank this.** See "How the SHA
+  gets into `log_trail`, and why it lies". Mitigated by the forced reinstall
+  (step 6) and the pre-flight gate (step 7), and caught by the post-hoc verifier
+  even if both are somehow skipped. Treat any change to the run protocol that
+  removes either as a defect.
+
+- **Tagging may perturb the version scheme.** The repo currently has **no tags**
+  — `git describe` returns nothing — which is why `setuptools-scm` falls back to
+  `0.1.dev<count>+g<sha>`. Adding `cs-nshm2022-realisations-v1` may match
+  `setuptools-scm`'s default `tag_regex` (which can strip a leading
+  `[\w-]+-` prefix and read `v1` as version `1`), changing every subsequent
+  version string. Tagging *after* the run keeps the recorded strings intact, but
+  anyone who later checks out the tag and reinstalls could see a different
+  version than the one in `log_trail`. Before relying on the tag: create it,
+  reinstall, and check whether the version string moves. If it does, either pick
+  a tag name `setuptools-scm` ignores or drop the tag — **the SHA is the anchor,
+  the tag is only a human-readable pointer.**
 
 - **Downstream invalidation.** New seeds mean new hypocentres, so the SRFs and
   slip animations on `cybershake_nshm_2022`'s `add-srf-helper-scripts` branch
