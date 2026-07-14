@@ -922,6 +922,107 @@ def test_refinements(tmp_path: Path) -> None:
     )
 
 
+def test_sw4_image_output(tmp_path: Path) -> None:
+    img = realisations.SW4ImageOutput(
+        mode="hmax",
+        plane="z",
+        plane_value=0,
+        file="surf_hmax",
+        precision="float",
+    )
+    assert img.mode == "hmax"
+    assert img.plane == "z"
+    assert img.plane_value == 0
+    assert img.file == "surf_hmax"
+    assert img.time is None
+    assert img.precision == "float"
+
+
+def test_sw4_parameters(tmp_path: Path) -> None:
+    sw4 = realisations.SW4Parameters(
+        verbose=2,
+        printcycle=10,
+        supergrid_gp=30,
+        supergrid_padding=30,
+        nz_min=12,
+        projection_ellps="GRS80",
+        projection_lon_p=173.0,
+        projection_lat_p=0.0,
+        projection_scale=0.9996,
+        projection_type="tmerc",
+        attenuation_maxfreq=10.0,
+        attenuation_phasefreq=2.5,
+        attenuation_nmech=3,
+        topography_order=3,
+        cfl=0.9,
+        reporttiming=True,
+        failonnan=True,
+        image_outputs=[
+            realisations.SW4ImageOutput(
+                mode="topo",
+                plane="z",
+                plane_value=0,
+                file="topo",
+                cycle=0,
+                precision="float",
+            ),
+            realisations.SW4ImageOutput(
+                mode="mag",
+                plane="z",
+                plane_value=0,
+                file="surf_mag",
+                time_interval=0.5,
+                precision="float",
+            ),
+            realisations.SW4ImageOutput(
+                mode="hmax",
+                plane="z",
+                plane_value=0,
+                file="surf_hmax",
+                precision="float",
+            ),
+        ],
+    )
+
+    realisation_path = tmp_path / "realisation.json"
+    sw4.write_to_realisation(realisation_path)
+    with open(realisation_path, "r") as realisation_handle:
+        written = json.load(realisation_handle)
+        assert written["sw4"]["verbose"] == 2
+        assert written["sw4"]["reporttiming"] is True
+        assert len(written["sw4"]["image_outputs"]) == 3
+        assert written["sw4"]["image_outputs"][2] == {
+            "mode": "hmax",
+            "plane": "z",
+            "plane_value": 0,
+            "file": "surf_hmax",
+            "time": None,
+            "time_interval": None,
+            "cycle": None,
+            "cycle_interval": None,
+            "precision": "float",
+        }
+
+    assert realisations.SW4Parameters.read_from_realisation(realisation_path) == sw4
+
+
+def test_sw4_parameters_defaults_loadable() -> None:
+    """SW4Parameters should load from v26_7_1Hz defaults and raise for older versions."""
+    sw4 = realisations.SW4Parameters.read_from_defaults(
+        defaults.DefaultsVersion.v26_7_1Hz
+    )
+    assert sw4.verbose == 2
+    assert sw4.reporttiming is True
+    assert sw4.cfl == 0.9
+    assert len(sw4.image_outputs) == 10
+
+    for version in defaults.DefaultsVersion:
+        if version == defaults.DefaultsVersion.v26_7_1Hz:
+            continue
+        with pytest.raises(realisations.RealisationParseError):
+            realisations.SW4Parameters.read_from_defaults(version)
+
+
 def test_sources(tmp_path: Path) -> None:
     realisation_ffp = tmp_path / "realisation.json"
     source_json = {
@@ -997,6 +1098,7 @@ SKIP_PAIRS = {
 )
 @pytest.mark.parametrize("defaults_version", list(defaults.DefaultsVersion))
 def test_defaults_are_loadable(
+    tmp_path: Path,
     realisation_config: realisations.RealisationConfiguration,
     defaults_version: defaults.DefaultsVersion,
 ) -> None:
@@ -1004,4 +1106,5 @@ def test_defaults_are_loadable(
         pytest.skip(
             f"Configuration {realisation_config} unsupported for defaults {defaults_version}"
         )
-    realisation_config.read_from_defaults(defaults_version)
+    default_block = realisation_config.read_from_defaults(defaults_version)
+    default_block.write_to_realisation(tmp_path / "realisation.json")

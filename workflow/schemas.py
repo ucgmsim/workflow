@@ -1261,3 +1261,102 @@ REFINEMENTS_SCHEMA = Schema(
         ): And(NUMBER, _is_positive),
     }
 )
+
+SW4_IMAGE_OUTPUT_SCHEMA = Schema(
+    {
+        Literal("mode", description="Image mode (e.g. ux, uy, uz, rho, mag, hmax, topo, grid, etc)."): str,
+        Literal(
+            "plane", description="Coordinate plane to output on."
+        ): Or("x", "y", "z"),
+        Literal(
+            "plane_value",
+            description="Coordinate value for the output plane.",
+        ): Or(NUMBER, int),
+        Literal("file", description="Output file prefix."): str,
+        Optional(
+            Literal("time", description="Output time. None uses simulation end time.")
+        ): Or(NUMBER, None),
+        Optional(
+            Literal(
+                "time_interval",
+                description="Time interval between image outputs.",
+            )
+        ): Or(And(NUMBER, _is_positive), None),
+        Optional(
+            Literal(
+                "cycle", description="Cycle number for image output."
+            )
+        ): Or(And(int, lambda x: x >= 0), None),
+        Optional(
+            Literal(
+                "cycle_interval",
+                description="Cycle interval between image outputs.",
+            )
+        ): Or(And(int, lambda x: x > 0), None),
+        Optional(
+            Literal("precision", description="Output precision (float or double).")
+        ): Or("float", "double"),
+    }
+)
+
+SW4_PARAMETERS_SCHEMA = Schema(
+    {
+        Literal("verbose", description="Fileio verbosity level."): int,
+        Literal("printcycle", description="Output fileio print cycle."): int,
+        Literal(
+            "supergrid_gp", description="Supergrid gridpoints for absorbing layer."
+        ): int,
+        Literal(
+            "supergrid_padding",
+            description="Number of gridpoints extending past supergrid for padding.",
+        ): int,
+        Literal(
+            "nz_min",
+            description="Minimum vertical cells in each refinement layer.",
+        ): int,
+        Literal(
+            "projection_ellps", description="SW4 projection ellipsoid."
+        ): str,
+        Literal(
+            "projection_lon_p",
+            description="SW4 projection central meridian.",
+        ): NUMBER,
+        Literal(
+            "projection_lat_p",
+            description="SW4 projection latitude of origin.",
+        ): NUMBER,
+        Literal(
+            "projection_scale",
+            description="SW4 projection scale factor.",
+        ): NUMBER,
+        Literal(
+            "projection_type",
+            description="SW4 projection type.",
+        ): str,
+        Literal(
+            "attenuation_maxfreq",
+            description="Attenuation maximum frequency.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "attenuation_phasefreq",
+            description="Attenuation phase frequency.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "attenuation_nmech",
+            description="Number of attenuation mechanisms.",
+        ): int,
+        Literal(
+            "topography_order",
+            description="Topography interpolation order.",
+        ): int,
+        Literal(
+            "cfl", description="SW4 CFL stability number."
+        ): And(NUMBER, _is_positive),
+        Literal("reporttiming", description="Enable timestep timing reports."): bool,
+        Literal("failonnan", description="Abort on NaN values."): bool,
+        Literal(
+            "image_outputs",
+            description="List of SW4 imagehdf5 output commands.",
+        ): [SW4_IMAGE_OUTPUT_SCHEMA],
+    }
+)

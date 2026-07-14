@@ -1266,6 +1266,79 @@ class BroadbandParameters(RealisationConfiguration):
 
 
 @dataclasses.dataclass
+class SW4ImageOutput:
+    """Parameters for a single SW4 imagehdf5 command."""
+
+    mode: str
+    """Image mode (e.g. ux, uy, uz, rho, mag, velmag, hmax, vmax, topo, grid, p, s, etc)."""
+    plane: Literal["x", "y", "z"]
+    """Which coordinate plane to output on."""
+    plane_value: float | int
+    """Coordinate value for the output plane."""
+    file: str
+    """Output file prefix."""
+    time: float | None = None
+    """Output time. None means use simulation end time."""
+    time_interval: float | None = None
+    """Time interval between image outputs."""
+    cycle: int | None = None
+    """Cycle number for image output."""
+    cycle_interval: int | None = None
+    """Cycle interval between image outputs."""
+    precision: Literal["float", "double"] = "float"
+    """Output precision."""
+
+
+@dataclasses.dataclass
+class SW4Parameters(RealisationConfiguration):
+    """Parameters for SW4 simulation."""
+
+    _config_key: ClassVar[str] = "sw4"
+    _schema: ClassVar[Schema] = schemas.SW4_PARAMETERS_SCHEMA
+
+    verbose: int
+    """Fileio verbosity level."""
+    printcycle: int
+    """Output fileio print cycle."""
+    supergrid_gp: int
+    """Supergrid gridpoints for absorbing layer."""
+    supergrid_padding: int
+    """Number of gridpoints extending past supergrid for padding."""
+    nz_min: int
+    """Minimum vertical cells in each refinement layer."""
+    projection_ellps: str
+    """SW4 projection ellipsoid."""
+    projection_lon_p: float
+    """SW4 projection central meridian."""
+    projection_lat_p: float
+    """SW4 projection latitude of origin."""
+    projection_scale: float
+    """SW4 projection scale factor."""
+    projection_type: str
+    """SW4 projection type (e.g. tmerc)."""
+    attenuation_maxfreq: float
+    """Attenuation maximum frequency."""
+    attenuation_phasefreq: float
+    """Attenuation phase frequency."""
+    attenuation_nmech: int
+    """Number of attenuation mechanisms."""
+    topography_order: int
+    """Topography interpolation order."""
+    cfl: float
+    """SW4 CFL stability number."""
+    reporttiming: bool
+    """Enable timestep timing reports."""
+    failonnan: bool
+    """Abort on NaN values."""
+    image_outputs: list[SW4ImageOutput]
+    """List of SW4 imagehdf5 output commands."""
+
+    def __post_init__(self) -> None:
+        if self.image_outputs and not isinstance(self.image_outputs[0], SW4ImageOutput):
+            self.image_outputs = [SW4ImageOutput(**item) for item in self.image_outputs]  # type: ignore
+
+
+@dataclasses.dataclass
 class IntensityMeasureCalculationParameters(RealisationConfiguration):
     """Intensity measure calculation parameters."""
 
