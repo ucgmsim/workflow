@@ -334,12 +334,10 @@ def generate_realisation(
     else:
         # The ty ignore below can be removed once NSHM2022DB merges the change to
         # accept dict[str, BoldM] in most_likely_fault (branch support-BoldM-in-workflow).
-        mfds_rates = db.most_likely_fault(rupture_id, magnitudes)  # ty: ignore[invalid-argument-type]
-        mfds_probabilities = np.array(list(mfds_rates.values()))
-        if np.allclose(mfds_probabilities, 0):
-            mfds_probabilities = np.ones_like(mfds_probabilities)
-        mfds_probabilities /= mfds_probabilities.sum()
-        initial_fault = np.random.choice(list(mfds_rates), p=mfds_probabilities)
+
+        areas = np.array([fault.area() for fault in faults.values()])
+        areas /= areas.sum()
+        initial_fault = np.random.choice(list(faults), p=areas)
         hypocentre = np.array(
             [
                 shypo
