@@ -1,10 +1,10 @@
-# Bake NSHM-2022 Realisations Implementation Plan
+# Complete NSHM-2022 Realisations Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Turn each valid minimal NSHM-2022 realisation stub into a complete, self-contained realisation file — matching Felipe's reference (`felipe_3528839_realisation.json`) section-for-section — written to a new folder, leaving the originals untouched.
 
-**Architecture:** A single `typer` CLI module, `workflow/scripts/bake_realisations.py`, adapted from `felipe_scripts/gen_FF_realisations_MP.py`. It drops the GCMT/nodal-plane source generation (we already have NSHM sources) and adds full materialisation of every default section. It reuses the workflow's `read_from_defaults` / `write_to_realisation` machinery and `generate_domain_from_realisation`. Pure helpers (`load_overrides`, `is_valid_minimal`, `normalize_key_order`, `summary_row`) are unit-tested; `bake_one` and the driver are covered by slow integration tests that diff rupture-independent sections against Felipe's committed reference.
+**Architecture:** A single `typer` CLI module, `workflow/scripts/complete_realisations.py`, adapted from `felipe_scripts/gen_FF_realisations_MP.py`. It drops the GCMT/nodal-plane source generation (we already have NSHM sources) and adds full materialisation of every default section. It reuses the workflow's `read_from_defaults` / `write_to_realisation` machinery and `generate_domain_from_realisation`. Pure helpers (`load_overrides`, `is_valid_minimal`, `normalize_key_order`, `summary_row`) are unit-tested; `complete_one` and the driver are covered by slow integration tests that diff rupture-independent sections against Felipe's committed reference.
 
 **Tech Stack:** Python 3.12, typer, numpy, pandas, tqdm, multiprocessing; workflow package (`workflow.realisations`, `workflow.defaults`, `workflow.scripts.generate_domain`); pytest.
 
@@ -17,23 +17,23 @@
 - Output must be **deterministic / idempotent**: no RNG; `seeds` are copied, not regenerated.
 - Final files must contain exactly these **18 sections** in this order (`normalize_key_order`): `metadata, sources, rupture_propagation, magnitudes, rakes, log_trail, velocity_model, domain, im, seeds, emod3d, resolution, srf, velocity_model_1d, hf_velocity_model_1d, hf, bb, rupture_velocity`.
 - Follow repo conventions: typer CLI under `workflow/scripts/`, tests under `tests/`, numpydoc docstrings, ruff formatting.
-- Run tests with: `.venv/bin/python -m pytest tests/test_bake_realisations.py -v` (pytest 9.0.2 is in `.venv`).
+- Run tests with: `.venv/bin/python -m pytest tests/test_complete_realisations.py -v` (pytest 9.0.2 is in `.venv`).
 - Current branch is `andrew-cs-2022` (not the default `pegasus`); commit here.
 
 ## File Structure
 
-- **Create** `workflow/scripts/bake_realisations.py` — the whole feature: constants, `Overrides`, `load_overrides`, `is_valid_minimal`, `normalize_key_order`, `bake_one`, `summary_row`, `BakeResult`, `_bake_worker`, and the `bake_realisations` typer command.
-- **Create** `tests/test_bake_realisations.py` — unit + integration tests.
+- **Create** `workflow/scripts/complete_realisations.py` — the whole feature: constants, `Overrides`, `load_overrides`, `is_valid_minimal`, `normalize_key_order`, `complete_one`, `summary_row`, `CompletionResult`, `_complete_worker`, and the `complete_realisations` typer command.
+- **Create** `tests/test_complete_realisations.py` — unit + integration tests.
 - **Create** `tests/data/minimal_realisation_sample.json`, `tests/data/felipe_reference_realisation.json`, `tests/data/broken_minimal_stub.json` — committed fixtures.
-- **Modify** `pyproject.toml` `[project.scripts]` — add the `bake-realisations` entry point.
+- **Modify** `pyproject.toml` `[project.scripts]` — add the `complete-realisations` entry point.
 
 ---
 
 ### Task 1: Module scaffold, test fixtures, and `load_overrides`
 
 **Files:**
-- Create: `workflow/scripts/bake_realisations.py`
-- Create: `tests/test_bake_realisations.py`
+- Create: `workflow/scripts/complete_realisations.py`
+- Create: `tests/test_complete_realisations.py`
 - Create: `tests/data/{minimal_realisation_sample.json, felipe_reference_realisation.json, broken_minimal_stub.json}`
 
 **Interfaces:**
@@ -52,10 +52,10 @@ Verify: `python -c "import json; assert 'sources' in json.load(open('tests/data/
 
 - [ ] **Step 2: Write the failing test**
 
-Create `tests/test_bake_realisations.py`:
+Create `tests/test_complete_realisations.py`:
 
 ```python
-"""Tests for the bake_realisations campaign tool."""
+"""Tests for the complete_realisations campaign tool."""
 
 import json
 import shutil
@@ -65,7 +65,7 @@ import numpy as np
 import pytest
 
 from workflow.defaults import DefaultsVersion
-from workflow.scripts import bake_realisations as br
+from workflow.scripts import complete_realisations as br
 
 DATA = Path(__file__).parent / "data"
 FELIPE = DATA / "felipe_reference_realisation.json"
@@ -90,16 +90,16 @@ def test_load_overrides_missing_dir_raises(tmp_path: Path) -> None:
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `.venv/bin/python -m pytest tests/test_bake_realisations.py -v`
-Expected: FAIL — `ModuleNotFoundError` / `AttributeError` (module `bake_realisations` or `load_overrides` not defined).
+Run: `.venv/bin/python -m pytest tests/test_complete_realisations.py -v`
+Expected: FAIL — `ModuleNotFoundError` / `AttributeError` (module `complete_realisations` or `load_overrides` not defined).
 
 - [ ] **Step 4: Write minimal implementation**
 
-Create `workflow/scripts/bake_realisations.py`:
+Create `workflow/scripts/complete_realisations.py`:
 
 ```python
 #!/usr/bin/env python3
-"""Bake NSHM-2022 minimal realisations into complete simulation-ready realisations.
+"""Complete NSHM-2022 minimal realisations into complete simulation-ready realisations.
 
 Description
 -----------
@@ -112,7 +112,7 @@ realisation identical in structure and parameter values to Felipe's reference.
 
 Usage
 -----
-``bake-realisations INPUT_DIR OUTPUT_DIR [--defaults-version 24.2.2.1] ...``
+``complete-realisations INPUT_DIR OUTPUT_DIR [--defaults-version 24.2.2.1] ...``
 """
 
 import dataclasses
@@ -197,14 +197,14 @@ if __name__ == "__main__":
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `.venv/bin/python -m pytest tests/test_bake_realisations.py -v`
+Run: `.venv/bin/python -m pytest tests/test_complete_realisations.py -v`
 Expected: PASS (2 passed).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add workflow/scripts/bake_realisations.py tests/test_bake_realisations.py tests/data/
-git commit -m "feat(bake): scaffold bake_realisations with load_overrides + fixtures"
+git add workflow/scripts/complete_realisations.py tests/test_complete_realisations.py tests/data/
+git commit -m "feat(complete): scaffold complete_realisations with load_overrides + fixtures"
 ```
 
 ---
@@ -212,15 +212,15 @@ git commit -m "feat(bake): scaffold bake_realisations with load_overrides + fixt
 ### Task 2: `is_valid_minimal`, canonical order, `normalize_key_order`
 
 **Files:**
-- Modify: `workflow/scripts/bake_realisations.py`
-- Test: `tests/test_bake_realisations.py`
+- Modify: `workflow/scripts/complete_realisations.py`
+- Test: `tests/test_complete_realisations.py`
 
 **Interfaces:**
 - Produces: `FELIPE_SECTION_ORDER: list[str]`, `REQUIRED_MINIMAL_SECTIONS: tuple[str, ...]`, `is_valid_minimal(realisation: dict) -> bool`, `normalize_key_order(realisation: dict) -> dict`.
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `tests/test_bake_realisations.py`:
+Append to `tests/test_complete_realisations.py`:
 
 ```python
 def test_is_valid_minimal_true_for_full_stub() -> None:
@@ -244,12 +244,12 @@ def test_normalize_key_order_matches_canonical() -> None:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `.venv/bin/python -m pytest tests/test_bake_realisations.py -k "valid_minimal or normalize" -v`
+Run: `.venv/bin/python -m pytest tests/test_complete_realisations.py -k "valid_minimal or normalize" -v`
 Expected: FAIL — `AttributeError: module ... has no attribute 'is_valid_minimal'`.
 
 - [ ] **Step 3: Write minimal implementation**
 
-In `workflow/scripts/bake_realisations.py`, add below the imports (before `Overrides`):
+In `workflow/scripts/complete_realisations.py`, add below the imports (before `Overrides`):
 
 ```python
 from typing import Any
@@ -277,7 +277,7 @@ FELIPE_SECTION_ORDER: list[str] = [
     "rupture_velocity",
 ]
 
-# A minimal file can be baked only if it carries the source-side sections.
+# A minimal file can be completed only if it carries the source-side sections.
 REQUIRED_MINIMAL_SECTIONS: tuple[str, ...] = (
     "sources",
     "magnitudes",
@@ -332,51 +332,51 @@ def normalize_key_order(realisation: dict[str, Any]) -> dict[str, Any]:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `.venv/bin/python -m pytest tests/test_bake_realisations.py -k "valid_minimal or normalize" -v`
+Run: `.venv/bin/python -m pytest tests/test_complete_realisations.py -k "valid_minimal or normalize" -v`
 Expected: PASS (3 passed).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add workflow/scripts/bake_realisations.py tests/test_bake_realisations.py
-git commit -m "feat(bake): add is_valid_minimal and normalize_key_order"
+git add workflow/scripts/complete_realisations.py tests/test_complete_realisations.py
+git commit -m "feat(complete): add is_valid_minimal and normalize_key_order"
 ```
 
 ---
 
-### Task 3: `bake_one` (full materialisation)
+### Task 3: `complete_one` (full materialisation)
 
 **Files:**
-- Modify: `workflow/scripts/bake_realisations.py`
-- Test: `tests/test_bake_realisations.py`
+- Modify: `workflow/scripts/complete_realisations.py`
+- Test: `tests/test_complete_realisations.py`
 
 **Interfaces:**
 - Consumes: `Overrides`, `normalize_key_order`, `DefaultsVersion`.
-- Produces: `bake_one(src: Path, dst: Path, defaults_version: DefaultsVersion, overrides: Overrides) -> None` — writes a complete 18-section realisation to `dst`.
+- Produces: `complete_one(src: Path, dst: Path, defaults_version: DefaultsVersion, overrides: Overrides) -> None` — writes a complete 18-section realisation to `dst`.
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `tests/test_bake_realisations.py`:
+Append to `tests/test_complete_realisations.py`:
 
 ```python
 @pytest.mark.slow
-def test_bake_one_produces_complete_realisation(tmp_path: Path) -> None:
+def test_complete_one_produces_complete_realisation(tmp_path: Path) -> None:
     overrides = br.load_overrides(FELIPE_SCRIPTS)
-    dst = tmp_path / "baked.json"
+    dst = tmp_path / "completed.json"
 
-    br.bake_one(SAMPLE, dst, DefaultsVersion.v24_2_2_1, overrides)
-    baked = json.loads(dst.read_text())
+    br.complete_one(SAMPLE, dst, DefaultsVersion.v24_2_2_1, overrides)
+    completed = json.loads(dst.read_text())
 
     # Exactly the 18 canonical sections, in canonical order.
-    assert list(baked) == br.FELIPE_SECTION_ORDER
+    assert list(completed) == br.FELIPE_SECTION_ORDER
     # Domain computed and sane.
-    assert baked["domain"]["depth"] > 0
-    assert baked["domain"]["duration"] > 0
+    assert completed["domain"]["depth"] > 0
+    assert completed["domain"]["duration"] > 0
     # Overrides applied.
-    assert baked["velocity_model"]["version"] == "2.09"
-    assert len(baked["im"]["valid_periods"]) == 111
-    assert len(baked["im"]["fas_frequencies"]) == 389
-    assert baked["metadata"]["defaults_version"] == "24.2.2.1"
+    assert completed["velocity_model"]["version"] == "2.09"
+    assert len(completed["im"]["valid_periods"]) == 111
+    assert len(completed["im"]["fas_frequencies"]) == 389
+    assert completed["metadata"]["defaults_version"] == "24.2.2.1"
     # Rupture-independent sections identical to Felipe's reference.
     felipe = json.loads(FELIPE.read_text())
     for section in [
@@ -390,17 +390,17 @@ def test_bake_one_produces_complete_realisation(tmp_path: Path) -> None:
         "velocity_model_1d",
         "hf_velocity_model_1d",
     ]:
-        assert baked[section] == felipe[section], f"{section} differs from Felipe"
+        assert completed[section] == felipe[section], f"{section} differs from Felipe"
 
 
-def test_bake_one_does_not_touch_source(tmp_path: Path) -> None:
-    # Guard the read-only-inputs constraint: bake_one must copy, never edit src.
+def test_complete_one_does_not_touch_source(tmp_path: Path) -> None:
+    # Guard the read-only-inputs constraint: complete_one must copy, never edit src.
     src = tmp_path / "realisation_114741.json"
     shutil.copy(SAMPLE, src)
     before = src.read_bytes()
-    dst = tmp_path / "baked.json"
+    dst = tmp_path / "completed.json"
     try:
-        br.bake_one(src, dst, DefaultsVersion.v24_2_2_1, br.load_overrides(FELIPE_SCRIPTS))
+        br.complete_one(src, dst, DefaultsVersion.v24_2_2_1, br.load_overrides(FELIPE_SCRIPTS))
     except Exception:  # noqa: BLE001 -- even on failure src must be untouched
         pass
     assert src.read_bytes() == before
@@ -408,12 +408,12 @@ def test_bake_one_does_not_touch_source(tmp_path: Path) -> None:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `.venv/bin/python -m pytest tests/test_bake_realisations.py -k bake_one -v`
-Expected: FAIL — `AttributeError: module ... has no attribute 'bake_one'`.
+Run: `.venv/bin/python -m pytest tests/test_complete_realisations.py -k complete_one -v`
+Expected: FAIL — `AttributeError: module ... has no attribute 'complete_one'`.
 
 - [ ] **Step 3: Write minimal implementation**
 
-In `workflow/scripts/bake_realisations.py`, extend the imports:
+In `workflow/scripts/complete_realisations.py`, extend the imports:
 
 ```python
 import json
@@ -457,10 +457,10 @@ _DEFAULTS_SECTION_CLASSES = (
 Add the function:
 
 ```python
-def bake_one(
+def complete_one(
     src: Path, dst: Path, defaults_version: DefaultsVersion, overrides: Overrides
 ) -> None:
-    """Bake a single minimal realisation into a complete realisation at ``dst``.
+    """Complete a single minimal realisation into a complete realisation at ``dst``.
 
     The source file is copied, never modified. Section-write order matters:
     the velocity model is written before domain generation, which reads it.
@@ -515,14 +515,14 @@ def bake_one(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `.venv/bin/python -m pytest tests/test_bake_realisations.py -k bake_one -v`
+Run: `.venv/bin/python -m pytest tests/test_complete_realisations.py -k complete_one -v`
 Expected: PASS (2 passed). The slow test takes ~5–8 s (domain generation).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add workflow/scripts/bake_realisations.py tests/test_bake_realisations.py
-git commit -m "feat(bake): add bake_one full-materialisation of a realisation"
+git add workflow/scripts/complete_realisations.py tests/test_complete_realisations.py
+git commit -m "feat(complete): add complete_one full-materialisation of a realisation"
 ```
 
 ---
@@ -530,8 +530,8 @@ git commit -m "feat(bake): add bake_one full-materialisation of a realisation"
 ### Task 4: `summary_row` (scrutiny aid)
 
 **Files:**
-- Modify: `workflow/scripts/bake_realisations.py`
-- Test: `tests/test_bake_realisations.py`
+- Modify: `workflow/scripts/complete_realisations.py`
+- Test: `tests/test_complete_realisations.py`
 
 **Interfaces:**
 - Consumes: `total_magnitude` (from `generate_domain`).
@@ -539,7 +539,7 @@ git commit -m "feat(bake): add bake_one full-materialisation of a realisation"
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `tests/test_bake_realisations.py` (uses Felipe's complete reference, so it is fast):
+Append to `tests/test_complete_realisations.py` (uses Felipe's complete reference, so it is fast):
 
 ```python
 def test_summary_row_fields() -> None:
@@ -557,21 +557,21 @@ def test_summary_row_fields() -> None:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `.venv/bin/python -m pytest tests/test_bake_realisations.py -k summary_row -v`
+Run: `.venv/bin/python -m pytest tests/test_complete_realisations.py -k summary_row -v`
 Expected: FAIL — `AttributeError: module ... has no attribute 'summary_row'`.
 
 - [ ] **Step 3: Write minimal implementation**
 
-Add to `workflow/scripts/bake_realisations.py`:
+Add to `workflow/scripts/complete_realisations.py`:
 
 ```python
 def summary_row(realisation: dict[str, Any], rupture_id: str) -> dict[str, Any]:
-    """Extract a one-row scrutiny summary from a baked realisation.
+    """Extract a one-row scrutiny summary from a completed realisation.
 
     Parameters
     ----------
     realisation : dict
-        A complete (baked) realisation.
+        A complete (completed) realisation.
     rupture_id : str
         The rupture identifier for this realisation.
 
@@ -602,14 +602,14 @@ def summary_row(realisation: dict[str, Any], rupture_id: str) -> dict[str, Any]:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `.venv/bin/python -m pytest tests/test_bake_realisations.py -k summary_row -v`
+Run: `.venv/bin/python -m pytest tests/test_complete_realisations.py -k summary_row -v`
 Expected: PASS (1 passed).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add workflow/scripts/bake_realisations.py tests/test_bake_realisations.py
-git commit -m "feat(bake): add summary_row scrutiny extraction"
+git add workflow/scripts/complete_realisations.py tests/test_complete_realisations.py
+git commit -m "feat(complete): add summary_row scrutiny extraction"
 ```
 
 ---
@@ -617,28 +617,28 @@ git commit -m "feat(bake): add summary_row scrutiny extraction"
 ### Task 5: CLI driver, parallel worker, reporting, entry point
 
 **Files:**
-- Modify: `workflow/scripts/bake_realisations.py`
+- Modify: `workflow/scripts/complete_realisations.py`
 - Modify: `pyproject.toml` (add `[project.scripts]` entry)
-- Test: `tests/test_bake_realisations.py`
+- Test: `tests/test_complete_realisations.py`
 
 **Interfaces:**
-- Consumes: `load_overrides`, `is_valid_minimal`, `bake_one`, `summary_row`.
-- Produces: `BakeResult` dataclass (`rupture_id: str, ok: bool, error: str | None, summary: dict | None`), `_bake_worker(args) -> BakeResult`, and the `bake_realisations(input_dir, output_dir, defaults_version, felipe_scripts_dir, vm_version, workers)` typer command. Writes `<output_dir>/bake_summary.csv` and `<output_dir>/error_log.txt`.
+- Consumes: `load_overrides`, `is_valid_minimal`, `complete_one`, `summary_row`.
+- Produces: `CompletionResult` dataclass (`rupture_id: str, ok: bool, error: str | None, summary: dict | None`), `_complete_worker(args) -> CompletionResult`, and the `complete_realisations(input_dir, output_dir, defaults_version, felipe_scripts_dir, vm_version, workers)` typer command. Writes `<output_dir>/completion_summary.csv` and `<output_dir>/error_log.txt`.
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `tests/test_bake_realisations.py`:
+Append to `tests/test_complete_realisations.py`:
 
 ```python
 @pytest.mark.slow
-def test_bake_realisations_end_to_end(tmp_path: Path) -> None:
+def test_complete_realisations_end_to_end(tmp_path: Path) -> None:
     input_dir = tmp_path / "in"
     input_dir.mkdir()
     output_dir = tmp_path / "out"
     shutil.copy(SAMPLE, input_dir / "realisation_114741.json")
     shutil.copy(BROKEN, input_dir / "realisation_59421.json")
 
-    br.bake_realisations(
+    br.complete_realisations(
         input_dir,
         output_dir,
         defaults_version=DefaultsVersion.v24_2_2_1,
@@ -647,25 +647,25 @@ def test_bake_realisations_end_to_end(tmp_path: Path) -> None:
         workers=1,
     )
 
-    baked = output_dir / "realisation_114741.json"
-    assert baked.exists()
-    assert list(json.loads(baked.read_text())) == br.FELIPE_SECTION_ORDER
+    completed = output_dir / "realisation_114741.json"
+    assert completed.exists()
+    assert list(json.loads(completed.read_text())) == br.FELIPE_SECTION_ORDER
     # Broken stub skipped, not written.
     assert not (output_dir / "realisation_59421.json").exists()
     # Reports written.
-    assert (output_dir / "bake_summary.csv").exists()
-    assert "114741" in (output_dir / "bake_summary.csv").read_text()
+    assert (output_dir / "completion_summary.csv").exists()
+    assert "114741" in (output_dir / "completion_summary.csv").read_text()
     assert "59421" in (output_dir / "error_log.txt").read_text()
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `.venv/bin/python -m pytest tests/test_bake_realisations.py -k end_to_end -v`
-Expected: FAIL — `AttributeError: module ... has no attribute 'bake_realisations'`.
+Run: `.venv/bin/python -m pytest tests/test_complete_realisations.py -k end_to_end -v`
+Expected: FAIL — `AttributeError: module ... has no attribute 'complete_realisations'`.
 
 - [ ] **Step 3: Write minimal implementation**
 
-Extend imports in `workflow/scripts/bake_realisations.py`:
+Extend imports in `workflow/scripts/complete_realisations.py`:
 
 ```python
 from multiprocessing import Pool, cpu_count
@@ -674,12 +674,12 @@ from typing import Annotated
 from tqdm import tqdm
 ```
 
-Add the worker, result type, and command (place the `bake_realisations` command above the `if __name__` block):
+Add the worker, result type, and command (place the `complete_realisations` command above the `if __name__` block):
 
 ```python
 @dataclasses.dataclass
-class BakeResult:
-    """Outcome of baking a single realisation."""
+class CompletionResult:
+    """Outcome of completing a single realisation."""
 
     rupture_id: str
     ok: bool
@@ -692,10 +692,10 @@ def _rupture_id_from_path(path: Path) -> str:
     return path.stem.removeprefix("realisation_")
 
 
-def _bake_worker(
+def _complete_worker(
     args: tuple[Path, Path, DefaultsVersion, Overrides],
-) -> BakeResult:
-    """Bake one realisation, capturing any error for aggregate reporting.
+) -> CompletionResult:
+    """Complete one realisation, capturing any error for aggregate reporting.
 
     Parameters
     ----------
@@ -704,25 +704,25 @@ def _bake_worker(
 
     Returns
     -------
-    BakeResult
+    CompletionResult
         Success carries a ``summary``; failure carries an ``error`` and the
         partial output is removed.
     """
     src, dst, defaults_version, overrides = args
     rupture_id = _rupture_id_from_path(src)
     try:
-        bake_one(src, dst, defaults_version, overrides)
+        complete_one(src, dst, defaults_version, overrides)
         with open(dst, encoding="utf-8") as handle:
-            baked = json.load(handle)
-        return BakeResult(rupture_id, ok=True, summary=summary_row(baked, rupture_id))
+            completed = json.load(handle)
+        return CompletionResult(rupture_id, ok=True, summary=summary_row(completed, rupture_id))
     except Exception as exc:  # noqa: BLE001 -- report, don't crash the batch
         if dst.exists():
             dst.unlink()
-        return BakeResult(rupture_id, ok=False, error=f"{type(exc).__name__}: {exc}")
+        return CompletionResult(rupture_id, ok=False, error=f"{type(exc).__name__}: {exc}")
 
 
 @app.command()
-def bake_realisations(
+def complete_realisations(
     input_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
     output_dir: Annotated[Path, typer.Argument()],
     defaults_version: Annotated[
@@ -734,14 +734,14 @@ def bake_realisations(
     vm_version: Annotated[str, typer.Option()] = "2.09",
     workers: Annotated[int, typer.Option(min=1)] = min(8, cpu_count()),
 ) -> None:
-    """Bake every minimal realisation in ``input_dir`` into a complete file.
+    """Complete every minimal realisation in ``input_dir`` into a complete file.
 
     Parameters
     ----------
     input_dir : Path
         Directory of ``realisation_<id>.json`` minimal stubs (read-only).
     output_dir : Path
-        Directory to write complete realisations, ``bake_summary.csv`` and
+        Directory to write complete realisations, ``completion_summary.csv`` and
         ``error_log.txt``.
     defaults_version : DefaultsVersion
         Scientific defaults version to materialise.
@@ -769,27 +769,27 @@ def bake_realisations(
         (src, output_dir / src.name, defaults_version, overrides)
         for src in valid_files
     ]
-    results: list[BakeResult] = []
+    results: list[CompletionResult] = []
     if workers == 1:
-        for job in tqdm(work, desc="Baking realisations"):
-            results.append(_bake_worker(job))
+        for job in tqdm(work, desc="Completing realisations"):
+            results.append(_complete_worker(job))
     else:
         with Pool(processes=workers) as pool:
             for result in tqdm(
-                pool.imap_unordered(_bake_worker, work),
+                pool.imap_unordered(_complete_worker, work),
                 total=len(work),
-                desc="Baking realisations",
+                desc="Completing realisations",
             ):
                 results.append(result)
 
-    baked = [result for result in results if result.ok]
+    completed = [result for result in results if result.ok]
     failed = [result for result in results if not result.ok]
 
-    if baked:
-        summary_df = pd.DataFrame([result.summary for result in baked]).sort_values(
+    if completed:
+        summary_df = pd.DataFrame([result.summary for result in completed]).sort_values(
             "rupture_id"
         )
-        summary_df.to_csv(output_dir / "bake_summary.csv", index=False)
+        summary_df.to_csv(output_dir / "completion_summary.csv", index=False)
 
     with open(output_dir / "error_log.txt", "w", encoding="utf-8") as handle:
         handle.write(
@@ -797,19 +797,19 @@ def bake_realisations(
         )
         for rupture_id in broken_ids:
             handle.write(f"  SKIPPED rupture {rupture_id}\n")
-        handle.write(f"\nFailed to bake {len(failed)} realisation(s):\n")
+        handle.write(f"\nFailed to complete {len(failed)} realisation(s):\n")
         for result in failed:
             handle.write(f"  FAILED rupture {result.rupture_id}: {result.error}\n")
 
-    print(f"\nBaked {len(baked)} realisation(s) -> {output_dir}")
-    print(f"Skipped {len(broken_ids)} broken stub(s); {len(failed)} failed to bake.")
-    print(f"Summary : {output_dir / 'bake_summary.csv'}")
+    print(f"\nCompleted {len(completed)} realisation(s) -> {output_dir}")
+    print(f"Skipped {len(broken_ids)} broken stub(s); {len(failed)} failed to complete.")
+    print(f"Summary : {output_dir / 'completion_summary.csv'}")
     print(f"Errors  : {output_dir / 'error_log.txt'}")
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `.venv/bin/python -m pytest tests/test_bake_realisations.py -k end_to_end -v`
+Run: `.venv/bin/python -m pytest tests/test_complete_realisations.py -k end_to_end -v`
 Expected: PASS (1 passed).
 
 - [ ] **Step 5: Add the console-script entry point**
@@ -817,40 +817,40 @@ Expected: PASS (1 passed).
 In `pyproject.toml`, under `[project.scripts]`, add a line next to `generate-realisations-from-csv`:
 
 ```toml
-bake-realisations = "workflow.scripts.bake_realisations:app"
+complete-realisations = "workflow.scripts.complete_realisations:app"
 ```
 
 - [ ] **Step 6: Run the full test module**
 
-Run: `.venv/bin/python -m pytest tests/test_bake_realisations.py -v`
+Run: `.venv/bin/python -m pytest tests/test_complete_realisations.py -v`
 Expected: PASS (all tests). ~10–20 s total (two slow tests do domain generation).
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add workflow/scripts/bake_realisations.py tests/test_bake_realisations.py pyproject.toml
-git commit -m "feat(bake): add parallel CLI driver, reporting, and entry point"
+git add workflow/scripts/complete_realisations.py tests/test_complete_realisations.py pyproject.toml
+git commit -m "feat(complete): add parallel CLI driver, reporting, and entry point"
 ```
 
 ---
 
-### Task 6: Run the bake over the real campaign data and verify
+### Task 6: Run the completion over the real campaign data and verify
 
 **Files:**
-- Output only: `realisations_baked_24.2.2.1/` (283 baked files + `bake_summary.csv` + `error_log.txt`). Not committed unless requested.
+- Output only: `realisations_completed_24.2.2.1/` (283 completed files + `completion_summary.csv` + `error_log.txt`). Not committed unless requested.
 
 **Interfaces:**
-- Consumes: the finished `bake-realisations` tool.
+- Consumes: the finished `complete-realisations` tool.
 
 - [ ] **Step 1: Run the tool on all minimal files**
 
 Run:
 ```bash
-.venv/bin/python workflow/scripts/bake_realisations.py \
+.venv/bin/python workflow/scripts/complete_realisations.py \
   realisations_from_nshm2022_to_realisation \
-  realisations_baked_24.2.2.1
+  realisations_completed_24.2.2.1
 ```
-Expected: progress bar over 283 files; final print `Baked 283 realisation(s)` (or fewer if some domain generations fail), `Skipped 10 broken stub(s)`. Runtime ~3–4 min at 8 workers.
+Expected: progress bar over 283 files; final print `Completed 283 realisation(s)` (or fewer if some domain generations fail), `Skipped 10 broken stub(s)`. Runtime ~3–4 min at 8 workers.
 
 - [ ] **Step 2: Verify counts and structure**
 
@@ -858,8 +858,8 @@ Run:
 ```bash
 .venv/bin/python - <<'PY'
 import json, glob
-files = sorted(glob.glob("realisations_baked_24.2.2.1/realisation_*.json"))
-print("baked files:", len(files))
+files = sorted(glob.glob("realisations_completed_24.2.2.1/realisation_*.json"))
+print("completed files:", len(files))
 from collections import Counter
 c = Counter()
 for f in files:
@@ -882,7 +882,7 @@ Run:
 import json
 felipe = json.load(open("felipe_3528839_realisation.json"))
 import glob
-one = json.load(open(sorted(glob.glob("realisations_baked_24.2.2.1/realisation_*.json"))[0]))
+one = json.load(open(sorted(glob.glob("realisations_completed_24.2.2.1/realisation_*.json"))[0]))
 for s in ["velocity_model","im","emod3d","hf","bb","resolution","srf",
           "velocity_model_1d","hf_velocity_model_1d"]:
     print(s, "OK" if one[s] == felipe[s] else "DIFFERS")
@@ -894,19 +894,19 @@ Expected: every listed section prints `OK`.
 
 Run:
 ```bash
-head -5 realisations_baked_24.2.2.1/bake_summary.csv
+head -5 realisations_completed_24.2.2.1/completion_summary.csv
 echo "---"
-cat realisations_baked_24.2.2.1/error_log.txt
-echo "--- rows:"; wc -l realisations_baked_24.2.2.1/bake_summary.csv
+cat realisations_completed_24.2.2.1/error_log.txt
+echo "--- rows:"; wc -l realisations_completed_24.2.2.1/completion_summary.csv
 ```
-Expected: a CSV with one row per baked file (rupture id, #faults, magnitude, domain depth/duration, #periods…); `error_log.txt` lists the 10 skipped broken stubs and any per-file bake failures with reasons. Report any failures to the user for follow-up.
+Expected: a CSV with one row per completed file (rupture id, #faults, magnitude, domain depth/duration, #periods…); `error_log.txt` lists the 10 skipped broken stubs and any per-file completion failures with reasons. Report any failures to the user for follow-up.
 
 ---
 
 ## Self-Review
 
 **1. Spec coverage.**
-- New folder / originals untouched → Task 3 `bake_one` copies src (guarded by `test_bake_one_does_not_touch_source`); Task 6 writes `realisations_baked_24.2.2.1/`. ✓
+- New folder / originals untouched → Task 3 `complete_one` copies src (guarded by `test_complete_one_does_not_touch_source`); Task 6 writes `realisations_completed_24.2.2.1/`. ✓
 - `defaults_version` → 24.2.2.1 (patch) → Task 3 step 1; verified Task 6 step 2. ✓
 - velocity_model 2.09 + rrup; im dense periods/FAS → Task 3; asserted Task 3 test. ✓
 - Computed domain → Task 3 (`generate_domain_from_realisation`). ✓
@@ -915,16 +915,16 @@ Expected: a CSV with one row per baked file (rupture id, #faults, magnitude, dom
 - Consistency with Felipe (identical shared sections) → Task 3 test diff; Task 6 step 3. ✓
 - Skip 10 broken stubs; per-file failure logging → Task 5 driver + test. ✓
 - Summary CSV scrutiny aid → Task 4 + Task 5. ✓
-- Deterministic/idempotent → no RNG in `bake_one`; seeds copied. ✓
+- Deterministic/idempotent → no RNG in `complete_one`; seeds copied. ✓
 - Parallel, ~3–4 min → Task 5 `Pool`; Task 6 run. ✓
 
 **2. Placeholder scan.** No TBD/TODO; every code step shows complete code; every test step shows the assertions. ✓
 
-**3. Type consistency.** `Overrides` fields (`vm_version, rrup_interpolants, valid_periods, fas_frequencies`) are consumed identically in `bake_one`. `bake_one(src, dst, defaults_version, overrides)` signature matches every caller (`_bake_worker`, tests). `BakeResult(rupture_id, ok, error, summary)` matches its constructions and the driver's `.ok/.summary/.error` reads. `summary_row(realisation, rupture_id)` matches its two call sites. `FELIPE_SECTION_ORDER` referenced consistently. ✓
+**3. Type consistency.** `Overrides` fields (`vm_version, rrup_interpolants, valid_periods, fas_frequencies`) are consumed identically in `complete_one`. `complete_one(src, dst, defaults_version, overrides)` signature matches every caller (`_complete_worker`, tests). `CompletionResult(rupture_id, ok, error, summary)` matches its constructions and the driver's `.ok/.summary/.error` reads. `summary_row(realisation, rupture_id)` matches its two call sites. `FELIPE_SECTION_ORDER` referenced consistently. ✓
 
 ## Execution Handoff
 
-Plan complete and saved to `docs/superpowers/plans/2026-07-08-bake-nshm-realisations.md`. Two execution options:
+Plan complete and saved to `docs/superpowers/plans/2026-07-08-complete-nshm-realisations.md`. Two execution options:
 
 1. **Subagent-Driven (recommended)** — I dispatch a fresh subagent per task, review between tasks, fast iteration.
 2. **Inline Execution** — Execute tasks in this session using executing-plans, batch execution with checkpoints.

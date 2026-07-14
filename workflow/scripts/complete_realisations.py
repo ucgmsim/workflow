@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bake NSHM-2022 minimal realisations into complete simulation-ready realisations.
+"""Complete NSHM-2022 minimal realisations into simulation-ready realisations.
 
 Description
 -----------
@@ -12,7 +12,7 @@ realisation identical in structure and parameter values to Felipe's reference.
 
 Usage
 -----
-``bake-realisations INPUT_DIR OUTPUT_DIR [--defaults-version 24.2.2.1] ...``
+``complete-realisations INPUT_DIR OUTPUT_DIR [--defaults-version 24.2.2.1] ...``
 """
 
 import dataclasses
@@ -72,7 +72,7 @@ FELIPE_SECTION_ORDER: list[str] = [
     "rupture_velocity",
 ]
 
-# A minimal file can be baked only if it carries the source-side sections.
+# A minimal file can be completed only if it carries the source-side sections.
 REQUIRED_MINIMAL_SECTIONS: tuple[str, ...] = (
     "sources",
     "magnitudes",
@@ -199,10 +199,10 @@ def normalize_key_order(realisation: dict[str, Any]) -> dict[str, Any]:
     return ordered
 
 
-def bake_one(
+def complete_one(
     src: Path, dst: Path, defaults_version: DefaultsVersion, overrides: Overrides
 ) -> None:
-    """Bake a single minimal realisation into a complete realisation at ``dst``.
+    """Complete a single minimal realisation, writing the full file to ``dst``.
 
     The source file is copied, never modified. Section-write order matters:
     the velocity model is written before domain generation, which reads it.
@@ -256,12 +256,12 @@ def bake_one(
 
 
 def summary_row(realisation: dict[str, Any], rupture_id: str) -> dict[str, Any]:
-    """Extract a one-row scrutiny summary from a baked realisation.
+    """Extract a one-row scrutiny summary from a completed realisation.
 
     Parameters
     ----------
     realisation : dict
-        A complete (baked) realisation.
+        A complete (fully materialised) realisation.
     rupture_id : str
         The rupture identifier for this realisation.
 
@@ -291,8 +291,8 @@ def summary_row(realisation: dict[str, Any], rupture_id: str) -> dict[str, Any]:
 
 
 @dataclasses.dataclass
-class BakeResult:
-    """Outcome of baking a single realisation."""
+class CompletionResult:
+    """Outcome of completing a single realisation."""
 
     rupture_id: str
     ok: bool
@@ -305,10 +305,10 @@ def _rupture_id_from_path(path: Path) -> str:
     return path.stem.removeprefix("realisation_")
 
 
-def _bake_worker(
+def _complete_worker(
     args: tuple[Path, Path, DefaultsVersion, Overrides],
-) -> BakeResult:
-    """Bake one realisation, capturing any error for aggregate reporting.
+) -> CompletionResult:
+    """Complete one realisation, capturing any error for aggregate reporting.
 
     Parameters
     ----------
@@ -317,25 +317,29 @@ def _bake_worker(
 
     Returns
     -------
-    BakeResult
+    CompletionResult
         Success carries a ``summary``; failure carries an ``error`` and the
         partial output is removed.
     """
     src, dst, defaults_version, overrides = args
     rupture_id = _rupture_id_from_path(src)
     try:
-        bake_one(src, dst, defaults_version, overrides)
+        complete_one(src, dst, defaults_version, overrides)
         with open(dst, encoding="utf-8") as handle:
-            baked = json.load(handle)
-        return BakeResult(rupture_id, ok=True, summary=summary_row(baked, rupture_id))
+            completed = json.load(handle)
+        return CompletionResult(
+            rupture_id, ok=True, summary=summary_row(completed, rupture_id)
+        )
     except Exception as exc:  # noqa: BLE001 -- report, don't crash the batch
         if dst.exists():
             dst.unlink()
-        return BakeResult(rupture_id, ok=False, error=f"{type(exc).__name__}: {exc}")
+        return CompletionResult(
+            rupture_id, ok=False, error=f"{type(exc).__name__}: {exc}"
+        )
 
 
 @app.command()
-def bake_realisations(
+def complete_realisations(
     input_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
     output_dir: Annotated[Path, typer.Argument()],
     defaults_version: Annotated[
@@ -347,14 +351,14 @@ def bake_realisations(
     vm_version: Annotated[str, typer.Option()] = "2.09",
     workers: Annotated[int, typer.Option(min=1)] = min(8, cpu_count()),
 ) -> None:
-    """Bake every minimal realisation in ``input_dir`` into a complete file.
+    """Complete every minimal realisation in ``input_dir`` into a full file.
 
     Parameters
     ----------
     input_dir : Path
         Directory of ``realisation_<id>.json`` minimal stubs (read-only).
     output_dir : Path
-        Directory to write complete realisations, ``bake_summary.csv`` and
+        Directory to write complete realisations, ``completion_summary.csv`` and
         ``error_log.txt``.
     defaults_version : DefaultsVersion
         Scientific defaults version to materialise.
@@ -382,27 +386,27 @@ def bake_realisations(
         (src, output_dir / src.name, defaults_version, overrides)
         for src in valid_files
     ]
-    results: list[BakeResult] = []
+    results: list[CompletionResult] = []
     if workers == 1:
-        for job in tqdm(work, desc="Baking realisations"):
-            results.append(_bake_worker(job))
+        for job in tqdm(work, desc="Completing realisations"):
+            results.append(_complete_worker(job))
     else:
         with Pool(processes=workers) as pool:
             for result in tqdm(
-                pool.imap_unordered(_bake_worker, work),
+                pool.imap_unordered(_complete_worker, work),
                 total=len(work),
-                desc="Baking realisations",
+                desc="Completing realisations",
             ):
                 results.append(result)
 
-    baked = [result for result in results if result.ok]
+    completed = [result for result in results if result.ok]
     failed = [result for result in results if not result.ok]
 
-    if baked:
-        summary_df = pd.DataFrame([result.summary for result in baked]).sort_values(
-            "rupture_id"
-        )
-        summary_df.to_csv(output_dir / "bake_summary.csv", index=False)
+    if completed:
+        summary_df = pd.DataFrame(
+            [result.summary for result in completed]
+        ).sort_values("rupture_id")
+        summary_df.to_csv(output_dir / "completion_summary.csv", index=False)
 
     with open(output_dir / "error_log.txt", "w", encoding="utf-8") as handle:
         handle.write(
@@ -410,13 +414,15 @@ def bake_realisations(
         )
         for rupture_id in broken_ids:
             handle.write(f"  SKIPPED rupture {rupture_id}\n")
-        handle.write(f"\nFailed to bake {len(failed)} realisation(s):\n")
+        handle.write(f"\nFailed to complete {len(failed)} realisation(s):\n")
         for result in failed:
             handle.write(f"  FAILED rupture {result.rupture_id}: {result.error}\n")
 
-    print(f"\nBaked {len(baked)} realisation(s) -> {output_dir}")
-    print(f"Skipped {len(broken_ids)} broken stub(s); {len(failed)} failed to bake.")
-    print(f"Summary : {output_dir / 'bake_summary.csv'}")
+    print(f"\nCompleted {len(completed)} realisation(s) -> {output_dir}")
+    print(
+        f"Skipped {len(broken_ids)} broken stub(s); {len(failed)} failed to complete."
+    )
+    print(f"Summary : {output_dir / 'completion_summary.csv'}")
     print(f"Errors  : {output_dir / 'error_log.txt'}")
 
 

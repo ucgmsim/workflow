@@ -1,4 +1,4 @@
-# Fully bake NSHM-2022 minimal realisations to the 24.2.2.1 simulation spec
+# Complete NSHM-2022 minimal realisations to the 24.2.2.1 simulation spec
 
 - **Date:** 2026-07-08
 - **Status:** Approved (design)
@@ -62,7 +62,7 @@ identical in structure and parameter values to Felipe's reference, written to a
 
 5. **`rupture_velocity`** is present in the current 24.2.2.1 defaults but absent
    from Felipe's file (his predates it). It **is consumed** by
-   `realisation_to_srf.py` and `hf_sim.py`, so we bake it in — giving an
+   `realisation_to_srf.py` and `hf_sim.py`, so we include it — giving an
    18-section file (a superset of Felipe's 17).
 
 ## Inputs
@@ -77,14 +77,14 @@ identical in structure and parameter values to Felipe's reference, written to a
 
 ## Output
 
-- New folder (default `realisations_baked_24.2.2.1/`), one complete realisation
-  per successfully-baked rupture, each with these **18 sections**:
+- New folder (default `realisations_completed_24.2.2.1/`), one complete realisation
+  per successfully-completed rupture, each with these **18 sections**:
   `metadata, sources, rupture_propagation, magnitudes, rakes, log_trail, srf,
   seeds, velocity_model, domain, im, emod3d, resolution, bb, hf,
   velocity_model_1d, hf_velocity_model_1d, rupture_velocity`.
 - Top-level keys normalised to Felipe's ordering for easy diffing.
 - `error_log.txt` — broken stubs skipped + any per-file failures, with reasons.
-- `bake_summary.csv` — scrutiny aid: one row per output file with rupture id,
+- `completion_summary.csv` — scrutiny aid: one row per output file with rupture id,
   #faults, total magnitude, domain depth / duration / area, #periods, #FAS.
 
 ## Per-file algorithm (deterministic, idempotent; order matters)
@@ -114,11 +114,11 @@ For each **valid** minimal file:
 
 ## Implementation
 
-A standalone, parallelised **bake script**, adapted from
+A standalone, parallelised **completion script**, adapted from
 `gen_FF_realisations_MP.py` with the GCMT/nodal-plane source generation removed
 and full-defaults materialisation added.
 
-- **Location (default):** `workflow/scripts/bake_realisations.py`, alongside the
+- **Location (default):** `workflow/scripts/complete_realisations.py`, alongside the
   existing `generate_realisations_from_csv.py`. `typer` CLI.
 - **Arguments:** input dir, output dir, defaults version (default 24.2.2.1),
   path to the three override files, velocity-model version (default 2.09),
@@ -131,7 +131,7 @@ and full-defaults materialisation added.
 - **Determinism:** no RNG in the augmentation; seeds are copied, not
   regenerated. Re-running reproduces byte-identical output.
 - **Reusability:** helper functions factored so the script could later graduate
-  into a general `bake-realisation-defaults` workflow utility if wanted.
+  into a general `complete-realisation-defaults` workflow utility if wanted.
 
 ## Verification already performed
 
