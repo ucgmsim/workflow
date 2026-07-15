@@ -28,7 +28,12 @@ sw4:
   cfl: 0.9
   reporttiming: true
   failonnan: true
-  prefilter: null
+  prefilter:
+    - order: 2
+    - passes: 2
+    - fc1: 0.0
+    - fc2: 1.0
+    - type: "bandpass"
   image_outputs:
     - {
         mode: "topo",
