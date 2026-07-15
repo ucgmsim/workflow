@@ -220,7 +220,11 @@ def generate_sw4_input(
 
     image_output_str = build_image_output_lines(sw4_params.image_outputs, time)
     if sw4_params.prefilter:
-        prefilter = f"prefilter type={sw4_params.prefilter.type} fc1={sw4_params.prefilter.fc1} fc2={sw4_params.prefilter.fc2} passes={sw4_params.prefilter.passes} order={sw4_params.prefilter.order}"
+        prefilter = f"prefilter type={sw4_params.prefilter.type} passes={sw4_params.prefilter.passes} order={sw4_params.prefilter.order}"
+        if sw4_params.prefilter.fc1 is not None:
+            prefilter += f"fc1={sw4_params.prefilter.fc1}"
+        if sw4_params.prefilter.fc2 is not None:
+            prefilter += f"fc2={sw4_params.prefilter.fc2}"
     else:
         prefilter = ""
     low_frequency_output = work_directory / "out.h5"
