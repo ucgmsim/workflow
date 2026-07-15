@@ -1286,14 +1286,14 @@ SW4_IMAGE_OUTPUT_SCHEMA = Schema(
             )
         ): Or(And(NUMBER, _is_positive), None),
         Optional(Literal("cycle", description="Cycle number for image output.")): Or(
-            And(int, lambda x: x >= 0), None
+            And(int, _is_non_negative), None
         ),
         Optional(
             Literal(
                 "cycle_interval",
                 description="Cycle interval between image outputs.",
             )
-        ): Or(And(int, lambda x: x > 0), None),
+        ): Or(And(int, _is_positive), None),
         Optional(
             Literal("precision", description="Output precision (float or double).")
         ): Or("float", "double"),
@@ -1301,7 +1301,13 @@ SW4_IMAGE_OUTPUT_SCHEMA = Schema(
 )
 
 PREFILTER_SCHEMA = Schema(
-    {"passes": int, "order": int, "fc1": NUMBER, "fc2": NUMBER, "type": str}
+    {
+        "passes": int,
+        "order": int,
+        "fc1": Or(And(NUMBER, _is_positive), None),
+        "fc2": Or(And(NUMBER, _is_positive), None),
+        "type": Or("lowpass", "highpass", "bandpass"),
+    }
 )
 
 SW4_PARAMETERS_SCHEMA = Schema(

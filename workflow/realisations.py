@@ -1295,12 +1295,23 @@ class Prefilter:
     """Prefilter order for SRF source time function (STF)."""
     passes: int
     """Number of passes for STF filter. Setting this to 1 results in casual filter, setting it to 2 results in a zero-lag acausal filter."""
-    fc1: float
+    fc1: float | None
     """Corner frequency for prefilter (lower)."""
-    fc2: float
+    fc2: float | None
     """Corner frequency for prefilter (upper)."""
     type: str
     "Type of filter (lowpass, bandpass, highpass)"
+
+    def __post_init__(self) -> None:
+        match (self.type, self.fc1, self.fc2):
+            case ("lowpass", _, None):
+                raise ValueError("Must supply fc2 when using lowpass filter")
+            case ("highpass", None, _):
+                raise ValueError("Must supply fc2 when using highpass filter")
+            case ("bandpass", fc1, fc2) if not fc1 or not fc2 or fc1 >= fc2:
+                raise ValueError(
+                    "Must supply strictly positive fc1 and fc2 with fc1 < fc2 when using bandpass filter"
+                )
 
 
 @dataclasses.dataclass
