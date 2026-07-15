@@ -627,6 +627,54 @@ def generate_fault_srfs_multi(
             )
 
 
+def rewrite_point_source_srf_as_v2(
+    srf_ffp: Path, velocity_model_df: pd.DataFrame
+) -> None:
+    """Rewrite a version 1.0 SRF in place as version 2.0 with per-point vs and den.
+
+    Parameters
+    ----------
+    srf_ffp : Path
+        Path to the version 1.0 SRF written by ``generic_slip2srf``; overwritten as v2.0.
+    velocity_model_df : pd.DataFrame
+        The 1D velocity model containing columns:
+            ``depth_km``: layer top depths (km)
+            ``Vs``: layer shear-wave velocity (km/s)
+            ``rho``: layer density (g/cm^3)
+
+    Raises
+    ------
+    ValueError
+        If the SRF at ``srf_ffp`` is not version 1.0.
+    """
+    srf_file = srf.read_srf(srf_ffp)
+    if srf_file.version != "1.0":
+        raise ValueError(
+            f"Expected a version 1.0 SRF to rewrite as 2.0, but {srf_ffp} is version "
+            f"{srf_file.version}."
+        )
+    layer_idx = moment.velocity_model_layer_index(
+        velocity_model_df, srf_file.points["dep"].to_numpy()
+    )
+
+    dt_loc = srf_file.points.columns.get_loc("dt")
+    # A type guard for ty: get_loc is typed int | slice | ndarray, but a
+    # unique column like "dt" always resolves to a single int position.
+    assert isinstance(dt_loc, int)
+    srf_file.points.insert(
+        dt_loc + 1,
+        "vs",
+        velocity_model_df["Vs"].to_numpy()[layer_idx] * 1e5,
+    )  # *1e5 to convert km/s to cm/s
+    srf_file.points.insert(
+        dt_loc + 2,
+        "den",
+        velocity_model_df["rho"].to_numpy()[layer_idx],
+    )
+    srf_file.version = "2.0"
+    srf.write_srf(srf_ffp, srf_file)
+
+
 def generate_point_source_srf(
     name: str,
     params: SRFRealisationContext,
@@ -647,6 +695,16 @@ def generate_point_source_srf(
     -------
     None
         This function does not return a value; it writes the SRF file to disk.
+
+    Raises
+    ------
+    ValueError
+        If the realisation provides no point-source parameters
+        (``srf_config.point_source_params`` is ``None``).
+    subprocess.CalledProcessError
+        If the ``generic_slip2srf`` command exits with a non-zero status.
+    NotImplementedError
+        If ``srf_config.srf_version`` is neither ``"1.0"`` nor ``"2.0"``.
     """
 
     if params.srf_config.point_source_params is None:
@@ -723,6 +781,17 @@ def generate_point_source_srf(
         )
         raise
     logger.info("command completed", stderr=proc.stderr.decode("utf-8"))
+
+    if params.srf_config.srf_version == "2.0":
+        rewrite_point_source_srf_as_v2(
+            environment.srf_directory / (normalise_name(name) + ".srf"),
+            velocity_model_df,
+        )
+    elif params.srf_config.srf_version != "1.0":
+        raise NotImplementedError(
+            f"Point sources support SRF versions 1.0 and 2.0, not "
+            f"{params.srf_config.srf_version!r}"
+        )
 
 
 @cli.from_docstring(app)
