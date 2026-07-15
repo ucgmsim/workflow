@@ -28,6 +28,7 @@ See the output of `lf-to-xarray --help`.
 
 from enum import StrEnum, auto
 from pathlib import Path
+from typing import Annotated
 
 import dask
 import dask.array as da
@@ -49,8 +50,11 @@ TARGET_CHUNK_BYTES = 128 * 2**20
 
 
 def _read_station_batch(
-    sw4_ffp: Path, station_names: list[str], npts: int, dt: float
-) -> np.ndarray:
+    stations: xr.DataArray,
+    sw4_ffp: Path,
+    time: xr.DataArray,
+    component: xr.DataArray,
+) -> xr.DataArray:
     """Read waveforms for a batch of stations from an SW4 recording file.
 
     Parameters
@@ -59,8 +63,6 @@ def _read_station_batch(
         Path to the SW4 HDF5 station recording file.
     station_names : list[str]
         Names of the station groups to read.
-    npts : int
-        Number of samples in each waveform.
 
     Returns
     -------
@@ -68,18 +70,88 @@ def _read_station_batch(
         Waveforms in cm/s with shape (3, len(station_names), npts),
         components ordered x, y, z.
     """
-    waveforms = np.empty((3, len(station_names), npts), dtype=np.float32)
+    waveforms = np.empty((len(component), len(stations), len(time)), dtype=np.float32)
     with h5py.File(sw4_ffp, "r") as handle:
-        for i, station_name in enumerate(station_names):
-            group = handle[station_name]
+        for i, station_name in enumerate(stations):
+            group = handle[station_name.item()]
             x_key = "EW" if "EW" in group else "X"
             y_key = "NS" if x_key == "EW" else "Y"
             waveforms[0, i] = group[x_key][:]
             waveforms[1, i] = group[y_key][:]
             waveforms[2, i] = group["UP"][:]
-    waveforms_accel = np.gradient(waveforms * CMS, dt, axis=-1)
 
-    return waveforms_accel.astype(np.float32)
+    return xr.DataArray(
+        waveforms,
+        dims=["component", "station", "time"],
+        coords=dict(time=time, component=component, station=stations.values),
+    )
+
+
+def read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
+    """Initialise an xarray dataset using metadata read from the station recording file.
+
+    Parameters
+    ----------
+    sw4_ffp: Path
+        Path to SW4 recording file.
+
+    Returns
+    -------
+    xr.Dataset
+        Xarray dataset with initialised coordinate arrays and attributes.
+
+    Raises
+    ------
+    RuntimeError
+        If the HDF5 file is not in the format expected for an SW4 recording file
+        (see Section 12.9 of the SW4 User Guide).
+    """
+    global_npts = None
+    stations = []
+    latitudes = []
+    longitudes = []
+
+    with h5py.File(sw4_ffp, "r") as handle:
+        dt = np.float32(handle["DELTA"][:].squeeze())
+        for station_name, group in handle.items():
+            if "NPTS" not in group:
+                continue
+            npts = int(group["NPTS"][:].squeeze())
+            if global_npts is not None and npts != global_npts:
+                raise RuntimeError(
+                    f"SW4 output is corrupted: {npts=} but {global_npts=}"
+                )
+            global_npts = npts
+            stations.append(station_name)
+
+    if global_npts is None:
+        raise RuntimeError(
+            "No valid station recordings found in file. Are you sure this is an SW4 station file? Use `h5ls` to check the file structure."
+        )
+    time = np.arange(global_npts) * dt
+    return xr.Dataset(
+        dict(
+            latitude=("station", latitudes),
+            longitude=("station", longitudes),
+        ),
+        coords=dict(station=stations, component=["x", "y", "z"], time=time),
+        attrs=dict(dt=dt, nt=global_npts),
+    )
+
+
+def _template_waveform(dset: xr.Dataset) -> xr.DataArray:
+    return xr.DataArray(
+        da.empty(
+            (
+                len(dset.coords["component"]),
+                len(dset.coords["station"]),
+                len(dset.coords["time"]),
+            ),
+            dtype=np.float32,
+        ),
+        dims=["component", "station", "time"],
+        coords=dset.coords,
+    )
 
 
 def convert_sw4_station_recording(sw4_ffp: Path) -> xr.Dataset:
@@ -95,65 +167,31 @@ def convert_sw4_station_recording(sw4_ffp: Path) -> xr.Dataset:
     xr.Dataset
         An xarray dataset lazily constructed from the HDF5 file. Waveform data
         is read in batches of stations when the dataset is computed or written.
-
-    Raises
-    ------
-    RuntimeError
-        If the HDF5 file is not in the format expected for an SW4 recording file
-        (see Section 12.9 of the SW4 User Guide).
     """
-    global_npts = None
-
-    stations = []
-    latitudes = []
-    longitudes = []
-    with h5py.File(sw4_ffp, "r") as handle:
-        dt = np.float32(handle["DELTA"][:].squeeze())
-        for station_name, group in handle.items():
-            if "NPTS" not in group:
-                continue
-            npts = int(group["NPTS"][:].squeeze())
-            if global_npts is not None and npts != global_npts:
-                raise RuntimeError(
-                    f"SW4 output is corrupted: {npts=} but {global_npts=}"
-                )
-            global_npts = npts
-            stations.append(station_name)
-            latitude, longitude, _ = group["STLA,STLO,STDP"][:]
-            latitudes.append(latitude)
-            longitudes.append(longitude)
-
-    if global_npts is None:
-        raise RuntimeError(
-            "No valid station recordings found in file. Are you sure this is an SW4 station file? Use `h5ls` to check the file structure."
-        )
-
-    batch_size = max(1, TARGET_CHUNK_BYTES // (3 * global_npts * np.float32().itemsize))
-    waveform = da.concatenate(
-        [
-            da.from_delayed(
-                dask.delayed(_read_station_batch)(sw4_ffp, batch, global_npts, dt),
-                shape=(3, len(batch), global_npts),
-                dtype=np.float32,
-            )
-            for batch in (
-                stations[i : i + batch_size]
-                for i in range(0, len(stations), batch_size)
-            )
-        ],
-        axis=1,
+    dset = read_station_metadata(sw4_ffp)
+    batch_size = max(
+        1,
+        TARGET_CHUNK_BYTES
+        // (
+            len(dset.coords["component"])
+            * len(dset.coords["time"])
+            * np.float32().itemsize
+        ),
     )
-    time = np.arange(global_npts) * dt
-
-    return xr.Dataset(
-        {
-            "waveform": (("component", "station", "time"), waveform),
-            "lat": (("station",), latitudes),
-            "lon": (("station",), longitudes),
-        },
-        coords=dict(component=["x", "y", "z"], station=stations, time=time),
-        attrs={"start_sec": 0.0, "dt": dt},
+    chunked_stations = xr.DataArray(dset["station"].values).chunk(batch_size)
+    waveform = xr.map_blocks(
+        _read_station_batch,
+        chunked_stations,
+        kwargs=dict(time=dset["time"], component=dset["component"], sw4_ffp=sw4_ffp),
+        template=_template_waveform(dset),
     )
+    breakpoint()
+
+    waveform = (waveform * CMS).differentiate("time")
+    dset["waveform"] = waveform
+    dset.attrs["units"] = "cm/s^2"
+
+    return dset
 
 
 class Format(StrEnum):
@@ -168,7 +206,9 @@ class Format(StrEnum):
 @cli.from_docstring(app)
 @log_utils.log_call()
 def convert_lf_to_xarray_dataset(
-    low_frequency_path: Path, output_ffp: Path, format: Format = Format.EMOD3D
+    low_frequency_path: Annotated[Path, typer.Argument(exists=True)],
+    output_ffp: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
+    format: Format = Format.EMOD3D,
 ) -> None:
     """Merge low-frequency outputs into an xarray dataset.
 
