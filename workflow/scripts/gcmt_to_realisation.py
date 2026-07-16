@@ -114,6 +114,7 @@ def gcmt_to_realisation(
     nodal_plane: Annotated[
         NodalPlaneChoice, typer.Option()
     ] = NodalPlaneChoice.MOST_LIKELY,
+    solution_origin: Path | None = None,
 ) -> None:
     """Generate a realisation from a GCMT solution.
 
@@ -153,12 +154,15 @@ def gcmt_to_realisation(
             "The options shypo and dhypo are mutually exclusive with lat_hypo and lon_hypo."
         )
 
-    gcmt_solutions = pd.read_csv(MOMENT_TENSOR_SOLUTION_URL)
-    automated_gcmt_solutions = requests.get(AUTOMATED_TENSOR_URL).json()
+    if solution_origin:
+        gcmt_solutions = pd.read_csv(solution_origin).set_index("PublicID")
+    else:
+        gcmt_solutions = pd.read_csv(MOMENT_TENSOR_SOLUTION_URL)
+        automated_gcmt_solutions = requests.get(AUTOMATED_TENSOR_URL).json()
 
-    gcmt_solutions = gcmt_solutions[
-        gcmt_solutions["PublicID"] != NAN_PUBLIC_ID
-    ].set_index("PublicID")
+        gcmt_solutions = gcmt_solutions[
+            gcmt_solutions["PublicID"] != NAN_PUBLIC_ID
+        ].set_index("PublicID")
 
     if gcmt_event_id in gcmt_solutions.index:
         row = gcmt_solutions.loc[gcmt_event_id]
