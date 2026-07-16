@@ -123,10 +123,15 @@ def read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
             global_npts = npts
             stations.append(station_name)
 
+            latitude, longitude, _ = group["STLA,STLO,STDP"][:]
+            latitudes.append(latitude)
+            longitudes.append(longitude)
+
     if global_npts is None:
         raise RuntimeError(
             "No valid station recordings found in file. Are you sure this is an SW4 station file? Use `h5ls` to check the file structure."
         )
+
     time = np.arange(global_npts) * dt
     return xr.Dataset(
         dict(
