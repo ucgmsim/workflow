@@ -2,9 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Regenerate the 291 CyberShake NSHM-2022 realisations so every file's `log_trail` names a definite, pushed, tagged commit SHA, with all inputs pinned by checksum and the result proved by a committed checker.
+> **Amended 2026-07-16** by `docs/superpowers/specs/2026-07-16-seed-carryover-and-content-verification-design.md`. Seeds are now **carried over** from a committed manifest, and each regenerated file is **verified** to reproduce its original in every field except `log_trail` — reversing the original decision to re-draw them. The change lands in Task 3 (opt-in `--seed-manifest`), new Tasks 7a/7b (manifest builder and content checker), and new Tasks 10a/10b/11a (build the manifest, pilot, verify), with Tasks 13 and 14 updated to match.
 
-**Architecture:** Three phases. **Code** (Tasks 1–8, test-driven) merges `origin/pegasus`, restores the CI gates, fixes two campaign scripts, and adds two new tools — a provenance verifier and a database comparator — ending in the pinned commit ("commit N"). **Inputs** (Task 9) rebuilds and verifies `nshmdb.db` from the CRU solution zip. **Campaign** (Tasks 10–14) is a runbook, not TDD: exact commands, expected output, and explicit abort conditions.
+**Goal:** Regenerate the 291 CyberShake NSHM-2022 realisations so every file's `log_trail` names a definite, pushed, tagged commit SHA — reproducing each file's existing scientific content exactly (seeds carried over from a committed manifest, content verified identical bar `log_trail`), with all inputs pinned by checksum and the result proved by committed checkers.
+
+**Architecture:** Three phases. **Code** (Tasks 1–8, test-driven) merges `origin/pegasus`, restores the CI gates, fixes two campaign scripts, and adds four new tools — a provenance verifier, a database comparator, a seed-manifest builder, and a content checker — ending in the pinned commit ("commit N"). **Inputs** (Task 9) rebuilds and verifies `nshmdb.db` from the CRU solution zip. **Campaign** (Tasks 10–14) is a runbook, not TDD: it builds the seed manifest, proves content reproduction on a pilot, regenerates all 291, verifies each reproduces its original bar `log_trail`, and distributes — with exact commands, expected output, and explicit abort conditions.
 
 **Tech Stack:** Python 3.12, `typer` CLIs with `numpydoc` docstrings, `pytest`, `uv` for environment management, `setuptools-scm` for versioning, SQLite.
 
@@ -19,6 +21,7 @@ Every task's requirements implicitly include this section.
 - **Excluded ruptures: `59421` and `95011`.** Disconnected fault graphs. Expected to fail; their failure is a pass condition, not an error.
 - **Expected output count: 291** realisations from a 293-row input CSV.
 - **Never commit generated realisations to the `workflow` repo.** `minimal_realisations/` and `complete_realisations/` are gitignored, and must stay that way — it is what stops the campaign dirtying its own tree.
+- **Seeds are carried over, not re-drawn.** The campaign passes `--seed-manifest` so each realisation replays its original five seeds, and the regenerated content must match the committed original in every field except `log_trail` — verified mechanically before distribution. The manifest itself lives in `cybershake_nshm_2022`, not this repo.
 
 ### The CI gates, exactly as CI runs them
 
@@ -195,7 +198,9 @@ When a rupture's fault graph is disconnected, `nshm2022-to-realisation` has alre
 
 **Interfaces:**
 - Consumes: `workflow.defaults.DefaultsVersion`
-- Produces: `generate_one(nshmdb_path: Path, rupture_id: int, realisation_ffp: Path, defaults_version: DefaultsVersion) -> str | None` — returns an error message on failure (having deleted any partial file), or `None` on success.
+- Produces:
+  - `generate_one(nshmdb_path: Path, rupture_id: int, realisation_ffp: Path, defaults_version: DefaultsVersion, seeds: dict[str, int] | None = None) -> str | None` — returns an error message on failure (having deleted any partial file), or `None` on success. When `seeds` is given, it is written into the stub before generation so `nshm2022-to-realisation` replays those seeds instead of drawing fresh ones.
+  - `load_seed_manifest(seed_manifest: Path) -> dict[int, dict[str, int]]` — `{rupture_id: {column: value}}` read from the seed-manifest CSV. Every column except `rupture_id` is passed through as a seed; the realisation engine validates the block when it reads it back, so the driver stays schema-agnostic.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -382,6 +387,239 @@ nshm2022-to-realisation writes metadata and seeds before the point at which a
 disconnected fault graph fails, leaving a source-less file behind. The stub
 directory should hold exactly the valid stubs, not 293 files of which two are
 booby traps whose only defence is a downstream is_valid_minimal check."
+```
+
+- [ ] **Step 6: Write the failing seed-injection tests**
+
+Add `import json` to the top of `tests/test_generate_realisations_from_csv.py` (beside `import subprocess`), then append these three tests:
+
+```python
+def test_generate_one_writes_seeds_into_the_stub_when_given(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "realisation_100932.json"
+    seeds = {
+        "nshm_to_realisation_seed": 531798913,
+        "rupture_propagation_seed": 31268976,
+        "genslip_seed": 513004717,
+        "srfgen_seed": 1837842819,
+        "hf_seed": 1524796118,
+    }
+    seen: dict[str, object] = {}
+
+    def capture_stub(
+        cmd: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        seen["stub"] = json.loads(Path(cmd[3]).read_text(encoding="utf-8"))
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", capture_stub)
+
+    result = gr.generate_one(
+        Path("nshmdb.db"), 100932, target, DefaultsVersion.v24_2_2_1, seeds=seeds
+    )
+
+    assert result is None
+    assert seen["stub"]["seeds"] == seeds
+
+
+def test_generate_one_writes_no_stub_when_seeds_are_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "realisation_100932.json"
+    seen: dict[str, bool] = {}
+
+    def note_absence(
+        cmd: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        seen["existed_before"] = Path(cmd[3]).exists()
+        Path(cmd[3]).write_text("{}", encoding="utf-8")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", note_absence)
+
+    gr.generate_one(Path("nshmdb.db"), 100932, target, DefaultsVersion.v24_2_2_1)
+
+    assert seen["existed_before"] is False
+
+
+def test_load_seed_manifest_reads_rows_keyed_by_rupture_id(tmp_path: Path) -> None:
+    manifest = tmp_path / "seed_manifest.csv"
+    manifest.write_text(
+        "rupture_id,nshm_to_realisation_seed,rupture_propagation_seed,"
+        "genslip_seed,srfgen_seed,hf_seed\n"
+        "100932,1,2,3,4,5\n"
+        "101084,6,7,8,9,10\n",
+        encoding="utf-8",
+    )
+
+    seeds_by_rupture = gr.load_seed_manifest(manifest)
+
+    assert seeds_by_rupture[100932] == {
+        "nshm_to_realisation_seed": 1,
+        "rupture_propagation_seed": 2,
+        "genslip_seed": 3,
+        "srfgen_seed": 4,
+        "hf_seed": 5,
+    }
+    assert seeds_by_rupture[101084]["hf_seed"] == 10
+```
+
+- [ ] **Step 7: Run the tests to verify they fail**
+
+```bash
+uv run pytest tests/test_generate_realisations_from_csv.py -q
+```
+
+Expected: FAIL — `TypeError: generate_one() got an unexpected keyword argument 'seeds'` and `AttributeError: module '...' has no attribute 'load_seed_manifest'`.
+
+- [ ] **Step 8: Carry seeds through when a manifest is supplied**
+
+Add `import json` beside the existing `import subprocess` at the top of `workflow/scripts/generate_realisations_from_csv.py`.
+
+Give `generate_one` a `seeds` parameter, and write the seed stub before generating. Replace the function with:
+
+```python
+def generate_one(
+    nshmdb_path: Path,
+    rupture_id: int,
+    realisation_ffp: Path,
+    defaults_version: DefaultsVersion,
+    seeds: dict[str, int] | None = None,
+) -> str | None:
+    """Generate one minimal realisation stub for a rupture.
+
+    Parameters
+    ----------
+    nshmdb_path : Path
+        Path to the NSHM 2022 database file.
+    rupture_id : int
+        The NSHM rupture id to generate.
+    realisation_ffp : Path
+        Path the realisation stub is written to.
+    defaults_version : DefaultsVersion
+        Scientific default parameters version to use.
+    seeds : dict of str to int, optional
+        When given, written into the stub before generation so
+        nshm2022-to-realisation replays these seeds instead of drawing fresh ones.
+
+    Returns
+    -------
+    str or None
+        An error message if generation failed, otherwise None.
+    """
+    if seeds is not None:
+        realisation_ffp.write_text(
+            json.dumps({"metadata": {}, "seeds": seeds}), encoding="utf-8"
+        )
+    cmd = [
+        "nshm2022-to-realisation",
+        str(nshmdb_path),
+        str(rupture_id),
+        str(realisation_ffp),
+        str(defaults_version),
+        "--dip-delta",
+        "20",
+    ]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        # metadata and seeds are written before the point at which a disconnected
+        # rupture graph fails, so a crash leaves a source-less file behind.
+        realisation_ffp.unlink(missing_ok=True)
+        return (
+            f"Failed to generate realisation for rupture {rupture_id}, skipping:\n"
+            f"--- stdout ---\n{exc.stdout}\n"
+            f"--- stderr ---\n{exc.stderr}\n"
+            f"--- return code: {exc.returncode} ---\n"
+        )
+    return None
+```
+
+Add the manifest loader directly above the `@app.command()` line:
+
+```python
+def load_seed_manifest(seed_manifest: Path) -> dict[int, dict[str, int]]:
+    """Load a seed manifest CSV into per-rupture seed dictionaries.
+
+    Parameters
+    ----------
+    seed_manifest : Path
+        CSV with a ``rupture_id`` column and one column per seed.
+
+    Returns
+    -------
+    dict of int to (dict of str to int)
+        Maps each rupture id to its seed block. Every column except
+        ``rupture_id`` is passed through unchanged; the realisation engine
+        validates the block when it reads it back.
+    """
+    df = pd.read_csv(seed_manifest)
+    if "rupture_id" not in df.columns:
+        raise ValueError(
+            f"Seed manifest {seed_manifest} must contain a 'rupture_id' column."
+        )
+    seed_columns = [column for column in df.columns if column != "rupture_id"]
+    return {
+        int(row["rupture_id"]): {column: int(row[column]) for column in seed_columns}
+        for _, row in df.iterrows()
+    }
+```
+
+Add the `--seed-manifest` option to the command signature, immediately after the `defaults_version` argument:
+
+```python
+    defaults_version: Annotated[DefaultsVersion, typer.Argument()],
+    seed_manifest: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            dir_okay=False,
+            help="CSV of rupture_id + seeds to replay, one row per rupture.",
+        ),
+    ] = None,
+```
+
+Load it near the top of the command body, just after the `df = pd.read_csv(csv_file)` block that builds `rupture_ids`:
+
+```python
+    seeds_by_rupture: dict[int, dict[str, int]] = {}
+    if seed_manifest is not None:
+        seeds_by_rupture = load_seed_manifest(seed_manifest)
+```
+
+And pass the per-rupture seeds into the call inside the loop:
+
+```python
+            error_msg = generate_one(
+                nshmdb_path,
+                rupture_id,
+                realisation_ffp,
+                defaults_version,
+                seeds=seeds_by_rupture.get(rupture_id),
+            )
+```
+
+- [ ] **Step 9: Run the tests to verify they pass**
+
+```bash
+uv run pytest tests/test_generate_realisations_from_csv.py -q
+```
+
+Expected: `6 passed`.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add workflow/scripts/generate_realisations_from_csv.py tests/test_generate_realisations_from_csv.py
+git commit -m "feat(scripts): add opt-in --seed-manifest to replay recorded seeds
+
+When a seed manifest is supplied, each stub is pre-written with its rupture's
+five seeds so nshm2022-to-realisation replays them via
+read_from_realisation_or_random instead of drawing fresh ones. Without the flag,
+behaviour is unchanged. The driver treats every non-rupture_id column as a seed
+and lets the engine validate the block, so it needs no knowledge of the seed
+schema."
 ```
 
 ---
@@ -1434,6 +1672,514 @@ digest must use constant memory and be order-independent."
 
 ---
 
+## Task 7a: `build_seed_manifest` — extract the seeds the originals were generated with
+
+The seed manifest is what lets the campaign reproduce the existing files rather than re-draw them. This tool builds it from the committed originals, asserting as it goes that every file has a complete seed block and that each file's own `log_trail` names the rupture id its directory claims — so the manifest is provably faithful.
+
+**Files:**
+- Create: `workflow/scripts/build_seed_manifest.py`
+- Modify: `pyproject.toml` (add a `[project.scripts]` entry)
+- Test: `tests/test_build_seed_manifest.py` (create)
+
+**Interfaces:**
+- Consumes: `workflow.realisations.Seeds` (only for the canonical field list)
+- Produces:
+  - `SEED_FIELDS: tuple[str, ...]` — the five seed field names, in `Seeds` definition order
+  - `seed_row(realisation_ffp: Path, rupture_id: int) -> dict[str, int]` — `{rupture_id + five seeds}`; raises `ValueError` on an incomplete block, a `log_trail` that names a different rupture, or non-uniform generation args
+  - `build_seed_manifest(events_dir: Path, output_csv: Path) -> int` — writes the sorted CSV, returns the row count
+
+- [ ] **Step 1: Write the failing tests**
+
+Create `tests/test_build_seed_manifest.py`:
+
+```python
+"""Tests for the seed manifest builder."""
+
+import json
+from pathlib import Path
+
+import pytest
+
+from workflow.scripts import build_seed_manifest as bsm
+
+SEEDS_A = {
+    "nshm_to_realisation_seed": 531798913,
+    "rupture_propagation_seed": 31268976,
+    "genslip_seed": 513004717,
+    "srfgen_seed": 1837842819,
+    "hf_seed": 1524796118,
+}
+SEEDS_B = {
+    "nshm_to_realisation_seed": 11,
+    "rupture_propagation_seed": 22,
+    "genslip_seed": 33,
+    "srfgen_seed": 44,
+    "hf_seed": 55,
+}
+
+
+def _write_event(events_dir: Path, rupture_id: int, seeds: dict[str, int]) -> Path:
+    event_dir = events_dir / str(rupture_id)
+    event_dir.mkdir(parents=True)
+    realisation = {
+        "seeds": seeds,
+        "log_trail": {
+            "log": [
+                {
+                    "utility": "nshm2022-to-realisation",
+                    "version": "0.1.dev1+gdeadbeef",
+                    "args": [
+                        "nshmdb.db",
+                        str(rupture_id),
+                        "out.json",
+                        "24.2.2.1",
+                        "--dip-delta",
+                        "20",
+                    ],
+                }
+            ]
+        },
+    }
+    ffp = event_dir / "realisation.json"
+    ffp.write_text(json.dumps(realisation), encoding="utf-8")
+    return ffp
+
+
+def test_seed_row_extracts_the_five_seeds(tmp_path: Path) -> None:
+    ffp = _write_event(tmp_path, 100932, SEEDS_A)
+    assert bsm.seed_row(ffp, 100932) == {"rupture_id": 100932, **SEEDS_A}
+
+
+def test_seed_row_rejects_an_incomplete_block(tmp_path: Path) -> None:
+    incomplete = dict(SEEDS_A)
+    del incomplete["hf_seed"]
+    ffp = _write_event(tmp_path, 100932, incomplete)
+    with pytest.raises(ValueError, match="missing"):
+        bsm.seed_row(ffp, 100932)
+
+
+def test_seed_row_rejects_a_mismatched_rupture_id(tmp_path: Path) -> None:
+    ffp = _write_event(tmp_path, 100932, SEEDS_A)
+    with pytest.raises(ValueError, match="does not name rupture 999"):
+        bsm.seed_row(ffp, 999)
+
+
+def test_build_seed_manifest_writes_a_sorted_csv(tmp_path: Path) -> None:
+    events = tmp_path / "events"
+    _write_event(events, 101084, SEEDS_B)
+    _write_event(events, 100932, SEEDS_A)
+    out = tmp_path / "seed_manifest.csv"
+
+    count = bsm.build_seed_manifest(events, out)
+
+    assert count == 2
+    lines = out.read_text(encoding="utf-8").splitlines()
+    assert lines[0] == (
+        "rupture_id,nshm_to_realisation_seed,rupture_propagation_seed,"
+        "genslip_seed,srfgen_seed,hf_seed"
+    )
+    assert lines[1].startswith("100932,")
+    assert lines[2].startswith("101084,")
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+```bash
+uv run pytest tests/test_build_seed_manifest.py -q
+```
+
+Expected: FAIL — `ModuleNotFoundError: No module named 'workflow.scripts.build_seed_manifest'`.
+
+- [ ] **Step 3: Write the module**
+
+Create `workflow/scripts/build_seed_manifest.py`:
+
+```python
+#!/usr/bin/env python3
+"""Build a seed manifest CSV from a tree of committed realisation files.
+
+Description
+-----------
+Reads ``events/<rupture_id>/realisation.json`` for every event under an events
+directory and writes one CSV row per event: the rupture id and its five seeds.
+The manifest lets ``generate-realisations-from-csv --seed-manifest`` replay the
+exact seeds a set was generated with, reproducing its content.
+
+For each file it asserts the seed block is complete and that the file's own
+``log_trail`` names the same rupture id, generated with the uniform campaign
+arguments, so the manifest is provably faithful to the files it describes.
+"""
+
+import csv
+import dataclasses
+import json
+from pathlib import Path
+from typing import Annotated
+
+import typer
+
+from workflow.realisations import Seeds
+
+app = typer.Typer()
+
+SEED_FIELDS: tuple[str, ...] = tuple(field.name for field in dataclasses.fields(Seeds))
+
+
+def seed_row(realisation_ffp: Path, rupture_id: int) -> dict[str, int]:
+    """Extract ``{rupture_id + five seeds}`` from one realisation file.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        Path to a ``realisation.json``.
+    rupture_id : int
+        The rupture id the file is expected to belong to.
+
+    Returns
+    -------
+    dict of str to int
+        ``rupture_id`` plus the five seed fields.
+
+    Raises
+    ------
+    ValueError
+        If the seed block is incomplete, or the file's ``log_trail`` does not
+        name ``rupture_id`` generated with the uniform campaign arguments.
+    """
+    realisation = json.loads(realisation_ffp.read_text(encoding="utf-8"))
+    seeds = realisation.get("seeds", {})
+    missing = [field for field in SEED_FIELDS if field not in seeds]
+    if missing:
+        raise ValueError(f"{realisation_ffp}: seed block missing {missing}")
+
+    log = realisation.get("log_trail", {}).get("log", [])
+    nshm_entry = next(
+        (entry for entry in log if entry.get("utility") == "nshm2022-to-realisation"),
+        None,
+    )
+    if nshm_entry is None:
+        raise ValueError(f"{realisation_ffp}: no nshm2022-to-realisation log entry")
+    args = nshm_entry.get("args", [])
+    if str(rupture_id) not in args:
+        raise ValueError(
+            f"{realisation_ffp}: log_trail does not name rupture {rupture_id}"
+        )
+    if "24.2.2.1" not in args or "--dip-delta" not in args:
+        raise ValueError(f"{realisation_ffp}: non-uniform generation args {args}")
+
+    row = {field: int(seeds[field]) for field in SEED_FIELDS}
+    return {"rupture_id": rupture_id, **row}
+
+
+def build_seed_manifest(events_dir: Path, output_csv: Path) -> int:
+    """Write a sorted seed manifest for every event under ``events_dir``.
+
+    Parameters
+    ----------
+    events_dir : Path
+        Directory of ``<rupture_id>/realisation.json`` subdirectories.
+    output_csv : Path
+        Destination CSV path.
+
+    Returns
+    -------
+    int
+        The number of rows written.
+    """
+    rupture_dirs = sorted(
+        (path for path in events_dir.iterdir() if (path / "realisation.json").is_file()),
+        key=lambda path: int(path.name),
+    )
+    rows = [seed_row(path / "realisation.json", int(path.name)) for path in rupture_dirs]
+    with output_csv.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, ["rupture_id", *SEED_FIELDS])
+        writer.writeheader()
+        writer.writerows(rows)
+    return len(rows)
+
+
+@app.command()
+def main(
+    events_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+    output_csv: Annotated[Path, typer.Argument()],
+) -> None:
+    """Build a seed manifest CSV from an events directory tree.
+
+    Parameters
+    ----------
+    events_dir : Path
+        Directory of ``<rupture_id>/realisation.json`` subdirectories.
+    output_csv : Path
+        Destination CSV path.
+    """
+    count = build_seed_manifest(events_dir, output_csv)
+    print(f"Wrote {count} seed rows to {output_csv}")
+
+
+if __name__ == "__main__":
+    app()
+```
+
+- [ ] **Step 4: Register the entry point**
+
+In `pyproject.toml`, under `[project.scripts]`, add:
+
+```toml
+build-seed-manifest = "workflow.scripts.build_seed_manifest:app"
+```
+
+- [ ] **Step 5: Run the tests to verify they pass**
+
+```bash
+uv run pytest tests/test_build_seed_manifest.py -q
+```
+
+Expected: `4 passed`.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add workflow/scripts/build_seed_manifest.py tests/test_build_seed_manifest.py pyproject.toml
+git commit -m "feat(scripts): add build-seed-manifest
+
+Extracts the five seeds from each committed realisation into a CSV keyed by
+rupture id, asserting every block is complete and every file's log_trail names
+the rupture its directory claims, generated with the uniform campaign args. This
+is the input generate-realisations-from-csv --seed-manifest replays."
+```
+
+---
+
+## Task 7b: `verify_realisation_content` — prove a regenerated file reproduces its original
+
+Provenance verification (Tasks 5–6) proves each file records a clean commit. This proves the *content* is the same as before — identical in every field except `log_trail`, which is the one field a re-run is allowed to change.
+
+**Files:**
+- Create: `workflow/scripts/verify_realisation_content.py`
+- Modify: `pyproject.toml` (add a `[project.scripts]` entry)
+- Test: `tests/test_verify_realisation_content.py` (create)
+
+**Interfaces:**
+- Consumes: nothing
+- Produces:
+  - `diff_content(expected: object, actual: object, path: str = "") -> list[str]` — dotted paths at which two realisations differ, skipping the top-level `log_trail`; empty means equivalent
+  - `compare_files(expected_ffp: Path, actual_ffp: Path) -> list[str]`
+
+- [ ] **Step 1: Write the failing tests**
+
+Create `tests/test_verify_realisation_content.py`:
+
+```python
+"""Tests for the realisation content checker."""
+
+import json
+from pathlib import Path
+
+from workflow.scripts import verify_realisation_content as vc
+
+
+def test_diff_content_is_empty_for_identical_realisations() -> None:
+    realisation = {"magnitudes": {"A": 7.1}, "seeds": {"hf_seed": 5}}
+    assert vc.diff_content(realisation, realisation) == []
+
+
+def test_diff_content_ignores_log_trail() -> None:
+    expected = {"magnitudes": {"A": 7.1}, "log_trail": {"log": [{"version": "old"}]}}
+    actual = {"magnitudes": {"A": 7.1}, "log_trail": {"log": [{"version": "new"}]}}
+    assert vc.diff_content(expected, actual) == []
+
+
+def test_diff_content_reports_a_scientific_difference() -> None:
+    expected = {"magnitudes": {"A": 7.1}}
+    actual = {"magnitudes": {"A": 7.2}}
+    assert vc.diff_content(expected, actual) == ["magnitudes.A: 7.1 != 7.2"]
+
+
+def test_diff_content_reports_list_differences_with_a_path() -> None:
+    expected = {"rakes": [10, 20, 30]}
+    actual = {"rakes": [10, 25, 30]}
+    assert vc.diff_content(expected, actual) == ["rakes[1]: 20 != 25"]
+
+
+def test_compare_files_ignores_only_log_trail(tmp_path: Path) -> None:
+    expected_ffp = tmp_path / "original.json"
+    actual_ffp = tmp_path / "regenerated.json"
+    expected_ffp.write_text(
+        json.dumps({"seeds": {"hf_seed": 5}, "log_trail": {"log": ["a"]}}),
+        encoding="utf-8",
+    )
+    actual_ffp.write_text(
+        json.dumps({"seeds": {"hf_seed": 5}, "log_trail": {"log": ["b"]}}),
+        encoding="utf-8",
+    )
+    assert vc.compare_files(expected_ffp, actual_ffp) == []
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+```bash
+uv run pytest tests/test_verify_realisation_content.py -q
+```
+
+Expected: FAIL — `ModuleNotFoundError: No module named 'workflow.scripts.verify_realisation_content'`.
+
+- [ ] **Step 3: Write the module**
+
+Create `workflow/scripts/verify_realisation_content.py`:
+
+```python
+#!/usr/bin/env python3
+"""Verify regenerated realisations reproduce the originals, ignoring log_trail.
+
+Description
+-----------
+Compares each ``realisation_<id>.json`` in a regenerated directory against the
+committed original at ``events/<id>/realisation.json``, treating every field as
+significant except ``log_trail`` (which legitimately changes when the code is
+re-run). Any other difference is reported and makes the command exit non-zero.
+"""
+
+import json
+from pathlib import Path
+from typing import Annotated
+
+import typer
+
+app = typer.Typer()
+
+
+def diff_content(expected: object, actual: object, path: str = "") -> list[str]:
+    """Return the dotted paths at which two realisations differ, ignoring log_trail.
+
+    Parameters
+    ----------
+    expected : object
+        The reference JSON value (initially the whole realisation dict).
+    actual : object
+        The value to compare against it.
+    path : str
+        The dotted path to the current value, used for reporting.
+
+    Returns
+    -------
+    list of str
+        One entry per differing leaf, empty when equivalent. The top-level
+        ``log_trail`` key is skipped.
+    """
+    diffs: list[str] = []
+    if isinstance(expected, dict) and isinstance(actual, dict):
+        for key in sorted(set(expected) | set(actual)):
+            if path == "" and key == "log_trail":
+                continue
+            child = f"{path}.{key}" if path else str(key)
+            if key not in expected:
+                diffs.append(f"{child}: only in actual")
+            elif key not in actual:
+                diffs.append(f"{child}: only in expected")
+            else:
+                diffs.extend(diff_content(expected[key], actual[key], child))
+    elif isinstance(expected, list) and isinstance(actual, list):
+        if len(expected) != len(actual):
+            diffs.append(f"{path}: length {len(expected)} != {len(actual)}")
+        else:
+            for index, (exp, act) in enumerate(zip(expected, actual, strict=True)):
+                diffs.extend(diff_content(exp, act, f"{path}[{index}]"))
+    elif expected != actual:
+        diffs.append(f"{path}: {expected!r} != {actual!r}")
+    return diffs
+
+
+def compare_files(expected_ffp: Path, actual_ffp: Path) -> list[str]:
+    """Compare two realisation files, ignoring ``log_trail``.
+
+    Parameters
+    ----------
+    expected_ffp : Path
+        The original realisation file.
+    actual_ffp : Path
+        The regenerated realisation file.
+
+    Returns
+    -------
+    list of str
+        The differences, empty when equivalent.
+    """
+    expected = json.loads(expected_ffp.read_text(encoding="utf-8"))
+    actual = json.loads(actual_ffp.read_text(encoding="utf-8"))
+    return diff_content(expected, actual)
+
+
+@app.command()
+def main(
+    events_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+    regenerated_dir: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+) -> None:
+    """Compare a regenerated realisation set against the committed originals.
+
+    Parameters
+    ----------
+    events_dir : Path
+        Directory of ``<rupture_id>/realisation.json`` originals.
+    regenerated_dir : Path
+        Directory of ``realisation_<rupture_id>.json`` regenerated files.
+    """
+    mismatched: dict[str, list[str]] = {}
+    regenerated = sorted(regenerated_dir.glob("realisation_*.json"))
+    for actual_ffp in regenerated:
+        rupture_id = actual_ffp.stem.removeprefix("realisation_")
+        expected_ffp = events_dir / rupture_id / "realisation.json"
+        if not expected_ffp.is_file():
+            mismatched[rupture_id] = ["no original to compare against"]
+            continue
+        diffs = compare_files(expected_ffp, actual_ffp)
+        if diffs:
+            mismatched[rupture_id] = diffs
+
+    print(
+        f"Compared {len(regenerated)} realisation(s); "
+        f"{len(mismatched)} differ beyond log_trail"
+    )
+    for rupture_id, diffs in sorted(mismatched.items()):
+        print(f"\n{rupture_id}:")
+        for difference in diffs[:20]:
+            print(f"  {difference}")
+    if mismatched:
+        raise typer.Exit(code=1)
+
+
+if __name__ == "__main__":
+    app()
+```
+
+- [ ] **Step 4: Register the entry point**
+
+In `pyproject.toml`, under `[project.scripts]`, add:
+
+```toml
+verify-realisation-content = "workflow.scripts.verify_realisation_content:app"
+```
+
+- [ ] **Step 5: Run the tests to verify they pass**
+
+```bash
+uv run pytest tests/test_verify_realisation_content.py -q
+```
+
+Expected: `5 passed`.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add workflow/scripts/verify_realisation_content.py tests/test_verify_realisation_content.py pyproject.toml
+git commit -m "feat(scripts): add verify-realisation-content
+
+Compares a regenerated realisation set against the committed originals field by
+field, ignoring only log_trail, and exits non-zero on any other difference. This
+is what turns 'we fed the seeds back in' into 'the content is provably the same'."
+```
+
+---
+
 ## Task 8: Run every gate, then pin the commit
 
 This task produces **commit N** — the SHA every realisation will record.
@@ -1623,6 +2369,157 @@ This must still be empty. The output directories are gitignored, which is what m
 
 ---
 
+## Task 10a: Build and commit the seed manifest
+
+The manifest is a campaign **input**, built once from the committed originals and committed to `cybershake_nshm_2022` beside the events it describes. It must be built before the originals are overwritten in Task 14, and before the pilot and run that consume it.
+
+- [ ] **Step 1: Confirm the originals are the untouched source of truth**
+
+```bash
+git -C /home/arr65/src/cybershake_nshm_2022 rev-parse --abbrev-ref HEAD    # add-srf-helper-scripts
+git -C /home/arr65/src/cybershake_nshm_2022 status --porcelain -- cybershake_nshm_2022/events    # empty
+ls -d /home/arr65/src/cybershake_nshm_2022/cybershake_nshm_2022/events/*/ | wc -l    # 291
+```
+
+If the events tree is not clean, **stop** — the manifest must be built from the committed originals, not from edited files.
+
+- [ ] **Step 2: Build the manifest**
+
+```bash
+mkdir -p /home/arr65/src/cybershake_nshm_2022/cybershake_nshm_2022/seed_manifest
+uv run build-seed-manifest \
+    /home/arr65/src/cybershake_nshm_2022/cybershake_nshm_2022/events \
+    /home/arr65/src/cybershake_nshm_2022/cybershake_nshm_2022/seed_manifest/seed_manifest.csv
+```
+
+Expected: `Wrote 291 seed rows to ...`. If the builder raises — an incomplete seed block, a `log_trail` that names a different rupture than its directory, or non-uniform generation args — **stop**. A manifest that cannot be built cleanly is not one to trust.
+
+- [ ] **Step 3: Write the README beside it**
+
+Create `cybershake_nshm_2022/cybershake_nshm_2022/seed_manifest/README.md` (in the `cybershake_nshm_2022` repo):
+
+```markdown
+# Realisation seed manifest
+
+`seed_manifest.csv` records the five random seeds of every event in this
+CyberShake NSHM-2022 realisation set, one row per rupture:
+
+    rupture_id, nshm_to_realisation_seed, rupture_propagation_seed,
+    genslip_seed, srfgen_seed, hf_seed
+
+## Why this file exists
+
+The seeds were originally drawn from OS entropy by `Seeds.random_seeds()` in
+`ucgmsim/workflow` (`random.randint(0, 2**31 - 1)`) during the first, ad-hoc
+generation of this set. They carry **no intrinsic meaning** — any draw would
+have been equally valid. They are recorded here verbatim for one reason: so the
+realisation files can be regenerated *exactly*, keeping them consistent with the
+SRFs and downstream results already built from them, while giving each file an
+honest, commit-pinned `log_trail`.
+
+## How the set was generated
+
+Every event was produced with identical arguments, varying only the rupture id
+and its seeds:
+
+    nshm2022-to-realisation nshmdb.db <rupture_id> <out.json> 24.2.2.1 --dip-delta 20
+    complete-realisations <minimal_dir> <out_dir> --defaults-version 24.2.2.1 --vm-version 2.09
+
+To reproduce, pass this file to the batch driver:
+
+    generate-realisations-from-csv nshmdb.db <ruptures.csv> <out_dir> 24.2.2.1 \
+        --seed-manifest seed_manifest.csv
+
+The driver writes each event's seeds into the stub before generation, so
+`nshm2022-to-realisation` replays them via `read_from_realisation_or_random`.
+
+## The guarantee
+
+A regenerated file is verified to match the original it replaces in **every
+field except `log_trail`** (`verify-realisation-content`). `log_trail` is the one
+field a re-run is meant to change: it now records a definite, pushed, tagged
+commit instead of the original set's stale build stamp.
+
+Full provenance of the regenerated set is in the campaign's `PROVENANCE.md`.
+```
+
+- [ ] **Step 4: Commit the manifest and README to `cybershake_nshm_2022`**
+
+```bash
+cd /home/arr65/src/cybershake_nshm_2022
+git add cybershake_nshm_2022/seed_manifest/seed_manifest.csv cybershake_nshm_2022/seed_manifest/README.md
+git commit -m "feat: record the realisation seed manifest
+
+The five seeds of each of the 291 events, extracted from the committed
+realisations by build-seed-manifest. Recorded so the set can be regenerated
+exactly — same content, honest log_trail — via
+generate-realisations-from-csv --seed-manifest. The seeds carry no intrinsic
+meaning; see README.md."
+cd /home/arr65/src/workflow
+```
+
+- [ ] **Step 5: Confirm the `workflow` tree is still clean**
+
+```bash
+git status --porcelain --untracked-files=no    # expect: empty
+```
+
+Building the manifest reads the originals and writes into `cybershake_nshm_2022`; it must not have touched a tracked file in `workflow`. If this is not empty, **stop and investigate**.
+
+---
+
+## Task 10b: Pilot — prove content reproduction before the full run
+
+This is the load-bearing gate. Replaying the seeds only reproduces the content if commit N's code derives the same realisation from them as the ad-hoc code did — and the ad-hoc baker (`bake_realisations.py`) no longer exists, `complete-realisations` is its successor, and the pegasus rebase brought magnitude-convention (BoldM) changes. Prove it on a handful of events before committing to 291.
+
+- [ ] **Step 1: Build a small pilot rupture list**
+
+Include at least one multi-fault event. `149379` is multi-fault; the other three round out the sample.
+
+```bash
+PILOT=/tmp/claude-1000/-home-arr65-src-workflow/b518f6e9-16db-4ae1-a09d-e4bf7d6e1754/scratchpad/pilot
+mkdir -p "$PILOT"
+printf 'chosen_nshm_id\n149379\n100932\n101084\n101091\n' > "$PILOT/pilot.csv"
+SEEDS=/home/arr65/src/cybershake_nshm_2022/cybershake_nshm_2022/seed_manifest/seed_manifest.csv
+```
+
+- [ ] **Step 2: Regenerate them, replaying the recorded seeds**
+
+```bash
+uv run generate-realisations-from-csv \
+    nshmdb.db "$PILOT/pilot.csv" "$PILOT/minimal" 24.2.2.1 \
+    --seed-manifest "$SEEDS"
+uv run complete-realisations "$PILOT/minimal" "$PILOT/complete" \
+    --defaults-version 24.2.2.1 --vm-version 2.09
+```
+
+Expected: 4 minimal stubs, 4 complete realisations, no errors.
+
+- [ ] **Step 3: Verify the content matches the originals**
+
+```bash
+uv run verify-realisation-content \
+    /home/arr65/src/cybershake_nshm_2022/cybershake_nshm_2022/events \
+    "$PILOT/complete"
+```
+
+Expected: `Compared 4 realisation(s); 0 differ beyond log_trail`.
+
+- [ ] **Step 4: Gate on the result**
+
+If it reports **0 differ**, commit N reproduces the originals from their seeds; proceed to Task 11.
+
+If **any** event differs beyond `log_trail`, **stop**. The command prints the exact differing fields. Reconcile before going further — the likely causes, in order, are: `complete-realisations` differing from the vanished `bake_realisations.py`; the BoldM magnitude-convention changes from the pegasus rebase; or a residual difference in the area-weighted fault selection (`9f35c90`). Any fix moves commit N, so re-run Task 8 (gates + pin) and Task 10 (force the stamp) afterwards. Do **not** run the full campaign against a failing pilot.
+
+- [ ] **Step 5: Confirm the tree is still clean**
+
+```bash
+git status --porcelain --untracked-files=no    # expect: empty
+git rev-parse HEAD                             # expect: commit N, unchanged
+```
+
+---
+
 ## Task 11: Run the campaign
 
 - [ ] **Step 1: Clear the output of the previous, untraceable run**
@@ -1640,8 +2537,11 @@ uv run generate-realisations-from-csv \
     nshmdb.db \
     annealed_minimal_ruptures.csv \
     minimal_realisations \
-    24.2.2.1
+    24.2.2.1 \
+    --seed-manifest /home/arr65/src/cybershake_nshm_2022/cybershake_nshm_2022/seed_manifest/seed_manifest.csv
 ```
+
+`--seed-manifest` makes each stub replay its recorded seeds (Task 10a), so the content reproduces the originals rather than drawing a fresh set. The two excluded ruptures are absent from the manifest and fall back to a fresh draw, which is moot — they fail before any seed is used.
 
 Expected: `Done. Processed 293 rupture ID(s).`, with two failures printed — ruptures **59421** and **95011**, both `ValueError: The graph must be connected to find a spanning tree`. **These two failures are a pass condition.**
 
@@ -1681,6 +2581,35 @@ Provenance OK: 291 realisation(s), all recording 0.1.dev<N>+g<sha>
 The version must equal **EXPECTED_VERSION** from Task 10. If a single file fails, **stop** — do not distribute a partially-sound set.
 
 - [ ] **Step 5: Confirm the tree is still clean**
+
+```bash
+git status --porcelain --untracked-files=no    # expect: empty
+git rev-parse HEAD                             # expect: commit N, unchanged
+```
+
+---
+
+## Task 11a: Verify the full set reproduces the originals
+
+Task 11 Step 4 proved every file records commit N. This proves every file reproduces the *content* it replaces. Run it now, while the originals in `cybershake_nshm_2022` are still the pre-campaign files — Task 14 overwrites them.
+
+- [ ] **Step 1: Compare the whole set against the committed originals**
+
+```bash
+uv run verify-realisation-content \
+    /home/arr65/src/cybershake_nshm_2022/cybershake_nshm_2022/events \
+    complete_realisations
+```
+
+Expected: `Compared 291 realisation(s); 0 differ beyond log_trail`.
+
+- [ ] **Step 2: Gate on the result**
+
+If **0 differ**, the regenerated set is content-identical to the originals bar `log_trail`; proceed to tag and distribute.
+
+If **any** event differs, **stop** — do not tag, record, or distribute a set that does not reproduce what it replaces. The pilot (Task 10b) should have caught this; a difference surfacing only at full scale points to an event outside the pilot sample. Investigate the printed fields and reconcile exactly as in Task 10b Step 4. A fix moves commit N, so re-run Tasks 8, 10, 10b and 11.
+
+- [ ] **Step 3: Confirm the tree is still clean**
 
 ```bash
 git status --porcelain --untracked-files=no    # expect: empty
@@ -1819,6 +2748,7 @@ can establish exactly what produced these files, and reproduce or refute it.
 
 - 291 files, at `cybershake_nshm_2022/cybershake_nshm_2022/events/<rupture id>/realisation.json`
 - Per-file sha256: `manifest.csv`, alongside this file.
+- Content-identical to the 2026-07-09 set bar `log_trail`, verified by `verify-realisation-content`; seeds carried over from `seed_manifest.csv`.
 - Every file's `log_trail` records exactly two entries — `nshm2022-to-realisation`
   then `complete-realisations` — both stamped `«recorded version»`.
 - Verify at any time:
@@ -1850,6 +2780,7 @@ versions, so no tag was applied; the commit SHA is the anchor.»
 | `nshmdb.db` | `«sha256»` | Built by `nshm_db_generator.py` at NSHM2022DB `«NSHM2022DB sha»` from the CRU zip below. |
 | `CRU_fault_system_solution.zip` | `«sha256»` | The NSHM 2022 crustal fault system solution, from Jake Faulkner. Its own upstream release identifier is not recorded. |
 | `annealed_minimal_ruptures.csv` | `«sha256»` | 293 rupture ids, provided by Jake Faulkner as the first sample of ruptures to simulate for this campaign. The selection procedure implied by "annealed" is not documented. |
+| `seed_manifest.csv` | `«sha256»` | The five seeds of each of the 291 events, extracted from the 2026-07-09 set by `build-seed-manifest` and replayed via `--seed-manifest` so this set reproduces that one's content. Committed in `cybershake_nshm_2022`. |
 | `uv.lock` | `«sha256»` | Pins `nshmdb` 2025.12.1, `source_modelling` 2026.6.2, `velocity-modelling` 2026.2.1, `qcore-utils` 2025.12.2, `im-calculation` 2025.12.5, `oq-wrapper` 2025.12.5. |
 
 ### The database rebuild
@@ -1883,9 +2814,10 @@ Run from the repository root, on a clean tree at the commit above, after
 
 ```
 uv run verify-realisation-provenance --preflight
-uv run generate-realisations-from-csv nshmdb.db annealed_minimal_ruptures.csv minimal_realisations 24.2.2.1
+uv run generate-realisations-from-csv nshmdb.db annealed_minimal_ruptures.csv minimal_realisations 24.2.2.1 --seed-manifest «cybershake_nshm_2022»/cybershake_nshm_2022/seed_manifest/seed_manifest.csv
 uv run complete-realisations minimal_realisations complete_realisations --defaults-version 24.2.2.1 --vm-version 2.09
 uv run verify-realisation-provenance complete_realisations
+uv run verify-realisation-content «cybershake_nshm_2022»/cybershake_nshm_2022/events complete_realisations
 ```
 
 ## Exclusions: 291 of 293
@@ -1914,15 +2846,19 @@ Full tracebacks are in `minimal_realisations/error_log.txt` from the run.
 ## Seeds
 
 Each realisation's five seeds — `nshm_to_realisation_seed`,
-`rupture_propagation_seed`, `genslip_seed`, `srfgen_seed`, `hf_seed` — were drawn
-from OS entropy and persisted into the file. They anchor everything downstream,
-including SRF slip distributions and HF station seeds.
+`rupture_propagation_seed`, `genslip_seed`, `srfgen_seed`, `hf_seed` — were
+**carried over** from the previous set, not re-drawn. They were originally drawn
+from OS entropy by `Seeds.random_seeds()`; they carry no intrinsic meaning, and
+were reproduced verbatim so this set is content-identical to the one the existing
+SRFs and downstream results were built from.
 
-**The realisation files are the only record of the draw.** Any given realisation
-can be replayed, because `Seeds.read_from_realisation_or_random` reads persisted
-seeds back from an existing file. The set as a whole cannot be regenerated from
-the inputs listed above; that would be a different, equally valid draw. This was
-a deliberate choice — the seed values carry no significance.
+They are recorded in `cybershake_nshm_2022/cybershake_nshm_2022/seed_manifest/`
+(`seed_manifest.csv` + `README.md`), extracted from the previous set by
+`build-seed-manifest` and replayed here via
+`generate-realisations-from-csv --seed-manifest`. Because the seeds are now a
+recorded input, **the whole set is reproducible from its inputs** — and every
+file was verified content-identical to the file it replaced, bar `log_trail`, by
+`verify-realisation-content`.
 
 ## Environment
 
@@ -1938,7 +2874,12 @@ An earlier, untraceable batch of 291 realisations generated 2026-07-09. Those
 files recorded `utility: bake_realisations.py` (a script name, not an entry
 point), version `0.1.dev1277+g41974dfa1.d20260709` (a stale build stamp naming a
 commit that demonstrably did not contain the code that ran), and argument paths
-that no longer existed. They should not be used or cited.
+that no longer existed. They should not be cited for provenance.
+
+This set reproduces their **content** exactly — same seeds, verified identical in
+every field but `log_trail` — so anything already derived from them (SRFs,
+animations) remains valid. Only the provenance changed: `log_trail` now names
+commit N, tagged and pushed.
 ```
 
 - [ ] **Step 4: Commit the record**
@@ -2048,43 +2989,44 @@ Every file now records commit «commit N» of ucgmsim/workflow, asserted clean
 before the run and verified across all 291 afterwards. Inputs are pinned by
 checksum in PROVENANCE.md; per-file hashes are in manifest.csv.
 
-Seeds were re-drawn, so hypocentres, initial faults and rupture trees differ from
-the previous batch. The SRFs and slip animations on this branch are invalidated
-and must be regenerated — they need it regardless, for the multi-segment SRF
-version fix."
+Seeds were carried over from seed_manifest.csv, so this set reproduces the
+previous batch's content exactly: verify-realisation-content confirms every file
+is identical bar log_trail. The SRFs and slip animations already built from the
+previous batch therefore remain valid — only the provenance changed."
 ```
 
-- [ ] **Step 7: Report what is now stale**
+- [ ] **Step 7: Confirm what stays valid, and what is genuinely separate**
 
-Do not push or open a PR without flagging this. Everything downstream of the
-realisations derives from the **old** ones and is now wrong: the 54 GB of
-generated SRFs, the slip animations, and the local scratch derived from them
-(`srf_version_audit.csv`, `mislabelled_multi_fault_srfs.txt`,
-`correct_single_fault_srfs.txt`, `srf_frame_counts.csv`, `srf_chunk_*.txt`).
+Because the seeds were carried over and the content is verified identical bar
+`log_trail` (Task 11a), **nothing downstream is invalidated**. The 54 GB of SRFs,
+the slip animations, and the derived scratch all correspond to these realisations
+exactly as before — this change rewrote provenance, not science. No SRF
+regeneration is required, and none is triggered by this plan.
 
-**No cleanup is needed for those files** — they are all gitignored, and the
-scripts that produce them overwrite them on the next run. (`srf_frame_counts.csv`
-was the lone exception, tracked while every sibling was ignored; it was untracked
-in `cybershake_nshm_2022@a623667`.)
+The SRF version-mislabelling is a **separate** matter, unaffected either way. The
+local SRFs under `/home/arr65/data/cs_nshm_2022` were already repaired in place by
+`scripts/fix_srf_version.py` (a one-line version-header rewrite, no regeneration);
+the BSC and Dropbox copies are still mislabelled and still need that script — keep
+it. The audit baselines `srf_version_audit_BEFORE_20260714.csv` and
+`mislabelled_multi_fault_srfs_BEFORE_20260714.txt`
+(`cybershake_nshm_2022@a623667`) record the pre-fix state (**219 mislabelled, all
+multi-fault; 72 correct, all single-fault** — the signature of `stitch_srf_files`
+hardcoding `version="1.0"`) and remain the reference for that independent fix.
 
-What *does* matter is the audit baseline. `srf_version_audit_BEFORE_20260714.csv`
-and `mislabelled_multi_fault_srfs_BEFORE_20260714.txt` are committed
-(`cybershake_nshm_2022@a623667`) precisely because regenerating the SRFs
-overwrites the live audit files. They record the state before the multi-segment
-SRF version fix: **219 mislabelled, all multi-fault; 72 correct, all
-single-fault** — the two sets coinciding exactly, which is the signature of
-`stitch_srf_files` hardcoding `version="1.0"`.
+When you push `cs-nshm2022-prep` or open a PR, flag the good news explicitly: the
+realisation provenance is now sound and the downstream artefacts are preserved,
+not invalidated.
 
-So the SRF regeneration has a free verification step built into it: re-run
-`scripts/audit_srf_versions.py` afterwards and expect **0 mislabelled, all 291
-`consistent=True`**. That converts "we merged Jake's fix" into "we demonstrated
-Jake's fix works". `docs/srf-version-mislabelling.md` is already marked
-*fixed upstream, pending verification* (`cybershake_nshm_2022@e62c8df`) and
-should be updated to *verified* once that audit comes back clean.
+---
 
-The SRF regeneration itself is a separate piece of work and is **not** in this
-plan. Note `scripts/fix_srf_version.py` must be **kept** regardless — the BSC and
-Dropbox copies are still mislabelled and still need repairing.
+## Deferred: separating the generic tooling for a pegasus PR
+
+Not part of this campaign, and captured here only so it is not lost. The generic tools this branch adds — `complete-realisations`, `generate-realisations-from-csv` (with `--seed-manifest`), `build-seed-manifest`, `verify-realisation-content`, `verify-realisation-provenance`, `compare-nshmdb`, and the area-weighted fault-selection fix `9f35c90` — are reusable and belong on `pegasus`. When upstreaming later:
+
+- Cherry-pick only the generic commits. Leave behind the campaign data and personal inputs: `felipe_scripts/` (Felipe's reference inputs — needs his sign-off), `annealed_minimal_ruptures.csv`, the campaign docs, and `copy_realisations_to_event_dirs.py` / `render_all.sh` if they are not promoted into the package.
+- The seed manifest and its README stay in `cybershake_nshm_2022` — they are campaign data, not tooling.
+
+This does not affect commit N or the campaign: the version stamp is derived from git state, not file inventory, and commit N is pinned and tagged regardless of any later separation.
 
 ---
 
@@ -2093,6 +3035,8 @@ Dropbox copies are still mislabelled and still need repairing.
 At completion:
 
 - 291 realisations, every one recording commit N with a stamp asserted clean before the run and verified after.
+- Content-identical to the previous set in every field but `log_trail`, proved on a pilot before the run and across all 291 after (`verify-realisation-content`) — so the SRFs and results already built from them stay valid.
+- The seed manifest and its README committed in `cybershake_nshm_2022`, making the set reproducible from recorded inputs.
 - `nshmdb.db` with a derivation that was tested, not assumed.
 - Every CI gate green — including the two this branch had broken.
 - A committed checker anyone can re-run to confirm all of the above.
