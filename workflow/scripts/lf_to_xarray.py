@@ -30,7 +30,6 @@ from enum import StrEnum, auto
 from pathlib import Path
 from typing import Annotated
 
-import dask
 import dask.array as da
 import h5py
 import numpy as np
@@ -185,7 +184,6 @@ def convert_sw4_station_recording(sw4_ffp: Path) -> xr.Dataset:
         kwargs=dict(time=dset["time"], component=dset["component"], sw4_ffp=sw4_ffp),
         template=_template_waveform(dset),
     )
-    breakpoint()
 
     waveform = (waveform * CMS).differentiate("time")
     dset["waveform"] = waveform
