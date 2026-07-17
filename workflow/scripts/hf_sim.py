@@ -278,10 +278,13 @@ def hf_simulate_chunk(
     hf_sim_path: Path,
     input_template_hf: str,
 ) -> xr.DataArray:
-    waveform = np.empty((3, len(station_chunk), len(time)))
-    stations = []
+    # Iterate in the block's own station order (groupby would re-sort,
+    # breaking the correspondence with the map_blocks template block).
+    station_names = station_chunk["station"].values
+    waveform = np.empty((3, len(station_names), len(time)), dtype=np.float32)
 
-    for i, (name, station) in enumerate(station_chunk.groupby("station")):
+    for i, name in enumerate(station_names):
+        station = station_chunk.sel(station=name)
         latitude = station["latitude"].item()
         longitude = station["longitude"].item()
         seed = station["seed"].item()
@@ -293,13 +296,12 @@ def hf_simulate_chunk(
             str(name),
             int(seed),
         )
-        stations.append(station)
         waveform[:, i] = hf_waveform.T
 
     return xr.DataArray(
         waveform,
         dims=["component", "station", "time"],
-        coords=dict(component=["x", "y", "z"], station=stations, time=time),
+        coords=dict(component=["x", "y", "z"], station=station_names, time=time),
     )
 
 
@@ -412,7 +414,12 @@ def run_hf(
     nt = int(
         np.float32(domain_parameters.duration) / np.float32(dt)
     )  # Match Fortran's single-precision for consistent nt calculation
-    waveform_template = da.empty((3, len(stations), nt), dtype=np.float32)
+    # Chunk over stations only, matching stations_input below: map_blocks
+    # requires one input block to map to exactly one template block.
+    chunk_size = max(1, TARGET_CHUNK_BYTES // (3 * nt * np.float32().itemsize))
+    waveform_template = da.empty(
+        (3, len(stations), nt), dtype=np.float32, chunks=(3, chunk_size, nt)
+    )
     time = hf_config.t_sec + np.arange(nt) * dt
     waveform_array_template = xr.DataArray(
         waveform_template,
@@ -431,14 +438,14 @@ def run_hf(
     stations["epicentre_distance"] = np.nan
 
     stations_input = stations.to_xarray()
-    chunk_size = max(1, TARGET_CHUNK_BYTES // (3 * nt * np.float32().itemsize))
     stations_input = stations_input.chunk({"station": chunk_size})
     waveforms = stations_input.map_blocks(
         hf_simulate_chunk,
         template=waveform_array_template,
         kwargs=dict(
+            time=time,
             hf_sim_path=hf_sim_path,
-            input_template=hf_input_template,
+            input_template_hf=hf_input_template,
         ),
     )
     waveforms = waveforms.rename("waveform")
