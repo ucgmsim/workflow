@@ -4,6 +4,8 @@ from unittest.mock import Mock, patch
 import geopandas as gpd
 import pytest
 import shapely
+from hypothesis import assume, given
+from hypothesis import strategies as st
 
 from workflow import utils
 
@@ -142,3 +144,41 @@ def test_dict_zip_identical_keys_different_order() -> None:
     result = utils.dict_zip(d1, d2, strict=True)
     assert result["a"] == (1, 10)
     assert result["b"] == (2, 20)
+
+
+@given(
+    value=st.text(min_size=0, max_size=64, alphabet=st.characters(codec="ascii")),
+    size=st.sampled_from([16, 32, 64]),
+)
+def test_stable_hash_bounds(value: str, size: int) -> None:
+    """Check that stable_hash output is always a valid ``size``-byte integer"""
+    assert (
+        -(1 << (size - 1))
+        <= utils.stable_hash(value, size=size // 8)
+        <= (1 << (size - 1)) - 1
+    )
+
+
+@given(
+    value=st.text(min_size=0, max_size=64, alphabet=st.characters(codec="ascii")),
+    size=st.sampled_from([16, 32, 64]),
+)
+def test_stable_hash_determinism(value: str, size: int) -> None:
+    """Check that stable_hash output is deterministic"""
+    hash_a = utils.stable_hash(value, size=size // 8)
+    hash_b = utils.stable_hash(value, size=size // 8)
+    assert hash_a == hash_b
+
+
+@given(
+    value_a=st.text(min_size=0, max_size=64, alphabet=st.characters(codec="ascii")),
+    value_b=st.text(min_size=1, max_size=64, alphabet=st.characters(codec="ascii")),
+    size=st.sampled_from([16, 32, 64]),
+)
+def test_stable_hash_collision(value_a: str, value_b: str, size: int) -> None:
+    """Check that stable_hash output lacks collision"""
+    # Combine value with
+    assume(value_a != value_b)
+    hash_a = utils.stable_hash(value_a, size=size // 8)
+    hash_b = utils.stable_hash(value_b, size=size // 8)
+    assert hash_a != hash_b

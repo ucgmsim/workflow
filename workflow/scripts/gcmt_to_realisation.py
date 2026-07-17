@@ -40,7 +40,7 @@ import typer
 
 from qcore import cli
 from qcore.uncertainties import distributions
-from source_modelling import community_fault_model, magnitude_scaling, sources
+from source_modelling import community_fault_model, magnitude_scaling, moment, sources
 from source_modelling.community_fault_model import NodalPlane
 from workflow import realisations
 from workflow.defaults import DefaultsVersion
@@ -161,38 +161,40 @@ def gcmt_to_realisation(
     ].set_index("PublicID")
 
     if gcmt_event_id in gcmt_solutions.index:
-        latitude = gcmt_solutions.at[gcmt_event_id, "Latitude"]
-        longitude = gcmt_solutions.at[gcmt_event_id, "Longitude"]
-        centroid_depth = gcmt_solutions.at[gcmt_event_id, "CD"]
-        magnitude = gcmt_solutions.at[gcmt_event_id, "Mw"]
-        strike1 = gcmt_solutions.at[gcmt_event_id, "strike1"]
-        dip1 = gcmt_solutions.at[gcmt_event_id, "dip1"]
-        rake1 = gcmt_solutions.at[gcmt_event_id, "rake1"]
-        strike2 = gcmt_solutions.at[gcmt_event_id, "strike2"]
-        dip2 = gcmt_solutions.at[gcmt_event_id, "dip2"]
-        rake2 = gcmt_solutions.at[gcmt_event_id, "rake2"]
-        assert isinstance(strike1, float | int)
-        assert isinstance(dip1, float | int)
-        assert isinstance(rake1, float | int)
-        assert isinstance(strike2, float | int)
-        assert isinstance(dip2, float | int)
-        assert isinstance(rake2, float | int)
+        row = gcmt_solutions.loc[gcmt_event_id]
+        latitude = float(row["Latitude"])  # type: ignore[invalid-argument-type]
+        longitude = float(gcmt_solutions.at[gcmt_event_id, "Longitude"])  # type: ignore[invalid-argument-type]
+        centroid_depth = float(gcmt_solutions.at[gcmt_event_id, "CD"])  # type: ignore[invalid-argument-type]
+        solution_moment = float(gcmt_solutions.at[gcmt_event_id, "Mo"])  # type: ignore[invalid-argument-type]
+
+        strike1 = float(gcmt_solutions.at[gcmt_event_id, "strike1"])  # type: ignore[invalid-argument-type]
+        dip1 = float(gcmt_solutions.at[gcmt_event_id, "dip1"])  # type: ignore[invalid-argument-type]
+        rake1 = float(gcmt_solutions.at[gcmt_event_id, "rake1"])  # type: ignore[invalid-argument-type]
+
+        strike2 = float(gcmt_solutions.at[gcmt_event_id, "strike2"])  # type: ignore[invalid-argument-type]
+        dip2 = float(gcmt_solutions.at[gcmt_event_id, "dip2"])  # type: ignore[invalid-argument-type]
+        rake2 = float(gcmt_solutions.at[gcmt_event_id, "rake2"])  # type: ignore[invalid-argument-type]
+
         nodal_plane_1 = NodalPlane(strike1, dip1, rake1)
-        nodal_plane_2 = NodalPlane(strike2, rake2, dip2)
+        nodal_plane_2 = NodalPlane(strike2, dip2, rake2)
     elif gcmt_event_id in automated_gcmt_solutions:
         solution = automated_gcmt_solutions[gcmt_event_id]
         latitude = solution["location"]["latitude"]
         longitude = solution["location"]["longitude"]
         centroid_depth = solution["location"]["depth"]
-        magnitude = solution["magnitude"]
+        solution_moment = float(solution["moment"])
         nodal_plane_1 = NodalPlane(**solution["nodalPlanes"][0])
         nodal_plane_2 = NodalPlane(**solution["nodalPlanes"][1])
+
     else:
         raise typer.BadParameter(
             f"GCMT event ID {gcmt_event_id} not found in either the published GCMT solutions or automated solutions.",
             param_hint="GCMT_EVENT_ID",
         )
 
+    magnitude = moment.moment_to_magnitude(
+        moment.dyne_cm_to_newton_metre(solution_moment), bold_m=True
+    )
     model = community_fault_model.get_community_fault_model()
 
     match nodal_plane:
@@ -205,40 +207,29 @@ def gcmt_to_realisation(
                 model, np.array([latitude, longitude]), nodal_plane_1, nodal_plane_2
             )
 
-    rake = selected_nodal_plane.rake
-
     # Calculate dip direction from strike (strike + 90 degrees for right-hand rule)
     dip_direction = (selected_nodal_plane.strike + 90) % 360
 
-    assert isinstance(magnitude, float)
     length, width = magnitude_scaling.magnitude_to_length_width(
-        scaling_relation, magnitude, rake
+        scaling_relation, magnitude, selected_nodal_plane.rake
     )
 
     centroid = np.array([latitude, longitude, centroid_depth])
 
     # Create source based on source_type parameter
     if source_type == SourceType.POINT_SOURCE:
-        length_km, width_km = magnitude_scaling.magnitude_to_length_width(
-            scaling_relation, magnitude, rake
-        )
-        length_m = length_km * 1000  # Convert km to meters
-        width_m = width_km * 1000  # Convert km to meters
-
-        assert isinstance(centroid_depth, float)
         source_geometry = sources.Point.from_lat_lon_depth(
             point_coordinates=np.array(
                 [latitude, longitude, centroid_depth * 1000]
             ),  # Convert km to meters
-            length_m=length_m,  # Use calculated length from area
-            width_m=width_m,  # Use calculated width from area
+            length_m=length * 1000,  # convert km to metres
+            width_m=width * 1000,  # convert km to metres
             strike=selected_nodal_plane.strike,
             dip=selected_nodal_plane.dip,
             dip_dir=dip_direction,
         )
 
     else:
-        # Create plane source (default behavior)
         plane = sources.Plane.from_centroid_strike_dip(
             centroid,
             selected_nodal_plane.dip,
@@ -285,8 +276,8 @@ def gcmt_to_realisation(
         hypocentre = np.array([1 / 2, 1 / 2])
 
     source_config = SourceConfig(source_geometries={gcmt_event_id: source_geometry})
-    magnitudes = Magnitudes(magnitudes={gcmt_event_id: float(magnitude)})
-    rakes = Rakes(rakes={gcmt_event_id: float(rake)})
+    magnitudes = Magnitudes(magnitudes={gcmt_event_id: magnitude})
+    rakes = Rakes(rakes={gcmt_event_id: float(selected_nodal_plane.rake)})
     rupture_config = RupturePropagationConfig(
         rupture_causality_tree={gcmt_event_id: None},
         jump_points={},

@@ -17,7 +17,8 @@ A directory consisting of [velocity model files](https://wiki.canterbury.ac.nz/d
 
 Environment
 -----------
-Can be run in the Cybershake container. Can also be run from your own computer using the `generate-velocity-model` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you are executing on your own computer you also need to specify the `NZVM` path (`--velocity-model-bin-path`) and the work directory (`--work-directory`).
+Can be run in the Cybershake container. Can also be run from your own computer using the `generate-velocity-model` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+If you are executing on your own computer you also need to specify the `NZVM` path (`--velocity-model-bin-path`) and the work directory (`--work-directory`).
 
 Usage
 -----
@@ -43,7 +44,6 @@ import typer
 from qcore import cli
 from velocity_modelling.constants import WriteFormat
 from velocity_modelling.scripts import generate_3d_model
-from velocity_modelling.tools import convert_hdf5_to_emod3d
 from workflow import log_utils, realisations, utils
 from workflow.realisations import (
     DomainParameters,
@@ -134,7 +134,6 @@ def run_nzvm(
 def run_nzcvm(
     nzvm_config_ffp: Path,
     work_directory: Path,
-    velocity_model_intermediate_path: Path,
     num_threads: int | None,
 ) -> None:
     """Generate velocity model with New Zealand Community Velocity Model.
@@ -145,8 +144,6 @@ def run_nzcvm(
         Path to NZVM config to generate from
     work_directory : Path
         Working directory to output HDF5 to
-    velocity_model_intermediate_path : Path
-        Output directory for EMOD3D files
     num_threads : int | None
         Number of threads to use (default is inferred by
         `utils.get_available_cores`)
@@ -159,10 +156,6 @@ def run_nzcvm(
         output_format=WriteFormat.HDF5.name,
         np_workers=num_threads,
     )
-    hdf5_output_file = work_directory / "velocity_model.h5"
-    convert_hdf5_to_emod3d.convert_hdf5_to_emod3d(
-        hdf5_output_file, velocity_model_intermediate_path
-    )
 
 
 @cli.from_docstring(app)
@@ -172,8 +165,8 @@ def generate_velocity_model(
         Path, typer.Argument(readable=True, exists=True, dir_okay=False)
     ],
     velocity_model_output: Annotated[
-        Path, typer.Argument(writable=True, file_okay=False, exists=False)
-    ],
+        Optional[Path], typer.Argument(writable=True, file_okay=False)
+    ] = None,
     velocity_model_bin_path: Annotated[
         Path | None, typer.Option(exists=True, readable=True)
     ] = None,
@@ -194,14 +187,20 @@ def generate_velocity_model(
     ----------
     realisation_ffp : Path
         Path to the JSON file containing the seismic realisation parameters.
-    velocity_model_output : Path
+    velocity_model_output : Path, optional
         Path to the directory where the generated velocity model will be saved.
+        Required when using the NZVM binary (``--no-use-nzcvm``). Not used
+        when ``--use-nzcvm`` is set; EMOD3D conversion is handled by the
+        separate ``convert-vm-hdf5-to-emod3d`` command in that case.
     velocity_model_bin_path : Path, optional
         Path to the NZVM binary.
     work_directory : Path, optional
         Directory for intermediate output files.
     use_nzcvm : bool, optional
-        If True, use the NZCVM Python package instead of the NZVM binary. Default is False.
+        If True, use the NZCVM Python package instead of the NZVM binary.
+        The velocity model is written as HDF5 to ``work_directory``; use
+        ``convert-vm-hdf5-to-emod3d`` afterwards to produce EMOD3D files.
+        Default is False.
     num_threads : int or None, optional
         Number of threads to use for velocity model generation. Use None for inferred thread count.
 
@@ -235,12 +234,13 @@ def generate_velocity_model(
         run_nzcvm(
             nzvm_config_path,
             work_directory,
-            velocity_model_intermediate_path,
             num_threads,
         )
-        shutil.rmtree(velocity_model_output, ignore_errors=True)
-        shutil.move(velocity_model_intermediate_path, velocity_model_output)
     elif velocity_model_bin_path:
+        if velocity_model_output is None:
+            raise typer.BadParameter(
+                "VELOCITY_MODEL_OUTPUT is required when using the NZVM binary."
+            )
         run_nzvm(velocity_model_bin_path, nzvm_config_path, num_threads)
         shutil.rmtree(velocity_model_output, ignore_errors=True)
         shutil.move(

@@ -45,8 +45,8 @@ from scipy.cluster.hierarchy import DisjointSet
 
 from nshmdb import nshmdb
 from qcore import cli
-from qcore.uncertainties import distributions, mag_scaling
-from source_modelling import moment, rupture_propagation, sources
+from qcore.uncertainties import distributions
+from source_modelling import magnitude_scaling, moment, rupture_propagation, sources
 from source_modelling.sources import Fault
 from workflow import realisations
 from workflow.defaults import DefaultsVersion
@@ -64,39 +64,13 @@ from workflow.realisations import (
 app = typer.Typer()
 
 
-def a_to_mw_leonard(area: float, rake: float) -> float:
-    """
-    Convert fault area and rake to moment magnitude using the Leonard scaling relation.
-
-    Parameters
-    ----------
-    area : float
-        The area of the fault in square kilometres.
-    rake : float
-        The rake angle of the fault in degrees.
-
-    Returns
-    -------
-    float
-        The estimated moment magnitude of the fault.
-
-    References
-    ----------
-    Leonard, M. (2010). Earthquake fault scaling: Self-consistent
-    relating of rupture length, width, average displacement, and
-    moment release. Bulletin of the Seismological Society of America,
-    100(5A), 1971-1988.
-    """
-    return mag_scaling.a_to_mw_leonard(area, 4, 3.99, rake)
-
-
 def default_magnitude_estimation(
     faults: dict[str, Fault],
     # NOTE: this must be in quotes because the runtime class DisjointSet is
     # not generic, just the stub implementation.
     components: "DisjointSet[str]",
     avg_rake: float,
-) -> dict[str, float]:
+) -> dict[str, magnitude_scaling.BoldM]:
     """Estimate the magnitudes for a set of faults based on their areas and average rake.
 
     Parameters
@@ -113,11 +87,14 @@ def default_magnitude_estimation(
     Returns
     -------
     dict
-        A dictionary where the keys are fault names and the values are the estimated magnitudes for each fault.
+        A dictionary where the keys are fault names and the values are the
+        estimated magnitudes (in the `BoldM` convention) for each fault.
     """
     total_area = sum(fault.area() for fault in faults.values())
-    estimated_mw = a_to_mw_leonard(total_area, avg_rake)
-    estimated_moment = mag_scaling.mag2mom(estimated_mw)
+    estimated_magnitude = magnitude_scaling.area_to_magnitude(
+        magnitude_scaling.ScalingRelation.LEONARD2014, total_area, avg_rake
+    )
+    estimated_moment = moment.magnitude_to_moment(estimated_magnitude, bold_m=True)
     roots = {components[fault_name] for fault_name in faults}
     component_areas = {
         root: sum(faults[name].area() for name in components.subset(root))
@@ -139,7 +116,7 @@ def default_magnitude_estimation(
         segment_moments[fault_name] = (fault.area() / component_area) * component_moment
 
     return {
-        fault_name: mag_scaling.mom2mag(fault_moment)
+        fault_name: moment.moment_to_magnitude(fault_moment, bold_m=True)
         for fault_name, fault_moment in segment_moments.items()
     }
 
@@ -355,7 +332,9 @@ def generate_realisation(
             ]
         )
     else:
-        mfds_rates = db.most_likely_fault(rupture_id, magnitudes)
+        # The ty ignore below can be removed once NSHM2022DB merges the change to
+        # accept dict[str, BoldM] in most_likely_fault (branch support-BoldM-in-workflow).
+        mfds_rates = db.most_likely_fault(rupture_id, magnitudes)  # ty: ignore[invalid-argument-type]
         mfds_probabilities = np.array(list(mfds_rates.values()))
         if np.allclose(mfds_probabilities, 0):
             mfds_probabilities = np.ones_like(mfds_probabilities)

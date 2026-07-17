@@ -64,6 +64,7 @@ def test_build_hf_input_serialisation() -> None:
         shallow_transition_range=1,
         deep_depth=2.0,
         deep_transition_range=1,
+        rvfrac_slip_sig=None
     )
     # Rather than create DomainParameters with a bounding box, we simplify with a mock object
     domain = SimpleNamespace(duration=100.0)
@@ -87,22 +88,15 @@ def test_build_hf_input_serialisation() -> None:
     assert lines[7] == "{seed}"  # seed placeholder
     assert lines[9] == "100.0 0.005 20.0 0.045 0.6"  # Domain and resolution parameters
     assert lines[10] == "0.8 0.7 0.9 2.5 0.0"  # rupture velocity + czero,alpha
-    assert lines[11] == "0.0 2.0 1.0 3.0"  # shallow depth, deep depth
-    assert lines[12] == "-1 1.2"  # mom (None -> -1) and rupv
-    assert lines[13] == str(stoch_ffp)  # Stoch file path
-    assert lines[16] == "0 0.1 0.1 0.1 0.1 1"  # Sigs and ic_flag (True -> 1)
-    assert lines[21] == "-1 -1 -1"  # Optional stress parameters
+    assert lines[11] == "-1 1.2"  # mom (None -> -1) and rupv
+    assert lines[12] == str(stoch_ffp)  # Stoch file path
+    assert lines[15] == "0 0.1 0.1 0.1 0.1 1"  # Sigs and ic_flag (True -> 1)
+    assert lines[20] == "-1 -1 -1"  # Optional stress parameters
 
 
 STATION_STRATEGY = st.text(
     min_size=0, max_size=8, alphabet=st.characters(codec="ascii")
 )
-
-
-@given(station=STATION_STRATEGY)
-def test_stable_hash(station: str) -> None:
-    # Check that stable_hash output is always a valid 32-bit integer
-    assert -(1 << 31) <= hf_sim.stable_hash(station) <= (1 << 31) - 1
 
 
 def test_station_seeds() -> None:

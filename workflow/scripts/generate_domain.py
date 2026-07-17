@@ -38,7 +38,7 @@ import shapely
 import typer
 
 from qcore import cli, geo
-from source_modelling import moment, sources
+from source_modelling import magnitude_scaling, moment, sources
 from velocity_modelling import bounding_box
 from velocity_modelling.bounding_box import BoundingBox
 from workflow import log_utils, realisations, utils
@@ -129,13 +129,13 @@ def boundary_distance(
     return float(shapely.hausdorff_distance(source_geometry, bounding_box_geometry))
 
 
-def total_magnitude(magnitudes: Iterable[float]) -> float:
+def total_magnitude(magnitudes: Iterable[magnitude_scaling.BoldM]) -> float:
     """
     Compute the total magnitude from an array of individual magnitudes.
 
     Parameters
     ----------
-    magnitudes : Iterable[float]
+    magnitudes : Iterable[magnitude_scaling.BoldM]
         An array of magnitudes.
 
     Returns
@@ -144,7 +144,7 @@ def total_magnitude(magnitudes: Iterable[float]) -> float:
         The total magnitude, computed from the summed moment of the input magnitudes.
     """
     total_moment = sum(
-        moment.magnitude_to_moment(magnitude) for magnitude in magnitudes
+        moment.magnitude_to_moment(magnitude, bold_m=True) for magnitude in magnitudes
     )
     return moment.moment_to_magnitude(total_moment)
 
@@ -228,7 +228,7 @@ def average_rake(rakes: Rakes, magnitudes: Magnitudes) -> float:
         The moment-weighted average rake.
     """
     moments = {
-        k: moment.magnitude_to_moment(magnitude)
+        k: moment.magnitude_to_moment(magnitude, bold_m=True)
         for k, magnitude in magnitudes.magnitudes.items()
     }
     max_moment = max(moments.values())

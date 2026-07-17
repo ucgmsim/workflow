@@ -43,6 +43,7 @@ import re
 import shutil
 import subprocess
 from collections.abc import Iterable
+from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
@@ -338,8 +339,17 @@ def stitch_srf_files(
         for fault_srf in srf_file_map.values()
     )
     assert combined_slipt_array is not None
+
+    versions = {srf_file.version for srf_file in srf_file_map.values()}
+    if len(versions) != 1:
+        raise ValueError(
+            f"SRF versions must all be the same: found versions {','.join(map(str, versions))}"
+        )
+
+    version = next(iter(versions))
+
     combined_srf = srf.SrfFile(
-        version="1.0",
+        version=version,
         header=pd.concat([fault_srf.header for fault_srf in srf_file_map.values()]),
         points=pd.concat([fault_srf.points for fault_srf in srf_file_map.values()]),
         slipt1_array=combined_slipt_array,
@@ -454,15 +464,9 @@ def _build_genslip_command(
     """
     cmd = [
         str(genslip_path),
-        "plane_header=1",
-        "srf_version=1.0",
-        "read_erf=0",
-        "write_srf=1",
-        "read_gsf=1",
-        "write_gsf=0",
-        "ns=1",
-        "nh=1",
         f"infile={gsf_file_path}",
+        "nh=1",
+        "ns=1",
         f"nstk={nx}",
         f"ndip={ny}",
         f"seed={seed}",
@@ -479,6 +483,10 @@ def _build_genslip_command(
         f"deep_vrup_dep={rupture_velocity.deep_depth}",
         f"deep_vrup_deprange={rupture_velocity.deep_transition_range}",
     ]
+
+    if rupture_velocity.rvfrac_slip_sig is not None:
+        cmd.append(f"rvfrac_slip_sig={rupture_velocity.rvfrac_slip_sig}")
+
     skipped_fields = {"point_source_params"}
     for field in dataclasses.fields(srf_config):
         key = field.name
@@ -490,6 +498,8 @@ def _build_genslip_command(
             serialised_value = ",".join([str(v) for v in value])
         elif isinstance(value, bool):
             serialised_value = "1" if value else "0"
+        elif isinstance(value, Enum):
+            serialised_value = str(value.value)
         elif dataclasses.is_dataclass(value):
             continue
         else:
@@ -546,7 +556,10 @@ def generate_fault_srf(
         gsf_file_path=gsf_file_path,
         nx=nx,
         ny=ny,
-        seed=environment.seeds.genslip_seed,
+        # NOTE: This stable hash trick is also used in hf-sim, and is
+        # designed to give order invariant stable hashes for segments
+        # based on their names.
+        seed=environment.seeds.genslip_seed ^ utils.stable_hash(name),
         velocity_model_path=environment.velocity_model_path,
         shypo=genslip_hypocentre_coords[0],
         dhypo=genslip_hypocentre_coords[1],
@@ -614,6 +627,54 @@ def generate_fault_srfs_multi(
             )
 
 
+def rewrite_point_source_srf_as_v2(
+    srf_ffp: Path, velocity_model_df: pd.DataFrame
+) -> None:
+    """Rewrite a version 1.0 SRF in place as version 2.0 with per-point vs and den.
+
+    Parameters
+    ----------
+    srf_ffp : Path
+        Path to the version 1.0 SRF written by ``generic_slip2srf``; overwritten as v2.0.
+    velocity_model_df : pd.DataFrame
+        The 1D velocity model containing columns:
+            ``depth_km``: layer top depths (km)
+            ``Vs``: layer shear-wave velocity (km/s)
+            ``rho``: layer density (g/cm^3)
+
+    Raises
+    ------
+    ValueError
+        If the SRF at ``srf_ffp`` is not version 1.0.
+    """
+    srf_file = srf.read_srf(srf_ffp)
+    if srf_file.version != "1.0":
+        raise ValueError(
+            f"Expected a version 1.0 SRF to rewrite as 2.0, but {srf_ffp} is version "
+            f"{srf_file.version}."
+        )
+    layer_idx = moment.velocity_model_layer_index(
+        velocity_model_df, srf_file.points["dep"].to_numpy()
+    )
+
+    dt_loc = srf_file.points.columns.get_loc("dt")
+    # A type guard for ty: get_loc is typed int | slice | ndarray, but a
+    # unique column like "dt" always resolves to a single int position.
+    assert isinstance(dt_loc, int)
+    srf_file.points.insert(
+        dt_loc + 1,
+        "vs",
+        velocity_model_df["Vs"].to_numpy()[layer_idx] * 1e5,
+    )  # *1e5 to convert km/s to cm/s
+    srf_file.points.insert(
+        dt_loc + 2,
+        "den",
+        velocity_model_df["rho"].to_numpy()[layer_idx],
+    )
+    srf_file.version = "2.0"
+    srf.write_srf(srf_ffp, srf_file)
+
+
 def generate_point_source_srf(
     name: str,
     params: SRFRealisationContext,
@@ -634,6 +695,16 @@ def generate_point_source_srf(
     -------
     None
         This function does not return a value; it writes the SRF file to disk.
+
+    Raises
+    ------
+    ValueError
+        If the realisation provides no point-source parameters
+        (``srf_config.point_source_params`` is ``None``).
+    subprocess.CalledProcessError
+        If the ``generic_slip2srf`` command exits with a non-zero status.
+    NotImplementedError
+        If ``srf_config.srf_version`` is neither ``"1.0"`` nor ``"2.0"``.
     """
 
     if params.srf_config.point_source_params is None:
@@ -647,10 +718,12 @@ def generate_point_source_srf(
 
     # Get magnitude and convert to seismic moment
     magnitude = params.magnitudes.magnitudes[name]
-    moment_newton_metre = moment.magnitude_to_moment(magnitude)
+    moment_newton_metre = moment.magnitude_to_moment(magnitude, bold_m=True)
 
-    velocity_model_df = params.velocity_model_1d.model
-    velocity_model_df["depth_km"] = velocity_model_df["thickness"].cumsum()
+    velocity_model_df = params.velocity_model_1d.model.copy()
+    velocity_model_df["depth_km"] = (
+        velocity_model_df["thickness"].cumsum() - velocity_model_df["thickness"]
+    )
 
     # Get the source depth
     # divide by 1000 to convert depth from meters to kilometers
@@ -708,6 +781,17 @@ def generate_point_source_srf(
         )
         raise
     logger.info("command completed", stderr=proc.stderr.decode("utf-8"))
+
+    if params.srf_config.srf_version == "2.0":
+        rewrite_point_source_srf_as_v2(
+            environment.srf_directory / (normalise_name(name) + ".srf"),
+            velocity_model_df,
+        )
+    elif params.srf_config.srf_version != "1.0":
+        raise NotImplementedError(
+            f"Point sources support SRF versions 1.0 and 2.0, not "
+            f"{params.srf_config.srf_version!r}"
+        )
 
 
 @cli.from_docstring(app)

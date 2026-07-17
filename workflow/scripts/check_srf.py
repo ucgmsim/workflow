@@ -36,8 +36,7 @@ import numpy as np
 import typer
 
 from qcore import cli
-from qcore.uncertainties import mag_scaling
-from source_modelling import srf
+from source_modelling import moment, srf
 from workflow import log_utils, realisations
 from workflow.realisations import (
     Magnitudes,
@@ -82,12 +81,13 @@ def check_srf(
         np.searchsorted(velocity_model["depth"], srf_file.points["dep"]),
     )
     mu = velocity_model["mu"].iloc[indices].values
-    srf_magnitude = mag_scaling.mom2mag(
+    srf_magnitude = moment.moment_to_magnitude(
         (
             np.array(srf_file.points["area"].values)
             * np.array(srf_file.points["slip"].values)
             * mu
-        ).sum()
+        ).sum(),
+        bold_m=True,
     )
     logger = log_utils.get_logger("__name__")
 
@@ -130,8 +130,11 @@ def check_srf(
 
     try:
         magnitudes = Magnitudes.read_from_realisation(realisation_ffp)
-        magnitude = mag_scaling.mom2mag(
-            sum(mag_scaling.mag2mom(mag) for mag in magnitudes.magnitudes.values())
+        magnitude = moment.moment_to_magnitude(
+            sum(
+                moment.magnitude_to_moment(mag, bold_m=True)
+                for mag in magnitudes.magnitudes.values()
+            )
         )
         if not np.isclose(srf_magnitude, magnitude, atol=5e-3):
             logger.error(
