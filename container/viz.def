@@ -1,0 +1,108 @@
+Bootstrap: docker
+From: earthquakesuc/workflow-bootstrap:latest
+
+# Visualisation container (figures + animations): plot-srf, plot-ts, etc.
+# Built on top of the simulation base image so it reuses the whole verified
+# scientific stack (pygmt, pygmt_helper, cartopy, matplotlib, source_modelling
+# 2026.7.2, workflow, qcore) without pulling any of it in again. Deliberately
+# does NOT include EMOD3D — this image only makes plots, it does not simulate.
+
+%post
+    set -e
+
+    # System libraries: GMT (libgmt for pygmt) + coastline/border data, the
+    # ffmpeg binary (matplotlib FFMpegWriter + plot_ts's shutil.which("ffmpeg")),
+    # and ghostscript (pygmt's psconvert shells out to `gs` to rasterise figures
+    # to PNG/PDF; the gmt package does NOT pull it in, so savefig fails without it).
+    apt-get update && apt-get install -y \
+        gmt gmt-gshhg gmt-dcw ffmpeg ghostscript \
+     && rm -rf /var/lib/apt/lists/*
+
+    # The `gmt` package ships only the versioned libgmt.so.6 (the unversioned
+    # symlink lives in libgmt-dev, which we don't want at runtime). pygmt dlopens
+    # the *unversioned* "libgmt.so" and GMT_LIBRARY_PATH does not change that, so
+    # create the symlink ourselves. Must happen before anything imports pygmt.
+    ln -sf "$(find /usr/lib -maxdepth 2 -name 'libgmt.so.*' | sort | head -1)" \
+        /usr/lib/x86_64-linux-gnu/libgmt.so
+    ldconfig
+
+    # visualisation's requirements.txt cannot resolve cleanly: it lists
+    # `qcore @ git` (that repo's real package name is qcore-utils, already
+    # present) and `source_modelling @ git` with no floor (would clobber the
+    # pinned 2026.7.2 with a git-HEAD build). So install --no-deps against the
+    # base image's stack, adding only the one genuinely-missing runtime dep
+    # (ffmpeg-python, imported by visualisation/plot_ts.py).
+    /sw/venv/bin/pip install --no-cache-dir ffmpeg-python
+    /sw/venv/bin/pip install --no-cache-dir --no-deps \
+        "git+https://github.com/ucgmsim/visualisation.git"
+
+    # Bake pygmt_helper's map/topo data into the image so plots work with no
+    # internet on BSC compute nodes. pygmt_helper caches via
+    # pooch.os_cache("pygmt_helper"), which honours XDG_CACHE_HOME -> we fix the
+    # cache to an in-image path and export the same path in %environment, so the
+    # baked data is found at runtime regardless of $HOME (works under `exec -c`).
+    export XDG_CACHE_HOME=/opt/cache
+    mkdir -p /opt/cache
+    python - <<'PY'
+from pygmt_helper import plotting
+data = plotting.GMT_DATA
+# Korea grids are irrelevant to NZ work; skip them to save ~100 MB.
+skip = {
+    "data/Topo/srtm_KR.grd", "data/Topo/srtm_KR_i5.grd",
+    "data/Paths/water/KR.gmt", "data/Paths/highway/KR.gmt",
+    "data/Paths/road/KR.gmt",
+}
+ok = failed = 0
+for key in list(data.registry):
+    if key in skip:
+        continue
+    try:
+        data.fetch(key)
+        ok += 1
+    except Exception as exc:  # noqa: BLE001 - keep going, report at end
+        failed += 1
+        print(f"  SKIP {key}: {exc}")
+print(f"pygmt_helper data baked: {ok} fetched, {failed} failed")
+PY
+
+    # Pre-build matplotlib's font cache in the same dir so the read-only runtime
+    # image does not try to write it on first plot.
+    python -c "import matplotlib.pyplot" || true
+
+    chmod -R a+rX /sw /opt/cache
+
+%environment
+    export PATH="/sw/venv/bin:/sw/cargo/bin:/sw/python/bin:$PATH"
+    export VIRTUAL_ENV="/sw/venv"
+    export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
+    # XDG_CACHE_HOME points pygmt_helper's pooch at the baked-in grids (read-only
+    # reads are fine). But the image filesystem is read-only at runtime, so tools
+    # that WRITE a cache must be redirected to a writable dir or they fail on
+    # import: source_modelling uses numba @njit(cache=True) (writes JIT cache),
+    # and matplotlib writes a font cache. Point both at per-user /tmp dirs
+    # (evaluated at container start; honour any value the caller already set).
+    export XDG_CACHE_HOME=/opt/cache
+    export NUMBA_CACHE_DIR="${NUMBA_CACHE_DIR:-/tmp/numba-cache-$(id -u)}"
+    export MPLCONFIGDIR="${MPLCONFIGDIR:-/tmp/mpl-cache-$(id -u)}"
+
+%test
+    # %test runs in the read-only built image. Anything that starts a GMT session
+    # (import pygmt is fine, but the visualisation imports, `plot-* --help`,
+    # show_versions, and savefig all begin a session) tries to create a session
+    # dir and fails with "Read-only file system" here, even though it works fine
+    # at runtime under `apptainer exec` (writable /tmp + $HOME). So this gate is
+    # deliberately session-free; the authoritative figure/animation render is run
+    # post-build with `apptainer exec` — see viz_container_build.md.
+    set -e
+    python -c "import ctypes; ctypes.CDLL('libgmt.so')"   # libgmt loads (symlink OK), no session
+    python -c "import ffmpeg"                              # ffmpeg-python importable
+    command -v gs                                          # ghostscript for pygmt psconvert
+    command -v ffmpeg
+    test -x /sw/venv/bin/plot-srf                          # visualisation entry points installed
+    test -x /sw/venv/bin/plot-ts
+    /sw/venv/bin/pip show visualisation >/dev/null
+    # source_modelling must still be the pinned release, not a git-HEAD clobber:
+    python -c "import importlib.metadata as m; v=m.version('source_modelling'); assert v=='2026.7.2', v"
+    for g in srtm_NZ srtm_NZ_i5 srtm_NZ_1s srtm_NZ_1s_i5; do \
+        test -f /opt/cache/pygmt_helper/data/Topo/$g.grd; done
+    echo "viz.sif build-time checks passed (render verified post-build via apptainer exec)"
