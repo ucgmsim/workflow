@@ -58,26 +58,49 @@ def _read_station_batch(
 
     Parameters
     ----------
+    stations : xr.DataArray
+        Names of the station groups to read.
     sw4_ffp : Path
         Path to the SW4 HDF5 station recording file.
-    station_names : list[str]
-        Names of the station groups to read.
+    time : xr.DataArray
+        Time coordinates of the recording.
+    component : xr.DataArray
+        Component coordinates of the recording.
 
     Returns
     -------
-    np.ndarray
-        Waveforms in cm/s with shape (3, len(station_names), npts),
-        components ordered x, y, z.
+    xr.DataArray
+        Velocity waveforms in m/s with shape (3, len(stations), npts).
+        Components are ordered to match the EMOD3D LF convention:
+        x = north, y = east, z = down.
+
+    Notes
+    -----
+    The datasets carry SW4's displacement-mode names (EW/NS/UP), but for
+    SRF rupture sources the time function SW4 receives is the slip *rate*,
+    so the nominal displacement output is physically velocity (see the
+    note under the rupture command in the SW4 User's Guide).
+
+    Raises
+    ------
+    RuntimeError
+        If a station group lacks the EW/NS/UP datasets.
     """
     waveforms = np.empty((len(component), len(stations), len(time)), dtype=np.float32)
     with h5py.File(sw4_ffp, "r") as handle:
         for i, station_name in enumerate(stations):
             group = handle[station_name.item()]
-            x_key = "EW" if "EW" in group else "X"
-            y_key = "NS" if x_key == "EW" else "Y"
-            waveforms[0, i] = group[x_key][:]
-            waveforms[1, i] = group[y_key][:]
-            waveforms[2, i] = group["UP"][:]
+            if "NS" not in group:
+                raise RuntimeError(
+                    f"Station {station_name.item()} has no EW/NS/UP datasets."
+                    " The SW4 rechdf5 command must output geographic (NSEW)"
+                    " displacement-mode components (grid X/Y output is not"
+                    " supported: it would need de-rotation by the grid azimuth)."
+                )
+            waveforms[0, i] = group["NS"][:]
+            waveforms[1, i] = group["EW"][:]
+            # SW4 vertical is positive up; EMOD3D convention is positive down.
+            waveforms[2, i] = -group["UP"][:]
 
     return xr.DataArray(
         waveforms,
@@ -193,6 +216,8 @@ def convert_sw4_station_recording(sw4_ffp: Path) -> xr.Dataset:
     waveform = (waveform * CMS).differentiate("time")
     dset["waveform"] = waveform
     dset.attrs["units"] = "cm/s^2"
+    # SW4 station recordings begin at simulation time zero.
+    dset.attrs["start_sec"] = 0.0
 
     return dset
 
