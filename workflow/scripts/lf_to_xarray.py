@@ -135,8 +135,8 @@ def read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
     time = np.arange(global_npts) * dt
     return xr.Dataset(
         dict(
-            latitude=("station", latitudes),
-            longitude=("station", longitudes),
+            lat=("station", latitudes),
+            lon=("station", longitudes),
         ),
         coords=dict(station=stations, component=["x", "y", "z"], time=time),
         attrs=dict(dt=dt, nt=global_npts),
