@@ -432,9 +432,7 @@ def run_hf(
 
     stations_input = stations.to_xarray()
     chunk_size = max(1, TARGET_CHUNK_BYTES // (3 * nt * np.float32().itemsize))
-    stations_input = stations_input.chunk(
-        {"station": chunk_size, "component": -1, "time": -1}
-    )
+    stations_input = stations_input.chunk({"station": chunk_size})
     waveforms = stations_input.map_blocks(
         hf_simulate_chunk,
         template=waveform_array_template,
