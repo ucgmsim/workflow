@@ -249,7 +249,7 @@ def calculate_instensity_measures(
 
     hyp = (
         coordinates.distance_between_wgs_depth_coordinates(
-            np.stack((station_locations, np.zeros_like(latitude)), axis=1),
+            np.c_[station_locations, np.zeros_like(latitude)],
             hypocentre,
         )
         / 1000
