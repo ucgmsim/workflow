@@ -104,7 +104,7 @@ def _trace_polygon(source_geometries: dict[str, IsSource]) -> shapely.Geometry:
         geometry = fault.trace_geometry
         geometry = shapely.transform(
             geometry, lambda c: coordinates.nztm_to_wgs_depth(c)[:, ::-1]
-        )
+        )  # ty: ignore[no-matching-overload]
 
         geometries.append(geometry)
 
