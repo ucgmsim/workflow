@@ -286,7 +286,8 @@ def calculate_instensity_measures(
             ),
             "domain": shapely.to_wkt(
                 shapely.transform(
-                    domain_parameters.domain.polygon, lambda c: c[:, ::-1]
+                    domain_parameters.domain.polygon,
+                    lambda c: coordinates.nztm_to_wgs_depth(c)[:, ::-1],
                 )
             ),
             "magnitude": magnitudes.total_magnitude,
