@@ -35,7 +35,6 @@ from typing import Annotated, Optional
 
 import numpy as np
 import pandas as pd
-import requests
 import typer
 
 from qcore import cli
@@ -113,7 +112,15 @@ def gcmt_to_realisation(
     nodal_plane: Annotated[
         NodalPlaneChoice, typer.Option()
     ] = NodalPlaneChoice.MOST_LIKELY,
-    solution_origin: Path | None = None,
+    solution_origin: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+        ),
+    ] = None,
 ) -> None:
     """Generate a realisation from a GCMT solution.
 
@@ -145,6 +152,9 @@ def gcmt_to_realisation(
         The nodal plane to use. Most likely will use the community fault model to
         choose a nodal plane that agrees with the tectonic fabric.
         Defaults to `MOST_LIKELY`.
+    solution_origin: Path | None
+        If provided, use a supplied CSV of CMT solutions to lookup geometry.
+        Must follow the format of the Geonet CMT solutions file.
     """
     if (shypo is not None or dhypo is not None) and (
         lat_hypo is not None or lon_hypo is not None
