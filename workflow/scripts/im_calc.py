@@ -269,6 +269,8 @@ def calculate_instensity_measures(
             "rjb": ("station", rjb),
             "hyp": ("station", hyp),
             "epi": ("station", epi),
+            "longitude": ("station", station_locations[:, 1]),
+            "latitude": ("station", station_locations[:, 0]),
         },
         attrs={
             "hypo_lat": hypocentre[0],
