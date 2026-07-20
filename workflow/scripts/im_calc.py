@@ -74,6 +74,7 @@ def _source_polygon(source_geometries: dict[str, IsSource]) -> shapely.Geometry:
     geometries = []
     for fault in source_geometries.values():
         geometry = fault.geometry
+
         geometry = shapely.transform(
             geometry, lambda c: coordinates.nztm_to_wgs_depth(c)[:, ::-1]
         )
@@ -256,25 +257,14 @@ def calculate_instensity_measures(
         )
         / 1000
     )
-    all_faults_have_rx_ry = all(
-        isinstance(source, sources.Plane | sources.Fault)
-        for source in source_geometries.source_geometries.values()
-    )
-    if all_faults_have_rx_ry:
-        rx, ry = sources.multi_fault_rx_ry_distance(
-            list(source_geometries.source_geometries.values()),  # ty: ignore[invalid-argument-type]
-            station_locations,
-        )
-
+    stations = broadband.station.values
     dataset = xr.Dataset(
         coords={
-            "station": ("station", broadband.station.values),
+            "station": ("station", stations),
             "component": (
                 "component",
                 ["000", "090", "ver", "geom", "rotd0", "rotd50", "rotd100", "eas"],
             ),
-            "rx": ("station", rx),
-            "ry": ("station", ry),
             "rrup": ("station", rrup),
             "rjb": ("station", rjb),
             "hyp": ("station", hyp),
@@ -291,13 +281,25 @@ def calculate_instensity_measures(
             ),
             "domain": shapely.to_wkt(
                 shapely.transform(
-                    domain_parameters.domain.polygon, lambda c: c[:, ::-1]
+                    domain_parameters.domain.polygon,
+                    lambda c: coordinates.nztm_to_wgs_depth(c)[:, ::-1],
                 )
             ),
             "magnitude": magnitudes.total_magnitude,
             "event": metadata.name,
         },
     )
+    all_faults_have_rx_ry = all(
+        isinstance(source, sources.Plane | sources.Fault)
+        for source in source_geometries.source_geometries.values()
+    )
+    if all_faults_have_rx_ry:
+        rx, ry = sources.multi_fault_rx_ry_distance(
+            list(source_geometries.source_geometries.values()),  # ty: ignore[invalid-argument-type]
+            station_locations,
+        )
+        dataset["rx"] = xr.DataArray(rx, dims="station", coords=dict(station=stations))
+        dataset["ry"] = xr.DataArray(ry, dims="station", coords=dict(station=stations))
 
     n_stations = broadband.sizes["station"]
     # Process stations in chunks so only one chunk of waveforms is held

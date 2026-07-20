@@ -715,8 +715,7 @@ class Magnitudes(RealisationConfiguration):
 
     @property
     def total_magnitude(self) -> BoldM:
-        """float: total magnitude of realisation"""
-        return moment.moment_to_magnitude(self.total_moment, bold_m=True)
+        """BoldM: total magnitude of realisation"""
 
 
 @dataclasses.dataclass
