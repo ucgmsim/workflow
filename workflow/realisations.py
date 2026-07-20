@@ -1224,6 +1224,17 @@ class IntensityMeasureCalculationParameters(RealisationConfiguration):
 
 
 @dataclasses.dataclass
+class EmpiricalParameters:
+    _config_key: ClassVar[str] = "empirical"
+    _schema: ClassVar[Schema] = schemas.EMPIRICAL_PARAMETERS
+
+    # Types here are not explicitly declared so we do not pay the openquake tax
+    # importing this module.
+    tect_type: Any
+    models: list[Any]
+
+
+@dataclasses.dataclass
 class LogEntry:
     """Log entry for workflow utilities."""
 
