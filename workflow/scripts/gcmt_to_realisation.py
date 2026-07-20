@@ -152,7 +152,7 @@ def gcmt_to_realisation(
         The nodal plane to use. Most likely will use the community fault model to
         choose a nodal plane that agrees with the tectonic fabric.
         Defaults to `MOST_LIKELY`.
-    solution_origin: Path | None
+    solution_origin : Path | None
         If provided, use a supplied CSV of CMT solutions to lookup geometry.
         Must follow the format of the Geonet CMT solutions file.
     """
