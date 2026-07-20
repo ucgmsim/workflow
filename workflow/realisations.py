@@ -29,7 +29,7 @@ from nzcvm.coordinates import Coordinate
 from schema import Schema
 
 from IM import im_calculation
-from source_modelling import sources
+from source_modelling import moment, sources
 from source_modelling.magnitude_scaling import BoldM
 from source_modelling.rupture_propagation import JumpPair
 from source_modelling.sources import IsSource
@@ -704,6 +704,19 @@ class Magnitudes(RealisationConfiguration):
             The magnitude.
         """
         return self.magnitudes[key]
+
+    @property
+    def total_moment(self) -> float:
+        """float: total moment of realisation"""
+        return sum(
+            moment.magnitude_to_moment(mag, bold_m=True)
+            for mag in self.magnitudes.values()
+        )
+
+    @property
+    def total_magnitude(self) -> BoldM:
+        """float: total magnitude of realisation"""
+        return moment.moment_to_magnitude(self.total_moment, bold_m=True)
 
 
 @dataclasses.dataclass
