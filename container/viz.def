@@ -65,11 +65,44 @@ for key in list(data.registry):
 print(f"pygmt_helper data baked: {ok} fetched, {failed} failed")
 PY
 
+    # Bake cartopy's Natural Earth vectors for the same reason, but note this is a
+    # SEPARATE data system from the pooch cache above and neither covers the other.
+    # plot_ts's --simple-map path draws LAND/OCEAN/COASTLINE/BORDERS/LAKES through
+    # cfeature.*.with_scale(), and cartopy fetches each from naturalearth.s3 on
+    # first use. Offline that is a stall then a crash -- and because cartopy
+    # resolves geometries lazily it lands at savefig(), taking the render down
+    # after all the compute is done rather than failing fast at add_feature().
+    #
+    # cartopy WRITES downloads to config['data_dir'] ($XDG_DATA_HOME/cartopy) but
+    # RESOLVES reads from config['pre_existing_data_dir'] (CARTOPY_DATA_DIR) first.
+    # Those are different settings, so point the writer at /opt for the build and
+    # export the reader in %environment. Fixing an in-image path matters for the
+    # same reason it does for pooch: data_dir otherwise defaults to
+    # ~/.local/share/cartopy, i.e. the *caller's* home, which is absent under
+    # `exec -c` and differs between BSC and a laptop.
+    #
+    # Both scales are baked (43 MB: 35 for 10m, 7 for 50m) so --scale stays usable;
+    # 10m is the plot_ts default. Resolving .geometries() rather than merely
+    # downloading is deliberate -- that lazy parse is the step that actually fails
+    # in the field, so this proves the file is present AND readable.
+    export XDG_DATA_HOME=/opt
+    python - <<'PY'
+import cartopy
+import cartopy.feature as cfeature
+baked = 0
+for scale in ("10m", "50m"):
+    for name in ("LAND", "OCEAN", "COASTLINE", "BORDERS", "LAKES"):
+        n = len(list(getattr(cfeature, name).with_scale(scale).geometries()))
+        print(f"  cartopy {name} {scale}: {n} geometries")
+        baked += 1
+print(f"cartopy natural_earth baked: {baked} datasets into {cartopy.config['data_dir']}")
+PY
+
     # Pre-build matplotlib's font cache in the same dir so the read-only runtime
     # image does not try to write it on first plot.
     python -c "import matplotlib.pyplot" || true
 
-    chmod -R a+rX /sw /opt/cache
+    chmod -R a+rX /sw /opt/cache /opt/cartopy
 
 %environment
     export PATH="/sw/venv/bin:/sw/cargo/bin:/sw/python/bin:$PATH"
@@ -82,6 +115,15 @@ PY
     # and matplotlib writes a font cache. Point both at per-user /tmp dirs
     # (evaluated at container start; honour any value the caller already set).
     export XDG_CACHE_HOME=/opt/cache
+    # Where cartopy finds the baked Natural Earth vectors (see %post). Set
+    # unconditionally, like XDG_CACHE_HOME above and unlike the two writable
+    # caches below, because the whole point is that the image supplies this data
+    # itself -- a caller who overrides it silently loses offline rendering.
+    # Deliberately CARTOPY_DATA_DIR and not XDG_DATA_HOME: callers legitimately
+    # set XDG_DATA_HOME (our BSC plotting jobs do), and that only moves cartopy's
+    # download target, so pinning the read path here keeps the baked data winning
+    # regardless of what the caller's environment does.
+    export CARTOPY_DATA_DIR=/opt/cartopy
     export NUMBA_CACHE_DIR="${NUMBA_CACHE_DIR:-/tmp/numba-cache-$(id -u)}"
     export MPLCONFIGDIR="${MPLCONFIGDIR:-/tmp/mpl-cache-$(id -u)}"
 
@@ -105,4 +147,14 @@ PY
     python -c "import importlib.metadata as m; v=m.version('source_modelling'); assert v=='2026.7.2', v"
     for g in srtm_NZ srtm_NZ_i5 srtm_NZ_1s srtm_NZ_1s_i5; do \
         test -f /opt/cache/pygmt_helper/data/Topo/$g.grd; done
+    # Assert the cartopy vectors are present as FILES rather than asking the
+    # cartopy API to resolve them. %test runs on the build host, which has
+    # internet, so an API check would silently re-download anything missing and
+    # pass -- masking exactly the failure this bake exists to prevent until the
+    # job is already on an internet-less BSC node. BORDERS lives under cultural/
+    # while the rest are physical/, which is easy to get wrong by hand.
+    for s in 10m 50m; do \
+        for f in land ocean coastline lakes; do \
+            test -f /opt/cartopy/shapefiles/natural_earth/physical/ne_${s}_${f}.shp; done; \
+        test -f /opt/cartopy/shapefiles/natural_earth/cultural/ne_${s}_admin_0_boundary_lines_land.shp; done
     echo "viz.sif build-time checks passed (render verified post-build via apptainer exec)"

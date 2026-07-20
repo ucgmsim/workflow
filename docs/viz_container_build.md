@@ -23,8 +23,10 @@ On top of the base it adds:
   `ffmpeg` (animation encoding), `ghostscript` (`gs`, used by pygmt's `psconvert`
   to rasterise figures — the `gmt` package does not pull it in).
 - **pip:** `ffmpeg-python`, and `visualisation` itself (installed `--no-deps`).
-- **baked data:** pygmt_helper's NZ topo/coastline grids (~1.8 GB) so plots work
-  with no internet on compute nodes.
+- **baked data:** pygmt_helper's NZ topo/coastline grids (~1.8 GB) **and** cartopy's
+  Natural Earth vectors (43 MB), so plots work with no internet on compute nodes.
+  These are two independent data systems serving two different tools — see
+  gotcha 6; provisioning one does nothing for the other.
 
 Result is a ~9 GB `.sif` (the baked grids dominate; see "Grid data" below).
 
@@ -35,7 +37,14 @@ Result is a ~9 GB `.sif` (the baked grids dominate; see "Grid data" below).
 - Either the base image cached locally, or network access to pull the **public**
   `earthquakesuc/workflow-bootstrap:latest` from Docker Hub.
 - ~10 GB free disk for the image, plus build scratch.
-- Internet during build (grids are fetched from Dropbox).
+- Internet during build, from three separate sources: Docker Hub (base image),
+  Dropbox (pygmt_helper grids) and `naturalearth.s3.amazonaws.com` (cartopy
+  vectors). A firewall that allows only some of these fails partway through.
+- The `uidmap` package. If the building user has `/etc/subuid` entries, apptainer
+  selects fakeroot mode, which needs the `newuidmap`/`newgidmap` helpers — without
+  them the build dies immediately with `newuidmap was not found in PATH`. Having
+  the subuid mappings is what *triggers* the requirement, so mappings alone are
+  not enough.
 
 ## Build
 
@@ -79,7 +88,7 @@ local build-time workaround only.
 
 ## Why the def looks the way it does (gotchas)
 
-Five non-obvious things, each of which causes a silent or confusing failure if
+Six non-obvious things, each of which causes a silent or confusing failure if
 dropped:
 
 1. **`libgmt.so` symlink.** Ubuntu's `gmt` package ships only the *versioned*
@@ -124,6 +133,34 @@ dropped:
    writable under Apptainer at runtime; the cost is a few seconds of numba
    recompilation on a fresh `/tmp`. (`XDG_CACHE_HOME` stays pointed at the
    read-only baked grids — pooch only reads those, so that's fine.)
+
+6. **cartopy's Natural Earth data is a second, independent bake.** Gotcha 4 covers
+   pygmt_helper/pooch, which serves `plot-srf` (pygmt → GSHHG + SRTM). It does
+   **nothing** for `plot-ts`, which draws its `--simple-map` basemap through
+   cartopy (`cfeature.LAND/OCEAN/COASTLINE/BORDERS/LAKES.with_scale()`) and fetches
+   from `naturalearth.s3` on first use. Two separate systems, two separate bakes —
+   a container can be perfectly offline-capable for one tool and not the other,
+   which is exactly the state this image was in before.
+
+   Three things make it fiddly:
+   - cartopy **writes** downloads to `config['data_dir']` (`$XDG_DATA_HOME/cartopy`)
+     but **reads** from `config['pre_existing_data_dir']` (`CARTOPY_DATA_DIR`).
+     Different settings — so `%post` points the writer at `/opt` and `%environment`
+     exports the reader as `/opt/cartopy`.
+   - It must be `CARTOPY_DATA_DIR`, not `XDG_DATA_HOME`. Callers legitimately set
+     `XDG_DATA_HOME` (the BSC plotting jobs do), and that would only move the
+     download target; pinning the read path keeps the baked data winning whatever
+     the caller's environment does.
+   - Geometries resolve **lazily, at `savefig()`**, not at `add_feature()`. Offline
+     that means the render dies after all the compute is done rather than failing
+     fast — and it has already been mis-handled once by a `try` wrapped around
+     `add_feature` that the actual fetch happened outside of.
+
+   `%test` asserts the **files exist on disk** rather than asking the cartopy API
+   to resolve them, because `%test` runs on the build host, which has internet: an
+   API check would silently re-download anything missing and pass, hiding the very
+   failure the bake prevents. Note `BORDERS` lands in `natural_earth/cultural/` as
+   `ne_<scale>_admin_0_boundary_lines_land` while the other four are `physical/`.
 
 ## Grid data (size decision)
 
@@ -179,6 +216,22 @@ fig, ax = plt.subplots()
 a = FuncAnimation(fig, lambda i: ax.plot(np.arange(i))[0], frames=5)
 a.save('/tmp/anim_test.mp4', writer=FFMpegWriter(fps=5))
 print('anim OK')
+"
+
+# cartopy basemap data resolves from the BAKED copy with no network call.
+# Promoting DownloadWarning to an error is what makes this a real offline test
+# on a machine that HAS internet: without it, a missing shapefile is silently
+# re-downloaded and the check passes here but fails on an offline compute node.
+apptainer exec viz.sif python -c "
+import warnings, cartopy
+import cartopy.feature as cf
+from cartopy.io import DownloadWarning
+warnings.simplefilter('error', DownloadWarning)
+print('read path:', cartopy.config['pre_existing_data_dir'])
+for s in ('10m', '50m'):
+    for n in ('LAND', 'OCEAN', 'COASTLINE', 'BORDERS', 'LAKES'):
+        len(list(getattr(cf, n).with_scale(s).geometries()))
+print('cartopy basemap data OK (no downloads)')
 "
 ```
 
