@@ -29,17 +29,22 @@ See the output of `im-calc --help`.
 
 import functools
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import numpy as np
 import pandas as pd
+
+# Importing pint_xarray registers pint units with xarray, allowing for
+# unit-aware operations. It is not explicitly used, so we ignore the flake8
+# F401 error.
+import pint_xarray  # noqa: F401
 import shapely
 import tqdm
 import typer
 import xarray as xr
 
-from IM import im_reader, ims
-from IM.im_calculation import IM
+from IM import ims
+from IM.ims import IM
 from qcore import cli, coordinates
 from source_modelling import sources
 from source_modelling.sources import IsSource
@@ -57,6 +62,114 @@ from workflow.realisations import (
 PSA_STEP = 10000
 
 app = typer.Typer()
+
+
+COORDINATE_METADATA = {
+    "station": {"description": "Station identifiers"},
+    "period": {"description": "Oscillation period", "units": "s"},
+    "vs30": {
+        "description": "Average shear-wave velocity to 30m depth",
+        "units": "m/s",
+    },
+    "epi": {"description": "Epicentral distance", "units": "km"},
+    "hyp": {"description": "Hypocentral distance", "units": "km"},
+    "rrup": {"description": "Rupture distance", "units": "km"},
+    "rjb": {"description": "Joyner-Boore distance", "units": "km"},
+    "rx": {"description": "Generalised strike-parallel distance", "units": "km"},
+    "ry": {"description": "Generalised strike-normal distance", "units": "km"},
+    "latitude": {"description": "Station latitude", "units": "degrees"},
+    "longitude": {"description": "Station longitude", "units": "degrees"},
+    "frequency": {"description": "Frequency of motion", "units": "Hz"},
+    "period": {"description": "Period of motion", "units": "s"},
+}
+
+IM_METADATA = {
+    IM.PGA: "Peak ground acceleration",
+    IM.PGV: "Peak ground velocity",
+    IM.CAV: "Cumulative absolute velocity",
+    IM.CAV5: "Cumulative absolute velocity (above 5 cm/s)",
+    IM.AI: "Arias intensity",
+    IM.Ds575: "Significant duration (5-75%)",
+    IM.Ds595: "Significant duration (5-95%)",
+    IM.pSA: "Pseudo-spectral acceleration",
+    IM.FAS: "Fourier amplitude spectrum",
+}
+
+
+# The 'g0' unit is used for acceleration and is equivalent to 9.81 m/s^2. The
+# reason for this is that 'g' is reserved for 'grams'. This is a decision
+# made by the `pint` library, which is used to handle the units.
+IM_UNITS = {
+    IM.PGA: "g0",
+    IM.PGV: "cm/s",
+    IM.CAV: "m/s",
+    IM.CAV5: "m/s",
+    IM.AI: "m/s",
+    IM.Ds575: "s",
+    IM.Ds595: "s",
+    IM.FAS: "g0 * s",
+    IM.pSA: "g0",
+}
+
+
+def add_distances(
+    dtree: xr.DataTree, distances: dict[str, xr.DataArray]
+) -> xr.DataTree:
+    """Write intensity measures to a file, updating coordinate and variable metadata.
+
+    Parameters
+    ----------
+    dataset : xr.Dataset
+        The xarray dataset containing intensity measures to be written.
+    """
+
+    def distancify(dataset: xr.Dataset) -> xr.Dataset:
+        if "name" not in dataset.attrs:
+            return dataset
+
+        dataset = dataset.copy(deep=False)
+        dataset.coords.update(distances)
+        return dataset
+
+    dtree = dtree.map_over_datasets(distancify)
+
+    return dtree
+
+
+def add_units(dtree: xr.DataTree) -> xr.DataTree:
+    """Write intensity measures to a file, updating coordinate and variable metadata.
+
+    Parameters
+    ----------
+    dataset : xr.Dataset
+        The xarray dataset containing intensity measures to be written.
+    output_ffp : str or Path
+        The file path where the output dataset should be saved.
+    """
+
+    def unitify(dataset: xr.Dataset) -> xr.Dataset:
+        if "name" not in dataset.attrs:
+            return dataset
+
+        dataset = dataset.copy(deep=False)
+
+        for name, description in COORDINATE_METADATA.items():
+            if name not in dataset.coords:
+                continue
+            dataset.coords[name].attrs.update(description)
+
+        name = dataset.attrs["name"]
+
+        for data_var in dataset.data_vars.values():
+            data_var.attrs["units"] = IM_UNITS[name]
+
+        description = IM_METADATA[name]
+        dataset.attrs["description"] = description
+        return dataset
+
+    dtree = dtree.map_over_datasets(unitify)
+
+    return dtree
 
 
 def _source_polygon(source_geometries: dict[str, IsSource]) -> shapely.Geometry:
@@ -263,38 +376,12 @@ def calculate_intensity_measures(
         / 1000
     )
     stations = broadband.station.values
-    dataset = xr.Dataset(
-        coords={
-            "station": ("station", stations),
-            "component": (
-                "component",
-                ["000", "090", "ver", "geom", "rotd0", "rotd50", "rotd100", "eas"],
-            ),
-            "rrup": ("station", rrup),
-            "rjb": ("station", rjb),
-            "hyp": ("station", hyp),
-            "epi": ("station", epi),
-        },
-        attrs={
-            "hypo_lat": hypocentre[0],
-            "hypo_lon": hypocentre[1],
-            "source": shapely.to_wkt(
-                _source_polygon(source_geometries.source_geometries)
-            ),
-            "trace": shapely.to_wkt(
-                _trace_polygon(source_geometries.source_geometries)
-            ),
-            "domain": shapely.to_wkt(
-                shapely.transform(
-                    domain_parameters.domain.polygon,
-                    lambda c: coordinates.nztm_to_wgs_depth(c)[:, ::-1],
-                )
-            ),
-            "magnitude": magnitudes.total_magnitude,
-            "event": metadata.name,
-        },
-    )
-
+    distances: dict[str, Any] = {
+        "rrup": ("station", rrup),
+        "rjb": ("station", rjb),
+        "hyp": ("station", hyp),
+        "epi": ("station", epi),
+    }
     all_faults_have_rx_ry = all(
         isinstance(source, sources.Plane | sources.Fault)
         for source in source_geometries.source_geometries.values()
@@ -304,11 +391,17 @@ def calculate_intensity_measures(
             list(source_geometries.source_geometries.values()),  # ty: ignore[invalid-argument-type]
             station_locations,
         )
-        dataset["rx"] = xr.DataArray(rx, dims="station", coords=dict(station=stations))
-        dataset["ry"] = xr.DataArray(ry, dims="station", coords=dict(station=stations))
+        rx /= 1000.0
+        ry /= 1000.0
+        distances["rx"] = xr.DataArray(
+            rx, dims="station", coords=dict(station=stations)
+        )
+        distances["ry"] = xr.DataArray(
+            ry, dims="station", coords=dict(station=stations)
+        )
 
     waveform = broadband.waveform.values.astype(np.float64)
-
+    im_results: dict[str, xr.Dataset] = dict()
     for im_name in (pbar := tqdm.tqdm(intensity_measures)):
         pbar.set_description(im_name)
         im_fn = im_function_map[im_name]
@@ -317,10 +410,31 @@ def calculate_intensity_measures(
 
         if isinstance(result, pd.DataFrame):
             result["station"] = broadband.station.values
-            result = result.set_index("station").to_xarray().to_array(dim="component")
+            result = result.set_index("station").to_xarray()
         elif isinstance(result, xr.DataArray):
-            result = result.assign_coords(station=broadband.station)
-        dataset[im_name] = result
-        im_reader.write_intensity_measures(dataset, output_path)
+            result = result.assign_coords(station=broadband.station).to_dataset(
+                "component"
+            )
+        result.attrs["name"] = im_name
+        im_results[im_name] = result
 
+    dtree = xr.DataTree.from_dict(im_results, nested=True)
+
+    dtree.attrs = {
+        "hypo_lat": hypocentre[0],
+        "hypo_lon": hypocentre[1],
+        "source": shapely.to_wkt(_source_polygon(source_geometries.source_geometries)),
+        "trace": shapely.to_wkt(_trace_polygon(source_geometries.source_geometries)),
+        "domain": shapely.to_wkt(
+            shapely.transform(
+                domain_parameters.domain.polygon,
+                lambda c: coordinates.nztm_to_wgs_depth(c)[:, ::-1],
+            )
+        ),
+        "magnitude": magnitudes.total_magnitude,
+        "event": metadata.name,
+    }
+    dtree = add_distances(dtree, distances)
+    dtree = add_units(dtree)
+    dtree.to_netcdf(output_path)
     realisations.append_log_entry(realisation_ffp)
