@@ -166,15 +166,19 @@ def read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
     )
 
 
-def _template_waveform(dset: xr.Dataset) -> xr.DataArray:
+def _template_waveform(dset: xr.Dataset, batch_size: int) -> xr.DataArray:
+    ncomponent = len(dset.coords["component"])
+    nstation = len(dset.coords["station"])
+    ntime = len(dset.coords["time"])
     return xr.DataArray(
+        # Chunks must match what _read_station_batch returns (all components
+        # and timesteps for one batch of stations). If dask is left to pick
+        # chunks itself it splits the station and time axes, and map_blocks
+        # then advertises output keys it never produces.
         da.empty(
-            (
-                len(dset.coords["component"]),
-                len(dset.coords["station"]),
-                len(dset.coords["time"]),
-            ),
+            (ncomponent, nstation, ntime),
             dtype=np.float32,
+            chunks=(ncomponent, batch_size, ntime),
         ),
         dims=["component", "station", "time"],
         coords=dset.coords,
@@ -205,12 +209,17 @@ def convert_sw4_station_recording(sw4_ffp: Path) -> xr.Dataset:
             * np.float32().itemsize
         ),
     )
-    chunked_stations = xr.DataArray(dset["station"].values).chunk(batch_size)
+    # The dimension must be named "station" so map_blocks can line the input
+    # batches up with the station axis of the template. It is deliberately left
+    # without a station coordinate, as an index coordinate cannot be chunked.
+    chunked_stations = xr.DataArray(dset["station"].values, dims=["station"]).chunk(
+        {"station": batch_size}
+    )
     waveform = xr.map_blocks(
         _read_station_batch,
         chunked_stations,
         kwargs=dict(time=dset["time"], component=dset["component"], sw4_ffp=sw4_ffp),
-        template=_template_waveform(dset),
+        template=_template_waveform(dset, batch_size),
     )
 
     waveform = (waveform * CMS).differentiate("time")
