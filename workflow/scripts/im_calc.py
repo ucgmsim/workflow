@@ -112,7 +112,7 @@ def _trace_polygon(source_geometries: dict[str, IsSource]) -> shapely.Geometry:
 
 
 @cli.from_docstring(app)
-def calculate_instensity_measures(
+def calculate_intensity_measures(
     realisation_ffp: Annotated[
         Path, typer.Argument(exists=True, dir_okay=False, writable=True)
     ],
