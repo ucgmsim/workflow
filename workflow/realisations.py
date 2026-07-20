@@ -706,7 +706,7 @@ class Magnitudes(RealisationConfiguration):
         return self.magnitudes[key]
 
     @property
-    def total_moment(self) -> float:
+    def total_moment(self) -> float:  # numpydoc ignore=RT01
         """float: total moment of realisation"""
         return sum(
             moment.magnitude_to_moment(mag, bold_m=True)
@@ -714,8 +714,9 @@ class Magnitudes(RealisationConfiguration):
         )
 
     @property
-    def total_magnitude(self) -> BoldM:
+    def total_magnitude(self) -> BoldM:  # numpydoc ignore=RT01
         """BoldM: total magnitude of realisation"""
+        return moment.moment_to_magnitude(self.total_moment, bold_m=True)
 
 
 @dataclasses.dataclass

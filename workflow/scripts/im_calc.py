@@ -103,7 +103,7 @@ def _trace_polygon(source_geometries: dict[str, IsSource]) -> shapely.Geometry:
         geometry = fault.trace_geometry
         geometry = shapely.transform(
             geometry, lambda c: coordinates.nztm_to_wgs_depth(c)[:, ::-1]
-        )
+        )  # ty: ignore[no-matching-overload]
 
         geometries.append(geometry)
 
@@ -111,7 +111,7 @@ def _trace_polygon(source_geometries: dict[str, IsSource]) -> shapely.Geometry:
 
 
 @cli.from_docstring(app)
-def calculate_instensity_measures(
+def calculate_intensity_measures(
     realisation_ffp: Annotated[
         Path, typer.Argument(exists=True, dir_okay=False, writable=True)
     ],
