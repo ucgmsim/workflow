@@ -33,6 +33,7 @@ from typing import Annotated
 
 import numpy as np
 import pandas as pd
+import shapely
 import tqdm
 import typer
 import xarray as xr
@@ -40,9 +41,13 @@ import xarray as xr
 from IM import im_reader, ims
 from IM.im_calculation import IM
 from qcore import cli, coordinates
+from source_modelling import sources
+from source_modelling.sources import IsSource
 from workflow import realisations, utils
 from workflow.realisations import (
+    DomainParameters,
     IntensityMeasureCalculationParameters,
+    Magnitudes,
     RealisationMetadata,
     Resolution,
     RupturePropagationConfig,
@@ -52,6 +57,57 @@ from workflow.realisations import (
 PSA_STEP = 10000
 
 app = typer.Typer()
+
+
+def _source_polygon(source_geometries: dict[str, IsSource]) -> shapely.Geometry:
+    """Extract source polygon in longitude, latitude format.
+
+    Parameters
+    ----------
+    source_geometries : dict[str, IsSource]
+        Realisation faults.
+
+    Returns
+    -------
+    Geometry
+        The union of all fault geometries.
+    """
+    geometries = []
+    for fault in source_geometries.values():
+        geometry = fault.geometry
+        geometry = shapely.transform(
+            geometry, lambda c: coordinates.nztm_to_wgs_depth(c)[:, ::-1]
+        )
+
+        geometries.append(geometry)
+    return shapely.normalize(shapely.union_all(geometries))
+
+
+def _trace_polygon(source_geometries: dict[str, IsSource]) -> shapely.Geometry:
+    """Extract trace polygon in longitude, latitude format.
+
+    Parameters
+    ----------
+    source_geometries : dict[str, IsSource]
+        Realisation faults.
+
+    Returns
+    -------
+    Geometry
+        The union of all traces of geometries (for geometries that have traces).
+    """
+    geometries = []
+    for fault in source_geometries.values():
+        if not hasattr(fault, "trace_geometry"):
+            continue
+        geometry = fault.trace_geometry
+        geometry = shapely.transform(
+            geometry, lambda c: coordinates.nztm_to_wgs_depth(c)[:, ::-1]
+        )
+
+        geometries.append(geometry)
+
+    return shapely.normalize(shapely.union_all(geometries))
 
 
 @cli.from_docstring(app)
@@ -106,7 +162,9 @@ def calculate_instensity_measures(
         )
     )
     source_geometries = SourceConfig.read_from_realisation(realisation_ffp)
+    domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     rup_prop_config = RupturePropagationConfig.read_from_realisation(realisation_ffp)
+    magnitudes = Magnitudes.read_from_realisation(realisation_ffp)
 
     broadband = xr.open_dataset(broadband_simulation_ffp)
 
@@ -159,6 +217,7 @@ def calculate_instensity_measures(
     }
     latitude = broadband.latitude.values
     longitude = broadband.longitude.values
+    station_locations = np.stack((latitude, longitude), axis=-1)
 
     rrup = (
         np.array(
@@ -167,7 +226,7 @@ def calculate_instensity_measures(
                     source.rrup_distance(np.append(station, 0))
                     for source in source_geometries.source_geometries.values()
                 )
-                for station in np.stack((latitude, longitude), axis=-1)
+                for station in station_locations
             ]
         )
         / 1000
@@ -179,7 +238,7 @@ def calculate_instensity_measures(
                     source.rjb_distance(np.append(station, 0))
                     for source in source_geometries.source_geometries.values()
                 )
-                for station in np.stack((latitude, longitude), axis=-1)
+                for station in station_locations
             ]
         )
         / 1000
@@ -190,18 +249,27 @@ def calculate_instensity_measures(
 
     hyp = (
         coordinates.distance_between_wgs_depth_coordinates(
-            np.stack((latitude, longitude, np.zeros_like(latitude)), axis=-1),
+            np.stack((station_locations, np.zeros_like(latitude)), axis=1),
             hypocentre,
         )
         / 1000
     )
     epi = (
         coordinates.distance_between_wgs_depth_coordinates(
-            np.stack((latitude, longitude), axis=-1),
+            station_locations,
             hypocentre[:2],
         )
         / 1000
     )
+    all_faults_have_rx_ry = all(
+        isinstance(source, sources.Plane | sources.Fault)
+        for source in source_geometries.source_geometries.values()
+    )
+    if all_faults_have_rx_ry:
+        rx, ry = sources.multi_fault_rx_ry_distance(
+            list(source_geometries.source_geometries.values()),  # ty: ignore[invalid-argument-type]
+            station_locations,
+        )
 
     dataset = xr.Dataset(
         coords={
@@ -210,12 +278,30 @@ def calculate_instensity_measures(
                 "component",
                 ["000", "090", "ver", "geom", "rotd0", "rotd50", "rotd100", "eas"],
             ),
+            "rx": ("station", rx),
+            "ry": ("station", ry),
             "rrup": ("station", rrup),
             "rjb": ("station", rjb),
             "hyp": ("station", hyp),
             "epi": ("station", epi),
         },
-        attrs={"hypo_lat": hypocentre[0], "hypo_lon": hypocentre[1]},
+        attrs={
+            "hypo_lat": hypocentre[0],
+            "hypo_lon": hypocentre[1],
+            "source": shapely.to_wkt(
+                _source_polygon(source_geometries.source_geometries)
+            ),
+            "trace": shapely.to_wkt(
+                _trace_polygon(source_geometries.source_geometries)
+            ),
+            "domain": shapely.to_wkt(
+                shapely.transform(
+                    domain_parameters.domain.polygon, lambda c: c[:, ::-1]
+                )
+            ),
+            "magnitude": magnitudes.total_magnitude,
+            "event": metadata.name,
+        },
     )
 
     waveform = broadband.waveform.values.astype(np.float64)
