@@ -20,6 +20,7 @@ dependencies = [
   "site-calculation",
   # Data Formats
   "geopandas",
+  "netCDF4",               # Required for openquake shenanigans
   "pandas[parquet, hdf5]",
   "pyyaml",
   "xarray[io]",

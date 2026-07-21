@@ -664,6 +664,23 @@ class Rakes(RealisationConfiguration):
     rakes: dict[str, float]
     """A map from faults to their rake angles."""
 
+    def as_vectors(self) -> dict[str, npt.NDArray[np.float64]]:
+        """Represent each rake angle as a unit vector.
+
+        Rakes are angles, so they cannot be averaged directly (the mean of
+        -179° and 179° is 0°, not 180°). Averaging the unit vectors and
+        recovering the angle with `arctan2` avoids this.
+
+        Returns
+        -------
+        dict
+            A map from faults to the unit vector of their rake angle.
+        """
+        return {
+            k: np.array([np.cos(np.radians(r)), np.sin(np.radians(r))])
+            for k, r in self.rakes.items()
+        }
+
     def __getitem__(self, key: str) -> float:
         """Get the rake for a fault name.
 
@@ -704,6 +721,38 @@ class Magnitudes(RealisationConfiguration):
             The magnitude.
         """
         return self.magnitudes[key]
+
+    @property
+    def moments(self) -> dict[str, float]:  # numpydoc ignore=RT01
+        """dict: a map from faults to their moment."""
+        return {
+            k: moment.magnitude_to_moment(mag, bold_m=True)
+            for k, mag in self.magnitudes.items()
+        }
+
+    def moment_averaged(self, values: dict[str, Any]) -> Any:
+        """Average per-fault quantities, weighted by fault moment.
+
+        Parameters
+        ----------
+        values : dict
+            A map from faults to the quantity to average. Every fault in
+            this realisation must be present. Values may be scalars or
+            arrays, provided they all share the same shape.
+
+        Returns
+        -------
+        Any
+            The moment-weighted average of `values`, with the same shape as
+            the individual values.
+        """
+        keys = list(self.magnitudes)
+        moments = self.moments
+        return np.average(
+            [values[key] for key in keys],
+            weights=[moments[key] for key in keys],
+            axis=0,
+        )
 
     @property
     def total_moment(self) -> float:  # numpydoc ignore=RT01
@@ -1406,6 +1455,21 @@ class IntensityMeasureCalculationParameters(RealisationConfiguration):
         _dict["valid_periods"] = self.valid_periods.tolist()
         _dict["fas_frequencies"] = self.fas_frequencies.tolist()
         return _dict
+
+
+@dataclasses.dataclass
+class EmpiricalParameters(RealisationConfiguration):
+    """Empirical (ground motion model) intensity measure parameters."""
+
+    _config_key: ClassVar[str] = "empirical"
+    _schema: ClassVar[Schema] = schemas.EMPIRICAL_PARAMETERS
+
+    # Types here are not explicitly declared so we do not pay the openquake tax
+    # importing this module.
+    tect_type: Any
+    """The tectonic type of the source (an `oq_wrapper.constants.TectType`)."""
+    models: list[Any]
+    """The ground motion models or logic trees to evaluate."""
 
 
 @dataclasses.dataclass
