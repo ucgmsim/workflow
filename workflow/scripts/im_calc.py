@@ -101,6 +101,7 @@ COORDINATE_METADATA = {
 IM_METADATA = {
     IM.PGA: "Peak ground acceleration",
     IM.PGV: "Peak ground velocity",
+    IM.PGD: "Peak ground displacement",
     IM.CAV: "Cumulative absolute velocity",
     IM.CAV5: "Cumulative absolute velocity (above 5 cm/s)",
     IM.AI: "Arias intensity",
@@ -117,6 +118,7 @@ IM_METADATA = {
 IM_UNITS = {
     IM.PGA: "g0",
     IM.PGV: "cm/s",
+    IM.PGD: "cm",
     IM.CAV: "m/s",
     IM.CAV5: "m/s",
     IM.AI: "m/s",
