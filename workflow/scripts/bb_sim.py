@@ -356,7 +356,7 @@ def combine_hf_and_lf(
         coords={
             "component": ("component", ["x", "y", "z"]),
             "station": ("station", common_stations),
-            "time": ("time", new_time_coords),
+            "time": lf_aligned.time,
             "x": ("station", lf.x.values),
             "y": ("station", lf.y.values),
             "latitude": ("station", lf.lat.values),
