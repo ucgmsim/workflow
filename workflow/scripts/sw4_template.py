@@ -222,9 +222,9 @@ def generate_sw4_input(
     if sw4_params.prefilter:
         prefilter = f"prefilter type={sw4_params.prefilter.type} passes={sw4_params.prefilter.passes} order={sw4_params.prefilter.order}"
         if sw4_params.prefilter.fc1 is not None:
-            prefilter += f"fc1={sw4_params.prefilter.fc1}"
+            prefilter += f" fc1={sw4_params.prefilter.fc1}"
         if sw4_params.prefilter.fc2 is not None:
-            prefilter += f"fc2={sw4_params.prefilter.fc2}"
+            prefilter += f" fc2={sw4_params.prefilter.fc2}"
     else:
         prefilter = ""
     low_frequency_output = work_directory / "out.h5"
