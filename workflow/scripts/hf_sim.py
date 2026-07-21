@@ -33,6 +33,7 @@ See the output of `hf-sim --help`.
 """
 
 import concurrent.futures
+import hashlib
 import subprocess
 import tempfile
 from collections.abc import Iterable
