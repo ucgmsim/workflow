@@ -19,6 +19,7 @@ dependencies = [
   "source_modelling>=2026.07.2",
   # Data Formats
   "geopandas",
+  "netCDF4",               # Required for openquake shenanigans
   "pandas[parquet, hdf5]",
   "pyyaml",
   "xarray[io]",
@@ -30,10 +31,10 @@ dependencies = [
   "tqdm",
   "typer",
   # Misc.
-  "requests",  # For gcmt-to-realisation
-  "schema",    # For loading realisations
-  "structlog", # Logging.
-  "psutil",    # To get the CPU affinity for jobs
+  "requests",      # For gcmt-to-realisation
+  "schema",        # For loading realisations
+  "structlog",     # Logging.
+  "psutil",        # To get the CPU affinity for jobs
   "parse>=1.21.0",
   "rich>=14.3.2",
 ]

@@ -1170,6 +1170,28 @@ INTENSITY_MEASURE_CALCUATION_PARAMETERS = Schema(
 )
 
 
+EMPIRICAL_PARAMETERS = Schema(
+    {
+        Literal(
+            "tect_type",
+            description="Tectonic type of the source (one of oq_wrapper.constants.TectType)",
+        ): str,
+        Literal(
+            "models",
+            description=(
+                "Ground motion models or ground motion model logic trees to "
+                "evaluate (members of oq_wrapper.constants.GMM or "
+                "oq_wrapper.constants.GMMLogicTree)"
+            ),
+        ): [str],
+    }
+)
+# NOTE: The values of this schema are validated as plain strings rather than
+# `oq_wrapper.constants` enum members. Importing `oq_wrapper.constants` pulls in
+# OpenQuake, which is expensive (and must be precompiled), so the strings are
+# only resolved to enum members inside the IM calculation stage.
+
+
 LOG_ENTRY_SCHEMA = Schema(
     {
         Literal(

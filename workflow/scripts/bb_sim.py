@@ -217,6 +217,7 @@ def combine_hf_and_lf(
             "y": ("station", lf.y.values),
             "latitude": ("station", lf.lat.values),
             "longitude": ("station", lf.lon.values),
+            "vs30": vs30_df["vsite"].to_xarray(),
         },
         attrs={
             "units": "g",
