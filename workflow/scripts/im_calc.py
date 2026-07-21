@@ -864,6 +864,7 @@ def calculate_intensity_measures(
         "ztor": source_parameters.avg_ztor,
         "zbot": source_parameters.avg_zbot,
         "hypo_depth": source_parameters.hypo_depth,
+        "tect_type": str(empirical_parameters.tect_type),
     }
     dtree = add_station_parameters(
         dtree, distances.as_dict() | site_parameters.as_dict()
