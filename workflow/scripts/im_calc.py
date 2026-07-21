@@ -100,6 +100,7 @@ COORDINATE_METADATA = {
 IM_METADATA = {
     IM.PGA: "Peak ground acceleration",
     IM.PGV: "Peak ground velocity",
+    IM.PGD: "Peak ground displacement",
     IM.CAV: "Cumulative absolute velocity",
     IM.CAV5: "Cumulative absolute velocity (above 5 cm/s)",
     IM.AI: "Arias intensity",
@@ -116,6 +117,7 @@ IM_METADATA = {
 IM_UNITS = {
     IM.PGA: "g0",
     IM.PGV: "cm/s",
+    IM.PGD: "cm",
     IM.CAV: "m/s",
     IM.CAV5: "m/s",
     IM.AI: "m/s",
@@ -165,7 +167,7 @@ def add_station_parameters(
         data.
     """
 
-    def parameterise(dataset: xr.Dataset) -> xr.Dataset:
+    def parameterise(dataset: xr.Dataset) -> xr.Dataset:  # numpydoc ignore=GL08
         if not dataset.data_vars:
             return dataset
 
@@ -196,7 +198,7 @@ def add_units(dtree: xr.DataTree) -> xr.DataTree:
         The tree, with unit and description metadata attached.
     """
 
-    def unitify(dataset: xr.Dataset) -> xr.Dataset:
+    def unitify(dataset: xr.Dataset) -> xr.Dataset:  # numpydoc ignore=GL08
         if not dataset.data_vars:
             return dataset
 
@@ -529,7 +531,7 @@ def calculate_site_parameters(vs30: xr.DataArray) -> SiteParameters:
         The site parameters, with basin depths estimated using the Chiou
         and Youngs (2008) relations.
     """
-    z1pt0 = chiou_young_08_calc_z1p0(vs30)
+    z1pt0 = chiou_young_08_calc_z1p0(vs30)  # ty: ignore[invalid-argument-type]
     z2pt5 = chiou_young_08_calc_z2p5(z1pt0)
     return SiteParameters(vs30=vs30, z1pt0=z1pt0, z2pt5=z2pt5)
 
@@ -604,8 +606,8 @@ def annotate_empirical(dataset: xr.Dataset, im_name: IM, model_name: str) -> xr.
         data_var.attrs["units"] = "dimensionless"
         data_var.attrs["log_units"] = IM_UNITS[im_name]
         if statistic in EMPIRICAL_STATISTIC_METADATA:
-            data_var.attrs["description"] = EMPIRICAL_STATISTIC_METADATA[  # ty: ignore[invalid-argument-type]
-                statistic
+            data_var.attrs["description"] = EMPIRICAL_STATISTIC_METADATA[
+                str(statistic)
             ].format(description=description)
 
     dataset.attrs["intensity_measure"] = str(im_name)
@@ -841,22 +843,7 @@ def calculate_intensity_measures(
         result.attrs["name"] = im_name
         im_results[im_name] = result
 
-    if empirical:
-        empirical_parameters = EmpiricalParameters.read_from_realisation_or_defaults(
-            realisation_ffp, metadata.defaults_version
-        )
-        im_results |= calculate_empirical(
-            empirical_parameters,
-            source_parameters,
-            site_parameters,
-            distances,
-            intensity_measures,
-            np.array(intensity_measure_parameters.valid_periods, dtype=np.float64),
-        )
-
-    dtree = xr.DataTree.from_dict(im_results, nested=True)
-
-    dtree.attrs = {
+    attributes = {
         "hypo_lat": hypocentre[0],
         "hypo_lon": hypocentre[1],
         "source": shapely.to_wkt(_source_polygon(source_geometries.source_geometries)),
@@ -875,6 +862,23 @@ def calculate_intensity_measures(
         "zbot": source_parameters.avg_zbot,
         "hypo_depth": source_parameters.hypo_depth,
     }
+    if empirical:
+        empirical_parameters = EmpiricalParameters.read_from_realisation_or_defaults(
+            realisation_ffp, metadata.defaults_version
+        )
+        im_results |= calculate_empirical(
+            empirical_parameters,
+            source_parameters,
+            site_parameters,
+            distances,
+            intensity_measures,
+            np.array(intensity_measure_parameters.valid_periods, dtype=np.float64),
+        )
+        attributes["tect_type"] = str(empirical_parameters.tect_type)
+
+    dtree = xr.DataTree.from_dict(im_results, nested=True)
+
+    dtree.attrs = attributes
     dtree = add_station_parameters(
         dtree, distances.as_dict() | site_parameters.as_dict()
     )
