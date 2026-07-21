@@ -235,6 +235,17 @@ nzcvm:
         vs:
           max: null
           min: 500.0
+        qs:
+          min: 0.05
+          max: 0.05
+          min_ref: "vs"
+          max_ref: "vs"
+        qp:
+          min: 2.0
+          max: 2.0
+          min_ref: "qs"
+          max_ref: "qs"
+
       max_vp_vs_ratio: 4.0
       min_vp_vs_ratio: 1.73
       provides: []
