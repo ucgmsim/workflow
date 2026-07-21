@@ -290,6 +290,24 @@ def calculate_intensity_measures(
             "magnitude": magnitudes.total_magnitude,
             "event": metadata.name,
         },
+        attrs={
+            "hypo_lat": hypocentre[0],
+            "hypo_lon": hypocentre[1],
+            "source": shapely.to_wkt(
+                _source_polygon(source_geometries.source_geometries)
+            ),
+            "trace": shapely.to_wkt(
+                _trace_polygon(source_geometries.source_geometries)
+            ),
+            "domain": shapely.to_wkt(
+                shapely.transform(
+                    domain_parameters.domain.polygon,
+                    lambda c: coordinates.nztm_to_wgs_depth(c)[:, ::-1],
+                )
+            ),
+            "magnitude": magnitudes.total_magnitude,
+            "event": metadata.name,
+        },
     )
     all_faults_have_rx_ry = all(
         isinstance(source, sources.Plane | sources.Fault)
@@ -313,6 +331,7 @@ def calculate_intensity_measures(
         waveform = broadband.waveform.isel(station=station_slice).values.astype(
             np.float64
         )
+
         chunk_stations = broadband.station.isel(station=station_slice).values
 
         for im_name in intensity_measures:
