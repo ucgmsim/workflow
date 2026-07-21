@@ -74,8 +74,10 @@ ENV LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
 # Setup Virtual Environment and Install via pip
+# openquake.engine 3.26+ requires gdal~=3.13.1, which is sdist-only and refuses to
+# build against the libgdal 3.12.2 that Ubuntu ships. Cap it until libgdal catches up.
 ARG WORKFLOW_BRANCH=pegasus
 RUN python3 -m venv $VIRTUAL_ENV && \
     pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir "git+https://github.com/ucgmsim/workflow@${WORKFLOW_BRANCH}" --no-binary=h5py && \
+    pip install --no-cache-dir "git+https://github.com/ucgmsim/workflow@${WORKFLOW_BRANCH}" "openquake.engine<3.26" --no-binary=h5py && \
     chmod -R a+rX /sw
