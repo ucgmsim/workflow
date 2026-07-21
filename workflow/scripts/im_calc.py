@@ -831,22 +831,7 @@ def calculate_intensity_measures(
         result.attrs["name"] = im_name
         im_results[im_name] = result
 
-    if empirical:
-        empirical_parameters = EmpiricalParameters.read_from_realisation_or_defaults(
-            realisation_ffp, metadata.defaults_version
-        )
-        im_results |= calculate_empirical(
-            empirical_parameters,
-            source_parameters,
-            site_parameters,
-            distances,
-            intensity_measures,
-            np.array(intensity_measure_parameters.valid_periods, dtype=np.float64),
-        )
-
-    dtree = xr.DataTree.from_dict(im_results, nested=True)
-
-    dtree.attrs = {
+    attributes = {
         "hypo_lat": hypocentre[0],
         "hypo_lon": hypocentre[1],
         "source": shapely.to_wkt(_source_polygon(source_geometries.source_geometries)),
@@ -864,8 +849,24 @@ def calculate_intensity_measures(
         "ztor": source_parameters.avg_ztor,
         "zbot": source_parameters.avg_zbot,
         "hypo_depth": source_parameters.hypo_depth,
-        "tect_type": str(empirical_parameters.tect_type),
     }
+    if empirical:
+        empirical_parameters = EmpiricalParameters.read_from_realisation_or_defaults(
+            realisation_ffp, metadata.defaults_version
+        )
+        im_results |= calculate_empirical(
+            empirical_parameters,
+            source_parameters,
+            site_parameters,
+            distances,
+            intensity_measures,
+            np.array(intensity_measure_parameters.valid_periods, dtype=np.float64),
+        )
+        attributes["tect_type"] = str(empirical_parameters.tect_type)
+
+    dtree = xr.DataTree.from_dict(im_results, nested=True)
+
+    dtree.attrs = attributes
     dtree = add_station_parameters(
         dtree, distances.as_dict() | site_parameters.as_dict()
     )
