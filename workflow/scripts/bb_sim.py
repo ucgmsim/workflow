@@ -351,7 +351,7 @@ def combine_hf_and_lf(
             # reset_coords drops the HF lat/lon coordinates, which would
             # otherwise conflict with the LF-derived latitude/longitude.
             "hf_waveform": hf_aligned.reset_coords(drop=True),
-            "vs30": ("station", vs30_df["vsite"].values),
+            "vs30": vs30_df["vsite"].to_xarray(),
         },
         coords={
             "component": ("component", ["x", "y", "z"]),
@@ -359,7 +359,6 @@ def combine_hf_and_lf(
             "time": lf_aligned.time,
             "latitude": ("station", lf.lat.values),
             "longitude": ("station", lf.lon.values),
-            "vs30": vs30_df["vsite"].to_xarray(),
         },
         attrs={"units": "g"},
     ).chunk(chunking)
@@ -384,6 +383,7 @@ def combine_hf_and_lf(
         ),
         template=template,
     )
+    bb["vs30"] = combined["vs30"]
     attributes = dict(
         dt=bb_dt,
         flo=broadband_config.flo,
