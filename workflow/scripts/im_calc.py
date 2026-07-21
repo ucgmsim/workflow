@@ -118,6 +118,7 @@ IM_METADATA = {
 IM_UNITS = {
     IM.PGA: "g0",
     IM.PGV: "cm/s",
+    IM.PGD: "cm",
     IM.CAV: "m/s",
     IM.CAV5: "m/s",
     IM.AI: "m/s",
