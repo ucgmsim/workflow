@@ -42,16 +42,75 @@ from workflow.realisations import HFConfig, RealisationMetadata, SourceConfig
 app = typer.Typer()
 
 
-def _box_average_matrix(n_fine: int, n_coarse: int) -> sp.csr_matrix:
-    """Build a (n_coarse, n_fine) exact box-average operator.
+def _box_average_matrix(
+    n_fine: int, n_coarse: int, fine_dx: float, coarse_dx: float
+) -> sp.csr_matrix:
+    """Build an area-pooling kernel for averaging high-resolution data into lower-resolution data.
 
-    Row j gives the fractional-overlap weights (summing to 1) between
-    coarse bin j and the fine cells it spans, so `matrix @ fine_values`
-    computes the exact area-weighted average srf2stoch.c computes via its
-    LCM upsample-then-block-average trick, without ever materialising an
-    upsampled array.
+    Assuming we have `n_fine` fine gridpoints, and `n_coarse` coarse gridpoints,
+    Row j of the returned matrix gives the fractional-overlap weights (summing
+    to 1) between coarse bin j and the fine cells it spans. This is equivalent
+    to the ``adaptive_avg_pool2d`` kernel in pytorch.
+
+    Parameters
+    ----------
+    n_fine : int
+        The number of elements in the original, high-resolution grid dimension.
+    n_coarse : int
+        The number of elements in the target, downsampled grid dimension.
+    fine_dx : float
+        The physical resolution of the fine cells.
+    coarse_dx : float
+        The physical resolution of the coarse cells.
+
+    Returns
+    -------
+    scipy.sparse.csr_matrix
+        A sparse matrix of shape (n_coarse, n_fine) containing the area-weighted
+        fractional overlap coefficients.
+
+    Notes
+    -----
+    The weights correspond exactly to the fractional overlap of coarse bins over
+    fine bins. This is mathematically equivalent to upsampling both grids to
+    their Least Common Multiple (LCM) base units and computing a standard block
+    average (which is the approach that srf2stoch.c takes). The main advantage
+    of this approach is that a sparse matrix does not have to materialise all
+    the empty cell overlaps in memory.
+
+    For example, downsampling 5 fine cells to 3 coarse cells implies an LCM of
+    15 base units. The 5 fine cells (A-E) take up 3 units each, while the 3
+    coarse cells (C0-C2) take up 5 units each.
+
+    The visual alignment of this overlap is as follows:
+
+    ::
+
+        THE LCM GRID (15 Base Units)
+        |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+
+        FINE INPUT GRID (5 cells, each = 3 base units)
+        |-----------|-----------|-----------|-----------|-----------|
+        |     A     |     B     |     C     |     D     |     E     |
+        |-----------|-----------|-----------|-----------|-----------|
+
+        COARSE OUTPUT GRID (3 cells, each = 5 base units)
+        |-------------------|-------------------|-------------------|
+        |         C0        |         C1        |         C2        |
+        |-------------------|-------------------|-------------------|
+
+    Each row in the returned sparse matrix corresponds to the fractional
+    makeup of a single coarse bin:
+
+    * **Row 0 (Coarse Bin 0):** Spans 5 base units. Covers all 3 units of A
+      (3/5) and 2 units of B (2/5).
+    * **Row 1 (Coarse Bin 1):** Spans 5 base units. Covers the remaining 1
+      unit of B (1/5), all 3 units of C (3/5), and 1 unit of D (1/5).
+    * **Row 2 (Coarse Bin 2):** Spans 5 base units. Covers the remaining 2
+      units of D (2/5) and all 3 units of E (3/5).
+
     """
-    bin_width = n_fine / n_coarse
+    bin_width = fine_dx / coarse_dx
     edges = np.arange(n_coarse + 1) * bin_width
     rows, cols, weights = [], [], []
     for j in range(n_coarse):
@@ -66,42 +125,47 @@ def _box_average_matrix(n_fine: int, n_coarse: int) -> sp.csr_matrix:
     )
 
 
-def _target_grid(
-    length: np.float32, n_fine: int, target: float
-) -> tuple[int, np.float32]:
-    """Compute (n_coarse, spacing), matching srf2stoch.c's nx=(len/dx+0.5) logic."""
-    dx = np.float32(target)
-    nx = int(length / dx + 0.5)
-    if nx > n_fine:
-        nx = n_fine
-        dx = length / np.float32(nx)
-    return nx, dx
+def circular_mean(angles: np.ndarray, weights: np.ndarray) -> float:
+    """Take the circular mean of `angles` with respect to `weights`.
+
+    Parameters
+    ----------
+    angles : array of floats
+        The angles to average, in degrees.
+    weights : array of floats
+        The weights to apply to the average.
 
 
-def convert_srf_to_stoch(
-    srf_file: SrfFile, target_dx: float, target_dy: float
-) -> StochFile:
+    Returns
+    -------
+    float
+        The weighted circular mean of angles.
+    """
+
+    rad = np.radians(angles)
+    x = np.cos(rad)
+    y = np.sin(rad)
+    avg_vector = np.average(np.c_[x, y], weights=weights, axis=0)
+    return np.arctan2(avg_vector[1], avg_vector[0]).item()
+
+
+def convert_srf_to_stoch(srf_file: SrfFile, dx: float, dy: float) -> StochFile:
     planes = []
     for i, segment in enumerate(srf_file.segments):
         header = srf_file.header.iloc[i].astype(np.float32)
         nstk, ndip = int(header["nstk"]), int(header["ndip"])
 
-        # srf2stoch.c does all arithmetic in 32-bit float; matching that
-        # precision (rather than numpy's float64 default) keeps our output
-        # within float32 rounding distance of the reference tool's.
         slip = segment["slip"].to_numpy(dtype=np.float32).reshape(ndip, nstk)
         rake = segment["rake"].to_numpy(dtype=np.float32).reshape(
             ndip, nstk
         ) % np.float32(360.0)
         rise = segment["rise"].to_numpy(dtype=np.float32).reshape(ndip, nstk)
         tinit = segment["tinit"].to_numpy(dtype=np.float32).reshape(ndip, nstk)
-        dx = np.float32(target_dx)
-        dy = np.float32(target_dy)
-        # EMOD3D consistent rounding behaviour.
-        nx = int(header["len"] / dx + 0.5)
-        ny = int(header["wid"] / dy + 0.5)
-        wx = _box_average_matrix(nstk, nx).astype(np.float32)
-        wy = _box_average_matrix(ndip, ny).astype(np.float32)
+
+        nx = np.ceil(header["nstk"] / dx)
+        ny = np.ceil(header["ndip"] / dy)
+        wx = _box_average_matrix(nstk, nx, header["dstk"], dx).astype(np.float32)
+        wy = _box_average_matrix(ndip, ny, header["ddip"], dy).astype(np.float32)
 
         def box_average(values: np.ndarray) -> np.ndarray:
             return wy @ values @ wx.T
@@ -109,6 +173,9 @@ def convert_srf_to_stoch(
         slip_grid = box_average(slip)
         trup_grid = box_average(tinit)
         rise_sum = box_average(rise * slip)
+
+        # The rise grid is a slip-averaged rise in each cell. This is performing
+        # the normalisation for the average.
         rise_grid = np.where(
             slip_grid > 0,
             rise_sum / np.where(slip_grid > 0, slip_grid, 1),
@@ -120,12 +187,11 @@ def convert_srf_to_stoch(
             latitude=header["elat"],
             nx=nx,
             ny=ny,
-            dx=float(dx),
-            dy=float(dy),
+            dx=dx,
+            dy=dy,
             strike=header["stk"] % np.float32(360.0),
             dip=header["dip"],
-            # TODO: This is preserved for consistency with srf2stoch, but averaging rakes like this is incorrect!
-            average_rake=np.sum(rake * slip) / np.sum(slip),
+            average_rake=circular_mean(rake, slip),
             dtop=header["dtop"],
             shypo=header["shyp"],
             dhypo=header["dhyp"],
@@ -176,7 +242,8 @@ def generate_stoch(
         geometries = list(source_config.source_geometries.values())
         min_length = min(fault.length for fault in geometries)
         min_width = min(fault.width for fault in geometries)
-        # If the stoch dx is greater than the length (resp. dy and width), we might get an empty stoch file
+        # If the stoch dx is greater than the length (resp. dy and width), we
+        # might get an empty stoch file.
         dx = min(hf_config.stoch_dx, min_length / 2)
         dy = min(hf_config.stoch_dy, min_width / 2)
 
