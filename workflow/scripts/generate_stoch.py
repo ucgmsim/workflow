@@ -18,7 +18,7 @@ Usage
 
 Environment
 -----------
-Can be run in the cybershake container. Can also be run from your own computer using the `generate-stoch` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you are executing on your own computer you also need to specify the `srf2stoch` path (`--srf2stoch-path`).
+Can be run in the cybershake container. Can also be run from your own computer using the `generate-stoch` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
 
 For More Help
 -------------
@@ -73,10 +73,14 @@ def _box_average_matrix(
     -----
     The weights correspond exactly to the fractional overlap of coarse bins over
     fine bins. This is mathematically equivalent to upsampling both grids to
-    their Least Common Multiple (LCM) base units and computing a standard block
-    average (which is the approach that srf2stoch.c takes). The main advantage
-    of this approach is that a sparse matrix does not have to materialise all
-    the empty cell overlaps in memory.
+    their Least Common Multiple (LCM) base units, padding the geometry with
+    zeros in these units and computing a standard block average. The special
+    case where the fine grid and coarse grid span the same length is implemented
+    by srf2stoch.c. The main advantage of this approach is that a sparse matrix
+    does not have to materialise all the empty cell overlaps in memory. A
+    secondary advantage is that we handle the padded case, which lets us set a
+    uniform dx/dy for all SRF segments as the HF code demands without changing
+    total moment.
 
     For example, downsampling 5 fine cells to 3 coarse cells implies an LCM of
     15 base units. The 5 fine cells (A-E) take up 3 units each, while the 3
@@ -110,7 +114,7 @@ def _box_average_matrix(
       units of D (2/5) and all 3 units of E (3/5).
 
     """
-    bin_width = fine_dx / coarse_dx
+    bin_width = coarse_dx / fine_dx
     edges = np.arange(n_coarse + 1) * bin_width
     rows, cols, weights = [], [], []
     for j in range(n_coarse):
@@ -135,21 +139,41 @@ def circular_mean(angles: np.ndarray, weights: np.ndarray) -> float:
     weights : array of floats
         The weights to apply to the average.
 
-
     Returns
     -------
     float
         The weighted circular mean of angles.
     """
 
-    rad = np.radians(angles)
+    rad = np.radians(np.ravel(angles))
     x = np.cos(rad)
     y = np.sin(rad)
+    weights = np.ravel(weights)
+    if not weights.any():
+        # A plane with no slip anywhere has no slip-weighted mean, so
+        # fall back to an unweighted average of the angles.
+        weights = np.ones_like(weights)
     avg_vector = np.average(np.c_[x, y], weights=weights, axis=0)
-    return np.arctan2(avg_vector[1], avg_vector[0]).item()
+    return np.degrees(np.arctan2(avg_vector[1], avg_vector[0])).item() % 360.0
 
 
 def convert_srf_to_stoch(srf_file: SrfFile, dx: float, dy: float) -> StochFile:
+    """Convert an SRF file into a Stoch file by box-averaging slip, tinit and tinit * rise.
+
+    Parameters
+    ----------
+    srf_file : SrfFile
+        The SRF file to convert.
+    dx : float
+        The desired strike-resolution for the output stoch file.
+    dy : float
+        The desired dip-resolution for the output stoch file.
+
+    Returns
+    -------
+    StochFile
+        An output stoch file downsampled from ``srf_file``.
+    """
     planes = []
     for i, segment in enumerate(srf_file.segments):
         header = srf_file.header.iloc[i].astype(np.float32)
@@ -162,10 +186,13 @@ def convert_srf_to_stoch(srf_file: SrfFile, dx: float, dy: float) -> StochFile:
         rise = segment["rise"].to_numpy(dtype=np.float32).reshape(ndip, nstk)
         tinit = segment["tinit"].to_numpy(dtype=np.float32).reshape(ndip, nstk)
 
-        nx = np.ceil(header["nstk"] / dx)
-        ny = np.ceil(header["ndip"] / dy)
-        wx = _box_average_matrix(nstk, nx, header["dstk"], dx).astype(np.float32)
-        wy = _box_average_matrix(ndip, ny, header["ddip"], dy).astype(np.float32)
+        dstk = float(header["len"]) / nstk
+        ddip = float(header["wid"]) / ndip
+
+        nx = int(np.ceil(float(header["len"]) / dx))
+        ny = int(np.ceil(float(header["wid"]) / dy))
+        wx = _box_average_matrix(nstk, nx, dstk, dx).astype(np.float32)
+        wy = _box_average_matrix(ndip, ny, ddip, dy).astype(np.float32)
 
         def box_average(values: np.ndarray) -> np.ndarray:
             return wy @ values @ wx.T
@@ -209,8 +236,6 @@ def generate_stoch(
 ) -> None:
     """Generate a stoch file from an SRF file.
 
-    This function uses the `srf2stoch` binary to generate a stoch file from the provided SRF file.
-
     Parameters
     ----------
     realisation_ffp : Path
@@ -239,13 +264,8 @@ def generate_stoch(
         srf_wid = float(source["wid"])
         dy = srf_wid / srf_ndip
     else:
-        geometries = list(source_config.source_geometries.values())
-        min_length = min(fault.length for fault in geometries)
-        min_width = min(fault.width for fault in geometries)
-        # If the stoch dx is greater than the length (resp. dy and width), we
-        # might get an empty stoch file.
-        dx = min(hf_config.stoch_dx, min_length / 2)
-        dy = min(hf_config.stoch_dy, min_width / 2)
+        dx = hf_config.stoch_dx
+        dy = hf_config.stoch_dy
 
     stoch_file = convert_srf_to_stoch(srf_file, dx, dy)
     with open(stoch_ffp, "w") as f:
