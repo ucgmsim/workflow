@@ -50,7 +50,13 @@ def _box_average_matrix(
     Assuming we have `n_fine` fine gridpoints, and `n_coarse` coarse gridpoints,
     Row j of the returned matrix gives the fractional-overlap weights (summing
     to 1) between coarse bin j and the fine cells it spans. This is equivalent
-    to the ``adaptive_avg_pool2d`` kernel in pytorch.
+    to the ``adaptive_avg_pool2d`` kernel in pytorch with padding.
+
+    The two grids are centred on each other. If the coarse grid is longer than
+    the fine grid, the bins at either end hang off the fine grid and their
+    weights sum to the covered fraction rather than to 1. This is what makes
+    the kernel conserve the total (slip * area) rather than the cell value. See
+    ``convert_srf_to_stoch`` for how we handle trise where this is not what we want.
 
     Parameters
     ----------
@@ -76,11 +82,13 @@ def _box_average_matrix(
     their Least Common Multiple (LCM) base units, padding the geometry with
     zeros in these units and computing a standard block average. The special
     case where the fine grid and coarse grid span the same length is implemented
-    by srf2stoch.c. The main advantage of this approach is that a sparse matrix
+    by srf2stoch.c. The main advantage of our approach is that a sparse matrix
     does not have to materialise all the empty cell overlaps in memory. A
     secondary advantage is that we handle the padded case, which lets us set a
     uniform dx/dy for all SRF segments as the HF code demands without changing
-    total moment.
+    total moment. Because the stoch format records only a centre point and an
+    ``nx * dx`` extent, the padding has to be centred too, or the slip
+    distribution would sit off-centre on the plane the HF code reconstructs.
 
     For example, downsampling 5 fine cells to 3 coarse cells implies an LCM of
     15 base units. The 5 fine cells (A-E) take up 3 units each, while the 3
@@ -115,11 +123,15 @@ def _box_average_matrix(
 
     """
     bin_width = coarse_dx / fine_dx
-    edges = np.arange(n_coarse + 1) * bin_width
+    # The coarse grid may be longer than the fine grid it covers. Split the
+    # excess evenly between the two ends so that both grids stay centred on
+    # the same point (see the Notes above).
+    overhang = (n_coarse * bin_width - n_fine) / 2
+    edges = np.arange(n_coarse + 1) * bin_width - overhang
     rows, cols, weights = [], [], []
     for j in range(n_coarse):
         lo, hi = edges[j], edges[j + 1]
-        idx = np.arange(int(lo), min(int(np.ceil(hi)), n_fine))
+        idx = np.arange(max(int(np.floor(lo)), 0), min(int(np.ceil(hi)), n_fine))
         weights.append((np.minimum(idx + 1, hi) - np.maximum(idx, lo)) / bin_width)
         rows.append(np.full(len(idx), j))
         cols.append(idx)
@@ -198,11 +210,26 @@ def convert_srf_to_stoch(srf_file: SrfFile, dx: float, dy: float) -> StochFile:
             return wy @ values @ wx.T
 
         slip_grid = box_average(slip)
-        trup_grid = box_average(tinit)
-        rise_sum = box_average(rise * slip)
+        # Cells at the edge of the plane are only partially covered by the SRF,
+        # so their weights sum to less than one. That is what conserves the
+        # moment for slip, but rupture time is a time rather than a quantity
+        # spread over the cell, so it has to be divided by the covered
+        # fraction. Every cell is partially covered because nx and ny are
+        # rounded up, so this never divides by zero.
+        #
+        # NOTE: This does materialise an array of order (ny, nx) but it is the
+        # *coarse* ny, nx. Unless we have ruptures larger than Hikurangi this is
+        # unlikely to ever be an issue.
+        coverage = np.outer(
+            np.asarray(wy.sum(axis=1)).ravel(), np.asarray(wx.sum(axis=1)).ravel()
+        )
+        trup_grid = box_average(tinit) / coverage
 
-        # The rise grid is a slip-averaged rise in each cell. This is performing
-        # the normalisation for the average.
+        # The rise grid is a slip-averaged rise in each cell. Note that because
+        # we are dividing rise by slip the coverage factor conveniently cancels
+        # out and we do not have to (should not) similarly divide for the rise
+        # sum.
+        rise_sum = box_average(rise * slip)
         rise_grid = np.where(
             slip_grid > 0,
             rise_sum / np.where(slip_grid > 0, slip_grid, 1),
