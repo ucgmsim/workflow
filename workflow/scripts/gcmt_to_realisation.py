@@ -35,7 +35,6 @@ from typing import Annotated, Optional
 
 import numpy as np
 import pandas as pd
-import requests
 import typer
 
 from qcore import cli
@@ -53,7 +52,6 @@ from workflow.realisations import (
 )
 
 MOMENT_TENSOR_SOLUTION_URL = "https://raw.githubusercontent.com/GeoNet/data/main/moment-tensor/GeoNet_CMT_solutions.csv"
-AUTOMATED_TENSOR_URL = "https://gcmt-realtime-database-default-rtdb.asia-southeast1.firebasedatabase.app/c059adc9c34b9b1c77a3bfc04e4059ea/earthquakes.json"
 NAN_PUBLIC_ID = "9999999"
 app = typer.Typer()
 
@@ -114,7 +112,15 @@ def gcmt_to_realisation(
     nodal_plane: Annotated[
         NodalPlaneChoice, typer.Option()
     ] = NodalPlaneChoice.MOST_LIKELY,
-    solution_origin: Path | None = None,
+    solution_origin: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+        ),
+    ] = None,
 ) -> None:
     """Generate a realisation from a GCMT solution.
 
@@ -146,6 +152,9 @@ def gcmt_to_realisation(
         The nodal plane to use. Most likely will use the community fault model to
         choose a nodal plane that agrees with the tectonic fabric.
         Defaults to `MOST_LIKELY`.
+    solution_origin : Path | None
+        If provided, use a supplied CSV of CMT solutions to lookup geometry.
+        Must follow the format of the Geonet CMT solutions file.
     """
     if (shypo is not None or dhypo is not None) and (
         lat_hypo is not None or lon_hypo is not None
@@ -158,7 +167,6 @@ def gcmt_to_realisation(
         gcmt_solutions = pd.read_csv(solution_origin).set_index("PublicID")
     else:
         gcmt_solutions = pd.read_csv(MOMENT_TENSOR_SOLUTION_URL)
-        automated_gcmt_solutions = requests.get(AUTOMATED_TENSOR_URL).json()
 
         gcmt_solutions = gcmt_solutions[
             gcmt_solutions["PublicID"] != NAN_PUBLIC_ID
@@ -181,14 +189,6 @@ def gcmt_to_realisation(
 
         nodal_plane_1 = NodalPlane(strike1, dip1, rake1)
         nodal_plane_2 = NodalPlane(strike2, dip2, rake2)
-    elif gcmt_event_id in automated_gcmt_solutions:
-        solution = automated_gcmt_solutions[gcmt_event_id]
-        latitude = solution["location"]["latitude"]
-        longitude = solution["location"]["longitude"]
-        centroid_depth = solution["location"]["depth"]
-        solution_moment = float(solution["moment"])
-        nodal_plane_1 = NodalPlane(**solution["nodalPlanes"][0])
-        nodal_plane_2 = NodalPlane(**solution["nodalPlanes"][1])
 
     else:
         raise typer.BadParameter(
