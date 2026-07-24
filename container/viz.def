@@ -12,10 +12,28 @@ From: earthquakesuc/workflow-bootstrap:latest
 
     # System libraries: GMT (libgmt for pygmt) + coastline/border data, the
     # ffmpeg binary (matplotlib FFMpegWriter + plot_ts's shutil.which("ffmpeg")),
-    # and ghostscript (pygmt's psconvert shells out to `gs` to rasterise figures
-    # to PNG/PDF; the gmt package does NOT pull it in, so savefig fails without it).
+    # ghostscript (pygmt's psconvert shells out to `gs` to rasterise figures
+    # to PNG/PDF; the gmt package does NOT pull it in, so savefig fails without it),
+    # and R (r-base-dev) so rpy2 can build against it and load it at runtime.
+    # visualisation/utils.py imports rpy2 at module level for its LOESS helper
+    # (utils.fit_loess_r), so WITHOUT R every tool that imports utils -- plot-srf
+    # and plot-ts included -- dies at import, even though only the gmm/alpine
+    # plots actually call into R. r-base-dev (not r-base-core) because rpy2 builds
+    # a C extension against R's headers; gcc/make are already in the base image.
+    #
+    # xvfb + mesa software GL (libgl1 / libglx-mesa0 / libgl1-mesa-dri) + the X
+    # libs VTK links against: plot_ts's xyts / xyts-diff subcommands render
+    # off-screen 3D through pyvista (VTK). VTK needs a live OpenGL context even
+    # for off_screen=True, and the batch nodes have no GPU and no X server -- so
+    # those subcommands run under `xvfb-run -a` and mesa's llvmpipe does the
+    # rendering in software. (vtk-osmesa would avoid xvfb, but it publishes no
+    # cp313 wheels, so xvfb is the route for this image's Python 3.13. The srf
+    # animation and plot-srf do NOT need any of this.)
     apt-get update && apt-get install -y \
         gmt gmt-gshhg gmt-dcw ffmpeg ghostscript \
+        r-base-dev \
+        xvfb libgl1 libglx-mesa0 libgl1-mesa-dri \
+        libxrender1 libxext6 libsm6 libxt6 \
      && rm -rf /var/lib/apt/lists/*
 
     # The `gmt` package ships only the versioned libgmt.so.6 (the unversioned
@@ -30,11 +48,25 @@ From: earthquakesuc/workflow-bootstrap:latest
     # `qcore @ git` (that repo's real package name is qcore-utils, already
     # present) and `source_modelling @ git` with no floor (would clobber the
     # pinned 2026.7.2 with a git-HEAD build). So install --no-deps against the
-    # base image's stack, adding only the one genuinely-missing runtime dep
-    # (ffmpeg-python, imported by visualisation/plot_ts.py).
-    /sw/venv/bin/pip install --no-cache-dir ffmpeg-python
+    # base image's stack, adding the genuinely-missing runtime deps explicitly:
+    # ffmpeg-python (imported by visualisation/plot_ts.py), rpy2 (imported at
+    # module level by visualisation/utils.py; needs the R installed above), and
+    # pyvista + vtk + imageio(-ffmpeg) for plot_ts's xyts / xyts-diff off-screen
+    # 3D movie rendering (pv.Plotter(off_screen=True) + plotter.open_movie). vtk
+    # 9.6.2 is the regular GLX wheel, run headless via xvfb (above). Versions are
+    # pinned to the dev .venv / a validated resolve; installed WITHOUT --no-deps
+    # so their own deps (cffi, scooby, imageio-ffmpeg, ...) come along. --no-deps
+    # is only for the visualisation install below.
+    #
+    # Pinned to the exact commit that carries the plot-srf fix (skip
+    # near-vertical planes + restored pre-drift basemap/slip style). The bare
+    # repo URL resolves to master, which predates the fix, so pin the commit
+    # for a reproducible build. Bump this SHA -- or drop back to the bare URL --
+    # once cs-nshm-2022-prep merges to master.
+    /sw/venv/bin/pip install --no-cache-dir ffmpeg-python "rpy2==3.6.7" \
+        "pyvista==0.48.4" "vtk==9.6.2" imageio imageio-ffmpeg
     /sw/venv/bin/pip install --no-cache-dir --no-deps \
-        "git+https://github.com/ucgmsim/visualisation.git"
+        "git+https://github.com/ucgmsim/visualisation.git@eee9f26102d5154a89593aa605f7be90433c9acb"
 
     # Bake pygmt_helper's map/topo data into the image so plots work with no
     # internet on BSC compute nodes. pygmt_helper caches via

@@ -21,14 +21,19 @@ On top of the base it adds:
 
 - **apt:** `gmt`, `gmt-gshhg`, `gmt-dcw` (GMT library + coastline/border data),
   `ffmpeg` (animation encoding), `ghostscript` (`gs`, used by pygmt's `psconvert`
-  to rasterise figures — the `gmt` package does not pull it in).
-- **pip:** `ffmpeg-python`, and `visualisation` itself (installed `--no-deps`).
+  to rasterise figures — the `gmt` package does not pull it in), `r-base-dev`
+  (R, for rpy2 — gotcha 7), and `xvfb` + mesa GL (`libgl1`, `libglx-mesa0`,
+  `libgl1-mesa-dri`) + X libs, for pyvista's off-screen 3D rendering (gotcha 8).
+- **pip:** `ffmpeg-python`, `rpy2`, `pyvista` + `vtk` + `imageio`/`imageio-ffmpeg`
+  (all pinned; gotchas 7–8), and `visualisation` itself — installed `--no-deps`
+  and **pinned to a specific commit**, not the bare repo URL, so the build is
+  reproducible (the bare URL resolves to `master`; see the comment in `viz.def`).
 - **baked data:** pygmt_helper's NZ topo/coastline grids (~1.8 GB) **and** cartopy's
   Natural Earth vectors (43 MB), so plots work with no internet on compute nodes.
   These are two independent data systems serving two different tools — see
   gotcha 6; provisioning one does nothing for the other.
 
-Result is a ~9 GB `.sif` (the baked grids dominate; see "Grid data" below).
+Result is a ~4 GB `.sif` (the baked grids dominate; see "Grid data" below).
 
 ## Prerequisites
 
@@ -53,9 +58,12 @@ cd workflow/container        # where viz.def lives
 apptainer build ~/build/runner/viz.sif viz.def
 ```
 
-Build takes ~10 min, most of it the grid download. The `%test` section runs at the
-end and **fails the build** if GMT won't load, the entry points don't import, or
-the baked topo grids are missing — so a clean exit is a real verification.
+Build takes ~12–15 min (the grid download dominates; `r-base-dev` plus the rpy2 and
+vtk pip builds add a few minutes). The `%test` section runs at the end and **fails
+the build** if GMT won't load, the entry points don't import, or the baked topo grids
+are missing — so a clean exit is a real verification. Note `%test` deliberately does
+*not* import `plot_srf`/`plot_ts` (that would init R/VTK in the read-only sandbox);
+the mandatory post-build render (see "Verify") is what catches import breakage.
 
 ### If the build fails on Docker Hub auth
 
@@ -88,7 +96,7 @@ local build-time workaround only.
 
 ## Why the def looks the way it does (gotchas)
 
-Six non-obvious things, each of which causes a silent or confusing failure if
+Eight non-obvious things, each of which causes a silent or confusing failure if
 dropped:
 
 1. **`libgmt.so` symlink.** Ubuntu's `gmt` package ships only the *versioned*
@@ -161,6 +169,28 @@ dropped:
    API check would silently re-download anything missing and pass, hiding the very
    failure the bake prevents. Note `BORDERS` lands in `natural_earth/cultural/` as
    `ne_<scale>_admin_0_boundary_lines_land` while the other four are `physical/`.
+
+7. **R + rpy2 are required by an *unrelated* import path.** `visualisation/utils.py`
+   imports `rpy2` at module top for one helper (`fit_loess_r`, used only by the
+   gmm/alpine plots). Because it is a module-level import, **every** tool that imports
+   `utils` — `plot-srf` and `plot-ts` included — dies at startup with
+   `ModuleNotFoundError: rpy2` when R is absent, even though they never call into R.
+   The batch container predating that import needed no R; the current code does. So
+   the def apt-installs `r-base-dev` (headers, so rpy2 builds its C extension against
+   R) and pip-installs a pinned `rpy2`. If `plot-srf` ever fails at *import*, this is
+   the first suspect. (rpy2 prints a harmless `Setting LC_* failed, using "C"` on
+   startup — the container sets no locale; ignore it.)
+
+8. **pyvista/VTK need a GL context — and a batch node has none.**
+   `visualisation/plot_ts.py` imports `pyvista` at module top (same collateral trap as
+   gotcha 7 — it blocks `plot-ts srf` too, which never uses it). The `xyts` /
+   `xyts-diff` subcommands genuinely render off-screen 3D through VTK, and VTK needs a
+   live OpenGL context **even for `off_screen=True`**. Batch nodes have no GPU and no
+   X server, so the def installs `xvfb` + mesa software GL (llvmpipe, via
+   `libgl1-mesa-dri`) + the X libs VTK links, and **`xyts` / `xyts-diff` must be run
+   under `xvfb-run -a`** (see "Running it"). `vtk-osmesa` would drop the xvfb
+   requirement, but it ships no Python-3.13 wheel, so xvfb + llvmpipe is the route for
+   this image. `plot-srf` and `plot-ts srf` need none of it.
 
 ## Grid data (size decision)
 
@@ -253,7 +283,19 @@ apptainer exec --bind /path/to/srfs:/in --bind /path/to/out:/out \
 ```
 
 `plot-ts` (animations) works the same way; run `apptainer exec viz.sif plot-ts --help`
-for its subcommands.
+for its subcommands. **Exception: the 3D `xyts` / `xyts-diff` subcommands must run
+under `xvfb-run -a`** — they render off-screen through VTK, which needs an OpenGL
+context (gotcha 8):
+
+```bash
+apptainer exec viz.sif xvfb-run -a plot-ts xyts <xyts-file> <out.mp4> ...
+```
+
+The `srf` slip animation (`plot-ts srf … --simple-map`) and `plot-srf` do **not**
+need `xvfb-run` — they never touch VTK. To silence mesa's cosmetic
+`Failed to create … mesa_shader_cache … Read-only file system` warning, set
+`MESA_SHADER_CACHE_DISABLE=true` in the job environment (shaders compile once per
+process regardless, so it costs nothing).
 
 ## Deploy to BSC
 
