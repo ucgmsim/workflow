@@ -42,7 +42,6 @@ import numpy as np
 import numpy.typing as npt
 import oq_wrapper as oqw
 import oq_wrapper.xarray as oqwx
-import pandas as pd
 import shapely
 import typer
 import xarray as xr
@@ -53,7 +52,7 @@ from IM.ims import IM
 from qcore import cli, coordinates
 from source_modelling import sources
 from source_modelling.sources import IsSource
-from workflow import realisations, utils
+from workflow import psa_compression, realisations
 from workflow.realisations import (
     DomainParameters,
     EmpiricalParameters,
@@ -64,9 +63,6 @@ from workflow.realisations import (
     RupturePropagationConfig,
     SourceConfig,
 )
-
-PSA_STEP = 10000
-STATION_CHUNK_SIZE = 1000
 
 app = typer.Typer()
 
@@ -704,14 +700,12 @@ def calculate_intensity_measures(
     ],
     output_path: Annotated[Path, typer.Argument(dir_okay=False, writable=True)],
     simulated_stations: Annotated[bool, typer.Option()] = True,
-    psa_step: Annotated[int, typer.Option()] = PSA_STEP,
-    station_chunk_size: Annotated[int, typer.Option(min=1)] = STATION_CHUNK_SIZE,
     ko_directory: Annotated[
         Path | None, typer.Option(exists=True, file_okay=False)
     ] = None,
     override_ims: Annotated[list[IM] | None, typer.Option("-i", "--im")] = None,
-    cores: Annotated[int | None, typer.Option(min=1)] = None,
     empirical: Annotated[bool, typer.Option()] = True,
+    full_rotd180: Annotated[bool, typer.Option()] = False,
 ) -> None:
     """Calculate intensity measures for simulation data.
 
@@ -725,26 +719,21 @@ def calculate_intensity_measures(
         Output directory for IM calc summary statistics.
     simulated_stations : bool, default True
         If passed, calculate for simulated stations.
-    psa_step : int
-        Maximum number of stations to read from disk at once for pSA calculation
-    station_chunk_size : int
-        Number of stations to load and process at once. Bounds peak
-        memory use by only holding one chunk of waveforms in memory.
     ko_directory : Path
         Directory containing the KO matrix files for FAS calculation. Not required for other IMs.
     override_ims : list of str
         Intensity measures to calculate. If not set, reads from the realisation file.
-    cores : int or None
-        Set the number of cores for parallel processing of IMs. If set
-        to `None`, will default to the available cores from
-        `utils.get_available_cores`.
     empirical : bool, default True
         If passed, additionally estimate intensity measures from the ground
         motion models in the realisation file. Requires the broadband
         waveforms to carry a `vs30` coordinate.
+    full_rotd180 : bool, default False
+        If passed (and pSA is being calculated), also store pSA at every
+        integer rotation angle 0-179 degrees, not just RotD0/50/100. This is
+        roughly 180x the storage of the summary statistics, so it is
+        quantized and delta-encoded (see `workflow.psa_compression`) before
+        writing, at a ~1% uniform relative-error bound.
     """
-    cores = cores or utils.get_available_cores()
-
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     intensity_measure_parameters = (
         IntensityMeasureCalculationParameters.read_from_realisation_or_defaults(
@@ -756,12 +745,18 @@ def calculate_intensity_measures(
     rup_prop_config = RupturePropagationConfig.read_from_realisation(realisation_ffp)
     magnitudes = Magnitudes.read_from_realisation(realisation_ffp)
 
-    broadband = xr.open_dataset(broadband_simulation_ffp)
+    # Chunk over stations only: `component` and `time` must each be a single
+    # chunk because the IM kernels take them as core dimensions, and the
+    # file's own on-disk chunking may split either. Dask sizes the station
+    # chunks from its `array.chunk-size` config.
+    broadband = xr.open_dataset(broadband_simulation_ffp).chunk(
+        {"component": -1, "time": -1, "station": "auto"}
+    )
     dt = broadband.attrs["dt"]
 
     if not simulated_stations:
-        broadband = broadband.where(
-            broadband.station.str.match(r"^(\w{4})$"), drop=True
+        broadband = broadband.isel(
+            station=broadband.station.str.match(r"^(\w{4})$").values
         )
 
     intensity_measures = override_ims or intensity_measure_parameters.ims
@@ -774,21 +769,20 @@ def calculate_intensity_measures(
     nyquist_frequency = 1 / (2 * dt)
 
     im_function_map = {
-        IM.PGA: functools.partial(ims.peak_ground_acceleration, cores=cores),
-        IM.PGV: functools.partial(ims.peak_ground_velocity, dt=dt, cores=cores),
-        IM.PGD: functools.partial(ims.peak_ground_displacement, dt=dt, cores=cores),
-        IM.CAV: functools.partial(ims.cumulative_absolute_velocity, dt=dt, cores=cores),
-        IM.AI: functools.partial(ims.arias_intensity, dt=dt, cores=cores),
-        IM.Ds575: functools.partial(ims.ds575, dt=dt, cores=cores),
-        IM.Ds595: functools.partial(ims.ds595, dt=dt, cores=cores),
+        IM.PGA: (ims.peak_ground_acceleration),
+        IM.PGV: functools.partial(ims.peak_ground_velocity, dt=dt),
+        IM.PGD: functools.partial(ims.peak_ground_displacement, dt=dt),
+        IM.CAV: functools.partial(ims.cumulative_absolute_velocity, dt=dt),
+        IM.AI: functools.partial(ims.arias_intensity, dt=dt),
+        IM.Ds575: functools.partial(ims.ds575, dt=dt),
+        IM.Ds595: functools.partial(ims.ds595, dt=dt),
         IM.pSA: functools.partial(
             ims.pseudo_spectral_acceleration,
             periods=np.array(
                 intensity_measure_parameters.valid_periods, dtype=np.float64
             ),
             dt=dt,
-            step=psa_step,
-            cores=cores,
+            full_rotd180=full_rotd180,
         ),
         IM.FAS: functools.partial(
             ims.fourier_amplitude_spectra,
@@ -797,7 +791,6 @@ def calculate_intensity_measures(
                 intensity_measure_parameters.fas_frequencies <= nyquist_frequency
             ],
             ko_directory=ko_directory,
-            cores=cores,
         ),
     }
     hypocentre = source_geometries.source_geometries[
@@ -808,40 +801,20 @@ def calculate_intensity_measures(
     source_parameters = calculate_source_parameters(
         source_geometries, magnitudes, rakes, hypocentre
     )
-    site_parameters = calculate_site_parameters(broadband.vs30.astype(np.float64))
+    # vs30 is one float per station; load it eagerly rather than letting it
+    # propagate as a dask array into the distance/site coordinates below.
+    site_parameters = calculate_site_parameters(
+        broadband.vs30.astype(np.float64).load()
+    )
 
-    n_stations = broadband.sizes["station"]
-    # Process stations in chunks so only one chunk of waveforms is held
-    # in memory at a time, rather than the whole (component, station,
-    # time) array.
-    chunk_results: dict[IM, list[xr.Dataset]] = {
-        im_name: [] for im_name in intensity_measures
+    # Each IM function is dask-native: it accepts the lazy `waveform` DataArray
+    # and returns a lazy Dataset with the same `station` chunking, one data
+    # variable per component. Nothing is computed until `dtree.to_netcdf`
+    # below, which streams the result chunk by chunk.
+    im_results: dict[str, xr.Dataset] = {
+        im_name: im_function_map[im_name](broadband.waveform)
+        for im_name in intensity_measures
     }
-    for start in range(0, n_stations, station_chunk_size):
-        station_slice = slice(start, start + station_chunk_size)
-        waveform = broadband.waveform.isel(station=station_slice).values.astype(
-            np.float64
-        )
-        chunk_stations = broadband.station.isel(station=station_slice)
-
-        for im_name in intensity_measures:
-            im_fn = im_function_map[im_name]
-            result = im_fn(waveform)
-
-            if isinstance(result, pd.DataFrame):
-                result["station"] = chunk_stations.values
-                result = result.set_index("station").to_xarray()
-            elif isinstance(result, xr.DataArray):
-                result = result.assign_coords(station=chunk_stations).to_dataset(
-                    "component"
-                )
-            chunk_results[im_name].append(result)
-
-    im_results: dict[str, xr.Dataset] = dict()
-    for im_name, chunks in chunk_results.items():
-        result = xr.concat(chunks, dim="station")
-        result.attrs["name"] = im_name
-        im_results[im_name] = result
 
     attributes = {
         "hypo_lat": hypocentre[0],
@@ -876,6 +849,22 @@ def calculate_intensity_measures(
         )
         attributes["tect_type"] = str(empirical_parameters.tect_type)
 
+    # The full-angle curve is ~180x the size of the RotD0/50/100 summary, so
+    # only it (not the rest of the pSA dataset) is quantized and delta-encoded
+    # before writing; `encoding` then applies a matching compression filter to
+    # just that variable.
+    encoding: dict[str, dict[str, dict]] | None = None
+    if full_rotd180 and IM.pSA in im_results:
+        encoded_rotd180 = psa_compression.encode_psa_rotd180(
+            im_results[IM.pSA]["rotd180"]
+        )
+        im_results[IM.pSA] = im_results[IM.pSA].assign(rotd180=encoded_rotd180)
+        encoding = {
+            "/pSA": {
+                "rotd180": psa_compression.rotd180_netcdf_encoding(encoded_rotd180)
+            }
+        }
+
     dtree = xr.DataTree.from_dict(im_results, nested=True)
 
     dtree.attrs = attributes
@@ -883,5 +872,5 @@ def calculate_intensity_measures(
         dtree, distances.as_dict() | site_parameters.as_dict()
     )
     dtree = add_units(dtree)
-    dtree.to_netcdf(output_path)
+    dtree.to_netcdf(output_path, encoding=encoding)
     realisations.append_log_entry(realisation_ffp)
