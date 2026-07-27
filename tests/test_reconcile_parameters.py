@@ -1,5 +1,10 @@
 """Tests for the parameter reconciliation comparison engine."""
 
+import json
+from pathlib import Path
+
+import pytest
+
 from workflow.scripts import reconcile_parameters as rp
 
 
@@ -112,3 +117,107 @@ def test_find_conflicts_ignores_paths_only_one_source_has_an_opinion_on() -> Non
     )
 
     assert conflicts == []
+
+
+def test_value_fingerprint_is_stable_across_key_order() -> None:
+    assert rp.value_fingerprint({"a": 1, "b": 2}) == rp.value_fingerprint(
+        {"b": 2, "a": 1}
+    )
+
+
+def test_value_fingerprint_distinguishes_different_values() -> None:
+    assert rp.value_fingerprint([1, 2]) != rp.value_fingerprint([1, 3])
+
+
+def test_resolve_value_returns_the_chosen_source() -> None:
+    resolved = rp.resolve_value("defaults", {"defaults": ["PGA"], "deployed": ["PGV"]})
+
+    assert resolved == ["PGA"]
+
+
+def test_resolve_value_unions_discrete_candidates_deterministically() -> None:
+    resolved = rp.resolve_value(
+        "union", {"defaults": ["PGA", "PGD"], "deployed": ["PGA", "PGV"]}
+    )
+
+    # Sources are visited in sorted order, so the result is reproducible.
+    assert resolved == ["PGA", "PGD", "PGV"]
+
+
+def test_resolve_value_rejects_a_source_that_has_no_opinion() -> None:
+    with pytest.raises(ValueError, match="felipe"):
+        rp.resolve_value("felipe", {"defaults": ["PGA"]})
+
+
+def test_decision_is_current_when_the_source_still_hashes_the_same() -> None:
+    candidates = {"defaults": ["PGA", "PGD"]}
+    decision = rp.Decision(
+        source="defaults",
+        reason="adopt PGD",
+        decided="2026-07-27",
+        sha256=rp.value_fingerprint(["PGA", "PGD"]),
+    )
+
+    assert rp.decision_is_current(decision, candidates)
+
+
+def test_decision_is_stale_when_the_source_moved_underneath() -> None:
+    decision = rp.Decision(
+        source="defaults",
+        reason="adopt PGD",
+        decided="2026-07-27",
+        sha256=rp.value_fingerprint(["PGA", "PGD"]),
+    )
+
+    assert not rp.decision_is_current(decision, {"defaults": ["PGA", "PGD", "PGV"]})
+
+
+def test_decisions_round_trip_through_yaml(tmp_path: Path) -> None:
+    decisions_ffp = tmp_path / "campaign_parameters.yaml"
+    decisions = {
+        "im.ims": rp.Decision(
+            source="defaults",
+            reason="adopt PGD from pegasus ec2fb25",
+            decided="2026-07-27",
+            sha256="abc123",
+        )
+    }
+
+    rp.save_decisions(decisions_ffp, decisions)
+
+    assert rp.load_decisions(decisions_ffp) == decisions
+
+
+def test_load_decisions_returns_empty_for_a_missing_file(tmp_path: Path) -> None:
+    assert rp.load_decisions(tmp_path / "absent.yaml") == {}
+
+
+def test_read_deployed_parameters_reads_a_consistent_set(tmp_path: Path) -> None:
+    events = tmp_path / "events"
+    for rupture_id in ("100932", "101084"):
+        (events / rupture_id).mkdir(parents=True)
+        (events / rupture_id / "realisation.json").write_text(
+            json.dumps({"im": {"ims": ["PGA"]}, "sources": {"whatever": 1}}),
+            encoding="utf-8",
+        )
+
+    parameters, divergence = rp.read_deployed_parameters(events)
+
+    assert parameters == {"im.ims": ["PGA"]}
+    assert divergence == {}
+
+
+def test_read_deployed_parameters_reports_a_partially_diverged_set(
+    tmp_path: Path,
+) -> None:
+    events = tmp_path / "events"
+    for rupture_id, ims in (("100932", ["PGA"]), ("101084", ["PGA", "PGD"])):
+        (events / rupture_id).mkdir(parents=True)
+        (events / rupture_id / "realisation.json").write_text(
+            json.dumps({"im": {"ims": ims}}), encoding="utf-8"
+        )
+
+    _, divergence = rp.read_deployed_parameters(events)
+
+    assert set(divergence) == {"im.ims"}
+    assert sorted(len(ids) for ids in divergence["im.ims"].values()) == [1, 1]
