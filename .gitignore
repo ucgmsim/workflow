@@ -203,3 +203,6 @@ devenv.local.nix
 /complete_realisations/
 /full_realisations/
 /OLD_realisations/
+
+# Subagent-driven-development scratch: ledgers, task briefs, review packages
+/.superpowers/
