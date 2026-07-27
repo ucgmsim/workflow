@@ -27,6 +27,7 @@ dependencies = [
   "scipy",
   "shapely",
   # CLI
+  "click",
   "tqdm",
   "typer",
   # Misc.
