@@ -281,3 +281,98 @@ def test_complete_realisations_does_not_deploy_without_the_flag(
 
     # No --deploy-dir: nothing outside the output directory is written.
     assert list(events.iterdir()) == []
+
+
+def test_complete_realisations_refuses_to_deploy_when_a_stub_is_broken(
+    tmp_path: Path, minimal_stub: dict[str, object]
+) -> None:
+    source = tmp_path / "minimal"
+    source.mkdir()
+    (source / "realisation_100932.json").write_text(
+        json.dumps(minimal_stub), encoding="utf-8"
+    )
+    shutil.copy(BROKEN, source / "realisation_59421.json")
+    events = tmp_path / "events"
+
+    with pytest.raises(typer.Exit) as exit_info:
+        cr.complete_realisations(
+            source,
+            tmp_path / "complete",
+            felipe_scripts_dir=Path("felipe_scripts"),
+            workers=1,
+            deploy_dir=events,
+        )
+
+    assert exit_info.value.exit_code == 1
+    # The guard refuses the whole run, before copy_realisations ever runs:
+    # even the realisation that completed successfully (100932) is not
+    # deployed.
+    assert not events.exists()
+
+
+def test_complete_realisations_refuses_to_deploy_when_a_completion_fails(
+    tmp_path: Path, minimal_stub: dict[str, object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "minimal"
+    source.mkdir()
+    (source / "realisation_100932.json").write_text(
+        json.dumps(minimal_stub), encoding="utf-8"
+    )
+    (source / "realisation_100933.json").write_text(
+        json.dumps(minimal_stub), encoding="utf-8"
+    )
+    events = tmp_path / "events"
+    real_complete_one = cr.complete_one
+
+    def flaky_complete_one(
+        src: Path,
+        dst: Path,
+        defaults_version: DefaultsVersion,
+        overrides: cr.Overrides,
+        resolved: dict[str, object] | None = None,
+    ) -> None:
+        if src.name == "realisation_100933.json":
+            raise RuntimeError("simulated completion failure")
+        real_complete_one(src, dst, defaults_version, overrides, resolved)
+
+    monkeypatch.setattr(cr, "complete_one", flaky_complete_one)
+
+    with pytest.raises(typer.Exit) as exit_info:
+        cr.complete_realisations(
+            source,
+            tmp_path / "complete",
+            felipe_scripts_dir=Path("felipe_scripts"),
+            workers=1,
+            deploy_dir=events,
+        )
+
+    assert exit_info.value.exit_code == 1
+    # The guard refuses the whole run: even the realisation that completed
+    # successfully (100932) is not deployed.
+    assert not events.exists()
+
+
+def test_complete_realisations_ignores_overwrite_existing_without_deploy_dir(
+    tmp_path: Path, minimal_stub: dict[str, object]
+) -> None:
+    source = tmp_path / "minimal"
+    source.mkdir()
+    (source / "realisation_100932.json").write_text(
+        json.dumps(minimal_stub), encoding="utf-8"
+    )
+    output_dir = tmp_path / "complete"
+    events = tmp_path / "events"
+
+    cr.complete_realisations(
+        source,
+        output_dir,
+        felipe_scripts_dir=Path("felipe_scripts"),
+        workers=1,
+        overwrite_existing=True,
+    )
+
+    # overwrite_existing is inert without --deploy-dir: no exception, no
+    # events path created, and the output directory is written normally.
+    assert not events.exists()
+    assert (output_dir / "realisation_100932.json").exists()
+    assert (output_dir / "completion_summary.csv").exists()
