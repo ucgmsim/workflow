@@ -28,7 +28,7 @@ import pandas as pd
 import typer
 from tqdm import tqdm
 
-from workflow.defaults import DefaultsVersion
+from workflow.defaults import DefaultsVersion, load_defaults
 from workflow.realisations import (
     BroadbandParameters,
     EMOD3DParameters,
@@ -44,6 +44,14 @@ from workflow.realisations import (
 from workflow.scripts.generate_domain import (
     generate_domain_from_realisation,
     total_magnitude,
+)
+from workflow.scripts.reconcile_parameters import (
+    Decision,
+    flatten_sections,
+    load_decisions,
+    read_deployed_parameters,
+    resolve_value,
+    value_fingerprint,
 )
 
 app = typer.Typer()
@@ -199,8 +207,105 @@ def normalize_key_order(realisation: dict[str, Any]) -> dict[str, Any]:
     return ordered
 
 
+def resolve_parameters(
+    decisions: dict[str, Decision],
+    defaults_version: DefaultsVersion,
+    felipe_scripts_dir: Path,
+    events_dir: Path | None,
+) -> dict[str, Any]:
+    """Resolve each recorded decision to the value it selects.
+
+    The decision file records a choice of source rather than a value, so the
+    three candidates are rebuilt here exactly as the reconciler built them, and
+    every resolved value is checked against the fingerprint its decision carries.
+
+    Parameters
+    ----------
+    decisions : dict of str to Decision
+        Recorded decisions, keyed by dotted path.
+    defaults_version : DefaultsVersion
+        Scientific defaults version supplying the ``defaults`` candidate.
+    felipe_scripts_dir : Path
+        Directory supplying the ``felipe`` candidate.
+    events_dir : Path or None
+        Directory supplying the ``deployed`` candidate. Required only when some
+        decision names ``deployed``.
+
+    Returns
+    -------
+    dict
+        Maps dotted path to the decided value.
+
+    Raises
+    ------
+    ValueError
+        If a decision names ``deployed`` without an events directory, or if a
+        resolved value no longer matches the fingerprint the decision recorded.
+    """
+    if any(decision.source == "deployed" for decision in decisions.values()) and (
+        events_dir is None
+    ):
+        raise ValueError(
+            "A decision names source 'deployed'; pass --deployed-from <events dir> "
+            "so the deployed candidate can be read."
+        )
+
+    defaults = flatten_sections(load_defaults(defaults_version))
+    overrides = load_overrides(felipe_scripts_dir)
+    felipe = {
+        "im.valid_periods": overrides.valid_periods.tolist(),
+        "im.fas_frequencies": overrides.fas_frequencies.tolist(),
+        "velocity_model.version": overrides.vm_version,
+        "velocity_model.rrup_interpolants": overrides.rrup_interpolants.tolist(),
+    }
+    deployed: dict[str, Any] = {}
+    if events_dir is not None:
+        deployed, _ = read_deployed_parameters(events_dir)
+
+    resolved: dict[str, Any] = {}
+    for path, decision in decisions.items():
+        candidates = {
+            source: flat[path]
+            for source, flat in (
+                ("defaults", defaults), ("felipe", felipe), ("deployed", deployed)
+            )
+            if path in flat
+        }
+        value = resolve_value(decision.source, candidates)
+        if value_fingerprint(value) != decision.sha256:
+            raise ValueError(
+                f"Decision for {path} names source '{decision.source}', but that "
+                f"source has moved since the decision was recorded "
+                f"({decision.decided}). Re-run reconcile-parameters."
+            )
+        resolved[path] = value
+    return resolved
+
+
+def apply_parameters(realisation: dict[str, Any], resolved: dict[str, Any]) -> None:
+    """Write decided parameter values into a realisation, in place.
+
+    Only the decided keys are touched; every other key of the same section is
+    left as the defaults and overrides produced it.
+
+    Parameters
+    ----------
+    realisation : dict
+        The realisation to modify.
+    resolved : dict
+        Maps dotted path to the decided value.
+    """
+    for path, value in resolved.items():
+        section, _, key = path.partition(".")
+        realisation.setdefault(section, {})[key] = value
+
+
 def complete_one(
-    src: Path, dst: Path, defaults_version: DefaultsVersion, overrides: Overrides
+    src: Path,
+    dst: Path,
+    defaults_version: DefaultsVersion,
+    overrides: Overrides,
+    resolved: dict[str, Any] | None = None,
 ) -> None:
     """Complete a single minimal realisation, writing the full file to ``dst``.
 
@@ -217,6 +322,9 @@ def complete_one(
         Scientific defaults version to materialise (and record in metadata).
     overrides : Overrides
         Velocity-model and intensity-measure overrides.
+    resolved : dict, optional
+        Decided parameter values to apply last, overriding the defaults and the
+        override files. Omit to keep the pre-existing behaviour.
     """
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(src, dst)
@@ -247,9 +355,13 @@ def complete_one(
     for section_cls in _DEFAULTS_SECTION_CLASSES:
         section_cls.read_from_defaults(defaults_version).write_to_realisation(dst)
 
-    # 6. Normalise key order for clean diffing against the reference.
+    # 6. Apply the campaign's recorded parameter decisions, then normalise key
+    #    order for clean diffing against the reference. Decisions are applied
+    #    last so they win over both the defaults and the override files.
     with open(dst, encoding="utf-8") as handle:
         realisation = json.load(handle)
+    if resolved:
+        apply_parameters(realisation, resolved)
     realisation = normalize_key_order(realisation)
     with open(dst, "w", encoding="utf-8") as handle:
         json.dump(realisation, handle, indent=4)
@@ -301,19 +413,31 @@ class CompletionResult:
 
 
 def _rupture_id_from_path(path: Path) -> str:
-    """Return the rupture id from a ``realisation_<id>.json`` path."""
+    """Return the rupture id from a ``realisation_<id>.json`` path.
+
+    Parameters
+    ----------
+    path : Path
+        Path to a ``realisation_<id>.json`` file.
+
+    Returns
+    -------
+    str
+        The rupture id: the filename stem with the ``realisation_`` prefix
+        removed.
+    """
     return path.stem.removeprefix("realisation_")
 
 
 def _complete_worker(
-    args: tuple[Path, Path, DefaultsVersion, Overrides],
+    args: tuple[Path, Path, DefaultsVersion, Overrides, dict[str, Any] | None],
 ) -> CompletionResult:
     """Complete one realisation, capturing any error for aggregate reporting.
 
     Parameters
     ----------
     args : tuple
-        ``(src, dst, defaults_version, overrides)``.
+        ``(src, dst, defaults_version, overrides, resolved)``.
 
     Returns
     -------
@@ -321,10 +445,10 @@ def _complete_worker(
         Success carries a ``summary``; failure carries an ``error`` and the
         partial output is removed.
     """
-    src, dst, defaults_version, overrides = args
+    src, dst, defaults_version, overrides, resolved = args
     rupture_id = _rupture_id_from_path(src)
     try:
-        complete_one(src, dst, defaults_version, overrides)
+        complete_one(src, dst, defaults_version, overrides, resolved)
         with open(dst, encoding="utf-8") as handle:
             completed = json.load(handle)
         return CompletionResult(
@@ -349,6 +473,23 @@ def complete_realisations(
         Path, typer.Option(exists=True, file_okay=False)
     ] = Path("felipe_scripts"),
     vm_version: Annotated[str, typer.Option()] = "2.09",
+    parameters: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            dir_okay=False,
+            help="Campaign decision file recording which parameters to adopt.",
+        ),
+    ] = None,
+    deployed_from: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            file_okay=False,
+            help="Events directory supplying the 'deployed' candidate, needed "
+            "only when a decision names it.",
+        ),
+    ] = None,
     workers: Annotated[int, typer.Option(min=1)] = min(8, cpu_count()),
 ) -> None:
     """Complete every minimal realisation in ``input_dir`` into a full file.
@@ -366,11 +507,23 @@ def complete_realisations(
         Directory containing the override files.
     vm_version : str
         Velocity-model version to force.
+    parameters : Path, optional
+        Campaign decision file recording which parameters to adopt.
+    deployed_from : Path, optional
+        Events directory supplying the 'deployed' candidate.
     workers : int
         Number of parallel processes (1 = serial).
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     overrides = load_overrides(felipe_scripts_dir, vm_version)
+
+    resolved: dict[str, Any] = {}
+    if parameters is not None:
+        resolved = resolve_parameters(
+            load_decisions(parameters), defaults_version, felipe_scripts_dir,
+            deployed_from,
+        )
+        print(f"Applying {len(resolved)} recorded parameter decision(s).")
 
     valid_files: list[Path] = []
     broken_ids: list[str] = []
@@ -383,7 +536,7 @@ def complete_realisations(
             broken_ids.append(_rupture_id_from_path(realisation_ffp))
 
     work = [
-        (src, output_dir / src.name, defaults_version, overrides)
+        (src, output_dir / src.name, defaults_version, overrides, resolved)
         for src in valid_files
     ]
     results: list[CompletionResult] = []

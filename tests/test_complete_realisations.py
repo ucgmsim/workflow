@@ -9,6 +9,7 @@ import pytest
 
 from workflow.defaults import DefaultsVersion
 from workflow.scripts import complete_realisations as cr
+from workflow.scripts.reconcile_parameters import Decision, value_fingerprint
 
 DATA = Path(__file__).parent / "data"
 FELIPE = DATA / "felipe_reference_realisation.json"
@@ -150,3 +151,56 @@ def test_complete_realisations_end_to_end(tmp_path: Path) -> None:
     assert (output_dir / "completion_summary.csv").exists()
     assert "114741" in (output_dir / "completion_summary.csv").read_text()
     assert "59421" in (output_dir / "error_log.txt").read_text()
+
+
+def test_apply_parameters_overwrites_only_the_decided_keys() -> None:
+    realisation = {
+        "im": {"ims": ["PGA"], "valid_periods": [0.1]},
+        "magnitudes": {"A": 7.1},
+    }
+
+    cr.apply_parameters(realisation, {"im.ims": ["PGA", "PGD"]})
+
+    assert realisation["im"]["ims"] == ["PGA", "PGD"]
+    assert realisation["im"]["valid_periods"] == [0.1]
+    assert realisation["magnitudes"] == {"A": 7.1}
+
+
+def test_apply_parameters_creates_an_absent_section() -> None:
+    realisation: dict[str, object] = {}
+
+    cr.apply_parameters(realisation, {"im.ims": ["PGA"]})
+
+    assert realisation == {"im": {"ims": ["PGA"]}}
+
+
+def test_resolve_parameters_rejects_a_decision_whose_source_moved(
+    tmp_path: Path,
+) -> None:
+    # The decision recorded a fingerprint for a value the defaults no longer hold.
+    decisions = {
+        "im.ims": Decision(
+            source="defaults",
+            reason="adopt PGD",
+            decided="2026-07-27",
+            sha256=value_fingerprint(["THIS", "IS", "STALE"]),
+        )
+    }
+
+    with pytest.raises(ValueError, match="moved since"):
+        cr.resolve_parameters(
+            decisions, DefaultsVersion.v24_2_2_1, Path("felipe_scripts"), None
+        )
+
+
+def test_resolve_parameters_requires_an_events_dir_for_deployed_decisions() -> None:
+    decisions = {
+        "im.ims": Decision(
+            source="deployed", reason="pin", decided="2026-07-27", sha256="x"
+        )
+    }
+
+    with pytest.raises(ValueError, match="--deployed-from"):
+        cr.resolve_parameters(
+            decisions, DefaultsVersion.v24_2_2_1, Path("felipe_scripts"), None
+        )
