@@ -15,7 +15,7 @@
 
 **Goal:** Regenerate the 291 CyberShake NSHM-2022 realisations so every file's `log_trail` names a definite, pushed, tagged commit SHA, reproducing each file's scientific content exactly — seeds inherited from the deployed files — while adopting the `pegasus` parameter updates the set is missing, with every such change chosen by a human, recorded with a reason, and mechanically verified.
 
-**Architecture:** Three phases. **Code** (Tasks 1–8, test-driven) verifies `origin/pegasus` is merged, restores the CI gates, fixes two campaign scripts, and adds four new tools — a provenance verifier, a database comparator, a **parameter reconciler**, and a content checker — ending in the pinned commit ("commit N"). **Inputs** (Task 9) rebuilds and verifies `nshmdb.db` from the CRU solution zip; it is **mandatory**, because no `nshmdb.db` currently exists on this machine. **Campaign** (Tasks 10–14) is a runbook, not TDD: it reconciles parameters against `pegasus` and commits the decisions, proves reproduction on a pilot, regenerates all 291, verifies each differs from its original only in `log_trail` and the decided parameters, and deploys behind an explicit overwrite gate — with exact commands, expected output, and explicit abort conditions.
+**Architecture:** Three phases. **Code** (Tasks 1–8, test-driven) verifies `origin/pegasus` is merged, restores the CI gates, fixes two campaign scripts, and adds four new tools — a provenance verifier, a database comparator, a **parameter reconciler**, and a content checker — ending in the pinned commit ("commit N"). **Inputs** (Task 9) rebuilds `nshmdb.db` from the CRU solution zip and compares, turning a reconstruction into evidence. **Campaign** (Tasks 10–14) is a runbook, not TDD: it reconciles parameters against `pegasus` and commits the decisions, proves reproduction on a pilot, regenerates all 291, verifies each differs from its original only in `log_trail` and the decided parameters, and deploys behind an explicit overwrite gate — with exact commands, expected output, and explicit abort conditions.
 
 **Tech Stack:** Python 3.12, `typer` CLIs with `numpydoc` docstrings, `pytest`, `uv` for environment management, `setuptools-scm` for versioning, SQLite.
 
@@ -32,7 +32,7 @@ Every task's requirements implicitly include this section.
 - **Never commit generated realisations to the `workflow` repo.** `minimal_realisations/` and `complete_realisations/` are gitignored, and must stay that way — it is what stops the campaign dirtying its own tree.
 - **Seeds are inherited, not re-drawn.** The campaign passes `--inherit-seeds-from <events dir>` so each realisation replays the five seeds already recorded in its deployed `realisation.json`. There is no seed manifest; the deployed files are the source of truth.
 - **The regenerated set may differ from the originals only in `log_trail` and in decided parameters.** Every other difference is a bug and aborts the campaign. What counts as "decided" is whatever `campaign_parameters.yaml` records — that file is the allowlist, and it lives in `cs_nshm_2022`, not this repo.
-- **`nshmdb.db` does not exist on this machine.** It is gitignored (`.gitignore:197`) and absent from disk. Task 9 must run before any generation command; the CRU solution zip it is built from is git-tracked at `/home/arr65/src/NSHM2022DB/tests/CRU_fault_system_solution.zip`.
+- **`nshmdb.db` is the original database of record**, restored to the repo root on 2026-07-27 and confirmed byte-identical to the one the deployed set was generated from: sha256 `00e256480618cd15e11fbf744037d037bf3fc2d523fb977ee30e0b84a640bc57`, mtime 2026-07-08 11:44. It is gitignored (`.gitignore:197`), so re-check that checksum before the campaign rather than assuming the file present is the file wanted. The CRU solution zip Task 9 rebuilds from is git-tracked at `/home/arr65/src/NSHM2022DB/tests/CRU_fault_system_solution.zip`.
 - **The campaign repo is `/home/arr65/src/cs_nshm_2022`, branch `main`.** Events live at `cs_nshm_2022/cs_nshm_2022/events/<rupture_id>/realisation.json`. Renamed from `cybershake_nshm_2022` on 2026-07-22 (`37b2ea1`), a pure `git mv` that left all 291 files byte-identical.
 
 ### The CI gates, exactly as CI runs them
@@ -3914,16 +3914,26 @@ Write the full 40-character SHA down. Every subsequent task refers to it as **co
 
 ## Task 9: Rebuild `nshmdb.db` and test the provenance chain
 
-**This task is now mandatory, not a verification.** As of 2026-07-27 there is **no `nshmdb.db` anywhere on this machine** — it is gitignored (`.gitignore:197`) and absent from disk, and `/home/arr65/data/` holds nothing but an unrelated zip. Every generation command in Tasks 10b, 11 and 14 needs it, so nothing downstream can run until this task has.
+This task tests a claim rather than making one: `nshmdb.db` has no recorded origin, only a reconstruction from the NSHM2022DB reflog. Rebuilding it from the CRU zip and comparing is what turns that reconstruction into evidence.
 
-Two consequences for the steps below:
+Two corrections to the paths this task was originally written with:
 
-- The CRU solution zip is **not** in `/home/arr65/data/`. It is git-tracked at `/home/arr65/src/NSHM2022DB/tests/CRU_fault_system_solution.zip` (69 MB) — which is better for provenance than a loose file, because the input is version-controlled and identified by a commit. Do not confuse it with `CRU_fault_system_solution_small.zip` (3.6 KB), which is a test fixture.
-- Step 3's comparison has **nothing to compare against**, because the previously-used database is gone. Follow Step 4's "if they differ" branch unconditionally: adopt the rebuilt database, whose provenance is known by construction, and record that the pre-existing database could not be compared because it no longer existed.
+- The CRU solution zip is **not** in `/home/arr65/data/`, which holds nothing relevant. It is git-tracked at `/home/arr65/src/NSHM2022DB/tests/CRU_fault_system_solution.zip` (69 MB) — better for provenance than a loose file, because the input is version-controlled and identified by a commit. Do not confuse it with `CRU_fault_system_solution_small.zip` (3.6 KB), which is a test fixture.
+- `nshmdb.db` went missing from this machine and was restored on 2026-07-27. It is byte-identical to the database the deployed set came from (sha256 `00e2564806…`), so the comparison below is meaningful. **Confirm that checksum first** — Step 1a — because the file is gitignored and nothing else guarantees which database is sitting there.
 
 **Files:**
 - Create: `/home/arr65/data/cs_nshm_2022/nshmdb_rebuilt_20260714.db` (create the directory first)
-- Create: `/home/arr65/src/workflow/nshmdb.db`
+- Possibly modify: `/home/arr65/src/workflow/nshmdb.db`
+
+- [ ] **Step 1a: Confirm the database present is the database of record**
+
+```bash
+sha256sum nshmdb.db
+```
+
+Expected: `00e256480618cd15e11fbf744037d037bf3fc2d523fb977ee30e0b84a640bc57`.
+
+If it differs, **stop**. A different database means the deployed realisations' rupture ids may not mean what this campaign assumes, and Step 3's comparison would be testing the wrong thing.
 
 - [ ] **Step 1: Confirm NSHM2022DB is where the reflog says it is**
 
@@ -3958,16 +3968,13 @@ Both values go into `PROVENANCE.md` in Task 13.
 
 - [ ] **Step 3: Compare against the database that has been in use**
 
-**Skip this step if `nshmdb.db` does not exist** — as of 2026-07-27 it does not, so there is nothing to compare and Step 4's second branch applies directly. Run the comparison only if a pre-existing database has since reappeared:
-
 ```bash
-test -f nshmdb.db && uv run compare-nshmdb \
+uv run compare-nshmdb \
     nshmdb.db \
-    /home/arr65/data/cs_nshm_2022/nshmdb_rebuilt_20260714.db \
-    || echo "No pre-existing nshmdb.db to compare against; adopt the rebuild."
+    /home/arr65/data/cs_nshm_2022/nshmdb_rebuilt_20260714.db
 ```
 
-Expected, if a pre-existing database is present and the reconstructed chain is correct:
+Expected, if the reconstructed chain is correct:
 ```
 fault                              2,325 rows  <hash>  same
 fault_plane                        4,735 rows  <hash>  same
@@ -3981,17 +3988,15 @@ Databases are logically identical.
 
 - [ ] **Step 4: Act on the result**
 
-**If there was nothing to compare** (the expected case as of 2026-07-27): adopt the rebuild — it is the only database with known provenance, and it is now the database of record.
+**If they match** (exit 0): the chain is proven. `nshmdb.db` stays as it is. Record in Task 13 that the rebuild reproduced it exactly.
+
+**If they differ** (exit 1): this is a genuine finding, not a failure. The database in use was *not* what the reconstruction claimed. Adopt the rebuilt database, whose provenance is known by construction:
 
 ```bash
 cp /home/arr65/data/cs_nshm_2022/nshmdb_rebuilt_20260714.db nshmdb.db
 ```
 
-Record in Task 13 that no pre-existing database survived to be compared, so the rebuild was adopted unverified against its predecessor. That is an honest limitation, not a failure: the rebuild's own provenance — a tracked input, a pinned generator commit — is exactly what the campaign needs. But it does mean **the deployed realisations were generated from a database this one has never been checked against**, so Task 10b's pilot carries more weight than it otherwise would. A source-side mismatch there is the signal that the databases differ.
-
-**If they match** (exit 0): the chain is proven. `nshmdb.db` stays as it is. Record in Task 13 that the rebuild reproduced it exactly.
-
-**If they differ** (exit 1): this is a genuine finding, not a failure. The database in use was *not* what the reconstruction claimed. Adopt the rebuilt database as above, then **report the differences before continuing** — a large discrepancy (for example a different rupture count) means the campaign's rupture ids may not mean what we think they mean, and Task 11 must not start until that is understood.
+Then **report the differences before continuing** — a large discrepancy (for example a different rupture count) means the campaign's rupture ids may not mean what we think they mean, and Task 11 must not start until that is understood.
 
 - [ ] **Step 5: Record the checksum of the database of record**
 
@@ -3999,7 +4004,7 @@ Record in Task 13 that no pre-existing database survived to be compared, so the 
 sha256sum nshmdb.db
 ```
 
-This value goes into `PROVENANCE.md` in Task 13. For reference, the database in use when this plan was first written had sha256 `00e256480618cd15e11fbf744037d037bf3fc2d523fb977ee30e0b84a640bc57`; that file no longer exists, so this is a historical note rather than a check.
+This value goes into `PROVENANCE.md` in Task 13. If Step 4 took the matching branch it will still be `00e256480618cd15e11fbf744037d037bf3fc2d523fb977ee30e0b84a640bc57`, unchanged from Step 1a.
 
 ---
 
@@ -4168,7 +4173,7 @@ Reconciling reads `workflow` and writes into `cs_nshm_2022`; it must not have to
 
 ## Task 10b: Pilot — prove the regeneration before the full run
 
-This is the load-bearing gate. Inheriting the seeds reproduces the content only if commit N's code derives the same realisation from them as the ad-hoc code did — and the ad-hoc baker (`bake_realisations.py`) no longer exists, `complete-realisations` is its successor, the pegasus merge brought magnitude-convention (BoldM) changes, and (Task 9) the database has been rebuilt without ever being compared against the one the deployed set came from. Prove it on a handful of events before committing to 291.
+This is the load-bearing gate. Inheriting the seeds reproduces the content only if commit N's code derives the same realisation from them as the ad-hoc code did — and the ad-hoc baker (`bake_realisations.py`) no longer exists, `complete-realisations` is its successor, and the pegasus merge brought magnitude-convention (BoldM) changes. Prove it on a handful of events before committing to 291.
 
 - [ ] **Step 1: Build a small pilot rupture list**
 
@@ -4211,7 +4216,7 @@ If **0 failed**, commit N reproduces the originals from their inherited seeds an
 
 If **any** event fails, **stop**. The command distinguishes the two cases and both matter:
 
-- `UNEXPECTED` — regeneration changed something nobody decided. Likely causes, in order: the rebuilt `nshmdb.db` differing from the one the deployed set came from (Task 9 could not compare them, so a `sources` or `magnitudes` difference points straight here); `complete-realisations` differing from the vanished `bake_realisations.py`; the BoldM magnitude-convention changes; or the area-weighted fault selection (`9f35c90`).
+- `UNEXPECTED` — regeneration changed something nobody decided. Likely causes, in order: `complete-realisations` differing from the vanished `bake_realisations.py`; the BoldM magnitude-convention changes from the pegasus merge; or the area-weighted fault selection (`9f35c90`). A `sources` or `rupture_propagation` difference would additionally implicate the database, so re-check Task 9 Step 1a's checksum before chasing the code.
 - `UNAPPLIED` — a recorded decision did not reach the file. That is a bug in Task 7d's resolution or application, not a scientific finding.
 
 Any code fix moves commit N, so re-run Task 8 (gates + pin) and Task 10 (force the stamp) afterwards. Do **not** run the full campaign against a failing pilot.
@@ -4511,7 +4516,7 @@ versions, so no tag was applied; the commit SHA is the anchor.»
 
 | input | sha256 | origin |
 | --- | --- | --- |
-| `nshmdb.db` | `«sha256»` | Built by `nshm_db_generator.py` at NSHM2022DB `«NSHM2022DB sha»` from the CRU zip below. |
+| `nshmdb.db` | `00e256480618cd15e11fbf744037d037bf3fc2d523fb977ee30e0b84a640bc57` | Built by `nshm_db_generator.py` at NSHM2022DB `«NSHM2022DB sha»` from the CRU zip below. Confirm this checksum still matches before quoting it — the file is gitignored. |
 | `CRU_fault_system_solution.zip` | `«sha256»` | The NSHM 2022 crustal fault system solution, from Jake Faulkner. Git-tracked in NSHM2022DB at `tests/`, last touched by `«commit»`. Its own upstream release identifier is not recorded. |
 | `annealed_minimal_ruptures.csv` | `«sha256»` | 293 rupture ids, provided by Jake Faulkner as the first sample of ruptures to simulate for this campaign. The selection procedure implied by "annealed" is not documented. |
 | `campaign_parameters.yaml` | `«sha256»` | Which parameters this set takes from the `pegasus` scientific defaults and which from the campaign's override files, with a reason and a value fingerprint per decision. Produced by `reconcile-parameters`; committed in `cs_nshm_2022`. |
@@ -4522,8 +4527,9 @@ versions, so no tag was applied; the commit SHA is the anchor.»
 
 `nshmdb.db` had no recorded origin. It was reconstructed from evidence — the
 NSHM2022DB reflog shows a single clone at `95a005a` on 2026-07-08 11:42:46, the
-database was written at 11:44:03, and its schema matches the repo's only
-generator — and then **tested by rebuilding it**:
+database was written at 11:44:03, its file mtime still reads 2026-07-08 11:44,
+and its schema matches the repo's only generator — and then **tested by
+rebuilding it**:
 
 ```
 uv run compare-nshmdb nshmdb.db nshmdb_rebuilt_20260714.db
@@ -4851,7 +4857,7 @@ At completion:
 - The SRFs and slip animations already built from the previous set stay valid, because every source-derived field reproduces exactly and the only changed parameters live in `im`, which feeds `im-calc` alone.
 - `campaign_parameters.yaml` committed in `cs_nshm_2022`, recording every decision with a reason, a date and a value fingerprint — so the next `pegasus` merge asks only about what actually moved.
 - Seeds inherited from the files they replace, with the inherited/fresh split asserted at 291/2 rather than assumed.
-- `nshmdb.db` rebuilt from a git-tracked input, with its derivation recorded — and the fact that no predecessor survived to compare it against stated plainly rather than glossed.
+- `nshmdb.db` with a derivation that was tested, not assumed — rebuilt from a git-tracked input and compared against the database of record.
 - Every CI gate green — including the two this branch had broken.
 - Committed checkers anyone can re-run to confirm all of the above.
-- `PROVENANCE.md` pinning every input by checksum, and stating honestly what is *not* known: the CRU zip's upstream release, what "annealed" means, and that the database of record was never compared against the one the previous set came from.
+- `PROVENANCE.md` pinning every input by checksum, and stating honestly what is *not* known: the CRU zip's upstream release, and what "annealed" means.
