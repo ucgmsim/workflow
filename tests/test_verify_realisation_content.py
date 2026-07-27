@@ -3,8 +3,15 @@
 import json
 from pathlib import Path
 
+import pytest
+import typer
+
 from workflow.scripts import verify_realisation_content as vc
-from workflow.scripts.reconcile_parameters import Decision, value_fingerprint
+from workflow.scripts.reconcile_parameters import (
+    Decision,
+    save_decisions,
+    value_fingerprint,
+)
 
 
 def test_diff_content_is_empty_for_identical_realisations() -> None:
@@ -147,3 +154,180 @@ def test_compare_files_accepts_a_decided_change_and_rejects_an_undecided_one(
     # The im.ims change was decided; the magnitude change was not.
     assert unexpected == ["magnitudes.A: 7.1 != 7.2"]
     assert unapplied == []
+
+
+# -- CLI-level tests: main()'s exit-code contract ---------------------------
+#
+# The tests above stop at the library layer. Nothing else in the suite proves
+# that a non-empty (unexpected, unapplied) pair actually reaches `main`'s
+# `raise typer.Exit(code=1)`, or that a regenerated file with no counterpart
+# under events_dir is reported rather than silently dropped by the glob loop.
+# This is the campaign's last gate before 291 originals are overwritten and
+# the comparison target is gone, so that contract is a regression test here
+# rather than a one-off manual check.
+
+
+def test_main_exits_cleanly_when_every_change_is_decided(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    events_dir = tmp_path / "events"
+    (events_dir / "EVT1").mkdir(parents=True)
+    (events_dir / "EVT1" / "realisation.json").write_text(
+        json.dumps(
+            {
+                "im": {"ims": ["PGA"]},
+                "magnitudes": {"A": 7.1},
+                "log_trail": {"log": ["a"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    regenerated_dir = tmp_path / "regenerated"
+    regenerated_dir.mkdir()
+    (regenerated_dir / "realisation_EVT1.json").write_text(
+        json.dumps(
+            {
+                "im": {"ims": ["PGA", "PGD"]},
+                "magnitudes": {"A": 7.1},
+                "log_trail": {"log": ["b"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    parameters = tmp_path / "decisions.yaml"
+    save_decisions(
+        parameters,
+        {
+            "im.ims": Decision(
+                source="defaults",
+                reason="adopt PGD",
+                decided="2026-07-27",
+                sha256=value_fingerprint(["PGA", "PGD"]),
+            )
+        },
+    )
+
+    vc.main(events_dir, regenerated_dir, parameters=parameters)
+
+    assert "0 failed" in capsys.readouterr().out
+
+
+def test_main_exits_1_when_an_undecided_difference_is_present(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    events_dir = tmp_path / "events"
+    (events_dir / "EVT1").mkdir(parents=True)
+    (events_dir / "EVT1" / "realisation.json").write_text(
+        json.dumps(
+            {
+                "im": {"ims": ["PGA"]},
+                "magnitudes": {"A": 7.1},
+                "log_trail": {"log": ["a"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    regenerated_dir = tmp_path / "regenerated"
+    regenerated_dir.mkdir()
+    (regenerated_dir / "realisation_EVT1.json").write_text(
+        json.dumps(
+            {
+                # im.ims changed as decided; magnitudes.A changed with no decision.
+                "im": {"ims": ["PGA", "PGD"]},
+                "magnitudes": {"A": 7.2},
+                "log_trail": {"log": ["b"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    parameters = tmp_path / "decisions.yaml"
+    save_decisions(
+        parameters,
+        {
+            "im.ims": Decision(
+                source="defaults",
+                reason="adopt PGD",
+                decided="2026-07-27",
+                sha256=value_fingerprint(["PGA", "PGD"]),
+            )
+        },
+    )
+
+    with pytest.raises(typer.Exit) as exit_info:
+        vc.main(events_dir, regenerated_dir, parameters=parameters)
+
+    assert exit_info.value.exit_code == 1
+    output = capsys.readouterr().out
+    assert "UNEXPECTED" in output
+    assert "magnitudes.A" in output
+
+
+def test_main_exits_1_when_a_decision_did_not_take(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    events_dir = tmp_path / "events"
+    (events_dir / "EVT1").mkdir(parents=True)
+    (events_dir / "EVT1" / "realisation.json").write_text(
+        json.dumps(
+            {
+                "im": {"ims": ["PGA"]},
+                "magnitudes": {"A": 7.1},
+                "log_trail": {"log": ["a"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    regenerated_dir = tmp_path / "regenerated"
+    regenerated_dir.mkdir()
+    (regenerated_dir / "realisation_EVT1.json").write_text(
+        json.dumps(
+            {
+                # The im.ims decision was recorded but never reached this file.
+                "im": {"ims": ["PGA"]},
+                "magnitudes": {"A": 7.1},
+                "log_trail": {"log": ["b"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    parameters = tmp_path / "decisions.yaml"
+    save_decisions(
+        parameters,
+        {
+            "im.ims": Decision(
+                source="defaults",
+                reason="adopt PGD",
+                decided="2026-07-27",
+                sha256=value_fingerprint(["PGA", "PGD"]),
+            )
+        },
+    )
+
+    with pytest.raises(typer.Exit) as exit_info:
+        vc.main(events_dir, regenerated_dir, parameters=parameters)
+
+    assert exit_info.value.exit_code == 1
+    output = capsys.readouterr().out
+    assert "UNAPPLIED" in output
+    assert "im.ims" in output
+
+
+def test_main_reports_a_regenerated_file_with_no_original_instead_of_skipping_it(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    events_dir = tmp_path / "events"
+    events_dir.mkdir()
+    regenerated_dir = tmp_path / "regenerated"
+    regenerated_dir.mkdir()
+    (regenerated_dir / "realisation_EVT2.json").write_text(
+        json.dumps({"magnitudes": {"A": 7.1}}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(typer.Exit) as exit_info:
+        vc.main(events_dir, regenerated_dir)
+
+    assert exit_info.value.exit_code == 1
+    output = capsys.readouterr().out
+    assert "EVT2" in output
+    assert "no original to compare against" in output
