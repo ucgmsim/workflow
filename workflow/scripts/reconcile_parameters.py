@@ -277,8 +277,16 @@ def value_fingerprint(value: object) -> str:
     value : object
         A value composed only of JSON-native types: ``dict``, ``list``,
         ``str``, ``int``, ``float``, ``bool``, or ``None``. Anything else
-        (a ``set``, a ``tuple``, an arbitrary object, ...) is rejected rather
-        than coerced into one of these -- see Raises.
+        that ``json.dumps`` cannot encode natively (a ``set``, an arbitrary
+        object, ...) is rejected rather than coerced -- see Raises.
+
+        A ``tuple`` is *not* rejected: ``json.dumps`` serialises it through
+        the same native-array path as a ``list``, so
+        ``value_fingerprint((1, 2)) == value_fingerprint([1, 2])``. None of
+        this module's three candidate sources (``load_defaults`` --
+        ``yaml.safe_load`` types; felipe -- ``.tolist()`` output or a plain
+        string; deployed -- ``json.load`` output) can produce a tuple, so
+        callers must not rely on tuple and list being distinguishable here.
 
     Returns
     -------
@@ -289,8 +297,8 @@ def value_fingerprint(value: object) -> str:
     Raises
     ------
     TypeError
-        If ``value`` contains anything outside the JSON-native types listed
-        above.
+        If ``value`` contains something ``json.dumps`` cannot encode
+        natively, such as a ``set`` or an arbitrary object.
     """
     canonical = json.dumps(
         value,
