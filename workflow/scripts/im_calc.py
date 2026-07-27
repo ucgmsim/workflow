@@ -52,7 +52,7 @@ from IM.ims import IM
 from qcore import cli, coordinates
 from source_modelling import sources
 from source_modelling.sources import IsSource
-from workflow import psa_compression, realisations
+from workflow import realisations
 from workflow.realisations import (
     DomainParameters,
     EmpiricalParameters,
@@ -690,6 +690,66 @@ def calculate_empirical(
     return empirical_results
 
 
+ROTD180_LOG_SCALE_FACTOR = np.log1p(0.01) / 2
+
+# Fixed uint16 midpoint offset so negative log-pSA values are representable.
+ROTD180_LOG_ADD_OFFSET = -32768 * ROTD180_LOG_SCALE_FACTOR
+
+ROTD180_LOG_FLOOR = 1e-10
+
+
+def encode_psa_rotd180(rotd180: xr.DataArray) -> xr.DataArray:
+    """Delta-encode the full-angle RotD180 pSA curve in log-space.
+
+    Adjacent angles are highly correlated, so log then diff along `angle`
+    collapses most of the curve to near-zero values, compressing well.
+    Decoding is cumulative, so quantization error grows along the curve.
+
+    Parameters
+    ----------
+    rotd180 : xr.DataArray
+        The full-angle RotD180 pSA curve (g), with an `angle` dimension of
+        size 180.
+
+    Returns
+    -------
+    xr.DataArray
+        The log-transformed, delta-encoded curve, with the same shape as
+        `rotd180`. `angle=0` holds `log(rotd180)` at that angle, and every
+        subsequent angle holds the difference in log-pSA from its
+        predecessor. Recovered via `exp(encoded.cumsum("angle"))`.
+    """
+    log_psa = np.log(np.maximum(rotd180, ROTD180_LOG_FLOOR))
+    base = log_psa.isel(angle=slice(0, 1))
+    deltas = log_psa.diff("angle")
+    return xr.concat([base, deltas], dim="angle").transpose(*rotd180.dims)
+
+
+def rotd180_netcdf_encoding(encoded_rotd180: xr.DataArray) -> dict:
+    """Build the netCDF4 encoding for a delta-encoded `rotd180` variable.
+
+    Parameters
+    ----------
+    encoded_rotd180 : xr.DataArray
+        The output of `encode_psa_rotd180`.
+
+    Returns
+    -------
+    dict
+        A netCDF4 variable encoding that linearly quantizes the log-space
+        values to `uint16` and deflates the result.
+    """
+    return {
+        "dtype": "uint16",
+        "scale_factor": ROTD180_LOG_SCALE_FACTOR,
+        "add_offset": ROTD180_LOG_ADD_OFFSET,
+        "_FillValue": None,
+        "zlib": True,
+        "complevel": 4,
+        "shuffle": True,
+    }
+
+
 @cli.from_docstring(app)
 def calculate_intensity_measures(
     realisation_ffp: Annotated[
@@ -728,11 +788,12 @@ def calculate_intensity_measures(
         motion models in the realisation file. Requires the broadband
         waveforms to carry a `vs30` coordinate.
     full_rotd180 : bool, default False
-        If passed (and pSA is being calculated), also store pSA at every
-        integer rotation angle 0-179 degrees, not just RotD0/50/100. This is
-        roughly 180x the storage of the summary statistics, so it is
-        quantized and delta-encoded (see `workflow.psa_compression`) before
-        writing, at a ~1% uniform relative-error bound.
+        If passed (and pSA is being calculated), also store pSA at every integer
+        rotation angle 0-179 degrees, not just RotD0/50/100. This is roughly
+        180x the storage of the summary statistics, so it is quantized and
+        delta-encoded before writing, at a ~1% relative-error resolution near
+        angle 0 that accumulates (worst case, additively) further along the
+        curve.
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     intensity_measure_parameters = (
@@ -849,21 +910,11 @@ def calculate_intensity_measures(
         )
         attributes["tect_type"] = str(empirical_parameters.tect_type)
 
-    # The full-angle curve is ~180x the size of the RotD0/50/100 summary, so
-    # only it (not the rest of the pSA dataset) is quantized and delta-encoded
-    # before writing; `encoding` then applies a matching compression filter to
-    # just that variable.
     encoding: dict[str, dict[str, dict]] | None = None
     if full_rotd180 and IM.pSA in im_results:
-        encoded_rotd180 = psa_compression.encode_psa_rotd180(
-            im_results[IM.pSA]["rotd180"]
-        )
+        encoded_rotd180 = encode_psa_rotd180(im_results[IM.pSA]["rotd180"])
         im_results[IM.pSA] = im_results[IM.pSA].assign(rotd180=encoded_rotd180)
-        encoding = {
-            "/pSA": {
-                "rotd180": psa_compression.rotd180_netcdf_encoding(encoded_rotd180)
-            }
-        }
+        encoding = {"/pSA": {"rotd180": rotd180_netcdf_encoding(encoded_rotd180)}}
 
     dtree = xr.DataTree.from_dict(im_results, nested=True)
 
