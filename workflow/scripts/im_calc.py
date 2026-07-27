@@ -53,6 +53,7 @@ from qcore import cli, coordinates
 from source_modelling import sources
 from source_modelling.sources import IsSource
 from workflow import realisations
+from workflow.psa_compression import encode_psa_rotd180, rotd180_netcdf_encoding
 from workflow.realisations import (
     DomainParameters,
     EmpiricalParameters,
@@ -688,66 +689,6 @@ def calculate_empirical(
             )
 
     return empirical_results
-
-
-ROTD180_LOG_SCALE_FACTOR = np.log1p(0.01) / 2
-
-# Fixed uint16 midpoint offset so negative log-pSA values are representable.
-ROTD180_LOG_ADD_OFFSET = -32768 * ROTD180_LOG_SCALE_FACTOR
-
-ROTD180_LOG_FLOOR = 1e-10
-
-
-def encode_psa_rotd180(rotd180: xr.DataArray) -> xr.DataArray:
-    """Delta-encode the full-angle RotD180 pSA curve in log-space.
-
-    Adjacent angles are highly correlated, so log then diff along `angle`
-    collapses most of the curve to near-zero values, compressing well.
-    Decoding is cumulative, so quantization error grows along the curve.
-
-    Parameters
-    ----------
-    rotd180 : xr.DataArray
-        The full-angle RotD180 pSA curve (g), with an `angle` dimension of
-        size 180.
-
-    Returns
-    -------
-    xr.DataArray
-        The log-transformed, delta-encoded curve, with the same shape as
-        `rotd180`. `angle=0` holds `log(rotd180)` at that angle, and every
-        subsequent angle holds the difference in log-pSA from its
-        predecessor. Recovered via `exp(encoded.cumsum("angle"))`.
-    """
-    log_psa = np.log(np.maximum(rotd180, ROTD180_LOG_FLOOR))
-    base = log_psa.isel(angle=slice(0, 1))
-    deltas = log_psa.diff("angle")
-    return xr.concat([base, deltas], dim="angle").transpose(*rotd180.dims)
-
-
-def rotd180_netcdf_encoding(encoded_rotd180: xr.DataArray) -> dict:
-    """Build the netCDF4 encoding for a delta-encoded `rotd180` variable.
-
-    Parameters
-    ----------
-    encoded_rotd180 : xr.DataArray
-        The output of `encode_psa_rotd180`.
-
-    Returns
-    -------
-    dict
-        A netCDF4 variable encoding that linearly quantizes the log-space
-        values to `uint16` and deflates the result.
-    """
-    return {
-        "dtype": "uint16",
-        "scale_factor": ROTD180_LOG_SCALE_FACTOR,
-        "add_offset": ROTD180_LOG_ADD_OFFSET,
-        "_FillValue": None,
-        "zlib": True,
-        "complevel": 4,
-        "shuffle": True,
-    }
 
 
 @cli.from_docstring(app)
