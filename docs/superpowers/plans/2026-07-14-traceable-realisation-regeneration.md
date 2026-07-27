@@ -2375,8 +2375,9 @@ import hashlib
 import json
 import math
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, NoReturn, cast
 
+import click
 import typer
 import yaml
 from rich.console import Console
@@ -2394,21 +2395,64 @@ only thing needed from that module.
 Append to the module:
 
 ```python
+def _reject_non_json_native(value: object) -> NoReturn:
+    """Raise for a value ``json.dumps`` could not encode with a native type.
+
+    Installed as the ``default`` handler on `value_fingerprint`'s ``json.dumps``
+    call, so it only runs on a value that was not already ``dict``, ``list``,
+    ``str``, ``int``, ``float``, ``bool`` or ``None``.
+
+    Parameters
+    ----------
+    value : object
+        The value ``json.dumps`` fell back to this handler for.
+
+    Raises
+    ------
+    TypeError
+        Always. A coercion such as ``default=list`` would, for a ``set``,
+        encode its iteration order -- which Python randomises per process --
+        into the fingerprint, breaking the one property `decision_is_current`
+        relies on: that the same logical value fingerprints the same way
+        across separate runs.
+    """
+    raise TypeError(
+        f"value_fingerprint cannot encode a value of type "
+        f"{type(value).__name__!r}; only JSON-native types (dict, list, "
+        f"str, int, float, bool, None) are supported."
+    )
+
+
 def value_fingerprint(value: object) -> str:
     """Return a stable sha256 fingerprint of a parameter value.
 
     Parameters
     ----------
     value : object
-        Any JSON-serialisable parameter value.
+        A value composed only of JSON-native types. Anything else that
+        ``json.dumps`` cannot encode natively (a ``set``, an arbitrary object)
+        is rejected rather than coerced.
+
+        A ``tuple`` is *not* rejected: ``json.dumps`` serialises it through the
+        same native-array path as a ``list``, so a tuple fingerprints
+        identically to the equal-contents list. None of the three candidate
+        sources can produce one, so callers must not rely on tuple and list
+        being distinguishable here.
 
     Returns
     -------
     str
         Hex sha256 of the value's canonical JSON, so dictionary key order
         cannot change the fingerprint.
+
+    Raises
+    ------
+    TypeError
+        If ``value`` contains something ``json.dumps`` cannot encode natively.
     """
-    canonical = json.dumps(value, sort_keys=True, separators=(",", ":"), default=list)
+    canonical = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), default=_reject_non_json_native
+    )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -2489,11 +2533,15 @@ def decision_is_current(decision: Decision, candidates: dict[str, Any]) -> bool:
     bool
         True when the chosen source still yields the recorded fingerprint.
     """
+    # Scoped to resolve_value alone: its ValueError means the chosen source
+    # vanished, which is genuinely "stale". A TypeError out of
+    # value_fingerprint means our own fingerprinting hit a value it cannot
+    # encode, and must surface rather than be reported as a moved source.
     try:
         resolved = resolve_value(decision.source, candidates)
-        return value_fingerprint(resolved) == decision.sha256
-    except (ValueError, TypeError):
+    except ValueError:
         return False
+    return value_fingerprint(resolved) == decision.sha256
 
 
 def load_decisions(decisions_ffp: Path) -> dict[str, Decision]:
