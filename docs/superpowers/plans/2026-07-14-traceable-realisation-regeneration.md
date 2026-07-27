@@ -32,7 +32,7 @@ Every task's requirements implicitly include this section.
 - **Never commit generated realisations to the `workflow` repo.** `minimal_realisations/` and `complete_realisations/` are gitignored, and must stay that way — it is what stops the campaign dirtying its own tree.
 - **Seeds are inherited, not re-drawn.** The campaign passes `--inherit-seeds-from <events dir>` so each realisation replays the five seeds already recorded in its deployed `realisation.json`. There is no seed manifest; the deployed files are the source of truth.
 - **The regenerated set may differ from the originals only in `log_trail` and in decided parameters.** Every other difference is a bug and aborts the campaign. What counts as "decided" is whatever `campaign_parameters.yaml` records — that file is the allowlist, and it lives in `cs_nshm_2022`, not this repo.
-- **`nshmdb.db` is the original database of record**, restored to the repo root on 2026-07-27 and confirmed byte-identical to the one the deployed set was generated from: sha256 `00e256480618cd15e11fbf744037d037bf3fc2d523fb977ee30e0b84a640bc57`, mtime 2026-07-08 11:44. It is gitignored (`.gitignore:197`), so re-check that checksum before the campaign rather than assuming the file present is the file wanted. The CRU solution zip Task 9 rebuilds from is git-tracked at `/home/arr65/src/NSHM2022DB/tests/CRU_fault_system_solution.zip`.
+- **`nshmdb.db` is the original database of record**, restored to the repo root on 2026-07-27 and confirmed byte-identical to the one the deployed set was generated from: sha256 `00e256480618cd15e11fbf744037d037bf3fc2d523fb977ee30e0b84a640bc57`, mtime 2026-07-08 11:44. It is gitignored (`.gitignore:197`), so re-check that checksum before the campaign rather than assuming the file present is the file wanted. The CRU solution zip Task 9 rebuilds from is git-tracked at `/home/arr65/src/NSHM2022DB/tests/CRU_fault_system_solution.zip`, sha256 `5975568e5ccd05c1…`, confirmed identical to the copy Jake supplied directly.
 - **The campaign repo is `/home/arr65/src/cs_nshm_2022`, branch `main`.** Events live at `cs_nshm_2022/cs_nshm_2022/events/<rupture_id>/realisation.json`. Renamed from `cybershake_nshm_2022` on 2026-07-22 (`37b2ea1`), a pure `git mv` that left all 291 files byte-identical.
 
 ### The CI gates, exactly as CI runs them
@@ -3918,7 +3918,11 @@ This task tests a claim rather than making one: `nshmdb.db` has no recorded orig
 
 Two corrections to the paths this task was originally written with:
 
-- The CRU solution zip is **not** in `/home/arr65/data/`, which holds nothing relevant. It is git-tracked at `/home/arr65/src/NSHM2022DB/tests/CRU_fault_system_solution.zip` (69 MB) — better for provenance than a loose file, because the input is version-controlled and identified by a commit. Do not confuse it with `CRU_fault_system_solution_small.zip` (3.6 KB), which is a test fixture.
+- The CRU solution zip is **not** in `/home/arr65/data/`, which holds nothing relevant — the 2026-07-14 design recorded that location, and it has never existed. The file itself was identified correctly, only its whereabouts were not. It is git-tracked at `/home/arr65/src/NSHM2022DB/tests/CRU_fault_system_solution.zip` (69,413,618 B, sha256 `5975568e5ccd05c1…`), which is better provenance than a loose file: the input is version-controlled and identified by a commit (`a55e0c8`, Jake Faulkner, 2025-04-08, reachable on `origin/main`).
+
+  That checksum has been confirmed three ways on 2026-07-27 — the committed blob, the copy Jake supplied directly, and the value recorded in the 2026-07-14 design all agree byte-for-byte. Treat the input as settled.
+
+  Do not confuse it with `CRU_fault_system_solution_small.zip` (3,644 B), which *is* a test fixture. The naming is a historical accident worth knowing about: the full dataset was written over what had been a small fixture at the same path (`a55e0c8`, `Bin 3644 -> 69413618`), and the fixture role moved to the `_small` file. Nobody ever decided that national data belongs in `tests/`.
 - `nshmdb.db` went missing from this machine and was restored on 2026-07-27. It is byte-identical to the database the deployed set came from (sha256 `00e2564806…`), so the comparison below is meaningful. **Confirm that checksum first** — Step 1a — because the file is gitignored and nothing else guarantees which database is sitting there.
 
 **Files:**
@@ -4463,7 +4467,8 @@ first = sorted(Path('complete_realisations').glob('realisation_*.json'))[0]
 print(json.loads(first.read_text())['log_trail']['log'][0]['version'])
 " 2>/dev/null | tail -1)"
 echo "nshmdb.db       : $(sha256sum nshmdb.db | cut -d' ' -f1)"
-echo "CRU zip         : $(sha256sum /home/arr65/data/cs_nshm_2022/CRU_fault_system_solution.zip | cut -d' ' -f1)"
+echo "CRU zip         : $(sha256sum /home/arr65/src/NSHM2022DB/tests/CRU_fault_system_solution.zip | cut -d' ' -f1)"
+echo "CRU zip commit  : $(git -C /home/arr65/src/NSHM2022DB log -1 --format=%H -- tests/CRU_fault_system_solution.zip)"
 echo "input CSV       : $(sha256sum annealed_minimal_ruptures.csv | cut -d' ' -f1)"
 echo "uv.lock         : $(sha256sum uv.lock | cut -d' ' -f1)"
 echo "NSHM2022DB      : $(git -C /home/arr65/src/NSHM2022DB rev-parse HEAD)"
@@ -4517,8 +4522,8 @@ versions, so no tag was applied; the commit SHA is the anchor.»
 | input | sha256 | origin |
 | --- | --- | --- |
 | `nshmdb.db` | `00e256480618cd15e11fbf744037d037bf3fc2d523fb977ee30e0b84a640bc57` | Built by `nshm_db_generator.py` at NSHM2022DB `«NSHM2022DB sha»` from the CRU zip below. Confirm this checksum still matches before quoting it — the file is gitignored. |
-| `CRU_fault_system_solution.zip` | `«sha256»` | The NSHM 2022 crustal fault system solution, from Jake Faulkner. Git-tracked in NSHM2022DB at `tests/`, last touched by `«commit»`. Its own upstream release identifier is not recorded. |
-| `annealed_minimal_ruptures.csv` | `«sha256»` | 293 rupture ids, provided by Jake Faulkner as the first sample of ruptures to simulate for this campaign. The selection procedure implied by "annealed" is not documented. |
+| `CRU_fault_system_solution.zip` | `5975568e5ccd05c1c32fa8547f2f4fdfbcd306152e558d66d65aaf838852b62f` | The NSHM 2022 crustal fault system solution, from Jake Faulkner. Git-tracked in NSHM2022DB at `tests/CRU_fault_system_solution.zip`, committed by Jake in `a55e0c8` (2025-04-08) and reachable on `origin/main`. Confirmed byte-identical to the copy Jake supplied directly (2026-07-27). Its own upstream release identifier is not recorded. |
+| `annealed_minimal_ruptures.csv` | `b1e4a40d055639bdb9f4437da594155e136c12df07bfc292915f810174216b44` | 293 rupture ids, provided by Jake Faulkner as the first sample of ruptures to simulate for this campaign. Confirmed 293 rows on 2026-07-27. The selection procedure implied by "annealed" is not documented. |
 | `campaign_parameters.yaml` | `«sha256»` | Which parameters this set takes from the `pegasus` scientific defaults and which from the campaign's override files, with a reason and a value fingerprint per decision. Produced by `reconcile-parameters`; committed in `cs_nshm_2022`. |
 | the 2026-07-09 realisation set | — | The source of this set's seeds, inherited per event via `--inherit-seeds-from`. Superseded by this set; recoverable from `cs_nshm_2022` history at `«pre-campaign commit»`. |
 | `uv.lock` | `«sha256»` | Pins `nshmdb` 2025.12.1, `source_modelling` 2026.6.2, `velocity-modelling` 2026.2.1, `qcore-utils` 2025.12.2, `im-calculation` 2025.12.5, `oq-wrapper` 2025.12.5. |
