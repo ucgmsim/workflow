@@ -46,6 +46,54 @@ from workflow.defaults import DefaultsVersion
 app = typer.Typer()
 
 
+def generate_one(
+    nshmdb_path: Path,
+    rupture_id: int,
+    realisation_ffp: Path,
+    defaults_version: DefaultsVersion,
+) -> str | None:
+    """Generate one minimal realisation stub for a rupture.
+
+    Parameters
+    ----------
+    nshmdb_path : Path
+        Path to the NSHM 2022 database file.
+    rupture_id : int
+        The NSHM rupture id to generate.
+    realisation_ffp : Path
+        Path the realisation stub is written to.
+    defaults_version : DefaultsVersion
+        Scientific default parameters version to use.
+
+    Returns
+    -------
+    str or None
+        An error message if generation failed, otherwise None.
+    """
+    cmd = [
+        "nshm2022-to-realisation",
+        str(nshmdb_path),
+        str(rupture_id),
+        str(realisation_ffp),
+        str(defaults_version),
+        "--dip-delta",
+        "20",
+    ]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        # metadata and seeds are written before the point at which a disconnected
+        # rupture graph fails, so a crash leaves a source-less file behind.
+        realisation_ffp.unlink(missing_ok=True)
+        return (
+            f"Failed to generate realisation for rupture {rupture_id}, skipping:\n"
+            f"--- stdout ---\n{exc.stdout}\n"
+            f"--- stderr ---\n{exc.stderr}\n"
+            f"--- return code: {exc.returncode} ---\n"
+        )
+    return None
+
+
 @app.command()
 def generate_realisations_from_csv(
     nshmdb_path: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
@@ -80,35 +128,20 @@ def generate_realisations_from_csv(
 
     for rupture_id in tqdm(rupture_ids, desc="Generating realisations"):
         realisation_ffp = output_dir / f"realisation_{rupture_id}.json"
-        cmd = [
-            "nshm2022-to-realisation",
-            str(nshmdb_path),
-            str(rupture_id),
-            str(realisation_ffp),
-            str(defaults_version),
-            "--dip-delta",
-            "20",
-        ]
         try:
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
-        except subprocess.CalledProcessError as exc:
-            error_msg = (
-                f"Failed to generate realisation for rupture {rupture_id}, "
-                f"skipping:\n"
-                f"--- stdout ---\n{exc.stdout}\n"
-                f"--- stderr ---\n{exc.stderr}\n"
-                f"--- return code: {exc.returncode} ---\n"
+            error_msg = generate_one(
+                nshmdb_path, rupture_id, realisation_ffp, defaults_version
             )
-            print(f"\n{error_msg}")
-            error_log_handle.write(error_msg + "\n")
-            error_log_handle.flush()
-            continue
         except FileNotFoundError:
             print(
                 "\n'nshm2022-to-realisation' command not found. "
                 "Is the workflow package installed?"
             )
             raise typer.Exit(code=1)
+        if error_msg is not None:
+            print(f"\n{error_msg}")
+            error_log_handle.write(error_msg + "\n")
+            error_log_handle.flush()
 
     error_log_handle.close()
     print(f"\nDone. Processed {len(rupture_ids)} rupture ID(s).")
