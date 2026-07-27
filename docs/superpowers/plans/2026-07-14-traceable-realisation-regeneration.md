@@ -4129,7 +4129,21 @@ The two expected conflicts, and the reasoning recorded with the 2026-07-27 desig
 | conflict | candidates | decision | reason to record |
 | --- | --- | --- | --- |
 | `im.ims` | defaults 9 (with `PGD`); deployed 8 | **defaults** | `PGD` was added to the scientific defaults by `ec2fb25`; adopting it is the point of this amendment. `union` resolves to the same 9 values, since defaults are a strict superset. |
-| `im.fas_frequencies` | defaults 100 pts (0.1–100 Hz); felipe 389 pts (0.0132–100 Hz) | **felipe** | The campaign's grid is the richer one — finer spacing, and it extends a decade lower. The tool will also note that felipe and deployed agree within tolerance; that is float-path noise, not a third option. |
+| `im.fas_frequencies` | defaults 100 pts (0.1–100 Hz, ratio 1.0722672); felipe 389 pts (0.0132–100 Hz, ratio 1.0232930) | **felipe** | The campaign's grid is the richer one — finer spacing, and it extends a decade lower. The tool will also note that felipe and deployed agree within tolerance; that is float-path noise, not a third option. |
+
+Do not be tempted to merge the two frequency grids. They are **incommensurate**, not
+rounded variants of each other: at the 1e-9 tolerance only **1 of the 100** defaults
+values falls within tolerance of any felipe value, and that one is 100.0 Hz, the shared
+endpoint, which is already byte-identical. The nearest-neighbour gap reaches **1.1e-2**
+— 1.1%, a real spectral difference. (They look nestable but are not: felipe's ratio
+cubed is 1.0715193 against defaults' 1.0722672, so the grids drift apart.) A
+tolerance-based merge would therefore return felipe's grid unchanged, and raising the
+tolerance far enough to match more would start substituting frequencies that differ by
+0.1% — corrupting the grid rather than reconciling it.
+
+Keep the two differences distinct. Rounding (≤57 ULP) exists only between **felipe and
+deployed**. Between **felipe and defaults** there is no rounding relationship at all,
+just two different decisions about where to sample.
 
 `im.valid_periods` will **not** be raised: defaults, felipe and deployed are identical, `ec2fb25` having absorbed felipe's list. That is worth noticing — the override is now a no-op, which is recorded as deferred cleanup in the design.
 

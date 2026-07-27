@@ -64,9 +64,14 @@ commit N, and the code-vs-data placement rule.
    compare it. The drift is confined to two keys of `im`:
    - `im.ims` — deployed has 8, HEAD defaults have 9. The difference is exactly `{PGD}`;
      defaults are a strict superset. `felipe_scripts` has no opinion on this key.
-   - `im.fas_frequencies` — defaults hold a 100-point grid over 0.1–100 Hz; `felipe_scripts`
-     holds a 389-point grid over 0.0132–100 Hz. They share exactly one value. Genuinely
-     different grids.
+   - `im.fas_frequencies` — defaults hold a 100-point grid over 0.1–100 Hz (ratio 1.0722672);
+     `felipe_scripts` holds a 389-point grid over 0.0132–100 Hz (ratio 1.0232930). They share
+     exactly one value, 100.0 Hz. Genuinely different grids, and **incommensurate**: only 1 of
+     the 100 defaults values lies within 1e-9 of any felipe value, and the nearest-neighbour
+     gap reaches 1.1e-2. They are not nestable — felipe's ratio cubed is 1.0715193 against
+     defaults' 1.0722672 — so a tolerance-based merge of the two returns felipe's grid
+     unchanged, and a tolerance loose enough to match more would substitute frequencies
+     differing by 0.1%. Choose one grid; do not synthesise a third.
    - `im.valid_periods` — **identical** across defaults, felipe and deployed (111 values).
      `ec2fb25` absorbed felipe's list into the defaults, making that override a no-op.
 5. **The deployed `fas_frequencies` differ from felipe's by float noise only.** 165 of 389
