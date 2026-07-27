@@ -2239,7 +2239,7 @@ The record is what lets this survive active development. Each entry stores the c
 - Produces:
   - `value_fingerprint(value: object) -> str` — sha256 of the value's canonical JSON
   - `Decision` dataclass with fields `source: str`, `reason: str`, `decided: str`, `sha256: str`
-  - `resolve_value(decision: Decision, candidates: dict[str, object]) -> object`
+  - `resolve_value(source: str, candidates: dict[str, object]) -> object` — takes the source *name*, not a `Decision`, so callers never build throwaway objects to reach it
   - `decision_is_current(decision: Decision, candidates: dict[str, object]) -> bool`
   - `load_decisions(decisions_ffp: Path) -> dict[str, Decision]` — keyed by dotted path
   - `save_decisions(decisions_ffp: Path, decisions: dict[str, Decision]) -> None`
@@ -2262,22 +2262,14 @@ def test_value_fingerprint_distinguishes_different_values() -> None:
 
 
 def test_resolve_value_returns_the_chosen_source() -> None:
-    decision = rp.Decision(
-        source="defaults", reason="adopt PGD", decided="2026-07-27", sha256=""
-    )
-
-    resolved = rp.resolve_value(decision, {"defaults": ["PGA"], "deployed": ["PGV"]})
+    resolved = rp.resolve_value("defaults", {"defaults": ["PGA"], "deployed": ["PGV"]})
 
     assert resolved == ["PGA"]
 
 
 def test_resolve_value_unions_discrete_candidates_deterministically() -> None:
-    decision = rp.Decision(
-        source="union", reason="keep both", decided="2026-07-27", sha256=""
-    )
-
     resolved = rp.resolve_value(
-        decision, {"defaults": ["PGA", "PGD"], "deployed": ["PGA", "PGV"]}
+        "union", {"defaults": ["PGA", "PGD"], "deployed": ["PGA", "PGV"]}
     )
 
     # Sources are visited in sorted order, so the result is reproducible.
@@ -2285,16 +2277,8 @@ def test_resolve_value_unions_discrete_candidates_deterministically() -> None:
 
 
 def test_resolve_value_rejects_a_source_that_has_no_opinion() -> None:
-    decision = rp.Decision(
-        source="felipe", reason="", decided="2026-07-27", sha256=""
-    )
-
-    try:
-        rp.resolve_value(decision, {"defaults": ["PGA"]})
-    except ValueError as error:
-        assert "felipe" in str(error)
-    else:
-        raise AssertionError("expected ValueError")
+    with pytest.raises(ValueError, match="felipe"):
+        rp.resolve_value("felipe", {"defaults": ["PGA"]})
 
 
 def test_decision_is_current_when_the_source_still_hashes_the_same() -> None:
@@ -2452,13 +2436,17 @@ class Decision:
     sha256: str
 
 
-def resolve_value(decision: Decision, candidates: dict[str, Any]) -> Any:
-    """Return the value a decision selects from the available candidates.
+def resolve_value(source: str, candidates: dict[str, Any]) -> Any:
+    """Return the value a source name selects from the available candidates.
+
+    Takes the source name rather than a ``Decision`` so that callers which have
+    only a name -- the interactive prompt, computing a union preview -- need not
+    build a throwaway decision to reach it.
 
     Parameters
     ----------
-    decision : Decision
-        The recorded decision.
+    source : str
+        ``defaults``, ``felipe``, ``deployed`` or ``union``.
     candidates : dict
         Maps source name to proposed value.
 
@@ -2470,21 +2458,20 @@ def resolve_value(decision: Decision, candidates: dict[str, Any]) -> Any:
     Raises
     ------
     ValueError
-        If the decision names a source that has no opinion on this parameter.
+        If the name is not ``union`` and no candidate carries it.
     """
-    if decision.source == "union":
+    if source == "union":
         merged: list[Any] = []
-        for source in sorted(candidates):
-            for item in candidates[source]:
+        for candidate_source in sorted(candidates):
+            for item in candidates[candidate_source]:
                 if item not in merged:
                     merged.append(item)
         return merged
-    if decision.source not in candidates:
+    if source not in candidates:
         raise ValueError(
-            f"Decision names source {decision.source!r}, which has no value here. "
-            f"Available: {sorted(candidates)}."
+            f"Source {source!r} has no value here. Available: {sorted(candidates)}."
         )
-    return candidates[decision.source]
+    return candidates[source]
 
 
 def decision_is_current(decision: Decision, candidates: dict[str, Any]) -> bool:
@@ -2503,7 +2490,8 @@ def decision_is_current(decision: Decision, candidates: dict[str, Any]) -> bool:
         True when the chosen source still yields the recorded fingerprint.
     """
     try:
-        return value_fingerprint(resolve_value(decision, candidates)) == decision.sha256
+        resolved = resolve_value(decision.source, candidates)
+        return value_fingerprint(resolved) == decision.sha256
     except (ValueError, TypeError):
         return False
 
@@ -2682,9 +2670,7 @@ def prompt_for_decision(conflict: Conflict, stale: bool) -> Decision:
     if conflict.discrete:
         table.add_row(
             "union", "union",
-            describe(resolve_value(
-                Decision("union", "", "", ""), conflict.candidates
-            )),
+            describe(resolve_value("union", conflict.candidates)),
             "every candidate's items combined",
         )
     console.print(table)
@@ -2710,9 +2696,7 @@ def prompt_for_decision(conflict: Conflict, stale: bool) -> Decision:
         source=source,
         reason=reason.strip(),
         decided=datetime.date.today().isoformat(),
-        sha256=value_fingerprint(
-            resolve_value(Decision(source, "", "", ""), conflict.candidates)
-        ),
+        sha256=value_fingerprint(resolve_value(source, conflict.candidates)),
     )
 ```
 
@@ -3555,7 +3539,7 @@ def resolve_parameters(
             )
             if path in flat
         }
-        value = resolve_value(decision, candidates)
+        value = resolve_value(decision.source, candidates)
         if value_fingerprint(value) != decision.sha256:
             raise ValueError(
                 f"Decision for {path} names source '{decision.source}', but that "
@@ -3733,46 +3717,106 @@ Deploying from the completer saves a step in the common case, but it must not be
 - Test: `tests/test_complete_realisations.py`
 
 **Interfaces:**
-- Consumes: `copy_realisations_to_event_dirs.copy_realisations` from Task 4
+- Consumes: `copy_realisations_to_event_dirs.copy_realisations` from Task 4 — Task 4 must land first
 - Produces: CLI options `--deploy-dir <events dir>` and `--overwrite-existing`, both off by default
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing tests**
 
 Append to `tests/test_complete_realisations.py`:
 
+These tests drive `complete_realisations` itself, not the helper underneath it — Task 4 already proves the helper. What is untested until now is that the completer *reaches* the helper, with the flag it was given, and only when the run succeeded.
+
+`complete_realisations` is a `typer` command that raises `typer.Exit` rather than returning a status, so the tests assert on the exception and on the filesystem.
+
 ```python
 def test_complete_realisations_refuses_to_deploy_over_existing(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, minimal_stub: dict[str, object]
 ) -> None:
-    # Deployment shares Task 4's helper, so the gate is proved once, here, at
-    # the level the campaign actually invokes it.
-    complete = tmp_path / "complete"
-    complete.mkdir()
-    (complete / "realisation_100932.json").write_text('{"new": 1}', encoding="utf-8")
+    source = tmp_path / "minimal"
+    source.mkdir()
+    (source / "realisation_100932.json").write_text(
+        json.dumps(minimal_stub), encoding="utf-8"
+    )
     events = tmp_path / "events"
     (events / "100932").mkdir(parents=True)
     (events / "100932" / "realisation.json").write_text('{"old": 1}', encoding="utf-8")
 
-    copied, _, refused = copy_realisations(complete, events)
+    with pytest.raises(typer.Exit) as exit_info:
+        cr.complete_realisations(
+            source,
+            tmp_path / "complete",
+            felipe_scripts_dir=Path("felipe_scripts"),
+            workers=1,
+            deploy_dir=events,
+        )
 
-    assert copied == 0
-    assert refused == ["100932"]
+    assert exit_info.value.exit_code == 1
+    # The deployed file is untouched: the gate held.
     assert (events / "100932" / "realisation.json").read_text() == '{"old": 1}'
+
+
+def test_complete_realisations_deploys_when_overwrite_is_given(
+    tmp_path: Path, minimal_stub: dict[str, object]
+) -> None:
+    source = tmp_path / "minimal"
+    source.mkdir()
+    (source / "realisation_100932.json").write_text(
+        json.dumps(minimal_stub), encoding="utf-8"
+    )
+    events = tmp_path / "events"
+    (events / "100932").mkdir(parents=True)
+    (events / "100932" / "realisation.json").write_text('{"old": 1}', encoding="utf-8")
+
+    cr.complete_realisations(
+        source,
+        tmp_path / "complete",
+        felipe_scripts_dir=Path("felipe_scripts"),
+        workers=1,
+        deploy_dir=events,
+        overwrite_existing=True,
+    )
+
+    deployed = json.loads((events / "100932" / "realisation.json").read_text())
+    assert "domain" in deployed
+
+
+def test_complete_realisations_does_not_deploy_without_the_flag(
+    tmp_path: Path, minimal_stub: dict[str, object]
+) -> None:
+    source = tmp_path / "minimal"
+    source.mkdir()
+    (source / "realisation_100932.json").write_text(
+        json.dumps(minimal_stub), encoding="utf-8"
+    )
+    events = tmp_path / "events"
+    events.mkdir()
+
+    cr.complete_realisations(
+        source, tmp_path / "complete", felipe_scripts_dir=Path("felipe_scripts"),
+        workers=1,
+    )
+
+    # No --deploy-dir: nothing outside the output directory is written.
+    assert list(events.iterdir()) == []
 ```
 
 Add to the imports:
 
 ```python
-from workflow.scripts.copy_realisations_to_event_dirs import copy_realisations
+import json
+
+import typer
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+`minimal_stub` is a fixture returning a valid minimal realisation — one carrying `sources`, `magnitudes`, `rakes` and `rupture_propagation`, so `is_valid_minimal` accepts it and `complete_one` can run. If `tests/test_complete_realisations.py` already has such a fixture or helper, reuse it rather than writing a second one; if it does not, build it from an existing test's stub construction in that file.
+
+- [ ] **Step 2: Run them to verify they fail**
 
 ```bash
 uv run pytest tests/test_complete_realisations.py -q -k deploy
 ```
 
-Expected: FAIL — `ImportError` until Task 4 has landed. If Task 4 is already done, this test passes immediately; that is fine, it is a regression guard on shared behaviour.
+Expected: FAIL — `TypeError: complete_realisations() got an unexpected keyword argument 'deploy_dir'`.
 
 - [ ] **Step 3: Add the deploy options**
 
