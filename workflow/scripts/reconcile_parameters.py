@@ -20,7 +20,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, NoReturn, cast
 
 import click
 import typer
@@ -239,21 +239,65 @@ def find_conflicts(
     return conflicts
 
 
+def _reject_non_json_native(value: object) -> NoReturn:
+    """Raise for a value ``json.dumps`` could not encode with a native type.
+
+    Installed as the ``default`` handler on the ``json.dumps`` call inside
+    `value_fingerprint`, so this only ever runs on a value that was not
+    already one of ``dict``, ``list``, ``str``, ``int``, ``float``, ``bool``
+    or ``None``.
+
+    Parameters
+    ----------
+    value : object
+        The value ``json.dumps`` fell back to this handler for.
+
+    Raises
+    ------
+    TypeError
+        Always. Names the offending type, so an unfingerprintable value is
+        reported rather than silently coerced. A coercion such as
+        ``default=list`` would, for a ``set``, encode its iteration order --
+        which Python randomises per process -- into the fingerprint, breaking
+        the one property `decision_is_current` relies on: that the same
+        logical value fingerprints the same way across separate runs.
+    """
+    raise TypeError(
+        f"value_fingerprint cannot encode a value of type "
+        f"{type(value).__name__!r}; only JSON-native types (dict, list, "
+        f"str, int, float, bool, None) are supported."
+    )
+
+
 def value_fingerprint(value: object) -> str:
     """Return a stable sha256 fingerprint of a parameter value.
 
     Parameters
     ----------
     value : object
-        Any JSON-serialisable parameter value.
+        A value composed only of JSON-native types: ``dict``, ``list``,
+        ``str``, ``int``, ``float``, ``bool``, or ``None``. Anything else
+        (a ``set``, a ``tuple``, an arbitrary object, ...) is rejected rather
+        than coerced into one of these -- see Raises.
 
     Returns
     -------
     str
         Hex sha256 of the value's canonical JSON, so dictionary key order
         cannot change the fingerprint.
+
+    Raises
+    ------
+    TypeError
+        If ``value`` contains anything outside the JSON-native types listed
+        above.
     """
-    canonical = json.dumps(value, sort_keys=True, separators=(",", ":"), default=list)
+    canonical = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=_reject_non_json_native,
+    )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -333,12 +377,21 @@ def decision_is_current(decision: Decision, candidates: dict[str, Any]) -> bool:
     -------
     bool
         True when the chosen source still yields the recorded fingerprint.
+
+    Raises
+    ------
+    TypeError
+        Propagated from `value_fingerprint` if the resolved value cannot be
+        fingerprinted. Deliberately not caught here: that failure means our
+        own fingerprinting choked, not that the recorded source moved or
+        vanished, and the two must not be conflated into a silent "stale"
+        result.
     """
     try:
         resolved = resolve_value(decision.source, candidates)
-        return value_fingerprint(resolved) == decision.sha256
-    except (ValueError, TypeError):
+    except ValueError:
         return False
+    return value_fingerprint(resolved) == decision.sha256
 
 
 def load_decisions(decisions_ffp: Path) -> dict[str, Decision]:

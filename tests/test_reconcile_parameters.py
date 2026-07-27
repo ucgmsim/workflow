@@ -129,6 +129,13 @@ def test_value_fingerprint_distinguishes_different_values() -> None:
     assert rp.value_fingerprint([1, 2]) != rp.value_fingerprint([1, 3])
 
 
+def test_value_fingerprint_rejects_a_non_json_native_type() -> None:
+    # A set (unlike dict/list/str/int/float/bool/None) has no stable JSON
+    # encoding: refuse it loudly rather than silently coercing it.
+    with pytest.raises(TypeError, match="set"):
+        rp.value_fingerprint({"a": {1, 2}})
+
+
 def test_resolve_value_returns_the_chosen_source() -> None:
     resolved = rp.resolve_value("defaults", {"defaults": ["PGA"], "deployed": ["PGV"]})
 
