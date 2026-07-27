@@ -84,6 +84,12 @@ workflow = "workflow"
 [tool.pytest]
 markers = ["slow: mark test as slow."]
 
+[tool.ruff]
+# Felipe's reference scripts are third-party inputs, kept verbatim because
+# complete-realisations reproduces their parameter values and the tests read
+# their data files. They are not our source and are not linted.
+exclude = ["felipe_scripts"]
+
 [tool.ruff.lint]
 extend-select = [
   # isort imports
@@ -164,3 +170,6 @@ exclude = [ # don't report on objects that match any of these regex
   '\.undocumented_method$',
   '\.__repr__$',
 ]
+
+[tool.ty.src]
+exclude = ["felipe_scripts"]
