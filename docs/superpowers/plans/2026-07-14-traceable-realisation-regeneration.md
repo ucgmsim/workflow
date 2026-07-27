@@ -2920,8 +2920,10 @@ Checking both directions is what makes the decision file load-bearing rather tha
 - Consumes: `reconcile_parameters.load_decisions`, `reconcile_parameters.values_equivalent`, `reconcile_parameters.DEFAULT_TOLERANCE`
 - Produces:
   - `diff_content(expected: object, actual: object, path: str = "", tolerance: float = DEFAULT_TOLERANCE) -> list[str]` — dotted paths at which two realisations differ, skipping the top-level `log_trail`; empty means equivalent
-  - `classify_differences(differences: list[str], expected_paths: set[str]) -> tuple[list[str], list[str]]` — `(unexpected, satisfied)` split of observed differences against the decided parameter paths
-  - `compare_files(expected_ffp: Path, actual_ffp: Path, expected_paths: set[str], tolerance: float = DEFAULT_TOLERANCE) -> tuple[list[str], list[str]]`
+  - `classify_differences(differences: list[str], decided_paths: set[str]) -> tuple[list[str], list[str]]` — `(unexpected, satisfied)` split of observed differences against the decided parameter paths
+  - `value_at(realisation: dict[str, Any], path: str) -> Any` — the value at a dotted path, or the module-level `MISSING` sentinel when absent
+  - `check_decisions_applied(realisation: dict[str, Any], decisions: dict[str, Decision]) -> list[str]` — decided paths whose value in the file is not the decided value
+  - `compare_files(expected_ffp: Path, actual_ffp: Path, decisions: dict[str, Decision], tolerance: float = DEFAULT_TOLERANCE) -> tuple[list[str], list[str]]` — `(unexpected, unapplied)`
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -3386,6 +3388,32 @@ uv run pytest tests/test_verify_realisation_content.py -q
 ```
 
 Expected: `12 passed`.
+
+- [ ] **Step 5a: Lock down the CLI's exit-code contract**
+
+The twelve tests above stop at the library layer. Nothing yet proves that a non-empty
+failure set reaches `raise typer.Exit(code=1)`, or that a regenerated realisation with
+no counterpart original is reported rather than silently skipped by the glob. This is
+the campaign's last gate before the originals are overwritten, so its exit code needs a
+regression test, not a manual check.
+
+Add four tests driving `vc.main(...)` directly — faster than shelling out, and the
+failure messages stay readable:
+
+1. **clean run does not raise** — regenerated matches its original bar `log_trail`, and a
+   recorded decision's value *is* present;
+2. **unexpected difference** — an undecided field differs → `typer.Exit`, code 1;
+3. **unapplied decision** — a decision is recorded but its value never reached the file →
+   `typer.Exit`, code 1;
+4. **missing original** — `realisation_<id>.json` exists with no
+   `events_dir/<id>/realisation.json` → reported, `typer.Exit`, code 1.
+
+Build fixtures with `tmp_path`; they need only be structurally valid, not scientifically
+realistic. Compute any `Decision.sha256` with `reconcile_parameters.value_fingerprint`
+rather than hard-coding a hash, so the fixtures survive a change to the fingerprint
+implementation.
+
+Expected after this step: `16 passed`.
 
 - [ ] **Step 6: Commit**
 
