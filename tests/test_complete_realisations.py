@@ -72,7 +72,6 @@ def test_complete_one_produces_full_realisation(tmp_path: Path) -> None:
     felipe = json.loads(FELIPE.read_text())
     for section in [
         "velocity_model",
-        "im",
         "emod3d",
         "hf",
         "bb",
@@ -82,6 +81,19 @@ def test_complete_one_produces_full_realisation(tmp_path: Path) -> None:
         "hf_velocity_model_1d",
     ]:
         assert completed[section] == felipe[section], f"{section} differs from Felipe"
+
+    # `im` matches Felipe everywhere except where the campaign decided otherwise.
+    for key in ["valid_periods", "fas_frequencies"]:
+        assert completed["im"][key] == felipe["im"][key], f"im.{key} differs from Felipe"
+
+    # im.ims deliberately diverges: the scientific defaults gained PGD in
+    # ec2fb25 and the campaign adopted it. Asserting the exact expected list --
+    # rather than dropping the check -- keeps any *other* drift in ims a failure.
+    assert completed["im"]["ims"] == [
+        *felipe["im"]["ims"][:2],
+        "PGD",
+        *felipe["im"]["ims"][2:],
+    ]
 
 
 def test_complete_one_does_not_touch_source(tmp_path: Path) -> None:
