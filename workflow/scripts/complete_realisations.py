@@ -41,6 +41,7 @@ from workflow.realisations import (
     VelocityModel1D,
     VelocityModelParameters,
 )
+from workflow.scripts.copy_realisations_to_event_dirs import copy_realisations
 from workflow.scripts.generate_domain import (
     generate_domain_from_realisation,
     total_magnitude,
@@ -490,6 +491,21 @@ def complete_realisations(
             "only when a decision names it.",
         ),
     ] = None,
+    deploy_dir: Annotated[
+        Path | None,
+        typer.Option(
+            file_okay=False,
+            help="Events directory to deploy completed realisations into. "
+            "Off by default; nothing outside OUTPUT_DIR is written without it.",
+        ),
+    ] = None,
+    overwrite_existing: Annotated[
+        bool,
+        typer.Option(
+            help="Replace realisations that already exist in --deploy-dir. "
+            "Without this, existing files are left untouched."
+        ),
+    ] = False,
     workers: Annotated[int, typer.Option(min=1)] = min(8, cpu_count()),
 ) -> None:
     """Complete every minimal realisation in ``input_dir`` into a full file.
@@ -511,6 +527,10 @@ def complete_realisations(
         Campaign decision file recording which parameters to adopt.
     deployed_from : Path, optional
         Events directory supplying the 'deployed' candidate.
+    deploy_dir : Path, optional
+        Events directory to deploy completed realisations into.
+    overwrite_existing : bool
+        Whether to replace realisations that already exist in ``deploy_dir``.
     workers : int
         Number of parallel processes (1 = serial).
     """
@@ -577,6 +597,23 @@ def complete_realisations(
     )
     print(f"Summary : {output_dir / 'completion_summary.csv'}")
     print(f"Errors  : {output_dir / 'error_log.txt'}")
+
+    if deploy_dir is not None:
+        if failed or broken_ids:
+            print(
+                "\nRefusing to deploy: the run had failures. Fix them and re-run."
+            )
+            raise typer.Exit(code=1)
+        copied, _, refused = copy_realisations(
+            output_dir, deploy_dir, overwrite_existing
+        )
+        print(f"\nDeployed {copied} realisation(s) into {deploy_dir}")
+        if refused:
+            print(
+                f"Refused to replace {len(refused)} existing realisation(s). "
+                f"Re-run with --overwrite-existing to replace them."
+            )
+            raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

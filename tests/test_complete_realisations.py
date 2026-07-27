@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import typer
 
 from workflow.defaults import DefaultsVersion
 from workflow.scripts import complete_realisations as cr
@@ -16,6 +17,11 @@ FELIPE = DATA / "felipe_reference_realisation.json"
 SAMPLE = DATA / "minimal_realisation_sample.json"
 BROKEN = DATA / "broken_minimal_stub.json"
 FELIPE_SCRIPTS = Path(__file__).parents[1] / "felipe_scripts"
+
+
+@pytest.fixture
+def minimal_stub() -> dict[str, object]:
+    return json.loads(SAMPLE.read_text())
 
 
 def test_load_overrides_shapes_and_dtypes() -> None:
@@ -204,3 +210,74 @@ def test_resolve_parameters_requires_an_events_dir_for_deployed_decisions() -> N
         cr.resolve_parameters(
             decisions, DefaultsVersion.v24_2_2_1, Path("felipe_scripts"), None
         )
+
+
+def test_complete_realisations_refuses_to_deploy_over_existing(
+    tmp_path: Path, minimal_stub: dict[str, object]
+) -> None:
+    source = tmp_path / "minimal"
+    source.mkdir()
+    (source / "realisation_100932.json").write_text(
+        json.dumps(minimal_stub), encoding="utf-8"
+    )
+    events = tmp_path / "events"
+    (events / "100932").mkdir(parents=True)
+    (events / "100932" / "realisation.json").write_text('{"old": 1}', encoding="utf-8")
+
+    with pytest.raises(typer.Exit) as exit_info:
+        cr.complete_realisations(
+            source,
+            tmp_path / "complete",
+            felipe_scripts_dir=Path("felipe_scripts"),
+            workers=1,
+            deploy_dir=events,
+        )
+
+    assert exit_info.value.exit_code == 1
+    # The deployed file is untouched: the gate held.
+    assert (events / "100932" / "realisation.json").read_text() == '{"old": 1}'
+
+
+def test_complete_realisations_deploys_when_overwrite_is_given(
+    tmp_path: Path, minimal_stub: dict[str, object]
+) -> None:
+    source = tmp_path / "minimal"
+    source.mkdir()
+    (source / "realisation_100932.json").write_text(
+        json.dumps(minimal_stub), encoding="utf-8"
+    )
+    events = tmp_path / "events"
+    (events / "100932").mkdir(parents=True)
+    (events / "100932" / "realisation.json").write_text('{"old": 1}', encoding="utf-8")
+
+    cr.complete_realisations(
+        source,
+        tmp_path / "complete",
+        felipe_scripts_dir=Path("felipe_scripts"),
+        workers=1,
+        deploy_dir=events,
+        overwrite_existing=True,
+    )
+
+    deployed = json.loads((events / "100932" / "realisation.json").read_text())
+    assert "domain" in deployed
+
+
+def test_complete_realisations_does_not_deploy_without_the_flag(
+    tmp_path: Path, minimal_stub: dict[str, object]
+) -> None:
+    source = tmp_path / "minimal"
+    source.mkdir()
+    (source / "realisation_100932.json").write_text(
+        json.dumps(minimal_stub), encoding="utf-8"
+    )
+    events = tmp_path / "events"
+    events.mkdir()
+
+    cr.complete_realisations(
+        source, tmp_path / "complete", felipe_scripts_dir=Path("felipe_scripts"),
+        workers=1,
+    )
+
+    # No --deploy-dir: nothing outside the output directory is written.
+    assert list(events.iterdir()) == []
