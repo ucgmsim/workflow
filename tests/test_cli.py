@@ -8,7 +8,11 @@ from typer.testing import CliRunner
 
 import workflow.scripts as scripts_package
 
-EXCLUDE_MODULES = set()
+EXCLUDE_MODULES = {
+    # A pure comparison library, not a script: it deliberately has no Typer
+    # app (see workflow/scripts/reconcile_parameters.py docstring).
+    "reconcile_parameters",
+}
 
 
 def collect_script_modules() -> list[ModuleType]:
