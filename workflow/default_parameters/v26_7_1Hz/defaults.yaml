@@ -22,7 +22,7 @@ sw4:
   projection_scale: 0.9996
   projection_type: "tmerc"
   attenuation_maxfreq: 10.0
-  attenuation_phasefreq: 2.5
+  attenuation_phasefreq: 0.5
   attenuation_nmech: 3
   topography_order: 3
   cfl: 0.9
