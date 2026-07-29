@@ -13,99 +13,123 @@ refinements:
 sw4:
   verbose: 2
   printcycle: 10
-  supergrid_gp: 30
   supergrid_padding: 30
   nz_min: 12
-  projection_ellps: "GRS80"
-  projection_lon_p: 173.0
-  projection_lat_p: 0.0
-  projection_scale: 0.9996
-  projection_type: "tmerc"
-  attenuation_maxfreq: 10.0
-  attenuation_phasefreq: 0.5
-  attenuation_nmech: 3
-  topography_order: 3
-  topography: true
-  cfl: 0.9
-  reporttiming: true
-  failonnan: true
-  prefilter: { order: 2, passes: 2, fc1: null, fc2: 1.0, type: "lowpass" }
-  image_outputs:
-    - {
-        mode: "topo",
-        plane: "z",
-        plane_value: 0,
-        file: "topo",
-        cycle: 0,
-        precision: "float",
-      }
-    - {
-        mode: "grid",
-        plane: "z",
-        plane_value: 0,
-        file: "grid",
-        cycle: 0,
-        precision: "float",
-      }
-    - {
-        mode: "p",
-        plane: "z",
-        plane_value: 0,
-        file: "surf_vp",
-        cycle: 0,
-        precision: "float",
-      }
-    - {
-        mode: "s",
-        plane: "z",
-        plane_value: 0,
-        file: "surf_vs",
-        cycle: 0,
-        precision: "float",
-      }
-    - {
-        mode: "rho",
-        plane: "z",
-        plane_value: 0,
-        file: "surf_rho",
-        cycle: 0,
-        precision: "float",
-      }
-    - {
-        mode: "mag",
-        plane: "z",
-        plane_value: 0,
-        file: "surf_mag",
-        time_interval: 0.5,
-        precision: "float",
-      }
-    - {
-        mode: "velmag",
-        plane: "z",
-        plane_value: 0,
-        file: "surf_velmag",
-        time_interval: 0.5,
-        precision: "float",
-      }
-    - {
-        mode: "uz",
-        plane: "z",
-        plane_value: 0,
-        file: "surf_uz",
-        time_interval: 0.5,
-        precision: "float",
-      }
-    - {
-        mode: "hmax",
-        plane: "z",
-        plane_value: 0,
-        file: "surf_hmax",
-        precision: "float",
-      }
-    - {
-        mode: "vmax",
-        plane: "z",
-        plane_value: 0,
-        file: "surf_vmax",
-        precision: "float",
-      }
+  commands:
+    - name: "grid"
+      parameters:
+        {
+          proj: "tmerc",
+          ellps: "GRS80",
+          lon_p: 173.0,
+          lat_p: 0.0,
+          scale: 0.9996,
+        }
+    - name: "supergrid"
+      parameters: { gp: 30 }
+    - name: "attenuation"
+      parameters: { maxfreq: 10.0, phasefreq: 0.5, nmech: 3 }
+    - name: "developer"
+      parameters: { cfl: 0.9, reporttiming: true, failonnan: true }
+    - name: "prefilter"
+      parameters: { order: 2, passes: 2, fc1: null, fc2: 1.0, type: "lowpass" }
+    - name: "topography"
+      parameters: { order: 3 }
+    - name: "imagehdf5"
+      parameters:
+        {
+          mode: "topo",
+          plane: "z",
+          plane_value: 0,
+          file: "topo",
+          cycle: 0,
+          precision: "float",
+        }
+    - name: "imagehdf5"
+      parameters:
+        {
+          mode: "grid",
+          plane: "z",
+          plane_value: 0,
+          file: "grid",
+          cycle: 0,
+          precision: "float",
+        }
+    - name: "imagehdf5"
+      parameters:
+        {
+          mode: "p",
+          plane: "z",
+          plane_value: 0,
+          file: "surf_vp",
+          cycle: 0,
+          precision: "float",
+        }
+    - name: "imagehdf5"
+      parameters:
+        {
+          mode: "s",
+          plane: "z",
+          plane_value: 0,
+          file: "surf_vs",
+          cycle: 0,
+          precision: "float",
+        }
+    - name: "imagehdf5"
+      parameters:
+        {
+          mode: "rho",
+          plane: "z",
+          plane_value: 0,
+          file: "surf_rho",
+          cycle: 0,
+          precision: "float",
+        }
+    - name: "imagehdf5"
+      parameters:
+        {
+          mode: "mag",
+          plane: "z",
+          plane_value: 0,
+          file: "surf_mag",
+          time_interval: 0.5,
+          precision: "float",
+        }
+    - name: "imagehdf5"
+      parameters:
+        {
+          mode: "velmag",
+          plane: "z",
+          plane_value: 0,
+          file: "surf_velmag",
+          time_interval: 0.5,
+          precision: "float",
+        }
+    - name: "imagehdf5"
+      parameters:
+        {
+          mode: "uz",
+          plane: "z",
+          plane_value: 0,
+          file: "surf_uz",
+          time_interval: 0.5,
+          precision: "float",
+        }
+    - name: "imagehdf5"
+      parameters:
+        {
+          mode: "hmax",
+          plane: "z",
+          plane_value: 0,
+          file: "surf_hmax",
+          precision: "float",
+        }
+    - name: "imagehdf5"
+      parameters:
+        {
+          mode: "vmax",
+          plane: "z",
+          plane_value: 0,
+          file: "surf_vmax",
+          precision: "float",
+        }

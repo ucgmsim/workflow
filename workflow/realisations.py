@@ -1328,52 +1328,67 @@ class BroadbandParameters(RealisationConfiguration):
 
 
 @dataclasses.dataclass
-class SW4ImageOutput:
-    """Parameters for a single SW4 imagehdf5 command."""
+class SW4Command:
+    """A single SW4 input file command, e.g. `attenuation maxfreq=10 nmech=3`."""
 
-    mode: str
-    """Image mode (e.g. ux, uy, uz, rho, mag, velmag, hmax, vmax, topo, grid, p, s, etc)."""
-    plane: Literal["x", "y", "z"]
-    """Which coordinate plane to output on."""
-    plane_value: float | int
-    """Coordinate value for the output plane."""
-    file: str
-    """Output file prefix."""
-    time: float | None = None
-    """Output time. None means use simulation end time."""
-    time_interval: float | None = None
-    """Time interval between image outputs."""
-    cycle: int | None = None
-    """Cycle number for image output."""
-    cycle_interval: int | None = None
-    """Cycle interval between image outputs."""
-    precision: Literal["float", "double"] = "float"
-    """Output precision."""
+    name: str
+    """The SW4 command name (e.g. `attenuation`, `supergrid`, `imagehdf5`)."""
+    parameters: dict[str, str | int | float | bool | None] = dataclasses.field(
+        default_factory=dict
+    )
+    """The command's key=value parameters. None values are omitted when rendered."""
+
+    def render(self) -> str:
+        """Render this command as a single SW4 input file line.
+
+        Returns
+        -------
+        str
+            The command name followed by its non-None `key=value` parameters.
+            Booleans render as `0`/`1`, SW4's expected format, rather than
+            Python's `False`/`True`.
+        """
+        parts = [self.name]
+        for key, value in self.parameters.items():
+            if value is None:
+                continue
+            if isinstance(value, bool):
+                value = int(value)
+            parts.append(f"{key}={value}")
+        return " ".join(parts)
+
+    def merged(self, **overrides: str | int | float | bool | None) -> "SW4Command":
+        """Return a copy of this command with `overrides` merged into its parameters.
+
+        Parameters
+        ----------
+        **overrides : str | int | float | bool | None
+            Parameter values to overlay on top of the existing parameters.
+
+        Returns
+        -------
+        SW4Command
+            A new command with the merged parameters.
+        """
+        return dataclasses.replace(self, parameters={**self.parameters, **overrides})
 
 
-@dataclasses.dataclass
-class Prefilter:
-    order: int
-    """Prefilter order for SRF source time function (STF)."""
-    passes: int
-    """Number of passes for STF filter. Setting this to 1 results in casual filter, setting it to 2 results in a zero-lag acausal filter."""
-    fc1: float | None
-    """Corner frequency for prefilter (lower)."""
-    fc2: float | None
-    """Corner frequency for prefilter (upper)."""
-    type: str
-    "Type of filter (lowpass, bandpass, highpass)"
+def find_command(commands: list[SW4Command], name: str) -> SW4Command | None:
+    """Find the first command with the given name.
 
-    def __post_init__(self) -> None:
-        match (self.type, self.fc1, self.fc2):
-            case ("lowpass", _, None):
-                raise ValueError("Must supply fc2 when using lowpass filter")
-            case ("highpass", None, _):
-                raise ValueError("Must supply fc2 when using highpass filter")
-            case ("bandpass", fc1, fc2) if not fc1 or not fc2 or fc1 >= fc2:
-                raise ValueError(
-                    "Must supply strictly positive fc1 and fc2 with fc1 < fc2 when using bandpass filter"
-                )
+    Parameters
+    ----------
+    commands : list[SW4Command]
+        The commands to search.
+    name : str
+        The command name to look for.
+
+    Returns
+    -------
+    SW4Command | None
+        The first matching command, or None if no command has this name.
+    """
+    return next((command for command in commands if command.name == name), None)
 
 
 @dataclasses.dataclass
@@ -1387,47 +1402,18 @@ class SW4Parameters(RealisationConfiguration):
     """Fileio verbosity level."""
     printcycle: int
     """Output fileio print cycle."""
-    supergrid_gp: int
-    """Supergrid gridpoints for absorbing layer."""
     supergrid_padding: int
     """Number of gridpoints extending past supergrid for padding."""
     nz_min: int
     """Minimum vertical cells in each refinement layer."""
-    projection_ellps: str
-    """SW4 projection ellipsoid."""
-    projection_lon_p: float
-    """SW4 projection central meridian."""
-    projection_lat_p: float
-    """SW4 projection latitude of origin."""
-    projection_scale: float
-    """SW4 projection scale factor."""
-    projection_type: str
-    """SW4 projection type (e.g. tmerc)."""
-    attenuation_maxfreq: float
-    """Attenuation maximum frequency."""
-    attenuation_phasefreq: float
-    """Attenuation phase frequency."""
-    attenuation_nmech: int
-    """Number of attenuation mechanisms."""
-    topography_order: int
-    """Topography interpolation order."""
-    cfl: float
-    """SW4 CFL stability number."""
-    reporttiming: bool
-    """Enable timestep timing reports."""
-    failonnan: bool
-    """Abort on NaN values."""
-    image_outputs: list[SW4ImageOutput]
-    """List of SW4 imagehdf5 output commands."""
-    topography: bool
-    """If enabled, read topography from sfile."""
-    prefilter: Prefilter | None = None
+    commands: list[SW4Command]
+    """All other SW4 input file commands (grid projection, attenuation, supergrid,
+    developer, prefilter, topography, imagehdf5 outputs, and any other non-testing
+    SW4 command). Add any SW4 command here as `{"name": ..., "parameters": {...}}`."""
 
     def __post_init__(self) -> None:
-        if self.image_outputs and not isinstance(self.image_outputs[0], SW4ImageOutput):
-            self.image_outputs = [SW4ImageOutput(**item) for item in self.image_outputs]  # type: ignore
-        if isinstance(self.prefilter, dict):
-            self.prefilter = Prefilter(**self.prefilter)
+        if self.commands and not isinstance(self.commands[0], SW4Command):
+            self.commands = [SW4Command(**item) for item in self.commands]  # type: ignore
 
 
 @dataclasses.dataclass

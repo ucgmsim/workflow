@@ -16,7 +16,7 @@ from IM import im_calculation
 from source_modelling import magnitude_scaling, rupture_propagation
 from velocity_modelling import bounding_box
 from workflow import defaults, realisations, schemas
-from workflow.realisations import Prefilter, SourceConfig
+from workflow.realisations import SourceConfig, SW4Command
 
 
 def test_bounding_box_example(tmp_path: Path) -> None:
@@ -922,66 +922,66 @@ def test_refinements(tmp_path: Path) -> None:
     )
 
 
-def test_sw4_image_output(tmp_path: Path) -> None:
-    img = realisations.SW4ImageOutput(
-        mode="hmax",
-        plane="z",
-        plane_value=0,
-        file="surf_hmax",
-        precision="float",
+def test_sw4_command() -> None:
+    command = SW4Command(
+        "imagehdf5",
+        {
+            "mode": "hmax",
+            "plane": "z",
+            "plane_value": 0,
+            "file": "surf_hmax",
+            "time": None,
+        },
     )
-    assert img.mode == "hmax"
-    assert img.plane == "z"
-    assert img.plane_value == 0
-    assert img.file == "surf_hmax"
-    assert img.time is None
-    assert img.precision == "float"
+    assert command.render() == "imagehdf5 mode=hmax plane=z plane_value=0 file=surf_hmax"
+
+    merged = command.merged(time=10.0, cycle=None)
+    assert merged.parameters["time"] == 10.0
+    assert (
+        merged.render()
+        == "imagehdf5 mode=hmax plane=z plane_value=0 file=surf_hmax time=10.0"
+    )
+    # merged() must not mutate the original command.
+    assert command.parameters["time"] is None
+
+
+def test_sw4_command_renders_bools_as_ints() -> None:
+    """SW4 expects 0/1 for boolean flags, not Python's True/False."""
+    command = SW4Command("developer", {"reporttiming": True, "failonnan": False})
+    assert command.render() == "developer reporttiming=1 failonnan=0"
 
 
 def test_sw4_parameters(tmp_path: Path) -> None:
     sw4 = realisations.SW4Parameters(
         verbose=2,
         printcycle=10,
-        supergrid_gp=30,
         supergrid_padding=30,
         nz_min=12,
-        projection_ellps="GRS80",
-        projection_lon_p=173.0,
-        projection_lat_p=0.0,
-        projection_scale=0.9996,
-        projection_type="tmerc",
-        attenuation_maxfreq=10.0,
-        attenuation_phasefreq=2.5,
-        attenuation_nmech=3,
-        topography_order=3,
-        topography=True,
-        cfl=0.9,
-        reporttiming=True,
-        failonnan=True,
-        prefilter=Prefilter(order=2, passes=2, fc1=0.1, fc2=1.0, type="bandpass"),
-        image_outputs=[
-            realisations.SW4ImageOutput(
-                mode="topo",
-                plane="z",
-                plane_value=0,
-                file="topo",
-                cycle=0,
-                precision="float",
+        commands=[
+            SW4Command(
+                "grid",
+                {
+                    "proj": "tmerc",
+                    "ellps": "GRS80",
+                    "lon_p": 173.0,
+                    "lat_p": 0.0,
+                    "scale": 0.9996,
+                },
             ),
-            realisations.SW4ImageOutput(
-                mode="mag",
-                plane="z",
-                plane_value=0,
-                file="surf_mag",
-                time_interval=0.5,
-                precision="float",
+            SW4Command("developer", {"cfl": 0.9, "reporttiming": True}),
+            SW4Command(
+                "topography",
+                {"order": 3},
             ),
-            realisations.SW4ImageOutput(
-                mode="hmax",
-                plane="z",
-                plane_value=0,
-                file="surf_hmax",
-                precision="float",
+            SW4Command(
+                "imagehdf5",
+                {
+                    "mode": "hmax",
+                    "plane": "z",
+                    "plane_value": 0,
+                    "file": "surf_hmax",
+                    "precision": "float",
+                },
             ),
         ],
     )
@@ -991,20 +991,10 @@ def test_sw4_parameters(tmp_path: Path) -> None:
     with open(realisation_path, "r") as realisation_handle:
         written = json.load(realisation_handle)
         assert written["sw4"]["verbose"] == 2
-        assert written["sw4"]["reporttiming"] is True
-        assert written["sw4"]["topography"] is True
-        assert len(written["sw4"]["image_outputs"]) == 3
-        assert written["sw4"]["prefilter"]["passes"] == 2
-        assert written["sw4"]["image_outputs"][2] == {
-            "mode": "hmax",
-            "plane": "z",
-            "plane_value": 0,
-            "file": "surf_hmax",
-            "time": None,
-            "time_interval": None,
-            "cycle": None,
-            "cycle_interval": None,
-            "precision": "float",
+        assert len(written["sw4"]["commands"]) == 4
+        assert written["sw4"]["commands"][1] == {
+            "name": "developer",
+            "parameters": {"cfl": 0.9, "reporttiming": True},
         }
 
     assert realisations.SW4Parameters.read_from_realisation(realisation_path) == sw4
@@ -1016,9 +1006,11 @@ def test_sw4_parameters_defaults_loadable() -> None:
         defaults.DefaultsVersion.v26_7_1Hz
     )
     assert sw4.verbose == 2
-    assert sw4.reporttiming is True
-    assert sw4.cfl == 0.9
-    assert len(sw4.image_outputs) == 10
+    developer = realisations.find_command(sw4.commands, "developer")
+    assert developer is not None
+    assert developer.parameters["reporttiming"] is True
+    assert developer.parameters["cfl"] == 0.9
+    assert sum(1 for command in sw4.commands if command.name == "imagehdf5") == 10
 
     for version in defaults.DefaultsVersion:
         if version == defaults.DefaultsVersion.v26_7_1Hz:

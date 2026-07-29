@@ -1,5 +1,6 @@
 import copy
 import itertools
+import string
 from pathlib import Path
 
 import h5py
@@ -13,33 +14,32 @@ from workflow.realisations import (
     RealisationMetadata,
     Refinement,
     Refinements,
-    SW4ImageOutput,
+    SW4Command,
     SW4Parameters,
+    find_command,
 )
 
 app = typer.Typer()
-SW4_TEMPLATE = """
-fileio path={work_directory} verbose={verbose} printcycle={printcycle}
 
-supergrid gp={supergrid_gp}
-time t={time}
+IMAGE_TIME_KEYS = frozenset({"time", "time_interval", "cycle", "cycle_interval"})
+"""Parameter keys that determine when an `imagehdf5` command fires. If none of
+these are set, SW4 never emits the image, so we default to the simulation end time."""
 
-grid x={x} y={y} z={z} h={dx} az={azimuth} lon={lon} lat={lat} proj={projection_type} ellps={projection_ellps} lon_p={projection_lon_p} lat_p={projection_lat_p} scale={projection_scale}
+SW4_TEMPLATE = string.Template("""
+${fileio}
 
-rupturehdf5 file={srf}
-{prefilter}
-{refinement_str}
+${grid}
 
-attenuation maxfreq={attenuation_maxfreq} phasefreq={attenuation_phasefreq} nmech={attenuation_nmech}
+${time}
 
-{image_output_str}
+${rupturehdf5}
+${refinements}
 
-sfile filename={velocity_model_name} directory={velocity_model_directory}
-{topography}
-rechdf5 infile={station_file_name} outfile={station_output_file_path}
+${other_commands}
 
-developer reporttiming={reporttiming} cfl={cfl} failonnan={failonnan}
-"""
+${sfile}
+${rechdf5}
+""")
 
 
 def azimuth_from_velocity_model(velocity_model: h5py.File) -> float:
@@ -80,34 +80,82 @@ def topography_height_from_velocity_model(
     return -float(global_min), float(zmax)
 
 
-def build_image_output_lines(
-    image_outputs: list[SW4ImageOutput], simulation_time: float
-) -> str:
-    lines = []
-    for img in image_outputs:
-        parts = [
-            f"mode={img.mode}",
-            f"{img.plane}={img.plane_value}",
-            f"file={img.file}",
-        ]
-        if img.time is not None:
-            parts.append(f"time={img.time}")
-        if img.time_interval is not None:
-            parts.append(f"timeInterval={img.time_interval}")
-        if img.cycle is not None:
-            parts.append(f"cycle={img.cycle}")
-        if img.cycle_interval is not None:
-            parts.append(f"cycleInterval={img.cycle_interval}")
-        if (
-            img.time is None
-            and img.time_interval is None
-            and img.cycle is None
-            and img.cycle_interval is None
+def build_sw4_commands(
+    sw4_params: SW4Parameters,
+    x: float,
+    y: float,
+    z: float,
+    dx: float,
+    azimuth: float,
+    lon: float,
+    lat: float,
+    velocity_model_name: str,
+    velocity_model_directory: Path,
+    topography_zmax: float,
+    simulation_time: float,
+) -> tuple[SW4Command, list[SW4Command]]:
+    """Resolve SW4Parameters.commands, layering in runtime-computed values.
+
+    Parameters
+    ----------
+    sw4_params : SW4Parameters
+        The SW4 parameters read from the realisation (or defaults).
+    x, y, z : float
+        Simulation domain extents (metres).
+    dx : float
+        Grid spacing of the bottom refinement layer (metres).
+    azimuth : float
+        Grid azimuth, taken from the velocity model.
+    lon, lat : float
+        Grid origin coordinates.
+    velocity_model_name : str
+        Filename of the velocity model sfile.
+    velocity_model_directory : Path
+        Directory containing the velocity model sfile.
+    topography_zmax : float
+        Computed maximum topography depth.
+    simulation_time : float
+        Simulation duration (seconds), used as the default image output time.
+
+    Returns
+    -------
+    tuple[SW4Command, list[SW4Command]]
+        The resolved `grid` command, and every other resolved command.
+
+    Raises
+    ------
+    ValueError
+        If `sw4_params.commands` has no `grid` command.
+    """
+    commands = sw4_params.commands
+    grid = find_command(commands, "grid")
+    if grid is None:
+        raise ValueError("SW4 configuration is missing a required 'grid' command")
+    topography = find_command(commands, "topography")
+
+    grid_command = None
+    other_commands = []
+    for command in commands:
+        if command is grid:
+            grid_command = command.merged(
+                x=x, y=y, z=z, h=dx, az=azimuth, lon=lon, lat=lat
+            )
+        elif topography is not None and command is topography:
+            other_commands.append(
+                command.merged(
+                    input="sfile",
+                    zmax=topography_zmax,
+                    file=f"{velocity_model_directory}/{velocity_model_name}",
+                )
+            )
+        elif command.name == "imagehdf5" and not (
+            IMAGE_TIME_KEYS & command.parameters.keys()
         ):
-            parts.append(f"time={simulation_time}")
-        parts.append(f"precision={img.precision}")
-        lines.append(f"imagehdf5 {' '.join(parts)}")
-    return "\n".join(lines)
+            other_commands.append(command.merged(time=simulation_time))
+        else:
+            other_commands.append(command)
+
+    return grid_command, other_commands
 
 
 def adjust_for_topography(
@@ -211,68 +259,61 @@ def generate_sw4_input(
         raise ValueError("Bottom of domain exceeds velocity model bounds")
 
     refinements_str = "\n".join(
-        f"refinement zmax={refinement.bottom:.1f}"
+        SW4Command("refinement", {"zmax": f"{refinement.bottom:.1f}"}).render()
         for refinement in refinements[
             :-1
         ]  # Last refinement layer is implicitly the bottom of the domain
     )
     dx = refinements[-1].resolution
 
-    image_output_str = build_image_output_lines(sw4_params.image_outputs, time)
-    if sw4_params.prefilter:
-        prefilter = f"prefilter type={sw4_params.prefilter.type} passes={sw4_params.prefilter.passes} order={sw4_params.prefilter.order}"
-        if sw4_params.prefilter.fc1 is not None:
-            prefilter += f" fc1={sw4_params.prefilter.fc1}"
-        if sw4_params.prefilter.fc2 is not None:
-            prefilter += f" fc2={sw4_params.prefilter.fc2}"
-    else:
-        prefilter = ""
-
     velocity_model_directory = velocity_model.parent
     velocity_model_name = velocity_model.name
-    if sw4_params.topography:
-        topography_order = sw4_params.topography_order
-        topography = f"topography input=sfile zmax={topography_zmax} order={topography_order} file={velocity_model_directory}/{velocity_model_name}"
-    else:
-        topography = ""
+
+    grid_command, other_commands = build_sw4_commands(
+        sw4_params,
+        # NOTE: In SW4 x = north, but in the workflow y = north.
+        x=y,
+        y=x,
+        z=depth * 1000.0,
+        dx=dx,
+        azimuth=azimuth,
+        lon=lon,
+        lat=lat,
+        velocity_model_name=velocity_model_name,
+        velocity_model_directory=velocity_model_directory,
+        topography_zmax=topography_zmax,
+        simulation_time=time,
+    )
 
     low_frequency_output = work_directory / "out.h5"
     output_path.write_text(
-        SW4_TEMPLATE.format(
-            # NOTE: In SW4 x = north, but in the workflow y = north.
-            x=y,
-            y=x,
-            z=depth * 1000.0,
-            dx=dx,
-            lat=lat,
-            lon=lon,
-            azimuth=azimuth,
-            topography_zmax=topography_zmax,
-            velocity_model_name=velocity_model_name,
-            velocity_model_directory=velocity_model_directory,
-            time=time,
-            topography=topography,
-            srf=srf_path,
-            station_file_name=station_path,
-            work_directory=work_directory,
-            station_output_file_path=low_frequency_output.relative_to(work_directory),
-            refinement_str=refinements_str,
-            verbose=sw4_params.verbose,
-            printcycle=sw4_params.printcycle,
-            supergrid_gp=sw4_params.supergrid_gp,
-            projection_ellps=sw4_params.projection_ellps,
-            projection_lon_p=sw4_params.projection_lon_p,
-            projection_lat_p=sw4_params.projection_lat_p,
-            projection_scale=sw4_params.projection_scale,
-            projection_type=sw4_params.projection_type,
-            attenuation_maxfreq=sw4_params.attenuation_maxfreq,
-            attenuation_phasefreq=sw4_params.attenuation_phasefreq,
-            attenuation_nmech=sw4_params.attenuation_nmech,
-            topography_order=sw4_params.topography_order,
-            reporttiming=int(sw4_params.reporttiming),
-            cfl=sw4_params.cfl,
-            failonnan=int(sw4_params.failonnan),
-            image_output_str=image_output_str,
-            prefilter=prefilter,
+        SW4_TEMPLATE.substitute(
+            fileio=SW4Command(
+                "fileio",
+                {
+                    "path": work_directory,
+                    "verbose": sw4_params.verbose,
+                    "printcycle": sw4_params.printcycle,
+                },
+            ).render(),
+            grid=grid_command.render(),
+            time=SW4Command("time", {"t": time}).render(),
+            rupturehdf5=SW4Command("rupturehdf5", {"file": srf_path}).render(),
+            refinements=refinements_str,
+            other_commands="\n".join(command.render() for command in other_commands),
+            sfile=SW4Command(
+                "sfile",
+                {
+                    "filename": velocity_model_name,
+                    "directory": velocity_model_directory,
+                },
+            ).render(),
+            rechdf5=SW4Command(
+                "rechdf5",
+                {
+                    "infile": station_path,
+                    "outfile": low_frequency_output.relative_to(work_directory),
+                },
+            ).render(),
         )
     )
