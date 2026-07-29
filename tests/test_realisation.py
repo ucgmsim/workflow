@@ -954,6 +954,7 @@ def test_sw4_parameters(tmp_path: Path) -> None:
         attenuation_phasefreq=2.5,
         attenuation_nmech=3,
         topography_order=3,
+        topography=True,
         cfl=0.9,
         reporttiming=True,
         failonnan=True,
@@ -991,6 +992,7 @@ def test_sw4_parameters(tmp_path: Path) -> None:
         written = json.load(realisation_handle)
         assert written["sw4"]["verbose"] == 2
         assert written["sw4"]["reporttiming"] is True
+        assert written["sw4"]["topography"] is True
         assert len(written["sw4"]["image_outputs"]) == 3
         assert written["sw4"]["prefilter"]["passes"] == 2
         assert written["sw4"]["image_outputs"][2] == {

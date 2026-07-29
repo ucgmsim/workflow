@@ -25,6 +25,7 @@ sw4:
   attenuation_phasefreq: 0.5
   attenuation_nmech: 3
   topography_order: 3
+  topography: true
   cfl: 0.9
   reporttiming: true
   failonnan: true

@@ -1336,6 +1336,7 @@ SW4_PARAMETERS_SCHEMA = Schema(
     {
         Literal("verbose", description="Fileio verbosity level."): int,
         Literal("printcycle", description="Output fileio print cycle."): int,
+        Literal("topography", description="If enabled, read topography from sfile"): bool,
         Literal(
             "supergrid_gp", description="Supergrid gridpoints for absorbing layer."
         ): int,

@@ -1419,6 +1419,8 @@ class SW4Parameters(RealisationConfiguration):
     """Abort on NaN values."""
     image_outputs: list[SW4ImageOutput]
     """List of SW4 imagehdf5 output commands."""
+    topography: bool
+    """If enabled, read topography from sfile."""
     prefilter: Prefilter | None = None
 
     def __post_init__(self) -> None:

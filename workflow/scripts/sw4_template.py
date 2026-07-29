@@ -35,7 +35,7 @@ attenuation maxfreq={attenuation_maxfreq} phasefreq={attenuation_phasefreq} nmec
 {image_output_str}
 
 sfile filename={velocity_model_name} directory={velocity_model_directory}
-topography input=sfile zmax={topography_zmax} order={topography_order} file={velocity_model_directory}/{velocity_model_name}
+{topography}
 rechdf5 infile={station_file_name} outfile={station_output_file_path}
 
 developer reporttiming={reporttiming} cfl={cfl} failonnan={failonnan}
@@ -227,6 +227,15 @@ def generate_sw4_input(
             prefilter += f" fc2={sw4_params.prefilter.fc2}"
     else:
         prefilter = ""
+
+    velocity_model_directory = velocity_model.parent
+    velocity_model_name = velocity_model.name
+    if sw4_params.topography:
+        topography_order = sw4_params.topography_order
+        topography = f"topography input=sfile zmax={topography_zmax} order={topography_order} file={velocity_model_directory}/{velocity_model_name}"
+    else:
+        topography = ""
+
     low_frequency_output = work_directory / "out.h5"
     output_path.write_text(
         SW4_TEMPLATE.format(
@@ -239,9 +248,10 @@ def generate_sw4_input(
             lon=lon,
             azimuth=azimuth,
             topography_zmax=topography_zmax,
-            velocity_model_name=velocity_model.name,
-            velocity_model_directory=velocity_model.parent,
+            velocity_model_name=velocity_model_name,
+            velocity_model_directory=velocity_model_directory,
             time=time,
+            topography=topography,
             srf=srf_path,
             station_file_name=station_path,
             work_directory=work_directory,
