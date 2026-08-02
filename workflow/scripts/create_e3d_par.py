@@ -68,7 +68,9 @@ def emod3d_domain_parameters(
 
     nx = domain_parameters.nx(resolution.resolution)
     ny = domain_parameters.ny(resolution.resolution)
-    nz = domain_parameters.nz(resolution.resolution)
+    # NOTE: The + 1 padding to nz is intentional, and reflects the fact that we
+    # have a free surface boundary layer added to our velocity model codebase.
+    nz = domain_parameters.nz(resolution.resolution) + 1
     return {
         "nx": nx,
         "ny": ny,
@@ -231,6 +233,67 @@ def format_as_emod3d_value(value: int | float | str | Path) -> str:
         return str(value)
 
 
+def check_domain_against_velocity_model(
+    domain_parameters: DomainParameters,
+    resolution: Resolution,
+    parameters: EMOD3DParameters,
+    velocity_model_ffp: Path,
+) -> None:
+    """Validate that generated velocity model files match the expected domain size.
+
+    Computes the expected file size for the pmodfile, smodfile, and dmodfile
+    from the domain's nx, ny, nz (with the EMOD3D free-surface padding row added
+    to nz), and compares it against the actual size of each file on disk. A
+    mismatch is an error, but a missing file or unreadable file is not
+    considered an error because this code is often run in a container with the
+    paths only used for templating and hence it would fail on many workflows.
+
+    Parameters
+    ----------
+    domain_parameters : DomainParameters
+        Domain parameters used to compute the expected nx, ny, nz grid
+        dimensions at the given resolution.
+    resolution : Resolution
+        Resolution at which to evaluate the domain's grid dimensions.
+    parameters : EMOD3DParameters
+        EMOD3D parameters providing the pmodfile, smodfile, and dmodfile
+        filenames to check.
+    velocity_model_ffp : Path
+        Directory containing the velocity model files to validate.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    RuntimeError
+        If a velocity model file's size does not match the expected size
+        computed from the domain parameters.
+
+    """
+    nx = domain_parameters.nx(resolution.resolution)
+    ny = domain_parameters.ny(resolution.resolution)
+    # NOTE: The + 1 padding to nz is intentional, and reflects the fact that we
+    # have a free surface boundary layer added to our velocity model codebase.
+    nz = domain_parameters.nz(resolution.resolution) + 1
+
+    expected_file_size = nx * ny * nz * np.float32().nbytes
+    try:
+        for filename in [parameters.pmodfile, parameters.smodfile, parameters.dmodfile]:
+            velocity_model_file = velocity_model_ffp / filename
+            file_size = velocity_model_file.stat().st_size
+            if file_size != expected_file_size:
+                raise RuntimeError(
+                    f"Velocity model file {velocity_model_file} does not have the expected size (expected: {expected_file_size}, found: {file_size})"
+                )
+
+    except (OSError, FileNotFoundError) as e:
+        print(
+            f"WARNING: could not validate domain parameters against velocity model supplied:\n{e}"
+        )
+
+
 @cli.from_docstring(app)
 def create_e3d_par(
     realisation_ffp: Path,
@@ -269,6 +332,10 @@ def create_e3d_par(
     emod3d_parameters = EMOD3DParameters.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
+    check_domain_against_velocity_model(
+        domain_parameters, resolution, emod3d_parameters, velocity_model_ffp
+    )
+
     e3d_par_values = (
         emod3d_parameters.to_dict()
         | emod3d_domain_parameters(resolution, domain_parameters)
@@ -290,4 +357,5 @@ def create_e3d_par(
             for key, value in e3d_par_values.items()
         )
     )
+
     realisations.append_log_entry(realisation_ffp)
