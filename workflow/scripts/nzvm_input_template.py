@@ -55,9 +55,8 @@ def generate_template(realisation_ffp: Path, output_path: Path) -> None:
     origin_lon = origin[1]
     azimuth = domain_parameters.domain.great_circle_bearing
 
-    buffer = 1.10
-    extent_y = buffer * domain_parameters.domain.extent_y * 1000.0
-    extent_x = buffer * domain_parameters.domain.extent_x * 1000.0
+    extent_y = domain_parameters.domain.extent_y * 1000.0
+    extent_x = domain_parameters.domain.extent_x * 1000.0
 
     if not nzcvm_settings.layers:
         raise ValueError("NZCVM requires at least one defined layer.")
