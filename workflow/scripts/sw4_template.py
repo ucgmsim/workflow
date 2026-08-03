@@ -21,7 +21,7 @@ from workflow.realisations import (
 
 app = typer.Typer()
 
-IMAGE_TIME_KEYS = frozenset({"time", "time_interval", "cycle", "cycle_interval"})
+IMAGE_TIME_KEYS = frozenset({"time", "timeInterval", "cycle", "cycleInterval"})
 """Parameter keys that determine when an `imagehdf5` command fires. If none of
 these are set, SW4 never emits the image, so we default to the simulation end time."""
 

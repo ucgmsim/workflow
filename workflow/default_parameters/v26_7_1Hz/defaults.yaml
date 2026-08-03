@@ -37,99 +37,49 @@ sw4:
       parameters: { order: 3 }
     - name: "imagehdf5"
       parameters:
-        {
-          mode: "topo",
-          plane: "z",
-          plane_value: 0,
-          file: "topo",
-          cycle: 0,
-          precision: "float",
-        }
+        { mode: "topo", z: 0.0, file: "topo", cycle: 0, precision: "float" }
     - name: "imagehdf5"
       parameters:
-        {
-          mode: "grid",
-          plane: "z",
-          plane_value: 0,
-          file: "grid",
-          cycle: 0,
-          precision: "float",
-        }
+        { mode: "grid", z: 0.0, file: "grid", cycle: 0, precision: "float" }
     - name: "imagehdf5"
       parameters:
-        {
-          mode: "p",
-          plane: "z",
-          plane_value: 0,
-          file: "surf_vp",
-          cycle: 0,
-          precision: "float",
-        }
+        { mode: "p", z: 0.0, file: "surf_vp", cycle: 0, precision: "float" }
     - name: "imagehdf5"
       parameters:
-        {
-          mode: "s",
-          plane: "z",
-          plane_value: 0,
-          file: "surf_vs",
-          cycle: 0,
-          precision: "float",
-        }
+        { mode: "s", plane: "z", file: "surf_vs", cycle: 0, precision: "float" }
     - name: "imagehdf5"
       parameters:
-        {
-          mode: "rho",
-          plane: "z",
-          plane_value: 0,
-          file: "surf_rho",
-          cycle: 0,
-          precision: "float",
-        }
+        { mode: "rho", z: 0.0, file: "surf_rho", cycle: 0, precision: "float" }
     - name: "imagehdf5"
       parameters:
         {
           mode: "mag",
-          plane: "z",
-          plane_value: 0,
+          z: 0.0,
           file: "surf_mag",
-          time_interval: 0.5,
+          timeInterval: 0.5,
           precision: "float",
         }
     - name: "imagehdf5"
       parameters:
         {
           mode: "velmag",
-          plane: "z",
-          plane_value: 0,
+          z: 0.0,
           file: "surf_velmag",
-          time_interval: 0.5,
+          timeInterval: 0.5,
           precision: "float",
         }
     - name: "imagehdf5"
       parameters:
         {
           mode: "uz",
-          plane: "z",
-          plane_value: 0,
+          z: 0.0,
           file: "surf_uz",
-          time_interval: 0.5,
+          timeInterval: 0.5,
           precision: "float",
         }
     - name: "imagehdf5"
       parameters:
-        {
-          mode: "hmax",
-          plane: "z",
-          plane_value: 0,
-          file: "surf_hmax",
-          precision: "float",
-        }
+        { mode: "hmax", z: 0.0, file: "surf_hmax", precision: "float" }
     - name: "imagehdf5"
       parameters:
-        {
-          mode: "vmax",
-          plane: "z",
-          plane_value: 0,
-          file: "surf_vmax",
-          precision: "float",
-        }
+        { mode: "vmax", z: 0.0, file: "surf_vmax", precision: "float" }
