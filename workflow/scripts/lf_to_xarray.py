@@ -72,7 +72,7 @@ def _read_station_batch(
     xr.DataArray
         Velocity waveforms in m/s with shape (3, len(stations), npts).
         Components are ordered to match the EMOD3D LF convention:
-        x = north, y = east, z = down.
+        x = east-west, y = north-south, z = down.
 
     Notes
     -----
@@ -98,7 +98,7 @@ def _read_station_batch(
                     " supported: it would need de-rotation by the grid azimuth)."
                 )
             waveforms[0, i] = group["EW"][:]
-            waveforms[1, i] = -group["NS"][:]
+            waveforms[1, i] = group["NS"][:]
             waveforms[2, i] = group["UP"][:]
 
     return xr.DataArray(
