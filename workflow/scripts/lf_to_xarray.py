@@ -97,10 +97,9 @@ def _read_station_batch(
                     " displacement-mode components (grid X/Y output is not"
                     " supported: it would need de-rotation by the grid azimuth)."
                 )
-            waveforms[0, i] = group["NS"][:]
-            waveforms[1, i] = group["EW"][:]
-            # SW4 vertical is positive up; EMOD3D convention is positive down.
-            waveforms[2, i] = -group["UP"][:]
+            waveforms[0, i] = group["EW"][:]
+            waveforms[1, i] = -group["NS"][:]
+            waveforms[2, i] = group["UP"][:]
 
     return xr.DataArray(
         waveforms,
