@@ -196,6 +196,13 @@ devenv.local.nix
 # Large local inputs, fetched/built rather than tracked
 /nshmdb.db
 /runner.sif
+/viz.sif
+
+# Build inputs that container/build_viz.sh generates and removes again. Ignored
+# so an interrupted build cannot leave a stale source export behind for a later
+# build to bake in silently.
+/container/workflow-src.tar.gz
+/container/workflow-version.txt
 
 # Generated realisation sets (produced by generate-realisations-from-csv and
 # complete-realisations; each holds the run's error_log.txt / summary CSV too)

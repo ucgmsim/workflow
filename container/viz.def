@@ -3,9 +3,30 @@ From: earthquakesuc/workflow-bootstrap:latest
 
 # Visualisation container (figures + animations): plot-srf, plot-ts, etc.
 # Built on top of the simulation base image so it reuses the whole verified
-# scientific stack (pygmt, pygmt_helper, cartopy, matplotlib, source_modelling
-# 2026.7.2, workflow, qcore) without pulling any of it in again. Deliberately
-# does NOT include EMOD3D — this image only makes plots, it does not simulate.
+# scientific stack (pygmt, pygmt_helper, cartopy, matplotlib, source_modelling,
+# workflow, qcore) without pulling any of it in again. Deliberately does NOT
+# include EMOD3D — this image only makes plots, it does not simulate.
+#
+# It DOES carry a working `generate-stoch`, which is not a visualisation tool.
+# That is deliberate: runner.sif ships the clamped, C-binary implementation that
+# cannot produce a stoch at a requested dx/dy (see %post), and runner.sif drives
+# the live production workflow, so rebuilding it to fix that is the higher-risk
+# change. This image is a side tool, so the capability lands here.
+#
+# BUILD (must run from the repo root — %files paths are relative to $PWD):
+#     container/build_viz.sh
+# It exports the current branch to container/workflow-src.tar.gz and stamps the
+# version, both of which %files below expects. Do not call `apptainer build`
+# directly unless you have created those two files yourself.
+
+%files
+    # The workflow source to install over the base image's copy, exported from
+    # the working tree by build_viz.sh. A tarball rather than a git URL so the
+    # image can be built from an unpushed branch; switch to a pinned
+    # `git+https://...@<sha>` once cs-nshm2022-prep is published, the way the
+    # visualisation install below is pinned.
+    container/workflow-src.tar.gz /tmp/workflow-src.tar.gz
+    container/workflow-version.txt /tmp/workflow-version.txt
 
 %post
     set -e
@@ -67,6 +88,60 @@ From: earthquakesuc/workflow-bootstrap:latest
         "pyvista==0.48.4" "vtk==9.6.2" imageio imageio-ffmpeg
     /sw/venv/bin/pip install --no-cache-dir --no-deps \
         "git+https://github.com/ucgmsim/visualisation.git@eee9f26102d5154a89593aa605f7be90433c9acb"
+
+    # --- a generate-stoch that honours the requested dx/dy --------------------
+    #
+    # The base image's `workflow` carries the pegasus generate_stoch, which
+    # shells out to the C `srf2stoch` binary and clamps the spacing to
+    # min(stoch_dx, min_length/2) and min(stoch_dy, min_width/2). Both halves are
+    # unusable for a resolution study: the binary cannot parse v2.0 SRFs at all,
+    # and the clamp is driven by the *smallest* fault in the rupture — on event
+    # 350269 a single 12.16 km fault caps dx at 6.079 km for the whole
+    # 12,577 km2 rupture, so every requested spacing above that silently yields
+    # the same stoch, with no error and a plausible-looking output.
+    #
+    # source_modelling FIRST, and pinned. convert_srf_to_stoch builds a StochFile
+    # from a list of StochPlane — a constructor that arrived in 2026.7.3. Against
+    # 2026.7.2 every call dies with
+    #     TypeError: argument should be a str or an os.PathLike ... not 'list'
+    # Pinned rather than inherited because the base image is the moving tag
+    # `latest` and has shifted under us before (source-modelling 2026.6.6 in the
+    # 14 Jul build, 2026.7.2 in the 24 Jul one), so "whatever the base ships" is
+    # not a version. This is the one dependency the visualisation stack and the
+    # stoch converter share, so it is also the one worth asserting in %test.
+    /sw/venv/bin/pip install --no-cache-dir "source-modelling==2026.7.3"
+
+    # Then workflow itself, over the copy the base image already installed.
+    #
+    # NEVER `pip install workflow` here: the name `workflow` on PyPI belongs to
+    # an unrelated 2.x project, so that would quietly install someone else's
+    # package and leave every entry point subtly wrong.
+    #
+    # --no-deps because the base image already supplies the whole stack and a
+    # full resolve would reach the network for all of it (and could clobber the
+    # pins above). --force-reinstall because workflow is already present, so pip
+    # would otherwise call the requirement satisfied and change nothing.
+    # SETUPTOOLS_SCM_PRETEND_VERSION because `git archive` strips .git and this
+    # project takes its version from setuptools_scm, which without a repo cannot
+    # compute one and fails the build.
+    SETUPTOOLS_SCM_PRETEND_VERSION="$(cat /tmp/workflow-version.txt)" \
+        /sw/venv/bin/pip install --no-cache-dir --no-deps --force-reinstall \
+        /tmp/workflow-src.tar.gz
+    rm -f /tmp/workflow-src.tar.gz /tmp/workflow-version.txt
+
+    # Smoke-test here rather than in %test: this runs on a writable filesystem,
+    # and importing source_modelling triggers numba's @njit(cache=True), which
+    # wants to write a JIT cache. %test runs in the finished read-only image
+    # where that write can fail for reasons that have nothing to do with the
+    # install being correct, so %test checks files instead of importing.
+    /sw/venv/bin/generate-stoch --help > /dev/null
+    python -c "
+import workflow.scripts.generate_stoch as g
+assert hasattr(g, 'convert_srf_to_stoch'), 'clamped (pegasus) generate_stoch installed'
+import importlib.metadata as m
+print('generate-stoch OK: workflow', m.version('workflow'),
+      '| source_modelling', m.version('source_modelling'))
+"
 
     # Bake pygmt_helper's map/topo data into the image so plots work with no
     # internet on BSC compute nodes. pygmt_helper caches via
@@ -175,8 +250,23 @@ PY
     test -x /sw/venv/bin/plot-srf                          # visualisation entry points installed
     test -x /sw/venv/bin/plot-ts
     /sw/venv/bin/pip show visualisation >/dev/null
-    # source_modelling must still be the pinned release, not a git-HEAD clobber:
-    python -c "import importlib.metadata as m; v=m.version('source_modelling'); assert v=='2026.7.2', v"
+    # source_modelling must still be the pinned release, not a git-HEAD clobber.
+    # 2026.7.3 is a floor as much as a pin: below it convert_srf_to_stoch cannot
+    # construct a StochFile at all (see %post).
+    python -c "import importlib.metadata as m; v=m.version('source_modelling'); assert v=='2026.7.3', v"
+    # generate-stoch must be the pure-Python converter that honours the requested
+    # dx/dy, not the clamped shell-out to the C binary. Asserted on the INSTALLED
+    # FILE rather than by importing, because importing source_modelling wants to
+    # write a numba JIT cache and this stage is read-only — a failure there would
+    # look like a bad install when it is only a bad filesystem.
+    #
+    # Both directions are checked. The new symbol being present does not prove
+    # the clamp is gone: a future merge could reintroduce the clamp alongside
+    # convert_srf_to_stoch and satisfy only the first test.
+    test -x /sw/venv/bin/generate-stoch
+    GS=$(ls /sw/venv/lib/python*/site-packages/workflow/scripts/generate_stoch.py)
+    grep -q "def convert_srf_to_stoch" "$GS"
+    ! grep -q "min_length" "$GS"
     for g in srtm_NZ srtm_NZ_i5 srtm_NZ_1s srtm_NZ_1s_i5; do \
         test -f /opt/cache/pygmt_helper/data/Topo/$g.grd; done
     # Assert the cartopy vectors are present as FILES rather than asking the
