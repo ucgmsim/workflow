@@ -25,8 +25,13 @@ From: earthquakesuc/workflow-bootstrap:latest
     # image can be built from an unpushed branch; switch to a pinned
     # `git+https://...@<sha>` once cs-nshm2022-prep is published, the way the
     # visualisation install below is pinned.
-    container/workflow-src.tar.gz /tmp/workflow-src.tar.gz
-    container/workflow-version.txt /tmp/workflow-version.txt
+    #
+    # Staged under /opt and NOT /tmp. apptainer bind-mounts the HOST's /tmp over
+    # the container's for %post, so anything %files puts in /tmp is copied
+    # successfully (the build log even says "Copying ... to /tmp/...") and is
+    # then invisible to every command in %post. /opt is not mounted over.
+    container/workflow-src.tar.gz /opt/workflow-src.tar.gz
+    container/workflow-version.txt /opt/workflow-version.txt
 
 %post
     set -e
@@ -124,10 +129,15 @@ From: earthquakesuc/workflow-bootstrap:latest
     # SETUPTOOLS_SCM_PRETEND_VERSION because `git archive` strips .git and this
     # project takes its version from setuptools_scm, which without a repo cannot
     # compute one and fails the build.
-    SETUPTOOLS_SCM_PRETEND_VERSION="$(cat /tmp/workflow-version.txt)" \
+    #
+    # Fail loudly if the staged source is missing rather than letting pip report
+    # it: an empty SETUPTOOLS_SCM_PRETEND_VERSION is itself a build-breaker, so
+    # a missing file otherwise surfaces as a confusing version error downstream.
+    test -s /opt/workflow-src.tar.gz && test -s /opt/workflow-version.txt
+    SETUPTOOLS_SCM_PRETEND_VERSION="$(cat /opt/workflow-version.txt)" \
         /sw/venv/bin/pip install --no-cache-dir --no-deps --force-reinstall \
-        /tmp/workflow-src.tar.gz
-    rm -f /tmp/workflow-src.tar.gz /tmp/workflow-version.txt
+        /opt/workflow-src.tar.gz
+    rm -f /opt/workflow-src.tar.gz /opt/workflow-version.txt
 
     # Smoke-test here rather than in %test: this runs on a writable filesystem,
     # and importing source_modelling triggers numba's @njit(cache=True), which
