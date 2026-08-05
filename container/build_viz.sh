@@ -61,9 +61,36 @@ echo "output  : $OUT"
 
 # HEAD, not the branch name: with ALLOW_DIRTY the tree may differ from HEAD, and
 # archiving HEAD makes the discrepancy explicit rather than pretending it away.
+# apptainer unpacks the entire container into $APPTAINER_TMPDIR and only then
+# runs mksquashfs, so it needs room for the sandbox AND the finished .sif at the
+# same time -- about 16 GB for this image (~12 GB unpacked plus a ~4 GB SIF).
+# The default is /tmp, which on a machine where /tmp is a tmpfs is RAM, and the
+# build then dies at the very last step, after ten-plus minutes of work, with
+#     FATAL: while creating squashfs: mksquashfs command failed:
+#     Write failed because Disk quota exceeded
+# which reads like a permissions problem rather than a full disk. Stage next to
+# the output instead, on whatever real filesystem that lives on.
+if [[ -z "${APPTAINER_TMPDIR:-}" ]]; then
+    APPTAINER_TMPDIR="$(dirname "$(readlink -f "$OUT")")/.apptainer-build-tmp"
+    OURS_TMPDIR=1
+fi
+export APPTAINER_TMPDIR
+mkdir -p "$APPTAINER_TMPDIR"
+
+# Check up front rather than at minute twelve.
+NEED_GB=20
+AVAIL_GB=$(df -BG --output=avail "$APPTAINER_TMPDIR" | tail -1 | tr -dc '0-9')
+echo "tmpdir  : $APPTAINER_TMPDIR (${AVAIL_GB} GB free, need ~${NEED_GB})"
+if (( AVAIL_GB < NEED_GB )); then
+    echo "FATAL: not enough space at $APPTAINER_TMPDIR." >&2
+    echo "       Set APPTAINER_TMPDIR to a filesystem with ~${NEED_GB} GB free." >&2
+    exit 1
+fi
+
 git archive --format=tar.gz --prefix=workflow/ -o "$SRC" HEAD
 printf '%s\n' "$VERSION" > "$VERFILE"
-trap 'rm -f "$SRC" "$VERFILE"' EXIT
+# Only remove the tmpdir if we chose it; a caller-supplied one is theirs.
+trap 'rm -f "$SRC" "$VERFILE"; [[ -n "${OURS_TMPDIR:-}" ]] && rm -rf "$APPTAINER_TMPDIR"' EXIT
 
 echo "exported $(du -h "$SRC" | cut -f1) of source"
 echo
