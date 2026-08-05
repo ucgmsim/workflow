@@ -54,9 +54,17 @@ Result is a ~4 GB `.sif` (the baked grids dominate; see "Grid data" below).
 ## Build
 
 ```bash
-cd workflow/container        # where viz.def lives
-apptainer build ~/build/runner/viz.sif viz.def
+container/build_viz.sh [output.sif]        # FROM THE REPO ROOT. default: ./viz.sif
 ```
+
+**Use the wrapper, not a bare `apptainer build`.** The def installs `workflow`
+from a source tarball (gotcha 9), which needs three things a def file cannot do
+for itself: the tarball must exist before the build starts at the exact path
+`%files` names; `%files` paths resolve against `$PWD`, so the build must run from
+the repo root; and the version must be computed while `.git` still exists. The
+wrapper does all three, sets `APPTAINER_TMPDIR` (gotcha 10), and refuses a dirty
+tree because the image stamps a commit SHA a dirty build would make untrue
+(`ALLOW_DIRTY=1` overrides, stamping `+dirty`).
 
 Build takes ~12–15 min (the grid download dominates; `r-base-dev` plus the rpy2 and
 vtk pip builds add a few minutes). The `%test` section runs at the end and **fails
@@ -96,7 +104,7 @@ local build-time workaround only.
 
 ## Why the def looks the way it does (gotchas)
 
-Eight non-obvious things, each of which causes a silent or confusing failure if
+Eleven non-obvious things, each of which causes a silent or confusing failure if
 dropped:
 
 1. **`libgmt.so` symlink.** Ubuntu's `gmt` package ships only the *versioned*
@@ -192,6 +200,55 @@ dropped:
    requirement, but it ships no Python-3.13 wheel, so xvfb + llvmpipe is the route for
    this image. `plot-srf` and `plot-ts srf` need none of it.
 
+9. **`workflow` installs from a tarball, and must never come from PyPI.** This
+   image carries `generate-stoch`, which is not a visualisation tool — see the
+   header comment in `viz.def` for why it lives here rather than in `runner.sif`.
+   Three traps in installing it:
+   - **The name `workflow` on PyPI is an unrelated 2.x project.** `pip install
+     workflow` installs someone else's package and looks like it worked.
+   - **`--force-reinstall` is required.** The base image already ships
+     `workflow`, so pip otherwise calls the requirement satisfied and silently
+     changes nothing — leaving the clamped `generate_stoch` in place.
+   - **`git archive` strips `.git`, which breaks `setuptools_scm`.** The project
+     takes its version from the repo, so without one the install aborts. Hence
+     `SETUPTOOLS_SCM_PRETEND_VERSION`, computed by `build_viz.sh`.
+
+   `source-modelling` is also pinned (`==2026.7.3`) rather than inherited from the
+   base: `convert_srf_to_stoch` builds a `StochFile` from a list of `StochPlane`,
+   which 2026.7.2 cannot do — its `__init__` still takes a filename, so every call
+   raises `TypeError: ... not 'list'`. The base image is the moving tag `:latest`
+   and has shifted twice already (source-modelling 2026.6.6 in the 14 Jul build,
+   2026.7.2 in the 24 Jul one), so inheriting a version is not pinning one.
+
+10. **`%files` into `/tmp` is copied and then hidden.** Apptainer bind-mounts the
+    *host's* `/tmp` over the container's for `%post`, so a `%files` destination
+    under `/tmp` lands in the image and is then shadowed before any `%post`
+    command can read it. The build log says the copy succeeded, which is what
+    makes it baffling:
+
+    ```
+    INFO:    Copying container/workflow-src.tar.gz to /tmp/workflow-src.tar.gz
+    ...
+    cat: /tmp/workflow-version.txt: No such file or directory
+    ```
+
+    Stage under `/opt` instead (not mounted over, and already where the baked
+    data lives). `%post` asserts both staged files exist before use.
+
+11. **The build needs ~20 GB of scratch on a real filesystem.** Apptainer unpacks
+    the whole container into `$APPTAINER_TMPDIR` and only then runs `mksquashfs`,
+    so it needs the sandbox and the finished `.sif` at once — about 16 GB here.
+    The default is `/tmp`, which on a box where `/tmp` is a tmpfs is RAM. The
+    build then dies at the *very last step*, after ~12 min of work, with
+
+    ```
+    FATAL: while creating squashfs: mksquashfs command failed:
+    Write failed because Disk quota exceeded
+    ```
+
+    which is neither a quota nor the output filesystem. `build_viz.sh` defaults
+    `APPTAINER_TMPDIR` next to the output and checks free space up front.
+
 ## Grid data (size decision)
 
 The baked NZ grids are ~1.8 GB, dominated by the high-resolution 1-arc-second
@@ -224,8 +281,19 @@ apptainer exec viz.sif plot-srf --help
 apptainer exec viz.sif plot-ts --help
 
 # source_modelling must still be the pinned release, not a git-HEAD clobber:
-apptainer exec viz.sif python -c "import importlib.metadata as m; print(m.version('source_modelling'))"   # 2026.7.2
+apptainer exec viz.sif python -c "import importlib.metadata as m; print(m.version('source_modelling'))"   # 2026.7.3
 apptainer exec viz.sif python -c "import source_modelling.srf_parser as p, inspect; print(inspect.signature(p.parse_srf))"  # (buffer)
+
+# generate-stoch must honour the requested dx/dy rather than clamping it. %test
+# checks the installed file, which proves the right code shipped but not that it
+# runs — so convert a real SRF here and compare hashes against a known-good stoch.
+# dx=20 is the load-bearing case: the old clamped implementation would cap it at
+# min_length/2 = 6.079 km on event 350269 and emit a plausible, wrong file.
+# NOTE generate-stoch APPENDS A LOG ENTRY to its realisation argument, so pass a
+# copy unless you want the input edited.
+apptainer exec -B /path/to/cs_nshm_2022:/data -B "$PWD":/out viz.sif \
+    generate-stoch /out/realisation_copy.json /data/runs/350269/350269.srf /out/dx2.stoch
+md5sum dx2.stoch     # cc50e93a571923e9375131c36942e4c5 == the stoch deployed on BSC
 
 # THE key check — an actual figure render (exercises libgmt + ghostscript):
 apptainer exec viz.sif python -c "
