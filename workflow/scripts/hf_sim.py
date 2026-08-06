@@ -64,7 +64,7 @@ from tqdm.dask import TqdmCallback
 
 from qcore import cli
 from source_modelling.stoch import StochFile
-from workflow import log_utils, realisations
+from workflow import log_utils, realisations, utils
 from workflow.realisations import (
     DomainParameters,
     HFVelocityModel1D,
@@ -308,7 +308,10 @@ def run_hf(
     chunk_size = max(
         1, TARGET_CHUNK_BYTES // (len(COMPONENTS) * nt * np.float32().itemsize)
     )
-    with dask.config.set(scheduler="threads"), TqdmCallback(desc="Station chunks"):
+    with (
+        dask.config.set(scheduler="threads", num_workers=utils.get_available_cores()),
+        TqdmCallback(desc="Station chunks"),
+    ):
         template = xr.DataArray(
             da.empty(
                 (len(COMPONENTS), len(stations), nt),
