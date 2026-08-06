@@ -60,6 +60,7 @@ from hf_simulation import (
 from hf_simulation import (
     RuptureVelocity as RuptureVelocityTaper,
 )
+from tqdm.dask import TqdmCallback
 
 from qcore import cli
 from source_modelling.stoch import StochFile
@@ -307,7 +308,7 @@ def run_hf(
     chunk_size = max(
         1, TARGET_CHUNK_BYTES // (len(COMPONENTS) * nt * np.float32().itemsize)
     )
-    with dask.config.set(scheduler="threads"):
+    with dask.config.set(scheduler="threads"), TqdmCallback(desc="Station chunks"):
         template = xr.DataArray(
             da.empty(
                 (len(COMPONENTS), len(stations), nt),
