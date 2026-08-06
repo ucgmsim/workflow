@@ -17,7 +17,7 @@ dependencies = [
   "oq_wrapper>=2026.05.2",
   "qcore-utils>=2025.12.2",
   "source_modelling>=2026.7.3",
-  "site-calculation",
+  "site-calculation>=2026.7.1",
   # Data Formats
   "geopandas",
   "netCDF4",               # Required for openquake shenanigans
@@ -175,4 +175,4 @@ exclude = [ # don't report on objects that match any of these regex
 
 [tool.uv.sources]
 nzcvm = { git = "https://github.com/lispandfound/nzcvm" }
-site-calculation = { git = "https://github.com/ucgmsim/site_calculation", branch = "basic_implementation" }
+im-calculation = { git = "https://github.com/ucgmsim/im_calculation", branch = "no_parallel" }
