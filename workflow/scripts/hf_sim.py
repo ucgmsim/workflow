@@ -36,6 +36,7 @@ See the output of `hf-sim --help`.
 from pathlib import Path
 from typing import Annotated
 
+import dask
 import dask.array as da
 import numpy as np
 import pandas as pd
@@ -49,13 +50,15 @@ from hf_simulation import (
     PathParameters,
     Ray,
     RecordParameters,
-    RuptureVelocity as RuptureVelocityTaper,
-    SiteParameters,
     Simulator,
+    SiteParameters,
     SlipModel,
     SourceParameters,
     VelocityModel1D,
     station_seeds,
+)
+from hf_simulation import (
+    RuptureVelocity as RuptureVelocityTaper,
 )
 
 from qcore import cli
@@ -304,32 +307,37 @@ def run_hf(
     chunk_size = max(
         1, TARGET_CHUNK_BYTES // (len(COMPONENTS) * nt * np.float32().itemsize)
     )
-    template = xr.DataArray(
-        da.empty(
-            (len(COMPONENTS), len(stations), nt),
-            dtype=np.float32,
-            chunks=(len(COMPONENTS), chunk_size, nt),
-        ),
-        dims=["component", "station", "time"],
-        coords={"component": list(COMPONENTS), "station": stations.index, "time": time},
-    )
+    with dask.config.set(scheduler="threads"):
+        template = xr.DataArray(
+            da.empty(
+                (len(COMPONENTS), len(stations), nt),
+                dtype=np.float32,
+                chunks=(len(COMPONENTS), chunk_size, nt),
+            ),
+            dims=["component", "station", "time"],
+            coords={
+                "component": list(COMPONENTS),
+                "station": stations.index,
+                "time": time,
+            },
+        )
 
-    station_inputs = stations.to_xarray().chunk({"station": chunk_size})
-    waveform = station_inputs.map_blocks(
-        simulate_chunk,
-        template=template,
-        kwargs={"time": time, "simulator": simulator},
-    ).rename("waveform")
+        station_inputs = stations.to_xarray().chunk({"station": chunk_size})
+        waveform = station_inputs.map_blocks(
+            simulate_chunk,
+            template=template,
+            kwargs={"time": time, "simulator": simulator},
+        ).rename("waveform")
 
-    station_inputs["vs"] = xr.full_like(
-        station_inputs["latitude"], velocity_model_1d.model["Vs"].iloc[0] * 1000
-    )
-    dataset = xr.merge([waveform, station_inputs])
-    dataset.attrs = {
-        "start_sec": 0.0,
-        "dt": hf_config.dt,
-        "nt": nt,
-        "units": "cm/s^2",
-    }
-    dataset.to_netcdf(out_file, engine="h5netcdf")
+        station_inputs["vs"] = xr.full_like(
+            station_inputs["latitude"], velocity_model_1d.model["Vs"].iloc[0] * 1000
+        )
+        dataset = xr.merge([waveform, station_inputs])
+        dataset.attrs = {
+            "start_sec": 0.0,
+            "dt": hf_config.dt,
+            "nt": nt,
+            "units": "cm/s^2",
+        }
+        dataset.to_netcdf(out_file, engine="h5netcdf")
     realisations.append_log_entry(realisation_ffp)
