@@ -2,6 +2,7 @@
 resolution:
   resolution: 0.4
 hf:
-  dt: 0.02
+  record:
+    dt: 0.02
 bb:
   flo: 0.25

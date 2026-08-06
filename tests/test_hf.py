@@ -7,6 +7,8 @@ import xarray as xr
 from hypothesis import given
 from hypothesis import strategies as st
 
+from hf_simulation import PathDurationModel, Ray
+
 from workflow.realisations import (
     HFConfig,
     RuptureVelocity,
@@ -14,49 +16,26 @@ from workflow.realisations import (
 from workflow.scripts import hf_sim
 
 
-def test_build_hf_input_serialisation() -> None:
-    stoch_ffp = Path("/path/to/stoch")
-    velocity_model = Path("/path/to/vmodel")
+def test_build_config_mirrors_the_realisation() -> None:
+    """The realisation's `hf` section reaches `hf_simulation.HfConfig` unchanged.
 
+    The two structures mirror each other group for group, so `build_config` is a splat plus
+    the two values the realisation deliberately does not carry: the record duration, which
+    the domain computes, and the rupture-velocity multipliers, which live in their own
+    section because SRF generation reads them too. This pins both halves of that.
+    """
     hf_config = HFConfig(
-        sdrop=50.0,
-        rayset=[1, 2],
-        no_siteamp=False,
-        nbu=1,
-        ift=0,
-        flo=0.1,
-        fhi=10.0,
-        fmax=20.0,
-        kappa=0.045,
-        qfexp=0.6,
-        czero=2.5,
-        calpha=0.0,
-        mom=None,
-        rupv=1.2,
-        vs_moho=3.5,
-        nl_skip=0,
-        vp_sig=0.1,
-        vsh_sig=0.1,
-        rho_sig=0.1,
-        qs_sig=0.1,
-        ic_flag=True,
-        velocity_name="test_vel",
-        fa_sig1=0.2,
-        fa_sig2=0.2,
-        rv_sig1=0.1,
-        path_dur=11,
-        t_sec=0.0,
-        site_specific=False,
-        dpath_pert=0,
-        stoch_dx=2.0,
-        stoch_dy=2.0,
-        stress_parameter_adjustment_fault_area=None,
-        stress_parameter_adjustment_target_magnitude=None,
-        stress_parameter_adjustment_tect_type=0,
-        dt=0.005,
+        source={
+            "stress_drop_bars": 50.0,
+            "corner_frequency_constant": 2.5,
+            "corner_frequency_alpha": 0.1,
+            "rupture_velocity": {"sigma": 0.1},
+        },
+        path={"rayset": [1, 2], "q_frequency_exponent": 0.6, "path_duration_model": 11},
+        site={"kappa_s": 0.045, "fmax_hz": 20.0},
+        record={"dt": 0.005},
     )
-
-    rv = RuptureVelocity(
+    rupture_velocity = RuptureVelocity(
         rvfrac=0.8,
         rvfrac_shal=0.7,
         rvfrac_deep=0.9,
@@ -66,32 +45,26 @@ def test_build_hf_input_serialisation() -> None:
         deep_transition_range=1,
         rvfrac_slip_sig=None,
     )
-    # Rather than create DomainParameters with a bounding box, we simplify with a mock object
+    # A bounding box is not needed to read one field off it.
     domain = SimpleNamespace(duration=100.0)
 
-    result = hf_sim.build_hf_input(
-        stoch_ffp,
-        velocity_model,
-        hf_config.dt,
-        hf_config,
-        rv,
-        domain,  # type: ignore[invalid-argument-type]
-    )
+    config = hf_sim.build_config(hf_config, rupture_velocity, domain)  # type: ignore[invalid-argument-type]
 
-    lines = result.split("\n")
-
-    assert lines[1] == "50.0"  # sdrop
-    assert lines[2] == "{station_input_file}"  # placeholder for station file
-    assert lines[3] == "{output_file}"  # placeholder for output file
-    assert lines[4] == "2 1 2"  # rayset count + rays
-    assert lines[5] == "1"  # int(not no_siteamp) -> int(not False) -> 1
-    assert lines[7] == "{seed}"  # seed placeholder
-    assert lines[9] == "100.0 0.005 20.0 0.045 0.6"  # Domain and resolution parameters
-    assert lines[10] == "0.8 0.7 0.9 2.5 0.0"  # rupture velocity + czero,alpha
-    assert lines[11] == "-1 1.2"  # mom (None -> -1) and rupv
-    assert lines[12] == str(stoch_ffp)  # Stoch file path
-    assert lines[15] == "0 0.1 0.1 0.1 0.1 1"  # Sigs and ic_flag (True -> 1)
-    assert lines[20] == "-1 -1 -1"  # Optional stress parameters
+    # Splatted through unchanged.
+    assert config.source.stress_drop_bars == 50.0
+    assert config.source.corner_frequency_constant == 2.5
+    assert config.site.fmax_hz == 20.0
+    assert config.record.dt == 0.005
+    # Ints become the enums the simulation takes.
+    assert config.path.rayset == (Ray.DIRECT, Ray.MOHO_REFLECTION)
+    assert config.path.path_duration_model is PathDurationModel.BOORE_THOMPSON_2014
+    # Injected, because the `hf` section does not carry them.
+    assert config.record.duration_s == 100.0
+    assert config.source.rupture_velocity.fraction == 0.8
+    assert config.source.rupture_velocity.shallow == 0.7
+    assert config.source.rupture_velocity.deep == 0.9
+    # ... but the sigma does come from the `hf` section.
+    assert config.source.rupture_velocity.sigma == 0.1
 
 
 STATION_STRATEGY = st.text(
@@ -101,7 +74,7 @@ STATION_STRATEGY = st.text(
 
 def test_station_seeds() -> None:
     seed = hf_sim.station_seeds(0, ["station"])
-    assert seed.dtype == np.int32
+    assert seed.dtype == np.uint64
     assert seed.shape == (1,)
     # Seeds should be referentially transparent: i.e. depend only on the seed and station name
     seed_1 = hf_sim.station_seeds(0, ["station"])
@@ -109,7 +82,8 @@ def test_station_seeds() -> None:
 
 
 @given(
-    seed=st.integers(min_value=-(1 << 31), max_value=(1 << 31) - 1),
+    # Non-negative: SeedSequence rejects negative entropy, which `station_seeds` says.
+    seed=st.integers(min_value=0, max_value=(1 << 31) - 1),
     stations=st.lists(STATION_STRATEGY, min_size=1, unique=True),
 )
 def test_station_seeds_on_name_only(seed: int, stations: list[str]) -> None:
@@ -125,60 +99,3 @@ def test_station_seeds_on_name_only(seed: int, stations: list[str]) -> None:
     # one.
     for station, expected_seed in zip(stations, station_seeds):
         assert hf_sim.station_seeds(seed, [station]).item() == expected_seed
-
-
-def test_create_hf_dataset_structure() -> None:
-    # 1. Setup Mock Data
-    n_stations = 2
-    n_components = 3  # Fixed by function logic
-    n_time = 100
-
-    names = ["station_a", "station_b"]
-    dt = 0.02
-    start_sec = 0.0
-    time = start_sec + np.arange(n_time) * dt
-
-    waveform = xr.DataArray(
-        np.random.rand(n_components, n_stations, n_time).astype(np.float32),
-        dims=["component", "station", "time"],
-        coords=dict(
-            component=["x", "y", "z"],
-            station=names,
-            time=time,
-        ),
-        name="waveform",
-    )
-    lat = np.array([-43.5, -43.6])
-    lon = np.array([172.6, 172.7])
-    dist = np.array([10.5, 20.1])
-    seeds = np.array([123, 456])
-    vrefs = np.array([300.0, 350.0])
-
-    station_inputs = xr.Dataset(
-        {
-            "lat": ("station", lat),
-            "lon": ("station", lon),
-            "epicentre_distance": ("station", dist),
-            "seed": ("station", seeds),
-            "vs": ("station", vrefs),
-        },
-        coords={"station": names},
-    )
-
-    ds = hf_sim.create_hf_dataset(waveform, station_inputs)
-
-    assert ds.sizes == {"component": 3, "station": 2, "time": 100}
-
-    np.testing.assert_array_equal(ds.station.values, names)
-    np.testing.assert_array_equal(ds.component.values, ["x", "y", "z"])
-    assert ds.time.values[1] == pytest.approx(0.02)
-    assert ds.lat.dims == ("station",)
-    assert ds.lon.dims == ("station",)
-
-    assert "waveform" in ds.data_vars
-    assert ds.waveform.dims == ("component", "station", "time")
-    np.testing.assert_allclose(ds.waveform.values, waveform.values)
-
-    assert ds.attrs["dt"] == dt
-    assert ds.attrs["nt"] == n_time
-    assert ds.attrs["units"] == "cm/s^2"

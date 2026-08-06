@@ -37,7 +37,7 @@ from source_modelling import sources, srf
 from source_modelling.srf import SrfFile
 from source_modelling.stoch import StochFile, StochHeader, StochPlane
 from workflow import log_utils, realisations
-from workflow.realisations import HFConfig, RealisationMetadata, SourceConfig
+from workflow.realisations import RealisationMetadata, SourceConfig, StochConfig
 
 app = typer.Typer()
 
@@ -273,7 +273,7 @@ def generate_stoch(
         Path to the output file where the generated stoch file will be saved.
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
-    hf_config = HFConfig.read_from_realisation_or_defaults(
+    stoch_config = StochConfig.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
 
@@ -291,8 +291,8 @@ def generate_stoch(
         srf_wid = float(source["wid"])
         dy = srf_wid / srf_ndip
     else:
-        dx = hf_config.stoch_dx
-        dy = hf_config.stoch_dy
+        dx = stoch_config.stoch_dx
+        dy = stoch_config.stoch_dy
 
     stoch_file = convert_srf_to_stoch(srf_file, dx, dy)
     with open(stoch_ffp, "w") as f:

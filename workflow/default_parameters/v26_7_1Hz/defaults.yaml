@@ -2,7 +2,8 @@
 bb:
   flo: 1.0
 hf:
-  dt: 0.005
+  record:
+    dt: 0.005
 refinements:
   refinements:
     [

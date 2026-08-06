@@ -1015,6 +1015,16 @@ VELOCITY_MODEL_1D_SCHEMA = Schema(
     }
 )
 
+HF_VELOCITY_MODEL_1D_SCHEMA = Schema(
+    {
+        **VELOCITY_MODEL_1D_SCHEMA.schema,
+        Literal(
+            "vs_moho",
+            description="Shear velocity at which to truncate the model at the Moho (km/s)",
+        ): And(NUMBER, _is_positive),
+    }
+)
+
 REALISATION_METADATA_SCHEMA = Schema(
     {
         Literal("name", description="The name of the realisation"): str,
@@ -1035,65 +1045,46 @@ REALISATION_METADATA_SCHEMA = Schema(
 
 HF_CONFIG_SCHEMA = Schema(
     {
-        Literal("nbu", description="Unknown!"): int,
-        Literal("ift", description="Unknown!"): int,
-        Literal("flo", description="Unknown!"): NUMBER,
-        Literal("fhi", description="Unknown!"): NUMBER,
-        Literal("nl_skip", description="Skip empty lines in input?"): int,
-        Literal("vp_sig", description="Unknown!"): NUMBER,
-        Literal("vsh_sig", description="Unknown!"): NUMBER,
-        Literal("rho_sig", description="Unknown!"): NUMBER,
-        Literal("qs_sig", description="Unknown!"): NUMBER,
-        Literal("ic_flag", description="Unknown!"): bool,
-        Literal("velocity_name", description="Unknown!"): str,
-        Literal("t_sec", description="High frequency output start time."): And(
-            NUMBER, _is_non_negative
-        ),
-        Literal("sdrop", description="Stress drop average (bars)"): NUMBER,
-        Literal("rayset", description="ray types 1: direct, 2: moho"): [Or(1, 2)],
         Literal(
-            "no_siteamp", description="Disable BJ97 site amplification factors"
-        ): bool,
-        Literal("fmax", description="Max simulation frequency"): And(
-            NUMBER, _is_positive
-        ),
-        Literal("kappa", description="Unknown!"): NUMBER,
-        Literal("qfexp", description="Q frequency exponent"): NUMBER,
-        Literal("czero", description="C0 coefficient"): NUMBER,
-        Literal("calpha", description="Ca coefficient"): NUMBER,
-        Literal("mom", description="Seimic moment (or null, to infer value)"): Or(
-            NUMBER, None
-        ),
-        Literal("rupv", description="Rupture velocity (or binary default)"): Or(
-            NUMBER, None
-        ),
-        Literal("site_specific", description="Enable site-specific calculation"): bool,
-        Literal("vs_moho", description="vs of moho layer"): NUMBER,
-        Literal("fa_sig1", "Fourier amplitude uncertainty (1)"): NUMBER,
-        Literal("fa_sig2", description="Fourier amplitude uncertainty (2)"): NUMBER,
-        Literal("rv_sig1", description="Rupture velocity uncertainty"): And(
-            NUMBER, _is_non_negative
-        ),
-        Literal(
-            "path_dur",
-            description="path duration model. 0: GP2010, 1: WUS modification trail/errol, 2: ENA modificiation trial/error"
-            ", 11: WUS formutian of BT2014, 12: ENA formulation of BT2015. Models 11 and 12 overpredict for multiple rays.",
-        ): Or(0, 1, 2, 11, 12),
-        Literal("dpath_pert", description="Log of path duration multiplier"): NUMBER,
-        Literal(
-            "stress_parameter_adjustment_tect_type",
-            description="Adjustment option 0 = off, 1 = active tectonic, 2 = stable continent",
-        ): Or(0, 1, 2),
-        Literal(
-            "stress_parameter_adjustment_target_magnitude",
-            description="Target magnitude (or inferred if null)",
-        ): Or(NUMBER, None),
-        Literal(
-            "stress_parameter_adjustment_fault_area", "Fault area (or inferred if null)"
-        ): Or(NUMBER, None),
-        Literal("dt", description="High frequency simulation timestep."): And(
-            NUMBER, _is_positive
-        ),
+            "source", description="The earthquake source: radiation strength and rupture speed"
+        ): {
+            Literal("stress_drop_bars", description="Brune stress parameter"): And(
+                NUMBER, _is_positive
+            ),
+            Literal(
+                "corner_frequency_constant", description="c0 of Graves & Pitarka eq. 13"
+            ): NUMBER,
+            Literal(
+                "corner_frequency_alpha", description="c_alpha of the alpha_T adjustment"
+            ): NUMBER,
+            Literal("rupture_velocity", description="Depth-dependent rupture taper"): {
+                Literal(
+                    "sigma", description="Log-normal scatter on the rupture factor"
+                ): And(NUMBER, _is_non_negative),
+            },
+        },
+        Literal("path", description="Which rays, and how the medium attenuates"): {
+            Literal("rayset", description="ray types 1: direct, 2: moho"): [Or(1, 2)],
+            Literal("q_frequency_exponent", description="x in Q(f) = Q0 f^x"): NUMBER,
+            Literal(
+                "path_duration_model",
+                description="0: GP2010, 1: WUS, 2: ENA, 11: BT2014, 12: BT2015",
+            ): Or(0, 1, 2, 11, 12),
+        },
+        Literal("site", description="The near-surface"): {
+            Literal("kappa_s", description="Near-surface attenuation (s)"): NUMBER,
+            Literal("fmax_hz", description="High-frequency cutoff"): And(
+                NUMBER, _is_positive
+            ),
+        },
+        Literal("record", description="The shape of the record to produce"): {
+            Literal("dt", description="Sample interval (s)"): And(NUMBER, _is_positive),
+        },
+    }
+)
+
+STOCH_CONFIG_SCHEMA = Schema(
+    {
         Literal("stoch_dx", description="Stoch file dx"): And(NUMBER, _is_positive),
         Literal("stoch_dy", description="Stoch file dy"): And(NUMBER, _is_positive),
     }
