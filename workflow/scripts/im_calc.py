@@ -754,7 +754,11 @@ def calculate_intensity_measures(
     broadband = xr.open_dataset(broadband_simulation_ffp).chunk(
         {"component": -1, "time": -1, "station": "auto"}
     )
+    broadband = broadband.rename({"lat": "latitude", "lon": "longitude"})
+
     dt = broadband.attrs["dt"]
+    if broadband.attrs["units"] == "cm/s^2":
+        broadband["waveform"] = broadband["waveform"] / 981.0
 
     if not simulated_stations:
         broadband = broadband.isel(
@@ -803,11 +807,6 @@ def calculate_intensity_measures(
     source_parameters = calculate_source_parameters(
         source_geometries, magnitudes, rakes, hypocentre
     )
-    # vs30 is one float per station; load it eagerly rather than letting it
-    # propagate as a dask array into the distance/site coordinates below.
-    site_parameters = calculate_site_parameters(
-        broadband.vs30.astype(np.float64).load()
-    )
 
     # Each IM function is dask-native: it accepts the lazy `waveform` DataArray
     # and returns a lazy Dataset with the same `station` chunking, one data
@@ -837,7 +836,14 @@ def calculate_intensity_measures(
         "zbot": source_parameters.avg_zbot,
         "hypo_depth": source_parameters.hypo_depth,
     }
+    site_parameters = None
     if empirical:
+        # vs30 is one float per station; load it eagerly rather than letting it
+        # propagate as a dask array into the distance/site coordinates below.
+        site_parameters = calculate_site_parameters(
+            broadband.vs30.astype(np.float64).load()
+        )
+
         empirical_parameters = EmpiricalParameters.read_from_realisation_or_defaults(
             realisation_ffp, metadata.defaults_version
         )
@@ -860,9 +866,14 @@ def calculate_intensity_measures(
     dtree = xr.DataTree.from_dict(im_results, nested=True)
 
     dtree.attrs = attributes
+
     dtree = add_station_parameters(
-        dtree, distances.as_dict() | site_parameters.as_dict()
+        dtree,
+        distances.as_dict()
+        | ((site_parameters).as_dict() if site_parameters else {})
+        | {"latitude": broadband["latitude"], "longitude": broadband["longitude"]},
     )
     dtree = add_units(dtree)
+
     dtree.to_netcdf(output_path, encoding=encoding)
     realisations.append_log_entry(realisation_ffp)
