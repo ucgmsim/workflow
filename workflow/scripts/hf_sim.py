@@ -287,9 +287,16 @@ def run_hf(
         header=None,
         names=["longitude", "latitude", "station"],
     ).set_index("station")
+
     # Name-derived and order-invariant, so adding a station leaves every other station's
     # waveform untouched and re-running a subset reproduces it exactly.
     stations["seed"] = station_seeds(seeds.hf_seed, stations.index)
+    # That invariance makes station order free to choose, and it is worth
+    # choosing. Runtime scales with subfault-to-station distance, and station
+    # files are spatially sorted, so the far stations all land in the last
+    # chunks and the run ends on a straggler. Sorting by the seed is a
+    # deterministic pseudorandom permutation.
+    stations = stations.sort_values("seed")
 
     simulator = Simulator(
         build_slip_model(stoch_ffp),
@@ -304,12 +311,21 @@ def run_hf(
     # realisation set to zero.
     time = np.arange(nt) * hf_config.dt
 
-    # Chunk over stations only, so every chunk holds complete time series.
-    chunk_size = max(
-        1, TARGET_CHUNK_BYTES // (len(COMPONENTS) * nt * np.float32().itemsize)
+    # Also bound by parallelism: chunk size set from memory alone gives 3 tasks for a
+    # 900-station run, so most of the allocation idles. Peak memory is
+    # num_workers * chunk_bytes, which this only ever lowers.
+    num_workers = utils.get_available_cores()
+    memory_chunk = TARGET_CHUNK_BYTES // (len(COMPONENTS) * nt * np.float32().itemsize)
+    chunk_size = max(1, min(memory_chunk, -(-len(stations) // (4 * num_workers))))
+    logger = log_utils.get_logger(__name__)
+    logger.info(
+        "concurrency settings",
+        num_workers=num_workers,
+        memory_bound_stations=memory_chunk,
+        chunk_size=chunk_size,
     )
     with (
-        dask.config.set(scheduler="threads", num_workers=utils.get_available_cores()),
+        dask.config.set(scheduler="threads", num_workers=num_workers),
         TqdmCallback(desc="Station chunks"),
     ):
         template = xr.DataArray(
