@@ -1,0 +1,60 @@
+Bootstrap: docker
+From: earthquakesuc/workflow-bootstrap:latest
+
+%files
+    EMOD3D /EMOD3D
+
+%post
+    # CMAKE_C_FLAGS_DEBUG/CMAKE_Fortran_FLAGS_DEBUG are set explicitly because
+    # the top-level CMakeLists.txt appends -O2 to CMAKE_{C,Fortran}_FLAGS
+    # unconditionally. The per-config flags land last on the command line, so
+    # these are what actually make the build unoptimised.
+    cd /EMOD3D && \
+      mkdir build && cd build && \
+      cmake -DHF_TIME_WINDOW=off -DUSE_FFTW=on -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_FLAGS="-march=x86-64 -mtune=generic -std=gnu89" \
+            -DCMAKE_C_FLAGS_DEBUG="-O0 -g3 -fno-omit-frame-pointer" \
+            -DCMAKE_Fortran_FLAGS_DEBUG="-O0 -g3 -fno-omit-frame-pointer" .. && \
+      make -j $(nproc) genslip_v5.6.2 srf2stoch generic_slip2srf \
+                      hb_high_binmod_v6.0.3 emod3d-mpi_v3.0.4 \
+                      emod3d-mpi_v3.0.8 emod3d-mpi_v3.0.13
+
+    cd /
+    # Unlike runner.def, keep the sources alongside the binaries: the DWARF
+    # records absolute /EMOD3D paths, so gdb resolves line numbers unaided.
+    # Only the object files go.
+    rm -rf /EMOD3D/build
+
+%environment
+    export RUSTUP_HOME=/sw/rust
+    export CARGO_HOME=/sw/cargo
+    export PATH="/sw/venv/bin:/EMOD3D/tools:/sw/cargo/bin:/sw/python/bin:$PATH"
+    export VIRTUAL_ENV="/sw/venv"
+    export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
+
+%labels
+    Build_Type debug
+    Debug_Flags -O0 -g3 -fno-omit-frame-pointer
+
+%help
+    Debug counterpart to runner.def. Every EMOD3D target is built unoptimised
+    with full DWARF, and the source tree is retained under /EMOD3D so that
+    gdb (already present in the base image) can step through it.
+
+    In addition to the four tools runner.sif ships, this image also carries the
+    LF solver, which runner.sif does not build at all:
+        emod3d-mpi_v3.0.4  emod3d-mpi_v3.0.8  emod3d-mpi_v3.0.13
+
+    Build (the %files source is relative to the CWD you launch the build from,
+    so a directory named EMOD3D must sit there):
+        git -C <emod3d-checkout> archive HEAD --prefix=EMOD3D/ | tar -x -C .
+        apptainer build debug_runner.sif <path-to>/debug_runner.def
+
+    The solver must be launched through mpirun/srun even for a single rank.
+    Invoked directly it hangs in OpenMPI's singleton startup, which looks like
+    an unrelated "Authorization required" message.
+
+    Debug a solver run:
+        apptainer exec debug_runner.sif \
+            mpirun -n 1 gdb -ex run --args \
+            emod3d-mpi_v3.0.13 -args "par=/path/to/e3d.par"
