@@ -22,6 +22,8 @@
 >
 > 6. **Every per-event section that differed only by ULP is now carried over too** (`be98835`). `sources`, `magnitudes` and `domain` reproduced to within 1-17 ULP rather than exactly -- arithmetic reordering, not a change -- which kept the set from being byte-compatible with the SRFs and velocity models already built from it. `--inherit-seeds-from` and `--inherit-rupture-propagation-from` are replaced by `--inherit-from <dir>` plus a repeatable `--inherit <section>` (`seeds`, `sources`, `rupture_propagation`, `magnitudes`, `rakes`); `complete-realisations` gains `--inherit-domain-from`, which refuses per rupture if `velocity_model` or `sources` no longer agree with the deployed file. **With all six carried over, `im.ims` gaining `PGD` is the only content difference from the deployed set.** Task 3's step text below still describes the superseded flags; it is a record of how the option was first built, not current guidance.
 >
+> 7. **Carried-over values are checked, not trusted** (`9d89d66`). Each is compared against the one the pipeline derived anyway, and adopted silently only when the two agree to within the section's tolerance. Beyond that the rupture fails, naming the section and the worst leaf, until a choice is recorded in an inheritance decision file (`--inheritance-decisions`, keyed `<section>` or `<rupture id>.<section>`, each entry needing a `choice` and a `reason`). **The campaign needs one section-wide entry for `rupture_propagation`**, because roughly 30 of 219 multi-fault events redraw their causality tree every run; without it those ruptures refuse to generate. This also closes the second half of review finding C1: `values_equivalent` gained an `abs_tolerance` (default 0.0, so parameter grids are unaffected) and `rupture_propagation` uses 1e-6 absolute, which is what stops a jump point at a fault edge reading as a total mismatch.
+>
 > **Smoke-tested end to end on 2026-08-14** with a four-rupture pilot: three deployed (including `322209` and `41065`, the two least reproducible multi-fault events) and one that was not. Seeds and `rupture_propagation` came back byte-for-byte identical for the three; the fourth derived fresh. The only differences from the deployed files were `log_trail`, `im.ims` (the decided PGD), and float noise ≤2.1e-15 relative — three orders inside the 1e-9 tolerance. Final verification: `Compared 4 realisation(s) against 4 recorded decision(s); 0 failed, 1 new`, exit 0.
 >
 > Two findings from that run, both already reflected above: the deployed set has **no parameter divergence** (all 291 agree), and of the reconciler's four conflicts only `im.ims` changes any output byte — `deployed` already equals `felipe` for the other three, so choosing felipe there is a no-op.
@@ -4345,11 +4347,26 @@ uv run generate-realisations-from-csv \
     nshmdb.db "$PILOT/pilot.csv" "$PILOT/minimal" 24.2.2.1 \
     --inherit-from "$EVENTS" \
     --inherit seeds --inherit sources --inherit rupture_propagation \
-    --inherit magnitudes --inherit rakes
+    --inherit magnitudes --inherit rakes \
+    --inheritance-decisions "$INHERITANCE"
 uv run complete-realisations "$PILOT/minimal" "$PILOT/complete" \
     --defaults-version 24.2.2.1 --vm-version 2.09 \
     --parameters "$PARAMS" \
-    --inherit-domain-from "$EVENTS"
+    --inherit-domain-from "$EVENTS" \
+    --inheritance-decisions "$INHERITANCE"
+```
+
+`$INHERITANCE` is a YAML the campaign commits alongside `campaign_parameters.yaml`. It needs at least this, or every multi-fault event whose tree redraws will refuse to generate:
+
+```yaml
+rupture_propagation:
+  choice: inherited
+  reason: >-
+    The derived causality tree is drawn from an unseeded RNG, so it is a fresh
+    lottery each run and cannot reproduce the deployed tree. Keeping the deployed
+    one preserves the SRFs already built from it.
+    See docs/rupture_propagation_reproducibility.md.
+  decided: '2026-08-14'
 ```
 
 Expected: `Inherited seeds for 4 of 4 rupture(s); 0 drew fresh seeds.`, `Inherited rupture propagation for 4 of 4 rupture(s); 0 kept the derived section.`, then 4 complete realisations, `Applying 2 recorded parameter decision(s).`, and no errors.
@@ -4406,7 +4423,8 @@ uv run generate-realisations-from-csv \
     24.2.2.1 \
     --inherit-from /home/arr65/src/cs_nshm_2022/cs_nshm_2022/events \
     --inherit seeds --inherit sources --inherit rupture_propagation \
-    --inherit magnitudes --inherit rakes
+    --inherit magnitudes --inherit rakes \
+    --inheritance-decisions «cs_nshm_2022»/cs_nshm_2022/inheritance_decisions.yaml
 ```
 
 `--inherit seeds` makes each stub replay the seeds already recorded in its deployed realisation, so the content reproduces the original rather than drawing a fresh set. The two excluded ruptures have no deployed file and fall back to a fresh draw, which is moot — they fail before any seed is used.
@@ -4746,8 +4764,8 @@ Run from the repository root, on a clean tree at the commit above, after
 ```
 uv run verify-realisation-provenance --preflight
 uv run reconcile-parameters «cs_nshm_2022»/cs_nshm_2022/events «cs_nshm_2022»/cs_nshm_2022/campaign_parameters.yaml --non-interactive
-uv run generate-realisations-from-csv nshmdb.db annealed_minimal_ruptures.csv minimal_realisations 24.2.2.1 --inherit-from «cs_nshm_2022»/cs_nshm_2022/events --inherit seeds --inherit sources --inherit rupture_propagation --inherit magnitudes --inherit rakes
-uv run complete-realisations minimal_realisations complete_realisations --defaults-version 24.2.2.1 --vm-version 2.09 --parameters «cs_nshm_2022»/cs_nshm_2022/campaign_parameters.yaml --inherit-domain-from «cs_nshm_2022»/cs_nshm_2022/events
+uv run generate-realisations-from-csv nshmdb.db annealed_minimal_ruptures.csv minimal_realisations 24.2.2.1 --inherit-from «cs_nshm_2022»/cs_nshm_2022/events --inherit seeds --inherit sources --inherit rupture_propagation --inherit magnitudes --inherit rakes --inheritance-decisions «cs_nshm_2022»/cs_nshm_2022/inheritance_decisions.yaml
+uv run complete-realisations minimal_realisations complete_realisations --defaults-version 24.2.2.1 --vm-version 2.09 --parameters «cs_nshm_2022»/cs_nshm_2022/campaign_parameters.yaml --inherit-domain-from «cs_nshm_2022»/cs_nshm_2022/events --inheritance-decisions «cs_nshm_2022»/cs_nshm_2022/inheritance_decisions.yaml
 uv run verify-realisation-provenance complete_realisations --expect-count 291
 uv run verify-realisation-content «cs_nshm_2022»/cs_nshm_2022/events complete_realisations --parameters «cs_nshm_2022»/cs_nshm_2022/campaign_parameters.yaml
 # Deployment (copy-realisations-to-event-dirs) is out of scope as of 2026-08-14.
