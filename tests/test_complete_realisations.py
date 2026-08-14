@@ -376,3 +376,135 @@ def test_complete_realisations_ignores_overwrite_existing_without_deploy_dir(
     assert not events.exists()
     assert (output_dir / "realisation_100932.json").exists()
     assert (output_dir / "completion_summary.csv").exists()
+
+
+# -- Domain carry-over ------------------------------------------------------
+#
+# The computed domain differs from the deployed one by a handful of ULP, which
+# is noise rather than a change, so it can be carried over verbatim. Doing so is
+# only sound while the inputs it was derived from still agree, and "velocity
+# model changed, domain unchanged" is exactly what a clean pass looks like --
+# so the guard against that is tested harder than the happy path.
+
+
+DEPLOYED_DOMAIN = {
+    "domain": [{"latitude": -45.5, "longitude": 174.9}],
+    "depth": 60.0,
+    "duration": 234.8667508646568,
+}
+
+
+def write_deployed(tmp_path: Path, **sections: object) -> Path:
+    events_dir = tmp_path / "events"
+    (events_dir / "100932").mkdir(parents=True)
+    (events_dir / "100932" / "realisation.json").write_text(
+        json.dumps({"domain": DEPLOYED_DOMAIN, **sections}), encoding="utf-8"
+    )
+    return events_dir
+
+
+def test_inherit_domain_replaces_the_computed_domain(tmp_path: Path) -> None:
+    events_dir = write_deployed(tmp_path, velocity_model={"version": "2.09"}, sources={})
+    realisation = {
+        "domain": {"domain": [], "depth": 1.0, "duration": 2.0},
+        "velocity_model": {"version": "2.09"},
+        "sources": {},
+    }
+
+    cr._inherit_domain(realisation, events_dir, "100932")
+
+    assert realisation["domain"] == DEPLOYED_DOMAIN
+
+
+def test_inherit_domain_tolerates_float_noise_in_the_inputs(tmp_path: Path) -> None:
+    # sources reproduces to within a couple of ULP rather than exactly. Requiring
+    # bit-equality here would refuse every event the carry-over exists to serve.
+    events_dir = write_deployed(
+        tmp_path,
+        velocity_model={"version": "2.09"},
+        sources={"corner": -44.593361302171196},
+    )
+    realisation = {
+        "domain": {"domain": [], "depth": 1.0, "duration": 2.0},
+        "velocity_model": {"version": "2.09"},
+        "sources": {"corner": -44.59336130217119},
+    }
+
+    cr._inherit_domain(realisation, events_dir, "100932")
+
+    assert realisation["domain"] == DEPLOYED_DOMAIN
+
+
+def test_inherit_domain_refuses_when_the_velocity_model_moved(tmp_path: Path) -> None:
+    events_dir = write_deployed(tmp_path, velocity_model={"version": "2.09"}, sources={})
+    realisation = {
+        "domain": {"domain": [], "depth": 1.0, "duration": 2.0},
+        "velocity_model": {"version": "2.07"},
+        "sources": {},
+    }
+
+    with pytest.raises(ValueError, match="velocity_model"):
+        cr._inherit_domain(realisation, events_dir, "100932")
+
+
+def test_inherit_domain_refuses_when_the_sources_moved(tmp_path: Path) -> None:
+    events_dir = write_deployed(
+        tmp_path, velocity_model={"version": "2.09"}, sources={"corner": 1.0}
+    )
+    realisation = {
+        "domain": {"domain": [], "depth": 1.0, "duration": 2.0},
+        "velocity_model": {"version": "2.09"},
+        "sources": {"corner": 1.5},
+    }
+
+    with pytest.raises(ValueError, match="sources"):
+        cr._inherit_domain(realisation, events_dir, "100932")
+
+
+def test_inherit_domain_keeps_the_computed_domain_for_a_new_rupture(
+    tmp_path: Path,
+) -> None:
+    events_dir = tmp_path / "events"
+    events_dir.mkdir()
+    computed = {"domain": [], "depth": 1.0, "duration": 2.0}
+    realisation = {"domain": computed, "velocity_model": {}, "sources": {}}
+
+    cr._inherit_domain(realisation, events_dir, "999999")
+
+    assert realisation["domain"] == computed
+
+
+@pytest.mark.slow
+def test_complete_one_carries_the_deployed_domain_through(tmp_path: Path) -> None:
+    overrides = cr.load_overrides(FELIPE_SCRIPTS)
+    reference = tmp_path / "reference.json"
+    cr.complete_one(SAMPLE, reference, DefaultsVersion.v24_2_2_1, overrides)
+    completed_reference = json.loads(reference.read_text())
+
+    # A deployed file whose inputs match, but whose domain differs -- so a pass
+    # cannot be explained by the computed domain already being equal.
+    rupture_id = cr._rupture_id_from_path(SAMPLE)
+    events_dir = tmp_path / "events"
+    (events_dir / rupture_id).mkdir(parents=True)
+    deployed_domain = dict(completed_reference["domain"], duration=999.5)
+    (events_dir / rupture_id / "realisation.json").write_text(
+        json.dumps(
+            {
+                "domain": deployed_domain,
+                "velocity_model": completed_reference["velocity_model"],
+                "sources": completed_reference["sources"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    dst = tmp_path / "completed.json"
+    src = tmp_path / f"realisation_{rupture_id}.json"
+    shutil.copy(SAMPLE, src)
+    cr.complete_one(
+        src, dst, DefaultsVersion.v24_2_2_1, overrides, None, events_dir
+    )
+
+    completed = json.loads(dst.read_text())
+    assert completed["domain"] == deployed_domain
+    assert list(completed) == cr.FELIPE_SECTION_ORDER

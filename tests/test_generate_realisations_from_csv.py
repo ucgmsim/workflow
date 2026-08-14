@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import typer
 
 from workflow.defaults import DefaultsVersion
 from workflow.scripts import generate_realisations_from_csv as gr
@@ -128,65 +129,13 @@ def test_generate_one_writes_no_stub_when_seeds_are_absent(
     assert seen["existed_before"] is False
 
 
-def test_read_inherited_seeds_reads_the_deployed_seed_block(tmp_path: Path) -> None:
-    events_dir = tmp_path / "events"
-    (events_dir / "100932").mkdir(parents=True)
-    seeds = {
-        "nshm_to_realisation_seed": 531798913,
-        "rupture_propagation_seed": 31268976,
-        "genslip_seed": 513004717,
-        "srfgen_seed": 1837842819,
-        "hf_seed": 1524796118,
-    }
-    (events_dir / "100932" / "realisation.json").write_text(
-        json.dumps(
-            {
-                "metadata": {"name": "Rupture 100932"},
-                "magnitudes": {"AlpineK2T": 7.1},
-                "seeds": seeds,
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    # Only the seed block is taken; every other field is ignored.
-    assert gr.read_inherited_seeds(events_dir, 100932) == seeds
-
-
-def test_read_inherited_seeds_returns_none_when_the_event_is_absent(
-    tmp_path: Path,
-) -> None:
-    events_dir = tmp_path / "events"
-    events_dir.mkdir()
-
-    assert gr.read_inherited_seeds(events_dir, 999999) is None
-
-
-def test_read_inherited_seeds_returns_none_when_the_seed_block_is_missing(
-    tmp_path: Path,
-) -> None:
-    events_dir = tmp_path / "events"
-    (events_dir / "100932").mkdir(parents=True)
-    (events_dir / "100932" / "realisation.json").write_text(
-        json.dumps({"metadata": {"name": "Rupture 100932"}}), encoding="utf-8"
-    )
-
-    assert gr.read_inherited_seeds(events_dir, 100932) is None
-
-
-def test_read_inherited_seeds_rejects_a_partial_block(tmp_path: Path) -> None:
-    # A partial block would otherwise be counted as inherited, then fail schema
-    # validation inside the subprocess, where the failure is easy to miss.
-    events_dir = tmp_path / "events"
-    (events_dir / "100932").mkdir(parents=True)
-    (events_dir / "100932" / "realisation.json").write_text(
-        json.dumps({"seeds": {"nshm_to_realisation_seed": 531798913}}),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(ValueError, match="seeds"):
-        gr.read_inherited_seeds(events_dir, 100932)
-
+SEEDS = {
+    "nshm_to_realisation_seed": 531798913,
+    "rupture_propagation_seed": 31268976,
+    "genslip_seed": 513004717,
+    "srfgen_seed": 1837842819,
+    "hf_seed": 1524796118,
+}
 
 RUPTURE_PROPAGATION = {
     "rupture_causality_tree": {"Beacon Hill": "Little Hillfoot", "Little Hillfoot": None},
@@ -210,42 +159,76 @@ def write_deployed_realisation(
     return realisation_ffp
 
 
-def test_read_inherited_rupture_propagation_reads_the_deployed_block(
-    tmp_path: Path,
-) -> None:
+def test_read_inherited_sections_reads_only_what_was_asked_for(tmp_path: Path) -> None:
     events_dir = tmp_path / "events"
     write_deployed_realisation(
         events_dir,
         100932,
         metadata={"name": "Rupture 100932"},
-        magnitudes={"AlpineK2T": 7.1},
+        magnitudes={"magnitudes": {"AlpineK2T": 7.1}},
+        seeds=SEEDS,
         rupture_propagation=RUPTURE_PROPAGATION,
     )
 
-    assert (
-        gr.read_inherited_rupture_propagation(events_dir, 100932) == RUPTURE_PROPAGATION
+    assert gr.read_inherited_sections(events_dir, 100932, ["seeds"]) == {"seeds": SEEDS}
+
+
+def test_read_inherited_sections_reads_several_at_once(tmp_path: Path) -> None:
+    events_dir = tmp_path / "events"
+    write_deployed_realisation(
+        events_dir,
+        100932,
+        seeds=SEEDS,
+        magnitudes={"magnitudes": {"AlpineK2T": 7.1}},
+        rupture_propagation=RUPTURE_PROPAGATION,
     )
 
+    inherited = gr.read_inherited_sections(
+        events_dir, 100932, ["seeds", "magnitudes", "rupture_propagation"]
+    )
 
-def test_read_inherited_rupture_propagation_returns_none_when_the_event_is_absent(
+    assert inherited == {
+        "seeds": SEEDS,
+        "magnitudes": {"magnitudes": {"AlpineK2T": 7.1}},
+        "rupture_propagation": RUPTURE_PROPAGATION,
+    }
+
+
+def test_read_inherited_sections_is_empty_when_the_event_is_absent(
     tmp_path: Path,
 ) -> None:
     events_dir = tmp_path / "events"
     events_dir.mkdir()
 
-    assert gr.read_inherited_rupture_propagation(events_dir, 999999) is None
+    assert gr.read_inherited_sections(events_dir, 999999, ["seeds"]) == {}
 
 
-def test_read_inherited_rupture_propagation_returns_none_when_the_block_is_missing(
+def test_read_inherited_sections_omits_a_section_the_file_lacks(
     tmp_path: Path,
 ) -> None:
     events_dir = tmp_path / "events"
-    write_deployed_realisation(events_dir, 100932, metadata={"name": "Rupture 100932"})
+    write_deployed_realisation(events_dir, 100932, seeds=SEEDS)
 
-    assert gr.read_inherited_rupture_propagation(events_dir, 100932) is None
+    inherited = gr.read_inherited_sections(
+        events_dir, 100932, ["seeds", "rupture_propagation"]
+    )
+
+    assert inherited == {"seeds": SEEDS}
 
 
-def test_read_inherited_rupture_propagation_rejects_a_partial_block(
+def test_read_inherited_sections_rejects_a_partial_seed_block(tmp_path: Path) -> None:
+    # A partial block would otherwise be counted as inherited, then fail schema
+    # validation inside the subprocess, where the failure is easy to miss.
+    events_dir = tmp_path / "events"
+    write_deployed_realisation(
+        events_dir, 100932, seeds={"nshm_to_realisation_seed": 531798913}
+    )
+
+    with pytest.raises(ValueError, match="seeds"):
+        gr.read_inherited_sections(events_dir, 100932, ["seeds"])
+
+
+def test_read_inherited_sections_rejects_a_partial_rupture_propagation_block(
     tmp_path: Path,
 ) -> None:
     events_dir = tmp_path / "events"
@@ -256,7 +239,13 @@ def test_read_inherited_rupture_propagation_rejects_a_partial_block(
     )
 
     with pytest.raises(ValueError, match="rupture_propagation"):
-        gr.read_inherited_rupture_propagation(events_dir, 100932)
+        gr.read_inherited_sections(events_dir, 100932, ["rupture_propagation"])
+
+
+def test_section_keys_covers_every_inheritable_section() -> None:
+    # A new enum member with no key set would KeyError at read time, on a real
+    # campaign run rather than here.
+    assert {section.value for section in gr.InheritableSection} == set(gr.SECTION_KEYS)
 
 
 def test_generate_one_overwrites_the_generated_rupture_propagation(
@@ -290,7 +279,7 @@ def test_generate_one_overwrites_the_generated_rupture_propagation(
         100932,
         target,
         DefaultsVersion.v24_2_2_1,
-        rupture_propagation=RUPTURE_PROPAGATION,
+        inherited={"rupture_propagation": RUPTURE_PROPAGATION},
     )
 
     assert result is None
@@ -346,7 +335,7 @@ def test_generate_one_reports_a_generated_file_with_no_rupture_propagation(
         100932,
         target,
         DefaultsVersion.v24_2_2_1,
-        rupture_propagation=RUPTURE_PROPAGATION,
+        inherited={"rupture_propagation": RUPTURE_PROPAGATION},
     )
 
     assert message is not None
@@ -357,8 +346,8 @@ def test_generate_one_reports_a_generated_file_with_no_rupture_propagation(
 def run_campaign(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    inherit_seeds_from: Path | None = None,
-    inherit_rupture_propagation_from: Path | None = None,
+    inherit_from: Path | None = None,
+    inherit: list[gr.InheritableSection] | None = None,
 ) -> None:
     csv_file = tmp_path / "ruptures.csv"
     csv_file.write_text("chosen_nshm_id\n100932\n", encoding="utf-8")
@@ -367,11 +356,13 @@ def run_campaign(
         Path(cmd[3]).write_text(
             json.dumps(
                 {
+                    "sources": {"source_geometries": {"Beacon Hill": [[0.0, 0.0]]}},
                     "rupture_propagation": {
                         "rupture_causality_tree": {"Beacon Hill": None},
                         "jump_points": {},
                         "hypocentre": {"s": 0.1, "d": 0.2},
-                    }
+                    },
+                    "magnitudes": {"magnitudes": {"Beacon Hill": 7.0}},
                 }
             ),
             encoding="utf-8",
@@ -385,67 +376,94 @@ def run_campaign(
         csv_file,
         tmp_path / "out",
         DefaultsVersion.v24_2_2_1,
-        inherit_seeds_from=inherit_seeds_from,
-        inherit_rupture_propagation_from=inherit_rupture_propagation_from,
+        inherit_from=inherit_from,
+        inherit=inherit,
     )
 
 
-def test_main_warns_when_seeds_are_inherited_without_rupture_propagation(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
+def deployed_events(tmp_path: Path) -> Path:
     events_dir = tmp_path / "events"
     write_deployed_realisation(
         events_dir,
         100932,
-        seeds={
-            "nshm_to_realisation_seed": 531798913,
-            "rupture_propagation_seed": 31268976,
-            "genslip_seed": 513004717,
-            "srfgen_seed": 1837842819,
-            "hf_seed": 1524796118,
-        },
+        seeds=SEEDS,
+        sources={"source_geometries": {"Beacon Hill": [[1.0, 1.0]]}},
         rupture_propagation=RUPTURE_PROPAGATION,
+        magnitudes={"magnitudes": {"Beacon Hill": 7.9}},
     )
+    return events_dir
 
+
+def test_main_warns_when_inheriting_without_rupture_propagation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     run_campaign(
         tmp_path,
         monkeypatch,
-        inherit_seeds_from=events_dir,
-        inherit_rupture_propagation_from=None,
+        inherit_from=deployed_events(tmp_path),
+        inherit=[gr.InheritableSection.seeds],
     )
 
     warning = capsys.readouterr().out
     assert "WARNING" in warning
-    assert "--inherit-rupture-propagation-from" in warning
+    assert "rupture_propagation" in warning
 
 
-def test_main_does_not_warn_when_both_are_inherited(
+def test_main_does_not_warn_when_rupture_propagation_is_inherited(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    events_dir = tmp_path / "events"
-    write_deployed_realisation(
-        events_dir,
-        100932,
-        seeds={
-            "nshm_to_realisation_seed": 531798913,
-            "rupture_propagation_seed": 31268976,
-            "genslip_seed": 513004717,
-            "srfgen_seed": 1837842819,
-            "hf_seed": 1524796118,
-        },
-        rupture_propagation=RUPTURE_PROPAGATION,
-    )
-
     run_campaign(
         tmp_path,
         monkeypatch,
-        inherit_seeds_from=events_dir,
-        inherit_rupture_propagation_from=events_dir,
+        inherit_from=deployed_events(tmp_path),
+        inherit=[gr.InheritableSection.seeds, gr.InheritableSection.rupture_propagation],
     )
 
     output = capsys.readouterr().out
     assert "WARNING" not in output
-    assert "Inherited rupture propagation for 1 of 1" in output
+    assert "Inherited rupture_propagation for 1 of 1" in output
+
+
+def test_main_carries_over_every_requested_section(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The float-noise sections -- sources and magnitudes -- reproduce to within a
+    # couple of ULP rather than exactly, so they are carried over too.
+    events_dir = deployed_events(tmp_path)
+
+    run_campaign(
+        tmp_path,
+        monkeypatch,
+        inherit_from=events_dir,
+        inherit=list(gr.InheritableSection),
+    )
+
+    written = json.loads(
+        (tmp_path / "out" / "realisation_100932.json").read_text(encoding="utf-8")
+    )
+    deployed = json.loads(
+        (events_dir / "100932" / "realisation.json").read_text(encoding="utf-8")
+    )
+    for section in ("sources", "rupture_propagation", "magnitudes"):
+        assert written[section] == deployed[section], section
+
+
+def test_main_exits_1_when_inherit_is_given_without_inherit_from(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with pytest.raises(typer.Exit) as exit_info:
+        run_campaign(tmp_path, monkeypatch, inherit=[gr.InheritableSection.seeds])
+
+    assert exit_info.value.exit_code == 1
+
+
+def test_main_exits_1_when_inherit_from_is_given_without_inherit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with pytest.raises(typer.Exit) as exit_info:
+        run_campaign(tmp_path, monkeypatch, inherit_from=deployed_events(tmp_path))
+
+    assert exit_info.value.exit_code == 1
 
 
 def test_main_logs_and_skips_a_rupture_whose_inherited_block_is_malformed(
@@ -459,7 +477,10 @@ def test_main_logs_and_skips_a_rupture_whose_inherited_block_is_malformed(
     )
 
     run_campaign(
-        tmp_path, monkeypatch, inherit_rupture_propagation_from=events_dir
+        tmp_path,
+        monkeypatch,
+        inherit_from=events_dir,
+        inherit=[gr.InheritableSection.rupture_propagation],
     )
 
     assert not (tmp_path / "out" / "realisation_100932.json").exists()
