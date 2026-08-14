@@ -18,6 +18,11 @@
 > 2. **Tasks 5, 6 and 7 are done** (`799550a`, `c34942b`, `016307f`). They were never dispatched during the first implementation pass — a controller scoping error, since the runbook invokes their tools at nine points. Task 6 gained two guards beyond what is written below: an empty realisation directory exits 1 rather than reporting "0 realisations, 0 failed", and `--expect-count` fails a short set.
 > 3. **Rupture propagation is carried over, not reproduced.** Multi-fault causality trees are drawn from an *unseeded* RNG — `nshm2022_to_realisation.py:310` seeds only numpy, while `nx.random_spanning_tree` draws from Python's global `random`. An expected 30 of 219 multi-fault events therefore draw a different tree every run, and no inherited seed can prevent it. Fixing that properly is out of scope; instead `generate-realisations-from-csv --inherit-rupture-propagation-from` copies the whole `rupture_propagation` section verbatim (`3bb5be3`). **Every command below that passes `--inherit-seeds-from` must also pass `--inherit-rupture-propagation-from`**, or ~30 events will silently diverge. See `docs/rupture_propagation_reproducibility.md`.
 > 4. **`ty` is red on this branch** — `workflow/scripts/generate_stoch.py:246-248`, from the srf2stoch port merged at `e1c9010`, not from this campaign. Task 8's "every gate green" precondition does not currently hold.
+> 5. **New ruptures are a supported case.** A rupture with no deployed `realisation.json` draws fresh seeds and derives its own rupture propagation — the existing, flawed way — and `verify-realisation-content --allow-new` reports it as new instead of failing (`0757541`). Both verifiers also gained `--expect-count`, and both now fail on an empty directory rather than reporting a clean pass over nothing.
+>
+> **Smoke-tested end to end on 2026-08-14** with a four-rupture pilot: three deployed (including `322209` and `41065`, the two least reproducible multi-fault events) and one that was not. Seeds and `rupture_propagation` came back byte-for-byte identical for the three; the fourth derived fresh. The only differences from the deployed files were `log_trail`, `im.ims` (the decided PGD), and float noise ≤2.1e-15 relative — three orders inside the 1e-9 tolerance. Final verification: `Compared 4 realisation(s) against 4 recorded decision(s); 0 failed, 1 new`, exit 0.
+>
+> Two findings from that run, both already reflected above: the deployed set has **no parameter divergence** (all 291 agree), and of the reconciler's four conflicts only `im.ims` changes any output byte — `deployed` already equals `felipe` for the other three, so choosing felipe there is a no-op.
 
 **Goal:** Regenerate the 291 CyberShake NSHM-2022 realisations so every file's `log_trail` names a definite, pushed, tagged commit SHA, reproducing each file's scientific content exactly — seeds inherited from the deployed files — while adopting the `pegasus` parameter updates the set is missing, with every such change chosen by a human, recorded with a reason, and mechanically verified.
 
@@ -4470,10 +4475,13 @@ Task 11 Step 4 proved every file records commit N. This proves every file reprod
 uv run verify-realisation-content \
     /home/arr65/src/cs_nshm_2022/cs_nshm_2022/events \
     complete_realisations \
-    --parameters /home/arr65/src/cs_nshm_2022/cs_nshm_2022/campaign_parameters.yaml
+    --parameters /home/arr65/src/cs_nshm_2022/cs_nshm_2022/campaign_parameters.yaml \
+    --expect-count 291
 ```
 
-Expected: `Compared 291 realisation(s) against 2 recorded decision(s); 0 failed`.
+Expected: `Compared 291 realisation(s) against 4 recorded decision(s); 0 failed`.
+
+Add `--allow-new` only if the run includes ruptures the deployed set never held. It turns "no original to compare against" from a failure into a listed new event — which is also what a wrong `events_dir` looks like, so `--expect-count` is not optional alongside it.
 
 - [ ] **Step 2: Spot-check that the intended change actually happened**
 
