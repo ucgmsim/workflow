@@ -23,11 +23,16 @@ metadata matches ``HEAD``.
 """
 
 import dataclasses
+import json
 import re
 import subprocess
+from importlib import metadata
 from pathlib import Path
+from typing import Annotated
 
 import typer
+
+from workflow.scripts.complete_realisations import FELIPE_SECTION_ORDER
 
 app = typer.Typer()
 
@@ -184,3 +189,148 @@ def preflight_problems(repo_root: Path, installed_version: str) -> list[str]:
         )
 
     return problems
+
+
+def realisation_problems(realisation_ffp: Path, expected_version: str) -> list[str]:
+    """Return the provenance defects in one finished realisation.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        Path to a complete realisation file.
+    expected_version : str
+        The version string every ``log_trail`` entry must carry.
+
+    Returns
+    -------
+    list of str
+        One message per defect. Empty means the file's provenance is sound.
+    """
+    problems: list[str] = []
+    realisation = json.loads(realisation_ffp.read_text(encoding="utf-8"))
+
+    log = realisation.get("log_trail", {}).get("log", [])
+    utilities = [entry.get("utility") for entry in log]
+    if utilities != list(EXPECTED_UTILITIES):
+        problems.append(
+            f"log_trail records utilities {utilities}, expected {list(EXPECTED_UTILITIES)}"
+        )
+
+    for entry in log:
+        if entry.get("version") != expected_version:
+            problems.append(
+                f"{entry.get('utility')} recorded version {entry.get('version')!r}, "
+                f"expected {expected_version!r}"
+            )
+
+    sections = list(realisation)
+    if sections != FELIPE_SECTION_ORDER:
+        missing = sorted(set(FELIPE_SECTION_ORDER) - set(sections))
+        unexpected = sorted(set(sections) - set(FELIPE_SECTION_ORDER))
+        detail = ""
+        if missing:
+            detail += f"; missing {missing}"
+        if unexpected:
+            detail += f"; unexpected {unexpected}"
+        problems.append(f"sections are not the canonical 18 in order{detail}")
+
+    return problems
+
+
+@app.command()
+def verify_realisation_provenance(
+    realisation_dir: Annotated[
+        Path | None, typer.Argument(exists=True, file_okay=False)
+    ] = None,
+    preflight: Annotated[
+        bool,
+        typer.Option(
+            "--preflight",
+            help="Check the environment is fit to run, instead of auditing output.",
+        ),
+    ] = False,
+    expect_version: Annotated[
+        str | None,
+        typer.Option(
+            help="Version every log_trail entry must carry. "
+            "Defaults to the installed workflow version."
+        ),
+    ] = None,
+    expect_count: Annotated[
+        int | None,
+        typer.Option(
+            help="Number of realisations the directory must hold. Without it, any "
+            "non-zero count passes."
+        ),
+    ] = None,
+    repo_root: Annotated[Path, typer.Option(exists=True, file_okay=False)] = Path("."),
+) -> None:
+    """Verify realisation provenance, or that the environment can produce it.
+
+    Parameters
+    ----------
+    realisation_dir : Path, optional
+        Directory of complete realisations to audit. Required unless
+        ``--preflight`` is given.
+    preflight : bool
+        Check the environment rather than auditing an output directory.
+    expect_version : str, optional
+        Version every ``log_trail`` entry must carry. Defaults to the installed
+        ``workflow`` version.
+    expect_count : int, optional
+        Number of realisations the directory must hold.
+    repo_root : Path
+        Root of the workflow git repository.
+    """
+    installed = metadata.version("workflow")
+
+    if preflight:
+        problems = preflight_problems(repo_root, installed)
+        if problems:
+            print("PREFLIGHT FAILED -- refusing to run a campaign:")
+            for problem in problems:
+                print(f"  - {problem}")
+            raise typer.Exit(code=1)
+        print(f"Preflight OK. Realisations will record version {installed}")
+        return
+
+    if realisation_dir is None:
+        print("Provide a realisation directory, or pass --preflight.")
+        raise typer.Exit(code=1)
+
+    expected = expect_version or installed
+    realisations = sorted(realisation_dir.glob("realisation_*.json"))
+
+    # An empty directory audits clean on every other check, so "0 realisations,
+    # 0 failed" would read as success when generation in fact produced nothing.
+    if not realisations:
+        print(f"NO REALISATIONS FOUND in {realisation_dir}.")
+        raise typer.Exit(code=1)
+    if expect_count is not None and len(realisations) != expect_count:
+        print(
+            f"WRONG COUNT: {realisation_dir} holds {len(realisations)} realisation(s), "
+            f"expected {expect_count}. A short set passes every per-file check."
+        )
+        raise typer.Exit(code=1)
+
+    failures = {
+        realisation_ffp: problems
+        for realisation_ffp in realisations
+        if (problems := realisation_problems(realisation_ffp, expected))
+    }
+
+    if failures:
+        print(
+            f"PROVENANCE FAILED for {len(failures)} of {len(realisations)} realisation(s):"
+        )
+        for realisation_ffp, problems in failures.items():
+            print(f"  {realisation_ffp.name}")
+            for problem in problems:
+                print(f"    - {problem}")
+        raise typer.Exit(code=1)
+
+    print(f"Provenance OK: {len(realisations)} realisation(s), all recording {expected}")
+
+
+if __name__ == "__main__":
+    app()
