@@ -302,3 +302,48 @@ affected events' SRFs are actually in use before assuming the cost.
   such residues is meaningless, and reports a conflict where there is none. That
   is a separate defect in the comparison, not in the science, and it needs a
   per-section absolute tolerance rather than a global one.
+
+---
+
+## Addendum, 2026-08-14: the carry-over is now checked
+
+The stopgap above is no longer a blind copy. Every carried-over section is
+compared against the one the pipeline derived anyway — which costs nothing,
+because it derives it either way — and the deployed value is adopted **silently
+only when the two agree to within the section's tolerance**. That is the case the
+carry-over exists for: float noise of a few ULP. Anything larger fails the
+rupture until a human records which value to use and why.
+
+```
+Skipping rupture 322209: carried-over rupture_propagation differs from the value
+derived this run by more than the section tolerance (relative 1e-06, absolute
+1e-06) -- .rupture_causality_tree.Kotare - Moutuhora: 'Opotiki 3' != 'Ohae 2'
+(+2 more). Record a choice for '322209.rupture_propagation' or
+'rupture_propagation' and re-run.
+```
+
+Decisions live in a YAML passed as `--inheritance-decisions`, keyed either by
+section (applies to every rupture) or `<rupture id>.<section>` (applies to one,
+and wins). Each entry needs a `choice` of `inherited`/`derived` and a `reason`;
+an entry without a reason is refused at read time.
+
+**This makes the bug visible instead of hiding it.** The events whose causality
+tree is redrawn now announce themselves by name on every run, rather than being
+silently overwritten with the deployed tree. The campaign still keeps the
+deployed value — via one section-wide decision — but does so explicitly, with the
+reason recorded next to it.
+
+### The tolerance question this forced
+
+Comparing `rupture_propagation` at all required fixing the relative-only
+comparison described under **Related** above. `values_equivalent` now takes an
+`abs_tolerance`, defaulting to `0.0` so parameter grids are unchanged, and
+`SECTION_TOLERANCES` gives `rupture_propagation` `1e-6` absolute.
+
+That figure is not arbitrary. Jump points are normalised [0, 1] fault
+coordinates, so `1e-6` is a millionth of a fault dimension — three orders of
+magnitude below the SRF discretisation, far too small to move a single grid
+point, and still wide enough to absorb the denormal residue that a relative
+comparison inflates into a 100% mismatch. Verified both ways: two residues of the
+same fault edge (`1.4e-34` vs `3.2e-07`) compare equal, while a jump point that
+actually moved (`0.12` vs `0.83`, the shift seen on event 242445) does not.
