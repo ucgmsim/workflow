@@ -754,7 +754,8 @@ def calculate_intensity_measures(
     broadband = xr.open_dataset(broadband_simulation_ffp).chunk(
         {"component": -1, "time": -1, "station": "auto"}
     )
-    broadband = broadband.rename({"lat": "latitude", "lon": "longitude"})
+    if 'lat' in broadband:
+        broadband = broadband.rename({"lat": "latitude", "lon": "longitude"})
 
     dt = broadband.attrs["dt"]
     if broadband.attrs["units"] == "cm/s^2":
@@ -767,6 +768,7 @@ def calculate_intensity_measures(
 
     intensity_measures = override_ims or intensity_measure_parameters.ims
 
+    psa_periods = np.array(intensity_measure_parameters.valid_periods, dtype=np.float64)
     if IM.FAS in intensity_measures and not ko_directory:
         raise ValueError(
             "FAS calculation requires KO directory. Please provide a valid KO directory."
@@ -784,9 +786,7 @@ def calculate_intensity_measures(
         IM.Ds595: functools.partial(ims.ds595, dt=dt),
         IM.pSA: functools.partial(
             ims.pseudo_spectral_acceleration,
-            periods=np.array(
-                intensity_measure_parameters.valid_periods, dtype=np.float64
-            ),
+            periods=psa_periods,
             dt=dt,
             full_rotd180=full_rotd180,
         ),
@@ -853,7 +853,7 @@ def calculate_intensity_measures(
             site_parameters,
             distances,
             intensity_measures,
-            np.array(intensity_measure_parameters.valid_periods, dtype=np.float64),
+            psa_periods,
         )
         attributes["tect_type"] = str(empirical_parameters.tect_type)
 
