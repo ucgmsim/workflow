@@ -5,7 +5,7 @@
 > **Amended 2026-07-16** by `docs/superpowers/specs/2026-07-16-seed-carryover-and-content-verification-design.md`: seeds are **carried over**, not re-drawn, and each regenerated file is **verified** against its original.
 >
 > **Amended 2026-07-27** by `docs/superpowers/specs/2026-07-27-parameter-reconciliation-and-seed-inheritance-design.md`, which supersedes parts of the above. Three changes:
-> 1. **The seed manifest is gone.** Seeds are inherited directly from the deployed `realisation.json` files (`--inherit-seeds-from`), so there is no second copy to keep in sync. **Tasks 7a and 10a are replaced**, not merely edited.
+> 1. **The seed manifest is gone.** Seeds are inherited directly from the deployed `realisation.json` files, so there is no second copy to keep in sync. **Tasks 7a and 10a are replaced**, not merely edited.
 > 2. **The campaign now updates parameters, deliberately.** `pegasus` added `PGD` to `im.ims` (`ec2fb25`) and the set must adopt it, so the regenerated files *will* differ from the originals — but only where a human decided they should. A new interactive reconciler records every decision in a committed `campaign_parameters.yaml`.
 > 3. **Verification is driven by that decision file**, not by a hard-coded "everything but `log_trail`" rule.
 >
@@ -16,9 +16,11 @@
 > **Amended 2026-08-14.** Four changes, all decided with the user:
 > 1. **Deployment is out of scope.** Task 14 is not being run. The campaign ends at a verified set in `complete_realisations/`. `complete-realisations --deploy-dir` and `copy-realisations-to-event-dirs` stay as tested code, unexercised.
 > 2. **Tasks 5, 6 and 7 are done** (`799550a`, `c34942b`, `016307f`). They were never dispatched during the first implementation pass — a controller scoping error, since the runbook invokes their tools at nine points. Task 6 gained two guards beyond what is written below: an empty realisation directory exits 1 rather than reporting "0 realisations, 0 failed", and `--expect-count` fails a short set.
-> 3. **Rupture propagation is carried over, not reproduced.** Multi-fault causality trees are drawn from an *unseeded* RNG — `nshm2022_to_realisation.py:310` seeds only numpy, while `nx.random_spanning_tree` draws from Python's global `random`. An expected 30 of 219 multi-fault events therefore draw a different tree every run, and no inherited seed can prevent it. Fixing that properly is out of scope; instead `generate-realisations-from-csv --inherit-rupture-propagation-from` copies the whole `rupture_propagation` section verbatim (`3bb5be3`). **Every command below that passes `--inherit-seeds-from` must also pass `--inherit-rupture-propagation-from`**, or ~30 events will silently diverge. See `docs/rupture_propagation_reproducibility.md`.
+> 3. **Rupture propagation is carried over, not reproduced.** Multi-fault causality trees are drawn from an *unseeded* RNG — `nshm2022_to_realisation.py:310` seeds only numpy, while `nx.random_spanning_tree` draws from Python's global `random`. An expected 30 of 219 multi-fault events therefore draw a different tree every run, and no inherited seed can prevent it. Fixing that properly is out of scope; instead `generate-realisations-from-csv --inherit-from <dir> --inherit rupture_propagation` copies the whole section verbatim (`3bb5be3`). **Every command below must inherit `rupture_propagation`**, or ~30 events will silently diverge. See `docs/rupture_propagation_reproducibility.md`.
 > 4. **`ty` is red on this branch** — `workflow/scripts/generate_stoch.py:246-248`, from the srf2stoch port merged at `e1c9010`, not from this campaign. Task 8's "every gate green" precondition does not currently hold.
 > 5. **New ruptures are a supported case.** A rupture with no deployed `realisation.json` draws fresh seeds and derives its own rupture propagation — the existing, flawed way — and `verify-realisation-content --allow-new` reports it as new instead of failing (`0757541`). Both verifiers also gained `--expect-count`, and both now fail on an empty directory rather than reporting a clean pass over nothing.
+>
+> 6. **Every per-event section that differed only by ULP is now carried over too** (`be98835`). `sources`, `magnitudes` and `domain` reproduced to within 1-17 ULP rather than exactly -- arithmetic reordering, not a change -- which kept the set from being byte-compatible with the SRFs and velocity models already built from it. `--inherit-seeds-from` and `--inherit-rupture-propagation-from` are replaced by `--inherit-from <dir>` plus a repeatable `--inherit <section>` (`seeds`, `sources`, `rupture_propagation`, `magnitudes`, `rakes`); `complete-realisations` gains `--inherit-domain-from`, which refuses per rupture if `velocity_model` or `sources` no longer agree with the deployed file. **With all six carried over, `im.ims` gaining `PGD` is the only content difference from the deployed set.** Task 3's step text below still describes the superseded flags; it is a record of how the option was first built, not current guidance.
 >
 > **Smoke-tested end to end on 2026-08-14** with a four-rupture pilot: three deployed (including `322209` and `41065`, the two least reproducible multi-fault events) and one that was not. Seeds and `rupture_propagation` came back byte-for-byte identical for the three; the fourth derived fresh. The only differences from the deployed files were `log_trail`, `im.ims` (the decided PGD), and float noise ≤2.1e-15 relative — three orders inside the 1e-9 tolerance. Final verification: `Compared 4 realisation(s) against 4 recorded decision(s); 0 failed, 1 new`, exit 0.
 >
@@ -41,7 +43,7 @@ Every task's requirements implicitly include this section.
 - **Excluded ruptures: `59421` and `95011`.** Disconnected fault graphs. Expected to fail; their failure is a pass condition, not an error.
 - **Expected output count: 291** realisations from a 293-row input CSV.
 - **Never commit generated realisations to the `workflow` repo.** `minimal_realisations/` and `complete_realisations/` are gitignored, and must stay that way — it is what stops the campaign dirtying its own tree.
-- **Seeds are inherited, not re-drawn.** The campaign passes `--inherit-seeds-from <events dir>` so each realisation replays the five seeds already recorded in its deployed `realisation.json`. There is no seed manifest; the deployed files are the source of truth.
+- **Per-event content is inherited, not re-derived.** The campaign passes `--inherit-from <events dir>` with `--inherit seeds sources rupture_propagation magnitudes rakes`, plus `--inherit-domain-from` on the completion step, so each regenerated realisation carries the deployed values verbatim. There is no seed manifest; the deployed files are the source of truth. See amendment item 6.
 - **The regenerated set may differ from the originals only in `log_trail` and in decided parameters.** Every other difference is a bug and aborts the campaign. What counts as "decided" is whatever `campaign_parameters.yaml` records — that file is the allowlist, and it lives in `cs_nshm_2022`, not this repo.
 - **`nshmdb.db` is the original database of record**, restored to the repo root on 2026-07-27 and confirmed byte-identical to the one the deployed set was generated from: sha256 `00e256480618cd15e11fbf744037d037bf3fc2d523fb977ee30e0b84a640bc57`, mtime 2026-07-08 11:44. It is gitignored (`.gitignore:197`), so re-check that checksum before the campaign rather than assuming the file present is the file wanted. The CRU solution zip Task 9 rebuilds from is git-tracked at `/home/arr65/src/NSHM2022DB/tests/CRU_fault_system_solution.zip`, sha256 `5975568e5ccd05c1…`, confirmed identical to the copy Jake supplied directly.
 - **The campaign repo is `/home/arr65/src/cs_nshm_2022`, branch `main`.** Events live at `cs_nshm_2022/cs_nshm_2022/events/<rupture_id>/realisation.json`. Renamed from `cybershake_nshm_2022` on 2026-07-22 (`37b2ea1`), a pure `git mv` that left all 291 files byte-identical.
@@ -220,7 +222,7 @@ When a rupture's fault graph is disconnected, `nshm2022-to-realisation` has alre
 - Produces:
   - `generate_one(nshmdb_path: Path, rupture_id: int, realisation_ffp: Path, defaults_version: DefaultsVersion, seeds: dict[str, int] | None = None) -> str | None` — returns an error message on failure (having deleted any partial file), or `None` on success. When `seeds` is given, it is written into the stub before generation so `nshm2022-to-realisation` replays those seeds instead of drawing fresh ones.
   - `read_inherited_seeds(events_dir: Path, rupture_id: int) -> dict[str, int] | None` — the `seeds` block of `events_dir/<rupture id>/realisation.json`, or `None` when that file is absent or carries no seeds. Only the seed block is read; the driver stays schema-agnostic and the realisation engine validates the block when it reads it back.
-  - CLI option `--inherit-seeds-from <events dir>`, off by default. The campaign points it at `/home/arr65/src/cs_nshm_2022/cs_nshm_2022/events`.
+  - CLI option `--inherit-seeds-from <events dir>`, off by default. **Superseded by `--inherit-from` / `--inherit` in `be98835`** -- the steps below record how it was first built.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -4341,16 +4343,18 @@ PARAMS=/home/arr65/src/cs_nshm_2022/cs_nshm_2022/campaign_parameters.yaml
 ```bash
 uv run generate-realisations-from-csv \
     nshmdb.db "$PILOT/pilot.csv" "$PILOT/minimal" 24.2.2.1 \
-    --inherit-seeds-from "$EVENTS" \
-    --inherit-rupture-propagation-from "$EVENTS"
+    --inherit-from "$EVENTS" \
+    --inherit seeds --inherit sources --inherit rupture_propagation \
+    --inherit magnitudes --inherit rakes
 uv run complete-realisations "$PILOT/minimal" "$PILOT/complete" \
     --defaults-version 24.2.2.1 --vm-version 2.09 \
-    --parameters "$PARAMS"
+    --parameters "$PARAMS" \
+    --inherit-domain-from "$EVENTS"
 ```
 
 Expected: `Inherited seeds for 4 of 4 rupture(s); 0 drew fresh seeds.`, `Inherited rupture propagation for 4 of 4 rupture(s); 0 kept the derived section.`, then 4 complete realisations, `Applying 2 recorded parameter decision(s).`, and no errors.
 
-Omitting `--inherit-rupture-propagation-from` makes this step print a warning and the pilot fail on any multi-fault event that redraws its tree. The pilot's event selection must also be widened: as written it holds exactly one multi-fault event (149379), which is geometry-forced and so cannot detect the problem at all. Draw at least 20 from the 99 events that admit more than one spanning tree.
+Omitting `--inherit rupture_propagation` makes this step print a warning and the pilot fail on any multi-fault event that redraws its tree. The pilot's event selection must also be widened: as written it holds exactly one multi-fault event (149379), which is geometry-forced and so cannot detect the problem at all. Draw at least 20 from the 99 events that admit more than one spanning tree.
 
 **If any rupture drew fresh seeds, stop.** The whole point is that these four replay the seeds already in the deployed files; a fresh draw silently produces a plausible realisation inconsistent with the SRFs built from the original.
 
@@ -4400,13 +4404,16 @@ uv run generate-realisations-from-csv \
     annealed_minimal_ruptures.csv \
     minimal_realisations \
     24.2.2.1 \
-    --inherit-seeds-from /home/arr65/src/cs_nshm_2022/cs_nshm_2022/events \
-    --inherit-rupture-propagation-from /home/arr65/src/cs_nshm_2022/cs_nshm_2022/events
+    --inherit-from /home/arr65/src/cs_nshm_2022/cs_nshm_2022/events \
+    --inherit seeds --inherit sources --inherit rupture_propagation \
+    --inherit magnitudes --inherit rakes
 ```
 
-`--inherit-seeds-from` makes each stub replay the seeds already recorded in its deployed realisation, so the content reproduces the original rather than drawing a fresh set. The two excluded ruptures have no deployed file and fall back to a fresh draw, which is moot — they fail before any seed is used.
+`--inherit seeds` makes each stub replay the seeds already recorded in its deployed realisation, so the content reproduces the original rather than drawing a fresh set. The two excluded ruptures have no deployed file and fall back to a fresh draw, which is moot — they fail before any seed is used.
 
-`--inherit-rupture-propagation-from` copies each event's `rupture_propagation` section verbatim. It is **not optional**: multi-fault causality trees are drawn from an unseeded RNG, so without it an expected 30 events redraw a different tree and content verification fails on them. See `docs/rupture_propagation_reproducibility.md`.
+`--inherit` carries each named section over verbatim. `rupture_propagation` is **not optional**: multi-fault causality trees are drawn from an unseeded RNG, so without it an expected 30 events redraw a different tree and content verification fails on them. `sources` and `magnitudes` are carried over for a milder reason -- they reproduce to within 1-17 ULP rather than exactly, and carrying them keeps the set byte-compatible with the SRFs already built from it. `--inherit-domain-from` does the same for `domain`, which is computed in the completion stage rather than the stub. See `docs/rupture_propagation_reproducibility.md`.
+
+With all six carried over, `im.ims` gaining `PGD` is the only content difference from the deployed set.
 
 Expected: `Done. Processed 293 rupture ID(s).`, with two failures printed — ruptures **59421** and **95011**, both `ValueError: The graph must be connected to find a spanning tree`. **These two failures are a pass condition.**
 
@@ -4679,7 +4686,7 @@ versions, so no tag was applied; the commit SHA is the anchor.»
 | `CRU_fault_system_solution.zip` | `5975568e5ccd05c1c32fa8547f2f4fdfbcd306152e558d66d65aaf838852b62f` | The NSHM 2022 crustal fault system solution, from Jake Faulkner. Git-tracked in NSHM2022DB at `tests/CRU_fault_system_solution.zip`, committed by Jake in `a55e0c8` (2025-04-08) and reachable on `origin/main`. Confirmed byte-identical to the copy Jake supplied directly (2026-07-27). Its own upstream release identifier is not recorded. |
 | `annealed_minimal_ruptures.csv` | `b1e4a40d055639bdb9f4437da594155e136c12df07bfc292915f810174216b44` | 293 rupture ids, provided by Jake Faulkner as the first sample of ruptures to simulate for this campaign. Confirmed 293 rows on 2026-07-27. The selection procedure implied by "annealed" is not documented. |
 | `campaign_parameters.yaml` | `«sha256»` | Which parameters this set takes from the `pegasus` scientific defaults and which from the campaign's override files, with a reason and a value fingerprint per decision. Produced by `reconcile-parameters`; committed in `cs_nshm_2022`. |
-| the 2026-07-09 realisation set | — | The source of this set's seeds, inherited per event via `--inherit-seeds-from`. Superseded by this set; recoverable from `cs_nshm_2022` history at `«pre-campaign commit»`. |
+| the 2026-07-09 realisation set | — | The source of this set's seeds and per-event derived sections, inherited via `--inherit-from`. Superseded by this set; recoverable from `cs_nshm_2022` history at `«pre-campaign commit»`. |
 | `uv.lock` | `«sha256»` | Pins `nshmdb` 2025.12.1, `source_modelling` 2026.6.2, `velocity-modelling` 2026.2.1, `qcore-utils` 2025.12.2, `im-calculation` 2025.12.5, `oq-wrapper` 2025.12.5. |
 
 ### The database rebuild
@@ -4739,8 +4746,8 @@ Run from the repository root, on a clean tree at the commit above, after
 ```
 uv run verify-realisation-provenance --preflight
 uv run reconcile-parameters «cs_nshm_2022»/cs_nshm_2022/events «cs_nshm_2022»/cs_nshm_2022/campaign_parameters.yaml --non-interactive
-uv run generate-realisations-from-csv nshmdb.db annealed_minimal_ruptures.csv minimal_realisations 24.2.2.1 --inherit-seeds-from «cs_nshm_2022»/cs_nshm_2022/events --inherit-rupture-propagation-from «cs_nshm_2022»/cs_nshm_2022/events
-uv run complete-realisations minimal_realisations complete_realisations --defaults-version 24.2.2.1 --vm-version 2.09 --parameters «cs_nshm_2022»/cs_nshm_2022/campaign_parameters.yaml
+uv run generate-realisations-from-csv nshmdb.db annealed_minimal_ruptures.csv minimal_realisations 24.2.2.1 --inherit-from «cs_nshm_2022»/cs_nshm_2022/events --inherit seeds --inherit sources --inherit rupture_propagation --inherit magnitudes --inherit rakes
+uv run complete-realisations minimal_realisations complete_realisations --defaults-version 24.2.2.1 --vm-version 2.09 --parameters «cs_nshm_2022»/cs_nshm_2022/campaign_parameters.yaml --inherit-domain-from «cs_nshm_2022»/cs_nshm_2022/events
 uv run verify-realisation-provenance complete_realisations --expect-count 291
 uv run verify-realisation-content «cs_nshm_2022»/cs_nshm_2022/events complete_realisations --parameters «cs_nshm_2022»/cs_nshm_2022/campaign_parameters.yaml
 # Deployment (copy-realisations-to-event-dirs) is out of scope as of 2026-08-14.
@@ -4782,7 +4789,7 @@ one the existing SRFs and downstream results were built from.
 
 There is no separate seed manifest. Each event's seeds were read straight from
 the `seeds` block of the file it replaces, via
-`generate-realisations-from-csv --inherit-seeds-from`, and only that block was
+`generate-realisations-from-csv --inherit-from`, and only that block was
 read — every other field was derived fresh. The seeds therefore live in exactly
 one place: the realisations themselves, which are self-describing and cannot
 drift out of sync with a second copy.
@@ -4996,7 +5003,7 @@ not invalidated.
 
 ## Deferred: separating the generic tooling for a pegasus PR
 
-Not part of this campaign, and captured here only so it is not lost. The generic tools this branch adds — `complete-realisations` (with `--parameters` and the guarded `--deploy-dir`), `generate-realisations-from-csv` (with `--inherit-seeds-from`), `reconcile-parameters`, `verify-realisation-content`, `verify-realisation-provenance`, `compare-nshmdb`, `copy-realisations-to-event-dirs`, and the area-weighted fault-selection fix `9f35c90` — are reusable and belong on `pegasus`. Nothing in them hard-codes this campaign: every path, defaults version and decision file is an argument. When upstreaming later:
+Not part of this campaign, and captured here only so it is not lost. The generic tools this branch adds — `complete-realisations` (with `--parameters` and the guarded `--deploy-dir`), `generate-realisations-from-csv` (with `--inherit-from` / `--inherit`), `reconcile-parameters`, `verify-realisation-content`, `verify-realisation-provenance`, `compare-nshmdb`, `copy-realisations-to-event-dirs`, and the area-weighted fault-selection fix `9f35c90` — are reusable and belong on `pegasus`. Nothing in them hard-codes this campaign: every path, defaults version and decision file is an argument. When upstreaming later:
 
 - Cherry-pick only the generic commits. Leave behind the campaign data and personal inputs: `felipe_scripts/` (Felipe's reference inputs — needs his sign-off), `annealed_minimal_ruptures.csv`, the campaign docs, and `copy_realisations_to_event_dirs.py` / `render_all.sh` if they are not promoted into the package.
 - `campaign_parameters.yaml` stays in `cs_nshm_2022` — it is campaign data, not tooling.
