@@ -331,3 +331,86 @@ def test_main_reports_a_regenerated_file_with_no_original_instead_of_skipping_it
     output = capsys.readouterr().out
     assert "EVT2" in output
     assert "no original to compare against" in output
+
+
+def write_pair(
+    tmp_path: Path, rupture_id: str, magnitude: float, original: bool = True
+) -> tuple[Path, Path]:
+    """Write a regenerated file, and optionally the original it matches."""
+    events_dir = tmp_path / "events"
+    regenerated_dir = tmp_path / "regenerated"
+    regenerated_dir.mkdir(exist_ok=True)
+    events_dir.mkdir(exist_ok=True)
+    if original:
+        (events_dir / rupture_id).mkdir(parents=True, exist_ok=True)
+        (events_dir / rupture_id / "realisation.json").write_text(
+            json.dumps({"magnitudes": {"A": 7.1}, "log_trail": {"log": ["a"]}}),
+            encoding="utf-8",
+        )
+    (regenerated_dir / f"realisation_{rupture_id}.json").write_text(
+        json.dumps({"magnitudes": {"A": magnitude}, "log_trail": {"log": ["b"]}}),
+        encoding="utf-8",
+    )
+    return events_dir, regenerated_dir
+
+
+def test_main_accepts_an_event_with_no_original_when_allow_new_is_set(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A rupture the deployed set never held is a supported case, not an error:
+    # it draws fresh seeds and derives its own rupture propagation.
+    events_dir, regenerated_dir = write_pair(tmp_path, "EVT1", 7.1)
+    write_pair(tmp_path, "EVT2", 7.5, original=False)
+
+    vc.main(events_dir, regenerated_dir, allow_new=True)
+
+    output = capsys.readouterr().out
+    # Reported, not silently ignored -- the operator has to be able to see which
+    # ruptures were treated as new.
+    assert "EVT2" in output
+    assert "1 new" in output
+
+
+def test_main_still_fails_a_bad_event_when_allow_new_is_set(
+    tmp_path: Path,
+) -> None:
+    events_dir, regenerated_dir = write_pair(tmp_path, "EVT1", 7.2)
+    write_pair(tmp_path, "EVT2", 7.5, original=False)
+
+    with pytest.raises(typer.Exit) as exit_info:
+        vc.main(events_dir, regenerated_dir, allow_new=True)
+
+    assert exit_info.value.exit_code == 1
+
+
+def test_main_exits_1_on_an_empty_regenerated_directory(tmp_path: Path) -> None:
+    # "Compared 0 realisation(s); 0 failed" must not read as success. Every
+    # per-file check passes vacuously on a set that holds no files.
+    events_dir = tmp_path / "events"
+    events_dir.mkdir()
+    regenerated_dir = tmp_path / "regenerated"
+    regenerated_dir.mkdir()
+
+    with pytest.raises(typer.Exit) as exit_info:
+        vc.main(events_dir, regenerated_dir)
+
+    assert exit_info.value.exit_code == 1
+
+
+def test_main_exits_1_when_the_count_does_not_match_expect_count(
+    tmp_path: Path,
+) -> None:
+    # With --allow-new, pointing at the wrong events directory would otherwise
+    # pass silently as "every rupture is new". The count is what catches that.
+    events_dir, regenerated_dir = write_pair(tmp_path, "EVT1", 7.1)
+
+    with pytest.raises(typer.Exit) as exit_info:
+        vc.main(events_dir, regenerated_dir, expect_count=291)
+
+    assert exit_info.value.exit_code == 1
+
+
+def test_main_accepts_a_matching_expect_count(tmp_path: Path) -> None:
+    events_dir, regenerated_dir = write_pair(tmp_path, "EVT1", 7.1)
+
+    vc.main(events_dir, regenerated_dir, expect_count=1)

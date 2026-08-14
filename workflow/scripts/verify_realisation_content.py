@@ -228,6 +228,21 @@ def main(
             "permitted and every difference beyond log_trail fails.",
         ),
     ] = None,
+    allow_new: Annotated[
+        bool,
+        typer.Option(
+            "--allow-new",
+            help="Treat a regenerated rupture with no deployed original as a new "
+            "event rather than a failure. New events are still listed.",
+        ),
+    ] = False,
+    expect_count: Annotated[
+        int | None,
+        typer.Option(
+            help="Number of regenerated realisations there must be. Without it, "
+            "any non-zero count passes."
+        ),
+    ] = None,
     tolerance: Annotated[float, typer.Option()] = DEFAULT_TOLERANCE,
 ) -> None:
     """Compare a regenerated realisation set against the deployed originals.
@@ -240,18 +255,43 @@ def main(
         Directory of ``realisation_<rupture_id>.json`` regenerated files.
     parameters : Path, optional
         Campaign decision file recording which parameter changes are intended.
+    allow_new : bool
+        Accept regenerated ruptures that have no deployed original.
+    expect_count : int, optional
+        Number of regenerated realisations there must be.
     tolerance : float
         Relative tolerance for numeric comparison.
     """
     decisions = load_decisions(parameters) if parameters is not None else {}
 
-    failed: dict[str, list[str]] = {}
     regenerated = sorted(regenerated_dir.glob("realisation_*.json"))
+
+    # Every per-file check below passes vacuously on a set that holds no files,
+    # so "0 compared, 0 failed" would otherwise read as success when generation
+    # in fact produced nothing.
+    if not regenerated:
+        print(f"NO REGENERATED REALISATIONS FOUND in {regenerated_dir}.")
+        raise typer.Exit(code=1)
+    if expect_count is not None and len(regenerated) != expect_count:
+        print(
+            f"WRONG COUNT: {regenerated_dir} holds {len(regenerated)} realisation(s), "
+            f"expected {expect_count}. A short set passes every per-file check."
+        )
+        raise typer.Exit(code=1)
+
+    failed: dict[str, list[str]] = {}
+    new: list[str] = []
     for actual_ffp in regenerated:
         rupture_id = actual_ffp.stem.removeprefix("realisation_")
         expected_ffp = events_dir / rupture_id / "realisation.json"
         if not expected_ffp.is_file():
-            failed[rupture_id] = ["no original to compare against"]
+            # A rupture the deployed set never held has nothing to be compared
+            # against: it drew fresh seeds and derived its own rupture
+            # propagation. Whether that is expected is the caller's to say.
+            if allow_new:
+                new.append(rupture_id)
+            else:
+                failed[rupture_id] = ["no original to compare against"]
             continue
         unexpected, unapplied = compare_files(
             expected_ffp, actual_ffp, decisions, tolerance
@@ -261,10 +301,22 @@ def main(
         if problems:
             failed[rupture_id] = problems
 
-    print(
+    summary = (
         f"Compared {len(regenerated)} realisation(s) against "
         f"{len(decisions)} recorded decision(s); {len(failed)} failed"
     )
+    if new:
+        summary += f", {len(new)} new"
+    print(summary)
+
+    if new:
+        # Listed rather than merely counted: --allow-new turns a wrong events_dir
+        # from a loud failure into a silent pass, and this list is what makes
+        # that mistake visible.
+        print("\nNo deployed original, treated as new:")
+        for rupture_id in sorted(new):
+            print(f"  {rupture_id}")
+
     for rupture_id, problems in sorted(failed.items()):
         print(f"\n{rupture_id}:")
         for problem in problems[:20]:
