@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 import typer
 
+from workflow import inheritance as ih
 from workflow.defaults import DefaultsVersion
 from workflow.scripts import complete_realisations as cr
 from workflow.scripts.reconcile_parameters import Decision, value_fingerprint
@@ -393,6 +394,16 @@ DEPLOYED_DOMAIN = {
     "duration": 234.8667508646568,
 }
 
+# What the pipeline computes for the same event: the same domain a few ULP out,
+# which is what regenerating one of the deployed events actually produces.
+COMPUTED_DOMAIN = {
+    "domain": [{"latitude": -45.50000000000001, "longitude": 174.90000000000003}],
+    "depth": 60.0,
+    "duration": 234.86675086465685,
+}
+
+A_REAL_DIFFERENCE = {"domain": [], "depth": 1.0, "duration": 2.0}
+
 
 def write_deployed(tmp_path: Path, **sections: object) -> Path:
     events_dir = tmp_path / "events"
@@ -403,17 +414,68 @@ def write_deployed(tmp_path: Path, **sections: object) -> Path:
     return events_dir
 
 
-def test_inherit_domain_replaces_the_computed_domain(tmp_path: Path) -> None:
-    events_dir = write_deployed(tmp_path, velocity_model={"version": "2.09"}, sources={})
-    realisation = {
-        "domain": {"domain": [], "depth": 1.0, "duration": 2.0},
-        "velocity_model": {"version": "2.09"},
-        "sources": {},
+def matching_realisation(domain: object) -> dict[str, object]:
+    return {"domain": domain, "velocity_model": {"version": "2.09"}, "sources": {}}
+
+
+def keep_inherited(key: str) -> dict[str, ih.InheritanceDecision]:
+    return {
+        key: ih.InheritanceDecision(
+            choice=ih.InheritanceChoice.inherited,
+            reason="test",
+            decided="2026-08-14",
+        )
     }
+
+
+def test_inherit_domain_adopts_the_deployed_value_when_the_difference_is_noise(
+    tmp_path: Path,
+) -> None:
+    # Byte-exact adoption, not merely "close enough": the computed domain differs
+    # in its last bits, so equality here proves the deployed value was taken.
+    events_dir = write_deployed(tmp_path, velocity_model={"version": "2.09"}, sources={})
+    realisation = matching_realisation(COMPUTED_DOMAIN)
 
     cr._inherit_domain(realisation, events_dir, "100932")
 
     assert realisation["domain"] == DEPLOYED_DOMAIN
+
+
+def test_inherit_domain_refuses_a_real_difference_without_a_decision(
+    tmp_path: Path,
+) -> None:
+    events_dir = write_deployed(tmp_path, velocity_model={"version": "2.09"}, sources={})
+    realisation = matching_realisation(A_REAL_DIFFERENCE)
+
+    with pytest.raises(ih.UndecidedDivergenceError, match="domain"):
+        cr._inherit_domain(realisation, events_dir, "100932")
+
+
+def test_inherit_domain_keeps_the_deployed_value_when_a_decision_says_so(
+    tmp_path: Path,
+) -> None:
+    events_dir = write_deployed(tmp_path, velocity_model={"version": "2.09"}, sources={})
+    realisation = matching_realisation(A_REAL_DIFFERENCE)
+
+    cr._inherit_domain(realisation, events_dir, "100932", keep_inherited("domain"))
+
+    assert realisation["domain"] == DEPLOYED_DOMAIN
+
+
+def test_inherit_domain_takes_the_computed_value_when_a_decision_says_so(
+    tmp_path: Path,
+) -> None:
+    events_dir = write_deployed(tmp_path, velocity_model={"version": "2.09"}, sources={})
+    realisation = matching_realisation(A_REAL_DIFFERENCE)
+    decisions = {
+        "100932.domain": ih.InheritanceDecision(
+            choice=ih.InheritanceChoice.derived, reason="test", decided="2026-08-14"
+        )
+    }
+
+    cr._inherit_domain(realisation, events_dir, "100932", decisions)
+
+    assert realisation["domain"] == A_REAL_DIFFERENCE
 
 
 def test_inherit_domain_tolerates_float_noise_in_the_inputs(tmp_path: Path) -> None:
@@ -425,7 +487,7 @@ def test_inherit_domain_tolerates_float_noise_in_the_inputs(tmp_path: Path) -> N
         sources={"corner": -44.593361302171196},
     )
     realisation = {
-        "domain": {"domain": [], "depth": 1.0, "duration": 2.0},
+        "domain": COMPUTED_DOMAIN,
         "velocity_model": {"version": "2.09"},
         "sources": {"corner": -44.59336130217119},
     }
@@ -438,7 +500,7 @@ def test_inherit_domain_tolerates_float_noise_in_the_inputs(tmp_path: Path) -> N
 def test_inherit_domain_refuses_when_the_velocity_model_moved(tmp_path: Path) -> None:
     events_dir = write_deployed(tmp_path, velocity_model={"version": "2.09"}, sources={})
     realisation = {
-        "domain": {"domain": [], "depth": 1.0, "duration": 2.0},
+        "domain": COMPUTED_DOMAIN,
         "velocity_model": {"version": "2.07"},
         "sources": {},
     }
@@ -452,7 +514,7 @@ def test_inherit_domain_refuses_when_the_sources_moved(tmp_path: Path) -> None:
         tmp_path, velocity_model={"version": "2.09"}, sources={"corner": 1.0}
     )
     realisation = {
-        "domain": {"domain": [], "depth": 1.0, "duration": 2.0},
+        "domain": COMPUTED_DOMAIN,
         "velocity_model": {"version": "2.09"},
         "sources": {"corner": 1.5},
     }
@@ -466,12 +528,11 @@ def test_inherit_domain_keeps_the_computed_domain_for_a_new_rupture(
 ) -> None:
     events_dir = tmp_path / "events"
     events_dir.mkdir()
-    computed = {"domain": [], "depth": 1.0, "duration": 2.0}
-    realisation = {"domain": computed, "velocity_model": {}, "sources": {}}
+    realisation = matching_realisation(A_REAL_DIFFERENCE)
 
     cr._inherit_domain(realisation, events_dir, "999999")
 
-    assert realisation["domain"] == computed
+    assert realisation["domain"] == A_REAL_DIFFERENCE
 
 
 @pytest.mark.slow
@@ -481,12 +542,15 @@ def test_complete_one_carries_the_deployed_domain_through(tmp_path: Path) -> Non
     cr.complete_one(SAMPLE, reference, DefaultsVersion.v24_2_2_1, overrides)
     completed_reference = json.loads(reference.read_text())
 
-    # A deployed file whose inputs match, but whose domain differs -- so a pass
-    # cannot be explained by the computed domain already being equal.
+    # A deployed domain one ULP off the computed one -- close enough to be
+    # adopted silently, different enough that adopting it is observable.
     rupture_id = cr._rupture_id_from_path(SAMPLE)
     events_dir = tmp_path / "events"
     (events_dir / rupture_id).mkdir(parents=True)
-    deployed_domain = dict(completed_reference["domain"], duration=999.5)
+    duration = completed_reference["domain"]["duration"]
+    deployed_domain = dict(
+        completed_reference["domain"], duration=np.nextafter(duration, duration + 1)
+    )
     (events_dir / rupture_id / "realisation.json").write_text(
         json.dumps(
             {
@@ -501,10 +565,9 @@ def test_complete_one_carries_the_deployed_domain_through(tmp_path: Path) -> Non
     dst = tmp_path / "completed.json"
     src = tmp_path / f"realisation_{rupture_id}.json"
     shutil.copy(SAMPLE, src)
-    cr.complete_one(
-        src, dst, DefaultsVersion.v24_2_2_1, overrides, None, events_dir
-    )
+    cr.complete_one(src, dst, DefaultsVersion.v24_2_2_1, overrides, None, events_dir)
 
     completed = json.loads(dst.read_text())
-    assert completed["domain"] == deployed_domain
+    assert completed["domain"]["duration"] == deployed_domain["duration"]
+    assert completed["domain"]["duration"] != duration
     assert list(completed) == cr.FELIPE_SECTION_ORDER

@@ -29,6 +29,13 @@ import typer
 from tqdm import tqdm
 
 from workflow.defaults import DefaultsVersion, load_defaults
+from workflow.inheritance import (
+    InheritanceDecision,
+    resolve_section,
+)
+from workflow.inheritance import (
+    load_decisions as load_inheritance_decisions,
+)
 from workflow.realisations import (
     BroadbandParameters,
     EMOD3DParameters,
@@ -310,6 +317,7 @@ def complete_one(
     overrides: Overrides,
     resolved: dict[str, Any] | None = None,
     inherit_domain_from: Path | None = None,
+    inheritance_decisions: dict[str, InheritanceDecision] | None = None,
 ) -> None:
     """Complete a single minimal realisation, writing the full file to ``dst``.
 
@@ -332,6 +340,9 @@ def complete_one(
     inherit_domain_from : Path, optional
         Events directory to carry the ``domain`` section over from, verbatim.
         Omit to keep the computed domain.
+    inheritance_decisions : dict of str to InheritanceDecision, optional
+        Recorded resolutions for domains that genuinely diverge from the computed
+        one. Without one, a divergence fails this rupture.
 
     Raises
     ------
@@ -379,23 +390,33 @@ def complete_one(
     if inherit_domain_from is not None:
         # After the decisions, so the consistency check below sees the
         # velocity model the file actually ends up recording.
-        _inherit_domain(realisation, inherit_domain_from, _rupture_id_from_path(src))
+        _inherit_domain(
+            realisation,
+            inherit_domain_from,
+            _rupture_id_from_path(src),
+            inheritance_decisions,
+        )
     realisation = normalize_key_order(realisation)
     with open(dst, "w", encoding="utf-8") as handle:
         json.dump(realisation, handle, indent=4)
 
 
 def _inherit_domain(
-    realisation: dict[str, Any], events_dir: Path, rupture_id: str
+    realisation: dict[str, Any],
+    events_dir: Path,
+    rupture_id: str,
+    decisions: dict[str, InheritanceDecision] | None = None,
 ) -> None:
     """Replace ``realisation``'s computed domain with the deployed one, in place.
 
-    The domain is computed from the velocity model and the sources, so carrying
-    one over is only sound while those inputs still agree with the deployed
-    file's. If they do not, the inherited domain describes a grid that no longer
-    matches the realisation it sits in -- and because "velocity_model changed,
-    domain unchanged" is exactly what a clean pass looks like, nothing
-    downstream would catch it. Hence the check.
+    Two things have to hold. The domain is computed from the velocity model and
+    the sources, so carrying one over is only sound while those inputs still
+    agree with the deployed file's -- if they do not, the inherited domain
+    describes a grid that no longer matches the realisation it sits in, and
+    "velocity_model changed, domain unchanged" is exactly what a clean pass looks
+    like, so nothing downstream would catch it. And the carried domain itself is
+    checked against the one just computed, so it is adopted silently only when
+    the difference is float noise.
 
     Parameters
     ----------
@@ -405,12 +426,17 @@ def _inherit_domain(
         Directory holding one ``<rupture id>/realisation.json`` per event.
     rupture_id : str
         The rupture whose deployed domain to adopt.
+    decisions : dict of str to InheritanceDecision, optional
+        Recorded resolutions for domains that genuinely diverge.
 
     Raises
     ------
     ValueError
         If the deployed file's ``velocity_model`` or ``sources`` no longer agree
         with this realisation's, to within ``DEFAULT_TOLERANCE``.
+    UndecidedDivergenceError
+        If the deployed domain differs from the computed one by more than the
+        section tolerance and no decision covers it.
     """
     deployed_ffp = events_dir / rupture_id / "realisation.json"
     if not deployed_ffp.is_file():
@@ -431,7 +457,9 @@ def _inherit_domain(
                 f"longer matches {deployed_ffp}, so the deployed domain was derived "
                 f"from different inputs"
             )
-    realisation["domain"] = deployed["domain"]
+    realisation["domain"] = resolve_section(
+        "domain", rupture_id, deployed["domain"], realisation["domain"], decisions or {}
+    )
 
 
 def summary_row(realisation: dict[str, Any], rupture_id: str) -> dict[str, Any]:
@@ -498,7 +526,13 @@ def _rupture_id_from_path(path: Path) -> str:
 
 def _complete_worker(
     args: tuple[
-        Path, Path, DefaultsVersion, Overrides, dict[str, Any] | None, Path | None
+        Path,
+        Path,
+        DefaultsVersion,
+        Overrides,
+        dict[str, Any] | None,
+        Path | None,
+        dict[str, InheritanceDecision] | None,
     ],
 ) -> CompletionResult:
     """Complete one realisation, capturing any error for aggregate reporting.
@@ -506,7 +540,8 @@ def _complete_worker(
     Parameters
     ----------
     args : tuple
-        ``(src, dst, defaults_version, overrides, resolved, inherit_domain_from)``.
+        ``(src, dst, defaults_version, overrides, resolved, inherit_domain_from,
+        inheritance_decisions)``.
 
     Returns
     -------
@@ -514,11 +549,25 @@ def _complete_worker(
         Success carries a ``summary``; failure carries an ``error`` and the
         partial output is removed.
     """
-    src, dst, defaults_version, overrides, resolved, inherit_domain_from = args
+    (
+        src,
+        dst,
+        defaults_version,
+        overrides,
+        resolved,
+        inherit_domain_from,
+        inheritance_decisions,
+    ) = args
     rupture_id = _rupture_id_from_path(src)
     try:
         complete_one(
-            src, dst, defaults_version, overrides, resolved, inherit_domain_from
+            src,
+            dst,
+            defaults_version,
+            overrides,
+            resolved,
+            inherit_domain_from,
+            inheritance_decisions,
         )
         with open(dst, encoding="utf-8") as handle:
             completed = json.load(handle)
@@ -587,6 +636,15 @@ def complete_realisations(
             "no longer match, which would leave the carried domain stale.",
         ),
     ] = None,
+    inheritance_decisions_ffp: Annotated[
+        Path | None,
+        typer.Option(
+            "--inheritance-decisions",
+            dir_okay=False,
+            help="YAML recording which value to use where a carried-over domain "
+            "genuinely differs from the one computed this run.",
+        ),
+    ] = None,
     workers: Annotated[int, typer.Option(min=1)] = min(8, cpu_count()),
 ) -> None:
     """Complete every minimal realisation in ``input_dir`` into a full file.
@@ -614,11 +672,14 @@ def complete_realisations(
         Whether to replace realisations that already exist in ``deploy_dir``.
     inherit_domain_from : Path, optional
         Events directory to carry the ``domain`` section over from.
+    inheritance_decisions_ffp : Path, optional
+        YAML recording which value to use where a carried-over domain diverges.
     workers : int
         Number of parallel processes (1 = serial).
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     overrides = load_overrides(felipe_scripts_dir, vm_version)
+    inheritance_decisions = load_inheritance_decisions(inheritance_decisions_ffp)
 
     resolved: dict[str, Any] = {}
     if parameters is not None:
@@ -646,6 +707,7 @@ def complete_realisations(
             overrides,
             resolved,
             inherit_domain_from,
+            inheritance_decisions,
         )
         for src in valid_files
     ]

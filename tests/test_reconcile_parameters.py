@@ -38,6 +38,36 @@ def test_values_equivalent_does_not_conflate_bools_with_ints() -> None:
     assert not rp.values_equivalent(True, 1)
 
 
+def test_values_equivalent_is_relative_only_by_default() -> None:
+    # Two denormal residues of the same "zero". A parameter grid must still call
+    # these different -- 0.0132 Hz and 0.0 Hz are different parameters.
+    assert not rp.values_equivalent(1.4087856255707695e-34, 3.2e-07)
+
+
+def test_abs_tolerance_absorbs_near_zero_differences() -> None:
+    assert rp.values_equivalent(1.4087856255707695e-34, 3.2e-07, 1e-9, 1e-6)
+
+
+def test_abs_tolerance_reaches_inside_lists() -> None:
+    # Threading it through the container branches is easy to leave out, and the
+    # scalar case passing says nothing about the list one.
+    assert rp.values_equivalent([1.4087856255707695e-34], [3.2e-07], 1e-9, 1e-6)
+    assert not rp.values_equivalent([1.4087856255707695e-34], [3.2e-07], 1e-9, 0.0)
+
+
+def test_abs_tolerance_reaches_inside_dicts() -> None:
+    assert rp.values_equivalent(
+        {"s": 1.4087856255707695e-34}, {"s": 3.2e-07}, 1e-9, 1e-6
+    )
+    assert not rp.values_equivalent(
+        {"s": 1.4087856255707695e-34}, {"s": 3.2e-07}, 1e-9, 0.0
+    )
+
+
+def test_abs_tolerance_still_catches_a_real_difference() -> None:
+    assert not rp.values_equivalent([0.12], [0.83], 1e-9, 1e-6)
+
+
 def test_is_discrete_true_for_a_list_of_names() -> None:
     assert rp.is_discrete(["PGA", "PGV", "pSA"])
 

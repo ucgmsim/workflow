@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 import typer
 
+from workflow import inheritance as ih
 from workflow.defaults import DefaultsVersion
 from workflow.scripts import generate_realisations_from_csv as gr
 
@@ -248,31 +249,49 @@ def test_section_keys_covers_every_inheritable_section() -> None:
     assert {section.value for section in gr.InheritableSection} == set(gr.SECTION_KEYS)
 
 
-def test_generate_one_overwrites_the_generated_rupture_propagation(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    target = tmp_path / "realisation_100932.json"
+# A tree the same as RUPTURE_PROPAGATION to within the section tolerance: the
+# jump-point s coordinates are both effectively zero, delivered as different
+# denormal residue, which a relative-only comparison would call a 100% mismatch.
+NOISY_RUPTURE_PROPAGATION = {
+    "rupture_causality_tree": {"Beacon Hill": "Little Hillfoot", "Little Hillfoot": None},
+    "jump_points": {
+        "Beacon Hill": {
+            "from_point": {"s": 3.2e-07, "d": 0.00011441641893337499},
+            "to_point": {"s": 4.5e-12, "d": 6.646602576300804e-05},
+        }
+    },
+    "hypocentre": {"s": 0.42683003552928289, "d": 0.874844163014458},
+}
 
-    def generate_a_different_tree(
-        cmd: list[str], **kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
+A_DIFFERENT_TREE = {
+    "rupture_causality_tree": {"Beacon Hill": None},
+    "jump_points": {},
+    "hypocentre": {"s": 0.1, "d": 0.2},
+}
+
+
+def generator_writing(section_value: object) -> object:
+    def generate(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         Path(cmd[3]).write_text(
             json.dumps(
                 {
                     "metadata": {"name": "Rupture 100932"},
-                    "rupture_propagation": {
-                        "rupture_causality_tree": {"Beacon Hill": None},
-                        "jump_points": {},
-                        "hypocentre": {"s": 0.1, "d": 0.2},
-                    },
-                    "magnitudes": {"AlpineK2T": 7.1},
+                    "rupture_propagation": section_value,
+                    "magnitudes": {"magnitudes": {"AlpineK2T": 7.1}},
                 }
             ),
             encoding="utf-8",
         )
         return subprocess.CompletedProcess(cmd, 0, "", "")
 
-    monkeypatch.setattr(subprocess, "run", generate_a_different_tree)
+    return generate
+
+
+def test_generate_one_adopts_the_inherited_value_when_the_difference_is_noise(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "realisation_100932.json"
+    monkeypatch.setattr(subprocess, "run", generator_writing(NOISY_RUPTURE_PROPAGATION))
 
     result = gr.generate_one(
         Path("nshmdb.db"),
@@ -284,35 +303,98 @@ def test_generate_one_overwrites_the_generated_rupture_propagation(
 
     assert result is None
     written = json.loads(target.read_text(encoding="utf-8"))
+    # Byte-exact adoption: the derived value differed, so equality proves the
+    # deployed one was written rather than the derived one kept.
     assert written["rupture_propagation"] == RUPTURE_PROPAGATION
-    # Every other section is still whatever the generator derived.
-    assert written["magnitudes"] == {"AlpineK2T": 7.1}
+    assert written["magnitudes"] == {"magnitudes": {"AlpineK2T": 7.1}}
     # The section keeps its position, so complete-realisations still sees the
     # order nshm2022-to-realisation wrote.
     assert list(written) == ["metadata", "rupture_propagation", "magnitudes"]
+
+
+def test_generate_one_refuses_a_real_divergence_without_a_decision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "realisation_100932.json"
+    monkeypatch.setattr(subprocess, "run", generator_writing(A_DIFFERENT_TREE))
+
+    message = gr.generate_one(
+        Path("nshmdb.db"),
+        100932,
+        target,
+        DefaultsVersion.v24_2_2_1,
+        inherited={"rupture_propagation": RUPTURE_PROPAGATION},
+    )
+
+    assert message is not None
+    assert "rupture_propagation" in message
+    assert "Record a choice for" in message
+    # No half-inherited file is left behind.
+    assert not target.exists()
+
+
+def test_generate_one_keeps_the_inherited_value_when_a_decision_says_so(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "realisation_100932.json"
+    monkeypatch.setattr(subprocess, "run", generator_writing(A_DIFFERENT_TREE))
+
+    result = gr.generate_one(
+        Path("nshmdb.db"),
+        100932,
+        target,
+        DefaultsVersion.v24_2_2_1,
+        inherited={"rupture_propagation": RUPTURE_PROPAGATION},
+        decisions={
+            "rupture_propagation": ih.InheritanceDecision(
+                choice=ih.InheritanceChoice.inherited,
+                reason="the derived tree is an unseeded draw",
+                decided="2026-08-14",
+            )
+        },
+    )
+
+    assert result is None
+    written = json.loads(target.read_text(encoding="utf-8"))
+    assert written["rupture_propagation"] == RUPTURE_PROPAGATION
+
+
+def test_generate_one_takes_the_derived_value_when_a_decision_says_so(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "realisation_100932.json"
+    monkeypatch.setattr(subprocess, "run", generator_writing(A_DIFFERENT_TREE))
+
+    result = gr.generate_one(
+        Path("nshmdb.db"),
+        100932,
+        target,
+        DefaultsVersion.v24_2_2_1,
+        inherited={"rupture_propagation": RUPTURE_PROPAGATION},
+        decisions={
+            "100932.rupture_propagation": ih.InheritanceDecision(
+                choice=ih.InheritanceChoice.derived,
+                reason="adopting the new causality tree for this event",
+                decided="2026-08-14",
+            )
+        },
+    )
+
+    assert result is None
+    written = json.loads(target.read_text(encoding="utf-8"))
+    assert written["rupture_propagation"] == A_DIFFERENT_TREE
 
 
 def test_generate_one_leaves_rupture_propagation_alone_when_not_given(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = tmp_path / "realisation_100932.json"
-    derived = {
-        "rupture_causality_tree": {"Beacon Hill": None},
-        "jump_points": {},
-        "hypocentre": {"s": 0.1, "d": 0.2},
-    }
-
-    def generate(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        Path(cmd[3]).write_text(
-            json.dumps({"rupture_propagation": derived}), encoding="utf-8"
-        )
-        return subprocess.CompletedProcess(cmd, 0, "", "")
-
-    monkeypatch.setattr(subprocess, "run", generate)
+    monkeypatch.setattr(subprocess, "run", generator_writing(A_DIFFERENT_TREE))
 
     gr.generate_one(Path("nshmdb.db"), 100932, target, DefaultsVersion.v24_2_2_1)
 
-    assert json.loads(target.read_text(encoding="utf-8"))["rupture_propagation"] == derived
+    written = json.loads(target.read_text(encoding="utf-8"))
+    assert written["rupture_propagation"] == A_DIFFERENT_TREE
 
 
 def test_generate_one_reports_a_generated_file_with_no_rupture_propagation(
@@ -356,13 +438,14 @@ def run_campaign(
         Path(cmd[3]).write_text(
             json.dumps(
                 {
-                    "sources": {"source_geometries": {"Beacon Hill": [[0.0, 0.0]]}},
-                    "rupture_propagation": {
-                        "rupture_causality_tree": {"Beacon Hill": None},
-                        "jump_points": {},
-                        "hypocentre": {"s": 0.1, "d": 0.2},
+                    "sources": {
+                        "source_geometries": {"Beacon Hill": [[1.0000000000000002, 1.0]]}
                     },
-                    "magnitudes": {"magnitudes": {"Beacon Hill": 7.0}},
+                    "rupture_propagation": NOISY_RUPTURE_PROPAGATION,
+                    "magnitudes": {
+                        "magnitudes": {"Beacon Hill": 7.900000000000001}
+                    },
+                    "rakes": {"rakes": {"Beacon Hill": 90.0}},
                 }
             ),
             encoding="utf-8",
@@ -390,6 +473,7 @@ def deployed_events(tmp_path: Path) -> Path:
         sources={"source_geometries": {"Beacon Hill": [[1.0, 1.0]]}},
         rupture_propagation=RUPTURE_PROPAGATION,
         magnitudes={"magnitudes": {"Beacon Hill": 7.9}},
+        rakes={"rakes": {"Beacon Hill": 90.0}},
     )
     return events_dir
 

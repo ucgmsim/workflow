@@ -52,13 +52,23 @@ DEFAULT_TOLERANCE = 1e-9
 
 
 def values_equivalent(
-    left: object, right: object, tolerance: float = DEFAULT_TOLERANCE
+    left: object,
+    right: object,
+    tolerance: float = DEFAULT_TOLERANCE,
+    abs_tolerance: float = 0.0,
 ) -> bool:
     """Return whether two parameter values are the same, allowing float noise.
 
-    Comparison is purely relative -- ``abs_tol`` is zero -- so a value that
-    changed from exactly zero is always reported as a difference rather than
-    being absorbed.
+    Comparison defaults to purely relative -- ``abs_tolerance`` is zero -- so a
+    value that changed from exactly zero is reported as a difference rather than
+    being absorbed. That is right for parameter grids, where 0.0132 Hz and 0.0 Hz
+    are different parameters.
+
+    It is wrong for quantities whose true value at some boundary *is* zero, and
+    which floating point delivers as denormal residue instead. Normalised
+    ``jump_points`` coordinates are the case in hand: across the deployed set
+    they reach 4.3e-216, and comparing two such residues relatively is
+    meaningless. Pass an ``abs_tolerance`` for those.
 
     Parameters
     ----------
@@ -68,6 +78,9 @@ def values_equivalent(
         The other value.
     tolerance : float
         Relative tolerance for numeric comparison.
+    abs_tolerance : float
+        Absolute tolerance for numeric comparison. Zero -- the default -- makes
+        the comparison purely relative.
 
     Returns
     -------
@@ -78,10 +91,10 @@ def values_equivalent(
     if isinstance(left, bool) or isinstance(right, bool):
         return left is right
     if isinstance(left, (int, float)) and isinstance(right, (int, float)):
-        return math.isclose(left, right, rel_tol=tolerance, abs_tol=0.0)
+        return math.isclose(left, right, rel_tol=tolerance, abs_tol=abs_tolerance)
     if isinstance(left, list) and isinstance(right, list):
         return len(left) == len(right) and all(
-            values_equivalent(one, other, tolerance)
+            values_equivalent(one, other, tolerance, abs_tolerance)
             for one, other in zip(left, right, strict=True)
         )
     if isinstance(left, dict) and isinstance(right, dict):
@@ -92,7 +105,7 @@ def values_equivalent(
         left_map = cast(dict[str, object], left)
         right_map = cast(dict[str, object], right)
         return left_map.keys() == right_map.keys() and all(
-            values_equivalent(left_map[key], right_map[key], tolerance)
+            values_equivalent(left_map[key], right_map[key], tolerance, abs_tolerance)
             for key in left_map
         )
     return left == right

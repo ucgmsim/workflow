@@ -45,6 +45,12 @@ import typer
 from tqdm import tqdm
 
 from workflow.defaults import DefaultsVersion
+from workflow.inheritance import (
+    InheritanceDecision,
+    UndecidedDivergenceError,
+    load_decisions,
+    resolve_section,
+)
 
 app = typer.Typer()
 
@@ -88,6 +94,7 @@ def generate_one(
     defaults_version: DefaultsVersion,
     seeds: dict[str, int] | None = None,
     inherited: dict[str, Any] | None = None,
+    decisions: dict[str, InheritanceDecision] | None = None,
 ) -> str | None:
     """Generate one minimal realisation stub for a rupture.
 
@@ -110,7 +117,12 @@ def generate_one(
         Sections written over the generated ones *after* generation succeeds.
         These are outputs being replaced, not inputs -- the generator has no
         option to accept them, so it derives each section and this overwrites it.
+        Each is checked against what was derived, and only taken silently when
+        the two agree to within the section's tolerance.
         See ``docs/rupture_propagation_reproducibility.md``.
+    decisions : dict of str to InheritanceDecision, optional
+        Recorded resolutions for sections that genuinely diverge. Without one,
+        a divergence makes this rupture fail rather than silently picking a side.
 
     Returns
     -------
@@ -155,9 +167,21 @@ def generate_one(
                 f"Failed to inherit content for rupture {rupture_id}, skipping: the "
                 f"generated realisation has no {absent} section(s) to replace.\n"
             )
-        # Assigning to an existing key preserves its position, so the section
-        # order nshm2022-to-realisation wrote is left untouched.
-        realisation.update(inherited)
+        # The generator derived each of these anyway, so the carried value is
+        # checked against it rather than trusted. Assigning to an existing key
+        # preserves its position, leaving the section order untouched.
+        try:
+            for section, value in inherited.items():
+                realisation[section] = resolve_section(
+                    section,
+                    str(rupture_id),
+                    value,
+                    realisation[section],
+                    decisions or {},
+                )
+        except UndecidedDivergenceError as exc:
+            realisation_ffp.unlink(missing_ok=True)
+            return f"Skipping rupture {rupture_id}: {exc}\n"
         realisation_ffp.write_text(json.dumps(realisation), encoding="utf-8")
 
     return None
@@ -252,6 +276,18 @@ def generate_realisations_from_csv(
             ),
         ),
     ] = None,
+    inheritance_decisions: Annotated[
+        Path | None,
+        typer.Option(
+            dir_okay=False,
+            help=(
+                "YAML recording which value to use where a carried-over section "
+                "genuinely differs from the one derived this run. Keys are "
+                "'<section>' or '<rupture id>.<section>'; each entry needs a "
+                "'choice' of inherited/derived and a 'reason'."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Generate realisation stub files for every rupture ID listed in a CSV file.
 
@@ -269,8 +305,11 @@ def generate_realisations_from_csv(
         Events directory to carry sections over from.
     inherit : list of InheritableSection, optional
         Sections to carry over verbatim.
+    inheritance_decisions : Path, optional
+        YAML recording which value to use where a carried-over section diverges.
     """
     sections = [section.value for section in inherit or []]
+    decisions = load_decisions(inheritance_decisions)
 
     # The two options are meaningless apart, and silently doing nothing is the
     # failure mode that matters: the run looks like it inherited and did not.
@@ -301,6 +340,7 @@ def generate_realisations_from_csv(
     rupture_ids = df["chosen_nshm_id"].dropna().astype(int).tolist()
 
     inherited_counts: dict[str, int] = dict.fromkeys(sections, 0)
+    undecided: list[str] = []
     for rupture_id in tqdm(rupture_ids, desc="Generating realisations"):
         realisation_ffp = output_dir / f"realisation_{rupture_id}.json"
         try:
@@ -333,6 +373,7 @@ def generate_realisations_from_csv(
                 defaults_version,
                 seeds=seeds,
                 inherited=inherited,
+                decisions=decisions,
             )
         except FileNotFoundError:
             print(
@@ -341,11 +382,23 @@ def generate_realisations_from_csv(
             )
             raise typer.Exit(code=1)
         if error_msg is not None:
+            if "Record a choice for" in error_msg:
+                undecided.append(error_msg.strip())
             print(f"\n{error_msg}")
             error_log_handle.write(error_msg + "\n")
             error_log_handle.flush()
 
     error_log_handle.close()
+
+    if undecided:
+        # Written as a template for the decision file: add a choice and a reason
+        # to each entry and pass it back with --inheritance-decisions.
+        report = output_dir / "inheritance_divergences.txt"
+        report.write_text("\n\n".join(undecided) + "\n", encoding="utf-8")
+        print(
+            f"\n{len(undecided)} rupture(s) need a decision before they can be "
+            f"generated. Details: {report}"
+        )
     print(f"\nDone. Processed {len(rupture_ids)} rupture ID(s).")
     for section in sections:
         count = inherited_counts[section]
