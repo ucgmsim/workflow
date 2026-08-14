@@ -11,7 +11,7 @@ requires-python = ">=3.13"
 dynamic = ["version"]
 dependencies = [
   # UCGMSim Dependencies
-  "im-calculation>=2026.07.2",
+  "im-calculation @ git+ssh://git@github.com/ucgmsim/IM_calculation@no_parallel",
   "velocity-modelling>=2026.2.1",
   "nshmdb>=2025.12.1",
   "oq_wrapper>=2026.05.2",
