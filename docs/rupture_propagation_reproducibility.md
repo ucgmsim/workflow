@@ -192,27 +192,32 @@ to reproduce.
 
 ## The stopgap currently in place
 
-`generate-realisations-from-csv` has an `--inherit-rupture-propagation-from`
-option. Given an events directory it copies each event's entire
-`rupture_propagation` section — causality tree, jump points and hypocentre —
-verbatim over the section the generator derived, after generation succeeds.
+`generate-realisations-from-csv` takes `--inherit-from <events dir>` with a
+repeatable `--inherit <section>`. Given `rupture_propagation`, it copies each
+event's entire section — causality tree, jump points and hypocentre — over the
+one the generator derived, after generation succeeds.
 
 ```bash
 generate-realisations-from-csv nshmdb.db ruptures.csv out/ 24.2.2.1 \
-    --inherit-seeds-from                 /path/to/events \
-    --inherit-rupture-propagation-from   /path/to/events
+    --inherit-from /path/to/events \
+    --inherit seeds --inherit sources --inherit rupture_propagation \
+    --inherit magnitudes --inherit rakes \
+    --inheritance-decisions decisions.yaml
 ```
 
-Inheriting seeds without also inheriting propagation prints a warning, because
-that combination looks like reproduction and is not.
+Inheriting anything without also inheriting `rupture_propagation` prints a
+warning, because that combination looks like reproduction and is not.
 
 **Understand what this buys and what it costs.** It makes the regenerated set
 match the deployed set, so the campaign's content verification passes. It does
-not make anything reproducible. The section is *copied*, not derived, and the
-copy is invisible in the file's own provenance: `log_trail` records the arguments
-`nshm2022-to-realisation` was called with, and the carry-over happens outside
-that process. A file with an inherited tree is indistinguishable, from the inside,
-from one that derived it.
+not make anything reproducible. The section is *copied*, not derived — though as
+of the addendum below, the copy is checked against the derived value rather than
+taken blindly, so a redrawn tree is announced rather than silently overwritten.
+
+The copy remains invisible in the file's own provenance: `log_trail` records the
+arguments `nshm2022-to-realisation` was called with, and the carry-over happens
+outside that process. A file with an inherited tree is indistinguishable, from
+the inside, from one that derived it.
 
 Any run that uses the flag must therefore say so somewhere durable —
 `PROVENANCE.md` for the campaign — or the provenance record overstates what was
@@ -264,7 +269,7 @@ Whoever picks this up has to choose:
 - **Accept the divergence.** Regenerate, let ~30 events land on different trees,
   recompute those events' SRFs. The set becomes genuinely reproducible. This is
   the honest option and the one that matches the campaign's purpose.
-- **Keep carrying the section over** with `--inherit-rupture-propagation-from`.
+- **Keep carrying the section over** with `--inherit rupture_propagation`.
   The set is preserved, but its rupture propagation remains derived from an
   untraceable predecessor for as long as that flag is used.
 
