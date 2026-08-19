@@ -243,8 +243,8 @@ nzcvm:
       provides: []
       requires: []
       type: clamp
-    - type: backus_averaging
-      window_size: 5
+    - type: backus
+      samples: 5
     - coastline: /nzcvm/resources/coastline.wkb.gz
       provides:
         - coastline
