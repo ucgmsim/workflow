@@ -277,22 +277,9 @@ def generate_stoch(
         realisation_ffp, metadata.defaults_version
     )
 
-    source_config = SourceConfig.read_from_realisation(realisation_ffp)
     srf_file = srf.read_srf(srf_ffp)
-    if all(
-        isinstance(fault, sources.Point)
-        for fault in source_config.source_geometries.values()
-    ):
-        source = srf_file.header.iloc[0]
-        srf_nstk = int(source["nstk"])
-        srf_len = float(source["len"])
-        dx = srf_len / srf_nstk
-        srf_ndip = int(source["ndip"])
-        srf_wid = float(source["wid"])
-        dy = srf_wid / srf_ndip
-    else:
-        dx = stoch_config.stoch_dx
-        dy = stoch_config.stoch_dy
+    dx = stoch_config.stoch_dx
+    dy = stoch_config.stoch_dy
 
     stoch_file = convert_srf_to_stoch(srf_file, dx, dy)
     with open(stoch_ffp, "w") as f:

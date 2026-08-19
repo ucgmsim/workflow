@@ -176,6 +176,59 @@ def resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
 VS30_SIM = 500.0
 
 
+LF_COMPONENTS = ["x", "y", "z"]
+"""Component labels every low-frequency output uses.
+
+Written by `lf-to-xarray` for SW4 and by `qcore.timeseries` for EMOD3D:
+x = east-west, y = north-south, z = vertical.
+"""
+
+HF_COMPONENT_TO_LF = {"090": "x", "000": "y", "ver": "z"}
+"""Component relabelling from the high-frequency simulation's convention.
+
+`hf_simulation` names components by azimuth -- 090 for east, 000 for north,
+and `ver` for the vertical -- where the low-frequency outputs name the same
+three x/y/z. Same components, same order, different labels.
+"""
+
+
+def relabel_hf_components(hf: xr.Dataset) -> xr.Dataset:
+    """Put an HF dataset's components on the low-frequency naming.
+
+    Parameters
+    ----------
+    hf : xr.Dataset
+        The high-frequency dataset, as written by `hf-sim`.
+
+    Returns
+    -------
+    xr.Dataset
+        The same dataset with its `component` coordinate relabelled. Labels
+        already in the low-frequency convention are left alone, so this is
+        idempotent.
+
+    Raises
+    ------
+    ValueError
+        If the components still do not match the low-frequency set. Without
+        this check the mismatch is silent: xarray aligns the two datasets on
+        `component`, finds no labels in common, and fills every high-frequency
+        sample with NaN. The failure then surfaces a long way downstream, as a
+        NaN somewhere inside the site amplification model.
+    """
+    components = [
+        HF_COMPONENT_TO_LF.get(str(component), str(component))
+        for component in hf.component.values
+    ]
+    if set(components) != set(LF_COMPONENTS):
+        raise ValueError(
+            f"High-frequency components {list(hf.component.values)} do not "
+            f"correspond to the low-frequency components {LF_COMPONENTS}. "
+            f"Add the mapping to HF_COMPONENT_TO_LF."
+        )
+    return hf.assign_coords(component=components)
+
+
 def _process_bb_chunk(
     dset: xr.Dataset,
     dt: float,
@@ -310,7 +363,7 @@ def combine_hf_and_lf(
     # in-memory. Selecting on the lazy backend arrays instead lets each dask
     # chunk read just its own stations from disk.
     lf = xr.open_dataset(low_frequency_waveform_file)
-    hf = xr.open_dataset(high_frequency_waveform_file)
+    hf = relabel_hf_components(xr.open_dataset(high_frequency_waveform_file))
 
     common_stations = sorted(
         set(map(str, hf.station.values)) & set(map(str, lf.station.values))
