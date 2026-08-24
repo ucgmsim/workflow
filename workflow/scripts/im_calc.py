@@ -866,7 +866,7 @@ def calculate_intensity_measures(
     broadband = xr.open_dataset(broadband_simulation_ffp).chunk(
         {"component": -1, "time": -1, "station": "auto"}
     )
-    if 'lat' in broadband:
+    if 'latitude' not in broadband and 'lat' in broadband:
         broadband = broadband.rename({"lat": "latitude", "lon": "longitude"})
 
     dt = broadband.attrs["dt"]
