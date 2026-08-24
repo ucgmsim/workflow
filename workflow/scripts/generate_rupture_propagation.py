@@ -59,12 +59,17 @@ class RuptureStrategy(StrEnum):
 def generate_rupture_propagation(
     realisation_ffp: Annotated[Path, typer.Argument()],
     initial_fault: Annotated[str, typer.Argument()],
-    shypo: Annotated[Optional[float], typer.Option(min=0, max=1)] = None,
-    dhypo: Annotated[Optional[float], typer.Option(min=0, max=1)] = None,
+    shypo: Annotated[float | None, typer.Option(min=0, max=1)] = None,
+    dhypo: Annotated[float | None, typer.Option(min=0, max=1)] = None,
     strategy: Annotated[
         RuptureStrategy,
         typer.Option(case_sensitive=False),
     ] = RuptureStrategy.RANDOM,
+    min_connected_depth: Annotated[float, typer.Option(min=0)] = 5.0,
+    jump_cutoff: Annotated[
+        float,
+        typer.Option(min=0),
+    ] = 15,
 ) -> None:
     """Generate a likely rupture propagation for a given set of sources.
 
@@ -80,6 +85,10 @@ def generate_rupture_propagation(
         Hypocentre d-coordinates.
     strategy : RuptureStrategy
         The rupture propagation strategy to use. Default is `RuptureStrategy.RANDOM`.
+    min_connected_depth : float, optional
+        The depth to measure the fault distance. Defaults to 5km.
+    jump_cutoff : float, optional
+        The maximum jump distance between faults in km.
     """
     seeds = realisations.Seeds.read_from_realisation_or_random(realisation_ffp)
     source_config = realisations.SourceConfig.read_from_realisation(realisation_ffp)
@@ -101,12 +110,13 @@ def generate_rupture_propagation(
         faults,
         initial_source=initial_fault,
         strategy=strategy,  # type: ignore
+        jump_impossibility_limit_distance=round(jump_cutoff * 1000),
     )
 
     rupture_propagation_config = realisations.RupturePropagationConfig(
         rupture_causality_tree=rupture_causality_tree,
         jump_points=rupture_propagation.jump_points_from_rupture_tree(
-            faults, rupture_causality_tree
+            faults, rupture_causality_tree, min_depth=min_connected_depth
         ),
         hypocentre=hypocentre,
     )
