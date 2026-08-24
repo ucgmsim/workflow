@@ -1,6 +1,28 @@
 ---
 bb:
   flo: 1.0
+velocity_model:
+  # Overrides the root default of 2.0 km, which is an EMOD3D value and has no
+  # absorbing layer to clear. Two criteria bear on this number, and only the
+  # first is enforced (`workflow.sw4.check_fault_buffer`):
+  #
+  # 1. HARD FLOOR, 14 km. A source must sit outside the SW4 supergrid sponge,
+  #    inside which SW4 solves a damped, coordinate-stretched equation rather
+  #    than the wave equation, plus a discretisation margin for its own stencil:
+  #    `(gp + STENCIL_MARGIN_GRIDPOINTS) * coarsest_resolution`
+  #    = (30 + 5) * 400 m = 14 km at the widest sponge any supported domain
+  #    produces. Below this the run is not a ground motion prediction; it is
+  #    the standing-wave failure seen in validation_results_24-08.
+  #
+  # 2. LONG-PERIOD CRITERION, ~80 km. Clearing the sponge is not the same as
+  #    the sponge working. The layer absorbs adiabatically only while
+  #    `W cos(theta) / lambda >> max|Psi0'| / 2pi = 0.431`, so a 12 km sponge
+  #    absorbs only below ~8 s at normal incidence and ~4 s at 60 degrees.
+  #    Empirically, sound runs in that campaign were 83-113 km from the domain
+  #    edge and broken ones 4-5 km. This is NOT enforced: it is a property of
+  #    the period band being asked for, not of the buffer alone, and enforcing
+  #    it would reject every affordable domain.
+  fault_buffer: 14.0
 hf:
   record:
     dt: 0.005
@@ -14,7 +36,6 @@ refinements:
 sw4:
   verbose: 2
   printcycle: 10
-  supergrid_padding: 30
   nz_min: 12
   commands:
     - name: "grid"
@@ -26,8 +47,11 @@ sw4:
           lat_p: 0.0,
           scale: 0.9996,
         }
+    # The sponge width is stated in metres rather than as `gp: 30`, which would
+    # be 30 gridpoints of the coarsest (400 m) grid and so vary with the
+    # domain depth. `gp` and `width` are mutually exclusive in SW4.
     - name: "supergrid"
-      parameters: { gp: 30 }
+      parameters: { width: 12000.0 }
     - name: "attenuation"
       parameters: { maxfreq: 10.0, phasefreq: 0.5, nmech: 3 }
     - name: "developer"

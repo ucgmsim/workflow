@@ -520,6 +520,10 @@ velocity_model:
   topo_type: "SQUASHED_TAPERED"
   vs30: 500.0
   s_wave_velocity: 3500.0
+  # NOTE: This 2.0 km buffer is the EMOD3D value and is kept for CyberShake
+  # reproducibility (v24.2.2.x are EMOD3D-only and have no absorbing sponge).
+  # It is far too small for SW4, which needs the buffer to clear the supergrid
+  # layer; v26.7.1Hz overrides this. See `workflow.sw4.minimum_fault_buffer_m`.
   fault_buffer: 2.0
   rrup_interpolants:
     [

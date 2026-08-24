@@ -846,7 +846,7 @@ class DomainParameters(RealisationConfiguration):
     domain: BoundingBox
     """The bounding box for the domain."""
     depth: float
-    """The depth of the domain (in metres)."""
+    """The depth of the domain (in kilometres)."""
     duration: float
     """The simulation duration (in seconds)."""
 
@@ -1372,8 +1372,6 @@ class SW4Parameters(RealisationConfiguration):
     """Fileio verbosity level."""
     printcycle: int
     """Output fileio print cycle."""
-    supergrid_padding: int
-    """Number of gridpoints extending past supergrid for padding."""
     nz_min: int
     """Minimum vertical cells in each refinement layer."""
     commands: list[SW4Command]

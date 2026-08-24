@@ -88,6 +88,27 @@ COORDINATE_METADATA = {
     "rjb": {"description": "Joyner-Boore distance", "units": "km"},
     "rx": {"description": "Generalised strike-parallel distance", "units": "km"},
     "ry": {"description": "Generalised strike-normal distance", "units": "km"},
+    "supergrid_depth": {
+        "description": (
+            "Penetration of the station into the solver's absorbing layer. "
+            "0 = interior (valid ground motion); > 0 = inside the damped, "
+            "coordinate-stretched sponge, where the trace is NOT a "
+            "ground-motion prediction and should be excluded (recommended "
+            "threshold: supergrid_depth > 0); NaN = not reported by this "
+            "solver, i.e. unknown rather than clean."
+        ),
+        "units": "m",
+    },
+    "supergrid_depth_gp": {
+        "description": (
+            "Penetration of the station into the solver's absorbing layer, "
+            "in grid points. Same three states as supergrid_depth (0 = "
+            "interior; > 0 = inside the sponge, the trace is NOT a "
+            "ground-motion prediction; NaN = not reported by this solver) "
+            "and the same recommended threshold of > 0."
+        ),
+        "units": "gridpoints",
+    },
     "latitude": {"description": "Station latitude", "units": "degrees"},
     "longitude": {"description": "Station longitude", "units": "degrees"},
     "frequency": {"description": "Frequency of motion", "units": "Hz"},
@@ -142,6 +163,97 @@ EMPIRICAL_STATISTIC_METADATA = {
     "std_Inter": "Between-event standard deviation of the natural logarithm of {description}",
     "std_Intra": "Within-event standard deviation of the natural logarithm of {description}",
 }
+
+
+SUPERGRID_COORDINATES = ("supergrid_depth", "supergrid_depth_gp")
+"""Per-station absorbing-layer penetration, as written by `lf-to-xarray`.
+
+Station-dimension *coordinates*, never data variables: `bb-sim` carries
+coordinates through untouched but drops data variables
+(`bb_sim._process_bb_chunk`).
+"""
+
+SUPERGRID_WIDTH_ATTRIBUTES = {
+    "SGWIDTH": "absorbing_layer_width_m",
+    "SGWIDTHGP": "absorbing_layer_width_gp",
+}
+"""Map from the LF file's own supergrid-width attributes to the IM root attrs.
+
+The width is taken from the waveform file rather than from the realisation
+configuration on purpose: the configuration can be edited after the run, so
+reading it would make the IM file's self-description disagree with the run
+that produced it.
+"""
+
+
+def supergrid_coordinates(dataset: xr.Dataset) -> dict[str, xr.DataArray]:
+    """Extract the absorbing-layer penetration coordinates from a waveform file.
+
+    The coordinates are present on SW4 low-frequency output (and, riding along
+    as coordinates, on the broadband file derived from it). They are absent for
+    every other solver, and absent on SW4 output written before SW4 reported
+    the supergrid. Both cases give an all-NaN coordinate: the penetration is
+    *unknown*, which is not the same claim as `0.0` ("checked, in the
+    interior"). Materialising it unconditionally means every IM file carries
+    the coordinate, whatever the solver.
+
+    Parameters
+    ----------
+    dataset : xr.Dataset
+        The waveform dataset, with a `station` dimension.
+
+    Returns
+    -------
+    dict[str, xr.DataArray]
+        A map from coordinate name to per-station values, loaded eagerly.
+    """
+    def absent() -> xr.DataArray:  # numpydoc ignore=GL08
+        return xr.DataArray(
+            np.full(dataset.sizes["station"], np.nan, dtype=np.float32),
+            dims="station",
+            coords={"station": dataset.station},
+        )
+
+    return {
+        name: (
+            dataset.coords[name].astype(np.float32).compute()
+            if name in dataset.coords
+            else absent()
+        )
+        for name in SUPERGRID_COORDINATES
+    }
+
+
+def supergrid_attributes(
+    dataset: xr.Dataset, supergrid: dict[str, xr.DataArray]
+) -> dict[str, str | float]:
+    """Describe the absorbing layer at the root of the IM file.
+
+    Nothing is said unless at least one station has a *reported* penetration:
+    an all-NaN coordinate means no solver reported one, and claiming an
+    absorbing layer then would be a claim about a run nobody measured.
+
+    Parameters
+    ----------
+    dataset : xr.Dataset
+        The waveform dataset, whose attributes carry the sponge width.
+    supergrid : dict[str, xr.DataArray]
+        The output of `supergrid_coordinates`.
+
+    Returns
+    -------
+    dict[str, str | float]
+        Root attributes naming the absorbing layer and its width, or an empty
+        dict if the run does not report one.
+    """
+    if not bool(np.isfinite(supergrid["supergrid_depth"]).any()):
+        return {}
+
+    attributes: dict[str, str | float] = {"absorbing_layer": "sw4_supergrid"}
+    for source_name, attribute_name in SUPERGRID_WIDTH_ATTRIBUTES.items():
+        if source_name in dataset.attrs:
+            attributes[attribute_name] = float(dataset.attrs[source_name])
+    return attributes
 
 
 def add_station_parameters(
@@ -766,6 +878,11 @@ def calculate_intensity_measures(
             station=broadband.station.str.match(r"^(\w{4})$").values
         )
 
+    # Read once the station set is final. `im-calc` runs on a raw SW4 LF file
+    # as well as on `realisation.bb`, and the coordinates ride through `bb-sim`
+    # untouched, so both paths carry the flag; every other solver gets NaN.
+    supergrid = supergrid_coordinates(broadband)
+
     intensity_measures = override_ims or intensity_measure_parameters.ims
 
     psa_periods = np.array(intensity_measure_parameters.valid_periods, dtype=np.float64)
@@ -835,7 +952,7 @@ def calculate_intensity_measures(
         "ztor": source_parameters.avg_ztor,
         "zbot": source_parameters.avg_zbot,
         "hypo_depth": source_parameters.hypo_depth,
-    }
+    } | supergrid_attributes(broadband, supergrid)
     site_parameters = None
     if empirical:
         # vs30 is one float per station; load it eagerly rather than letting it
@@ -871,7 +988,12 @@ def calculate_intensity_measures(
         dtree,
         distances.as_dict()
         | ((site_parameters).as_dict() if site_parameters else {})
-        | {"latitude": broadband["latitude"], "longitude": broadband["longitude"]},
+        | {"latitude": broadband["latitude"], "longitude": broadband["longitude"]}
+        # Belt and braces: these already ride along as coordinates on every
+        # leaf, so re-attaching them is idempotent -- but it makes the
+        # guarantee independent of xarray's coordinate propagation, and
+        # supplies the all-NaN fallback for solvers that report nothing.
+        | supergrid,
     )
     dtree = add_units(dtree)
 

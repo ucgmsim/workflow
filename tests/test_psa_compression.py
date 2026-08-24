@@ -1,3 +1,4 @@
+import inspect
 from pathlib import Path
 
 import dask.array as da
@@ -6,6 +7,7 @@ import pytest
 import xarray as xr
 
 from workflow import psa_compression
+from workflow.scripts import bb_sim
 
 
 def _sample_rotd180(n_stations: int = 3, n_periods: int = 5) -> xr.DataArray:
@@ -116,6 +118,14 @@ def test_netcdf_encoding_with_independently_chunked_coords() -> None:
         -np.arange(n_stations, dtype=np.float64), dims="station"
     ).chunk({"station": n_stations})
     assert latitude.variable.chunks != (waveform_station_chunks,)  # the actual mismatch
+    # A third station coordinate, chunked differently again: SW4 low-frequency
+    # output carries `supergrid_depth`/`supergrid_depth_gp` and they ride
+    # through to here as coordinates, so the set of mismatched chunkings this
+    # has to tolerate is open-ended rather than just lat/lon.
+    supergrid_depth = xr.DataArray(
+        np.zeros(n_stations, dtype=np.float32), dims="station"
+    ).chunk({"station": 200})
+    assert supergrid_depth.variable.chunks != latitude.variable.chunks
 
     # A rotd180-shaped array whose data is chunked like `waveform` above, but
     # whose `latitude`/`longitude` coordinates carry the mismatched chunking
@@ -124,7 +134,12 @@ def test_netcdf_encoding_with_independently_chunked_coords() -> None:
     rotd180 = xr.DataArray(
         da.zeros((n_stations, 3, 180), chunks=(waveform_station_chunks, -1, -1)),
         dims=("station", "period", "angle"),
-        coords={"latitude": latitude, "longitude": longitude, "angle": np.arange(180)},
+        coords={
+            "latitude": latitude,
+            "longitude": longitude,
+            "supergrid_depth": supergrid_depth,
+            "angle": np.arange(180),
+        },
     )
     with pytest.raises(ValueError, match="inconsistent chunks"):
         _ = rotd180.chunksizes
@@ -132,6 +147,27 @@ def test_netcdf_encoding_with_independently_chunked_coords() -> None:
     encoded = psa_compression.encode_psa_rotd180(rotd180)
     encoding = psa_compression.rotd180_netcdf_encoding(encoded)
     assert encoding["chunksizes"][0] == waveform_station_chunks[0]
+    # The coordinates must survive the encode, or the flag never reaches disk.
+    assert "supergrid_depth" in encoded.coords
+
+
+def test_bb_sim_chunks_stations_explicitly_not_automatically() -> None:
+    """`combine_hf_and_lf` must keep an explicit integer station chunk size.
+
+    `resample_signal` reads `dset.chunksizes["station"]`, which cross-validates
+    every variable *and coordinate* on the dataset and raises "inconsistent
+    chunks" the moment two disagree. Chunking the whole dataset with one
+    explicit integer is the only reason that call is safe: `{"station":
+    "auto"}` sizes each variable independently, so a small float32
+    coordinate (`supergrid_depth`, `latitude`) would get a different chunk
+    count from the waveform and the resample would blow up before any IM was
+    computed.
+    """
+    source = inspect.getsource(bb_sim.combine_hf_and_lf)
+    assert 'chunking = {"component": -1, "station": n_stations, "time": -1}' in source
+    assert '"station": "auto"' not in source
+    # And the consumer of that guarantee still reads it the whole-dataset way.
+    assert 'chunksizes["station"]' in inspect.getsource(bb_sim.resample_signal)
 
 
 def test_netcdf_roundtrip_with_blosc_compression(tmp_path: Path) -> None:

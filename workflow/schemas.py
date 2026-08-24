@@ -1287,10 +1287,6 @@ SW4_PARAMETERS_SCHEMA = Schema(
         Literal("verbose", description="Fileio verbosity level."): int,
         Literal("printcycle", description="Output fileio print cycle."): int,
         Literal(
-            "supergrid_padding",
-            description="Number of gridpoints extending past supergrid for padding.",
-        ): int,
-        Literal(
             "nz_min",
             description="Minimum vertical cells in each refinement layer.",
         ): int,

@@ -398,6 +398,12 @@ def combine_hf_and_lf(
 
     lf_aligned, hf_aligned = align_datasets(lf, hf, bb_dt)
 
+    # Station-dimension *coordinates* on `lf_aligned` (`supergrid_depth`, and
+    # EMOD3D's `x`/`y`) ride from here to the intensity measure file with no
+    # help: they survive `map_blocks` below, `_process_bb_chunk` drops data
+    # variables only, and `IM.ims` keeps the input's non-dimension
+    # coordinates. Anything that must reach the IM file and is *not* a
+    # coordinate has to be hand-carried, the way `vs30` is.
     combined = xr.Dataset(
         {
             "lf_waveform": lf_aligned,
@@ -446,6 +452,13 @@ def combine_hf_and_lf(
         fmax=broadband_config.fmax,
         site_amp_model=str(broadband_config.site_amp_version),
     )
+    # Attributes, unlike station coordinates, are *not* carried through
+    # map_blocks: `template` above only has `combined`'s. The LF file's
+    # supergrid width describes the run that produced the waveforms, and
+    # `im-calc` writes it into the IM file's root attributes, so pass it on.
+    attributes |= {
+        name: lf.attrs[name] for name in ("SGWIDTH", "SGWIDTHGP") if name in lf.attrs
+    }
     bb.attrs.update(attributes)
 
     bb.to_netcdf(

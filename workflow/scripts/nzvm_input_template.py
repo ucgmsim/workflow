@@ -58,12 +58,14 @@ from nzcvm.config.layers.query import QueryLayerConfig
 from nzcvm.coordinates import Coordinate
 
 from qcore import cli
+from workflow import sw4
 from workflow.realisations import (
     DomainParameters,
     NZCVMSettings,
     RealisationMetadata,
     Refinements,
     Resolution,
+    SW4Parameters,
     VelocityModelParameters,
 )
 
@@ -75,14 +77,16 @@ NZTM_EPSG = 2193
 SW4_DEPTH_OFFSET_KM = 10.0
 """Extra depth (km) modelled below the domain so SW4 refinement adjustment has room."""
 
-SW4_SUPERGRID_PADDING = 50
-"""Gridpoints of velocity model kept below the bottom refinement for the supergrid sponge.
+SW4_MODEL_SLACK_GRIDPOINTS = 4
+"""Gridpoints of velocity model kept beyond the padded SW4 grid, per face.
 
-Per the SW4 User Guide the supergrid sponge (30 gridpoints) at the bottom of
-the domain must be contained in the bottom refinement, so the velocity model
-has to have values there. `create-sw4-input` pads the *domain* by
-`sw4.supergrid_padding`; this pads the *model* by more than that so the
-padded domain always lands inside it.
+`create-sw4-input` pads the SW4 grid by one supergrid sponge width on every
+lateral face and on the bottom, so the requested domain is the grid's *interior*
+rather than being eaten into by the absorbing layer. The velocity model has to
+cover that padded grid or SW4 queries outside the sfile, so this module pads the
+model by the same sponge width plus this slack. The slack absorbs the rounding
+that turns an extent into a gridpoint count in NZCVM and in SW4, which need not
+agree exactly.
 """
 
 EMOD3D_FREE_SURFACE_PADDING = 1
@@ -173,9 +177,14 @@ def select_layers(
 def sw4_grid(
     domain_parameters: DomainParameters,
     refinements: Refinements,
+    sw4_params: SW4Parameters,
     nzcvm_settings: NZCVMSettings,
 ) -> SW4GridConfig:
     """Build the SW4 mesh-refined grid configuration.
+
+    The model is deliberately larger than the domain. `create-sw4-input` pads the
+    SW4 grid by one supergrid sponge width on every face, so the model has to be
+    padded by at least as much or SW4 queries outside the sfile.
 
     Parameters
     ----------
@@ -183,6 +192,9 @@ def sw4_grid(
         The domain to model.
     refinements : Refinements
         The theoretical mesh refinements, resolved against the domain depth.
+    sw4_params : SW4Parameters
+        The SW4 parameters, which fix the supergrid sponge width the model has
+        to cover.
     nzcvm_settings : NZCVMSettings
         Supplies the topographic surface and chunking.
 
@@ -195,9 +207,25 @@ def sw4_grid(
     domain_refinements = refinements.refinements_for_depth(
         domain_parameters.depth + SW4_DEPTH_OFFSET_KM
     )
-    domain_refinements[-1].bottom += (
-        SW4_SUPERGRID_PADDING * domain_refinements[-1].resolution
-    )
+
+    # NOTE: The sponge width must be measured on the refinements *SW4* will use,
+    # i.e. resolved against the bare domain depth. Resolving against
+    # `depth + SW4_DEPTH_OFFSET_KM` can land on a coarser bottom layer than SW4
+    # actually gets (a 400 m bottom layer gives a 12 km sponge where SW4's 200 m
+    # one gives 6 km), which would overstate the padding needed here and, worse,
+    # disagree with `create-sw4-input`.
+    coarsest_resolution = sw4.coarsest_resolution(refinements, domain_parameters.depth)
+    supergrid_width = sw4.supergrid_width(sw4_params, coarsest_resolution)
+    model_padding = supergrid_width + SW4_MODEL_SLACK_GRIDPOINTS * coarsest_resolution
+
+    domain_refinements[-1].bottom += model_padding
+
+    padding_km = model_padding / 1000.0
+    # `BoundingBox.pad` takes kilometres and pads along the box's own rotated
+    # axes, keeping the centroid and the azimuth. Padding symmetrically keeps the
+    # model concentric with the padded SW4 grid, which is what makes
+    # `create-sw4-input`'s extent-versus-footprint check a containment check.
+    domain = domain.pad(pad_x=(padding_km, padding_km), pad_y=(padding_km, padding_km))
 
     origin_lat, origin_lon = domain.origin
     return SW4GridConfig(
@@ -306,6 +334,9 @@ def generate_template(
             grid = sw4_grid(
                 domain_parameters,
                 Refinements.read_from_realisation_or_defaults(
+                    realisation_ffp, metadata.defaults_version
+                ),
+                SW4Parameters.read_from_realisation_or_defaults(
                     realisation_ffp, metadata.defaults_version
                 ),
                 nzcvm_settings,

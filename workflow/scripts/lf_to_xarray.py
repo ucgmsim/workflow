@@ -121,6 +121,14 @@ def read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
     xr.Dataset
         Xarray dataset with initialised coordinate arrays and attributes.
 
+        The supergrid penetration SW4 reports per station is returned as the
+        station-dimension *coordinates* `supergrid_depth` (metres) and
+        `supergrid_depth_gp` (grid points), not as data variables. That is
+        load-bearing: station-dimension coordinates ride through `bb-sim` and
+        `im-calc` untouched, whereas data variables are dropped by
+        `bb_sim._process_bb_chunk`. See the note at `bb_sim.py`'s `combined`
+        dataset.
+
     Raises
     ------
     RuntimeError
@@ -131,9 +139,18 @@ def read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
     stations = []
     latitudes = []
     longitudes = []
+    supergrid_depths = []
+    supergrid_depths_gp = []
 
     with h5py.File(sw4_ffp, "r") as handle:
         dt = np.float32(handle["DELTA"][:].squeeze())
+        # SW4 writes the supergrid (absorbing layer) width once per file,
+        # beside DELTA. Guarded the same way as SGDEPTH below: station files
+        # written before SW4 reported the supergrid have neither.
+        attrs = dict(dt=dt)
+        for width_name in ("SGWIDTH", "SGWIDTHGP"):
+            if width_name in handle:
+                attrs[width_name] = float(handle[width_name][:].squeeze())
         for station_name, group in handle.items():
             if "NPTS" not in group:
                 continue
@@ -149,6 +166,19 @@ def read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
             latitudes.append(latitude)
             longitudes.append(longitude)
 
+            if "SGDEPTH" in group:
+                supergrid_depths.append(float(group["SGDEPTH"][:].squeeze()))
+                # Deliberately read under the SGDEPTH guard rather than its
+                # own: one present without the other is a corrupt file, not an
+                # old one, and a KeyError is then the right outcome.
+                supergrid_depths_gp.append(float(group["SGDEPTHGP"][:].squeeze()))
+            else:
+                # An old station file, or a solver with no absorbing layer:
+                # unknown, *not* clean. Never 0.0 here -- that would assert
+                # this station was checked and found in the interior.
+                supergrid_depths.append(np.nan)
+                supergrid_depths_gp.append(np.nan)
+
     if global_npts is None:
         raise RuntimeError(
             "No valid station recordings found in file. Are you sure this is an SW4 station file? Use `h5ls` to check the file structure."
@@ -160,8 +190,24 @@ def read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
             lat=("station", latitudes),
             lon=("station", longitudes),
         ),
-        coords=dict(station=stations, component=["x", "y", "z"], time=time),
-        attrs=dict(dt=dt, nt=global_npts),
+        coords=dict(
+            station=stations,
+            component=["x", "y", "z"],
+            time=time,
+            # float32 with NaN for "unknown", never an integer with a
+            # _FillValue: downstream readers open these files with
+            # `mask_and_scale=False`, so a sentinel would read back raw and
+            # become a plausible penetration depth.
+            supergrid_depth=(
+                "station",
+                np.array(supergrid_depths, dtype=np.float32),
+            ),
+            supergrid_depth_gp=(
+                "station",
+                np.array(supergrid_depths_gp, dtype=np.float32),
+            ),
+        ),
+        attrs=attrs | dict(nt=global_npts),
     )
 
 
@@ -180,7 +226,14 @@ def _template_waveform(dset: xr.Dataset, batch_size: int) -> xr.DataArray:
             chunks=(ncomponent, batch_size, ntime),
         ),
         dims=["component", "station", "time"],
-        coords=dset.coords,
+        # Dimension coordinates only. `map_blocks` cross-checks the user
+        # function's output against the template and raises if the template
+        # advertises a coordinate the function does not return, and
+        # `_read_station_batch` returns only the three dimension coordinates.
+        # The station-dimension coordinates the dataset also carries (such as
+        # `supergrid_depth`) are re-attached when the result is assigned back
+        # onto `dset`.
+        coords={dim: dset.coords[dim] for dim in ("component", "station", "time")},
     )
 
 
