@@ -65,7 +65,7 @@ def generate_rupture_propagation(
         RuptureStrategy,
         typer.Option(case_sensitive=False),
     ] = RuptureStrategy.RANDOM,
-    min_connected_depth: Annotated[float, typer.Option()] = 5.0,
+    min_connected_depth: Annotated[float, typer.Option(min=0)] = 5.0,
     jump_cutoff: Annotated[
         float,
         typer.Option(min=0),
