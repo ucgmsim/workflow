@@ -71,7 +71,7 @@ sw4:
         { mode: "p", z: 0.0, file: "surf_vp", cycle: 0, precision: "float" }
     - name: "imagehdf5"
       parameters:
-        { mode: "s", plane: "z", file: "surf_vs", cycle: 0, precision: "float" }
+        { mode: "s", z: 0.0, file: "surf_vs", cycle: 0, precision: "float" }
     - name: "imagehdf5"
       parameters:
         { mode: "rho", z: 0.0, file: "surf_rho", cycle: 0, precision: "float" }
