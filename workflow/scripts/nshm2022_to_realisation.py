@@ -360,7 +360,7 @@ def generate_realisation(
     rupture_propagation_config = RupturePropagationConfig(
         rupture_causality_tree=rupture_causality_tree,
         jump_points=rupture_propagation.jump_points_from_rupture_tree(
-            faults, rupture_causality_tree
+            faults, rupture_causality_tree, min_depth=min_connected_depth
         ),
         hypocentre=hypocentre,
     )
