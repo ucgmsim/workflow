@@ -363,7 +363,9 @@ def combine_hf_and_lf(
     # in-memory. Selecting on the lazy backend arrays instead lets each dask
     # chunk read just its own stations from disk.
     lf = xr.open_dataset(low_frequency_waveform_file)
+    lf = lf.drop_duplicates("station", keep="first")
     hf = relabel_hf_components(xr.open_dataset(high_frequency_waveform_file))
+    hf = hf.drop_duplicates("station", keep="first")
 
     common_stations = sorted(
         set(map(str, hf.station.values)) & set(map(str, lf.station.values))
