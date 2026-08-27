@@ -64,12 +64,20 @@ from workflow.realisations import (
 app = typer.Typer()
 
 
+class SamplingStrategy(StrEnum):
+    """Rupture propagation strategy to employ."""
+
+    maximising = "maximising"
+    random = "random"
+
+
 def default_magnitude_estimation(
     faults: dict[str, Fault],
     # NOTE: this must be in quotes because the runtime class DisjointSet is
     # not generic, just the stub implementation.
     components: "DisjointSet[str]",
     avg_rake: float,
+    strategy: SamplingStrategy,
 ) -> dict[str, magnitude_scaling.BoldM]:
     """Estimate the magnitudes for a set of faults based on their areas and average rake.
 
@@ -91,8 +99,12 @@ def default_magnitude_estimation(
         estimated magnitudes (in the `BoldM` convention) for each fault.
     """
     total_area = sum(fault.area() for fault in faults.values())
+
     estimated_magnitude = magnitude_scaling.area_to_magnitude(
-        magnitude_scaling.ScalingRelation.LEONARD2014, total_area, avg_rake
+        magnitude_scaling.ScalingRelation.LEONARD2014,
+        total_area,
+        avg_rake,
+        random=strategy == SamplingStrategy.RANDOM,
     )
     estimated_moment = moment.magnitude_to_moment(estimated_magnitude, bold_m=True)
     roots = {components[fault_name] for fault_name in faults}
@@ -157,13 +169,6 @@ def find_fault_and_hypocentre(
     raise ValueError("Hypocentre not on any fault.")
 
 
-class SamplingStrategy(StrEnum):
-    """Rupture propagation strategy to employ."""
-
-    maximising = "maximising"
-    random = "random"
-
-
 @cli.from_docstring(app)
 @log_call()
 def generate_realisation(
@@ -184,6 +189,9 @@ def generate_realisation(
     strategy: Annotated[
         SamplingStrategy,
         typer.Option(),
+    ] = SamplingStrategy.random,
+    magnitude_strategy: Annotated[
+        SamplingStrategy, typer.Option()
     ] = SamplingStrategy.random,
     jump_cutoff: Annotated[
         float,
@@ -247,6 +255,10 @@ def generate_realisation(
         The strategy to use when sampling rupture propagation. "maximising" will
         choose the maximally likely rupture propagation tree. "random" will
         choose a random rupture propagation tree.
+    magnitude_strategy : SamplingStrategy, optional
+        The strategy to use when sampling total rupture magnitude. "maximising"
+        will choose the median rupture magnitude. "random" will choose a random
+        rupture propagation tree.
     jump_cutoff : float, optional
         The maximum jump distance between faults in km.
     shypo : float, optional
