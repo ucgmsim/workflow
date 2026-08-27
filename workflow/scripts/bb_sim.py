@@ -35,6 +35,8 @@ For More Help
 See the output of `bb-sim --help`.
 """
 
+import dataclasses
+from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
 
@@ -50,7 +52,12 @@ from site_calculation import amplification
 from workflow import log_utils, realisations
 from workflow.realisations import (
     BroadbandParameters,
+    EMOD3DParameters,
     RealisationMetadata,
+    Resolution,
+    SW4Parameters,
+    VelocityModelParameters,
+    find_command,
 )
 from workflow.schemas import SiteAmpModel
 
@@ -71,6 +78,318 @@ app = typer.Typer()
 
 G = 1 / 981.0
 TARGET_CHUNK_BYTES = 256 * 2**20
+
+# `qcore.timeseries.bwfilter` is an order-4 Butterworth applied by `sosfiltfilt`,
+# i.e. twice. These are the corner shifts it applies internally so that after
+# both passes the response is exactly 1/sqrt(2) at the frequency it was handed.
+# Mirrored here rather than imported because they are private to qcore;
+# `tests/test_bb_filters.py` measures the real filter and fails if they drift.
+BB_FILTER_ORDER = 4
+BB_FILTER_PASSES = 2
+_HIGHPASS_SHIFT = (np.sqrt(2) - 1) ** (1 / 8)
+_LOWPASS_SHIFT = 1 / _HIGHPASS_SHIFT
+
+# EMOD3D's `tfilter` takes a `phase` argument and runs a reverse pass when it is
+# zero (source.c:1989). Every call site hard-codes `int phase = 0`, so the
+# EMOD3D source low-pass is zero-phase, not causal.
+EMOD3D_SOURCE_PASSES = 2
+
+# Ceiling on the boost any correction may apply. The two real configurations
+# need at most ~2.4x; anything approaching this bound means the source filter
+# rolls off faster than the target and the leg is being reconstructed from
+# content that is not there.
+MAX_BOOST = 10.0
+# Below this the high-frequency leg carries too little of the signal for the
+# HF-side correction to be meaningful, and dividing by it amplifies nothing but
+# numerical noise.
+HF_GAIN_FLOOR = 1e-2
+
+
+class CorrectionLeg(StrEnum):
+    """Which leg of the recombination absorbs the source-filter correction."""
+
+    LF = "lf"
+    """Restore the low-frequency leg by dividing out its source filter.
+
+    The physically direct choice: it puts the LF leg back to what the solver
+    would have produced without the extra filter, and touches nothing else.
+    Exact below the matching frequency. Above it the boost is clipped, which
+    costs under 0.01 in ln of the total because the LF leg carries almost
+    nothing there.
+    """
+    HF = "hf"
+    """Leave the LF alone and fill the missing power from the HF leg.
+
+    Only meaningful near and above the matching frequency. Below it, filling an
+    LF deficit from the HF leg needs a boost of ten or more applied to
+    stochastic content that has no valid long-period part, so the correction is
+    clipped and the power sum is *not* restored. `warn_if_ill_conditioned` says
+    so when it happens.
+    """
+    BOTH = "both"
+    """Scale both legs together so the power sum is restored exactly.
+
+    The best-conditioned option -- it needs a boost of under 1.4 anywhere -- but
+    it makes up part of the deficit from the high-frequency leg, which is a
+    different physical claim from restoring the low-frequency one.
+    """
+
+
+class Solver(StrEnum):
+    """The low-frequency solver that produced the LF waveforms."""
+
+    EMOD3D = "emod3d"
+    SW4 = "sw4"
+
+
+@dataclasses.dataclass(frozen=True)
+class SourceLowpass:
+    """A low-pass a solver has already applied to its source time functions.
+
+    Both solvers filter the source rather than the output. The wave equation is
+    linear, so that is equivalent to filtering every trace, which is what lets
+    `bb_sim` divide the filter back out here instead of re-running the solver.
+    """
+
+    order: int
+    """Butterworth order."""
+    passes: int
+    """1 for a causal filter, 2 for the zero-phase forward-and-back pair."""
+    corner: float
+    """Corner frequency in Hz."""
+
+
+def solver_source_lowpass(
+    solver: Solver, realisation_ffp: Path, defaults_version: str
+) -> SourceLowpass | None:
+    """The low-pass `solver` applied to its sources, read from the realisation.
+
+    Parameters
+    ----------
+    solver : Solver
+        The solver that produced the low-frequency waveforms.
+    realisation_ffp : Path
+        Path to the realisation file.
+    defaults_version : str
+        The realisation's defaults version.
+
+    Returns
+    -------
+    SourceLowpass | None
+        The filter, or None if the solver applied none.
+
+    Raises
+    ------
+    ValueError
+        If the solver applied a filter this function cannot describe, rather
+        than silently correcting for the wrong thing.
+    """
+    if solver is Solver.SW4:
+        sw4_config = SW4Parameters.read_from_realisation_or_defaults(
+            realisation_ffp, defaults_version
+        )
+        prefilter = find_command(sw4_config.commands, "prefilter")
+        if prefilter is None:
+            return None
+        parameters = prefilter.parameters
+        if parameters.get("type") != "lowpass":
+            raise ValueError(
+                f"SW4 prefilter is type={parameters.get('type')!r}; only 'lowpass' "
+                "can be corrected for here"
+            )
+        return SourceLowpass(
+            order=int(parameters["order"]),
+            passes=int(parameters["passes"]),
+            corner=float(parameters["fc2"]),
+        )
+
+    emod3d_config = EMOD3DParameters.read_from_realisation_or_defaults(
+        realisation_ffp, defaults_version
+    )
+    if not emod3d_config.bfilt:
+        # `tfilter` is guarded by `if(bfilt)`, so zero means no filter at all.
+        return None
+    if emod3d_config.fhi:
+        raise ValueError(
+            f"EMOD3D fhi={emod3d_config.fhi} applies a source high-pass as well as "
+            "the low-pass; correcting for the low-pass alone would be wrong"
+        )
+    # EMOD3D's flo is not stored in the realisation or the LF file. It is
+    # derived in `create_e3d_par.create_duration_parameters`, and is repeated
+    # here from the same two inputs.
+    velocity_model = VelocityModelParameters.read_from_realisation_or_defaults(
+        realisation_ffp, defaults_version
+    )
+    resolution = Resolution.read_from_realisation_or_defaults(
+        realisation_ffp, defaults_version
+    )
+    return SourceLowpass(
+        order=emod3d_config.bfilt,
+        passes=EMOD3D_SOURCE_PASSES,
+        corner=velocity_model.min_vs / (5 * resolution.resolution),
+    )
+
+
+def butterworth_gain(
+    frequencies: np.ndarray,
+    order: int,
+    corner: float,
+    passes: int,
+    dt: float,
+    band: str = "lowpass",
+) -> np.ndarray:
+    """Magnitude response of a Butterworth filter applied `passes` times.
+
+    Parameters
+    ----------
+    frequencies : np.ndarray
+        Frequencies (Hz) to evaluate the response at.
+    order : int
+        Butterworth order.
+    corner : float
+        Corner frequency in Hz.
+    passes : int
+        Number of times the filter is applied. Two passes square the magnitude.
+    dt : float
+        Sample interval in seconds.
+    band : str
+        Either 'lowpass' or 'highpass'.
+
+    Returns
+    -------
+    np.ndarray
+        The magnitude response at `frequencies`.
+    """
+    sos = sp.signal.butter(
+        order, corner, btype=band, output="sos", fs=1.0 / dt
+    )
+    _, response = sp.signal.sosfreqz(sos, worN=2 * np.pi * frequencies * dt)
+    return np.abs(response) ** passes
+
+
+def warn_if_ill_conditioned(
+    dt: float, flo: float, source: SourceLowpass | None, leg: CorrectionLeg
+) -> None:
+    """Report where the correction is clipped and cannot restore the power sum.
+
+    Called once, rather than per chunk, so the message is not repeated for every
+    block dask schedules.
+
+    Parameters
+    ----------
+    dt : float
+        Broadband sample interval.
+    flo : float
+        The LF/HF matching frequency.
+    source : SourceLowpass | None
+        The solver's source filter.
+    leg : CorrectionLeg
+        Which leg absorbs the correction.
+    """
+    if source is None:
+        return
+    frequencies = np.logspace(np.log10(flo / 10), np.log10(flo * 5), 400)
+    lf_gain, hf_gain = recombination_gains(frequencies, dt, flo, source, leg)
+    clipped = np.isclose(lf_gain, MAX_BOOST) | np.isclose(hf_gain, MAX_BOOST)
+    if not clipped.any():
+        return
+    logger = log_utils.get_logger(__name__)
+    logger.warning(
+        "The source-filter correction is clipped, so the power sum is not fully "
+        "restored across the whole band."
+        + (
+            " Below the matching frequency the high-frequency leg has no valid "
+            "content to supply; consider --filter lf or --filter both."
+            if leg is CorrectionLeg.HF
+            else " This is above the matching frequency, where the "
+            "low-frequency leg carries almost nothing, so the effect on the "
+            "total is small."
+        ),
+        correction_leg=str(leg),
+        max_boost=MAX_BOOST,
+        clipped_from_hz=float(frequencies[clipped].min()),
+        clipped_to_hz=float(frequencies[clipped].max()),
+    )
+
+
+def recombination_gains(
+    frequencies: np.ndarray,
+    dt: float,
+    flo: float,
+    source: SourceLowpass | None,
+    leg: CorrectionLeg,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Per-leg correction for the source filter already baked into the LF.
+
+    The LF and HF legs are independent realisations, so they add in *power*, and
+    `bwfilter`'s shifted pair is designed to be power-complementary:
+    ``|H_lp|^2 + |H_hp|^2 = 1``. A source low-pass multiplies the LF leg a second
+    time, which breaks that identity and leaves a hole in the transition band.
+    These gains put the power sum back where the pair intended.
+
+    Parameters
+    ----------
+    frequencies : np.ndarray
+        Frequencies (Hz) the gains are sampled at.
+    dt : float
+        Broadband sample interval.
+    flo : float
+        The LF/HF matching frequency.
+    source : SourceLowpass | None
+        The solver's source filter. None applies no correction.
+    leg : CorrectionLeg
+        Which leg absorbs the correction.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        Multiplicative gains for the LF and HF legs, both ones if `source` is None.
+    """
+    ones = np.ones_like(frequencies)
+    if source is None:
+        return ones, ones
+
+    lowpass = butterworth_gain(
+        frequencies, BB_FILTER_ORDER, flo * _LOWPASS_SHIFT, BB_FILTER_PASSES, dt
+    )
+    highpass = butterworth_gain(
+        frequencies,
+        BB_FILTER_ORDER,
+        flo * _HIGHPASS_SHIFT,
+        BB_FILTER_PASSES,
+        dt,
+        band="highpass",
+    )
+    source_gain = butterworth_gain(
+        frequencies, source.order, source.corner, source.passes, dt
+    )
+
+    # What the matched pair is supposed to deliver, and what it delivers once
+    # the source filter has been applied to the LF leg a second time.
+    target_power = lowpass**2 + highpass**2
+    current_power = (source_gain * lowpass) ** 2 + highpass**2
+
+    match leg:
+        case CorrectionLeg.LF:
+            # Dividing the source filter back out restores the LF leg exactly.
+            return np.clip(1.0 / source_gain, None, MAX_BOOST), ones
+        case CorrectionLeg.HF:
+            # Make the shortfall up from the HF side, leaving the LF as it is.
+            shortfall = np.sqrt(
+                np.clip(target_power - (source_gain * lowpass) ** 2, 0.0, None)
+            )
+            hf_gain = np.where(
+                highpass > HF_GAIN_FLOOR,
+                np.clip(shortfall / np.maximum(highpass, HF_GAIN_FLOOR), None, MAX_BOOST),
+                1.0,
+            )
+            return ones, hf_gain
+        case CorrectionLeg.BOTH:
+            # One factor on both legs restores the total without either leg
+            # carrying the whole boost. Well conditioned everywhere, because
+            # `current_power` is bounded below by the high-pass leg.
+            shared = np.clip(np.sqrt(target_power / current_power), None, MAX_BOOST)
+            return shared, shared
 
 
 def align_datasets(
@@ -238,12 +557,18 @@ def _process_bb_chunk(
     fhightop: float,
     fmax: float,
     site_amp_model: SiteAmpModel,
+    source_lowpass: SourceLowpass | None = None,
+    correction_leg: CorrectionLeg = CorrectionLeg.LF,
 ) -> xr.Dataset:
     """Compute broadband waveforms for a chunk of stations.
 
     Applies the selected site amplification model to the high-frequency
     waveforms, then merges them with the low-frequency waveforms using a
     matched pair of high-pass and low-pass Butterworth filters.
+
+    Where `source_lowpass` is given, the solver's own source filter is divided
+    back out of the recombination first, so the LF leg is filtered once rather
+    than twice and the matched pair's power sum is restored.
 
     Parameters
     ----------
@@ -270,6 +595,11 @@ def _process_bb_chunk(
         (highpass end of the amplification band).
     site_amp_model : SiteAmpModel
         The site amplification model to apply.
+    source_lowpass : SourceLowpass | None
+        The low-pass the solver already applied to its source time functions.
+        None leaves the recombination exactly as it was.
+    correction_leg : CorrectionLeg
+        Which leg absorbs the correction for `source_lowpass`.
 
     Returns
     -------
@@ -288,6 +618,16 @@ def _process_bb_chunk(
     # sampled at.
     n_fft = pyfftw.next_fast_len(nt)
     fft_freqs = np.fft.rfftfreq(n_fft, dt)
+    lf_gain, hf_gain = recombination_gains(
+        fft_freqs, dt, flo, source_lowpass, correction_leg
+    )
+    correcting = source_lowpass is not None
+    if correcting:
+        # `amplify_waveform` takes one gain curve per station, and these are the
+        # same curve for every station in the chunk.
+        stations = lf_waveform.shape[1]
+        lf_gain = np.tile(lf_gain, (stations, 1))
+        hf_gain = np.tile(hf_gain, (stations, 1))
 
     # The amplification models require float64 inputs.
     vs30 = dset["vs30"].values.astype(np.float64)
@@ -316,6 +656,11 @@ def _process_bb_chunk(
         lf_filtered = timeseries.bwfilter(
             lf_waveform[i], dt, flo, timeseries.Band.LOWPASS
         )
+        # Applied after the matched pair rather than in place of it, so that
+        # with no correction the arithmetic is bit-for-bit what it always was.
+        if correcting:
+            lf_filtered = amplification.amplify_waveform(lf_filtered, lf_gain, n_fft)
+            hf_filtered = amplification.amplify_waveform(hf_filtered, hf_gain, n_fft)
         bb_waveform[i] = (hf_filtered + lf_filtered) * G
 
     return dset.drop_vars(["lf_waveform", "hf_waveform", "vs30"]).assign(
@@ -335,6 +680,12 @@ def combine_hf_and_lf(
         Path, typer.Argument(exists=True, dir_okay=False)
     ],
     output_ffp: Annotated[Path, typer.Argument(dir_okay=False, writable=True)],
+    solver: Annotated[
+        Solver | None, typer.Option("--solver", case_sensitive=False)
+    ] = None,
+    filter_leg: Annotated[
+        CorrectionLeg, typer.Option("--filter", case_sensitive=False)
+    ] = CorrectionLeg.LF,
 ) -> None:
     """Combine low-frequency and high-frequency seismic waveforms.
 
@@ -350,11 +701,33 @@ def combine_hf_and_lf(
         File containing high-frequency waveform data.
     output_ffp : Path
         Path to the output file where the combined broadband waveforms will be saved.
+    solver : Solver | None
+        The solver that produced the low-frequency waveforms. Given, the source
+        low-pass it already applied (SW4's `prefilter` command, or EMOD3D's
+        `bfilt` and `flo`) is divided back out of the recombination, so the LF
+        leg is filtered once rather than twice. Omitted, the recombination is
+        unchanged.
+    filter_leg : CorrectionLeg
+        Which leg absorbs that correction: `lf` restores the low-frequency leg,
+        `hf` fills the missing power from the high-frequency leg instead, and
+        `both` scales the two together so neither is boosted hard. Ignored
+        without `--solver`.
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     broadband_config = BroadbandParameters.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
+    source_lowpass = (
+        None
+        if solver is None
+        else solver_source_lowpass(solver, realisation_ffp, metadata.defaults_version)
+    )
+    if solver is not None and source_lowpass is None:
+        log_utils.get_logger(__name__).warning(
+            "The solver applied no source low-pass in this realisation, so the "
+            "recombination is unchanged.",
+            solver=str(solver),
+        )
 
     # Open lazily (no dask) and select the common stations *before* chunking.
     # The LF and HF files store stations in different orders, so selecting after
@@ -379,6 +752,9 @@ def combine_hf_and_lf(
     hf = hf.sel(station=common_stations).chunk(chunking)
 
     bb_dt = min(lf.attrs["dt"], hf.attrs["dt"])
+    warn_if_ill_conditioned(
+        bb_dt, broadband_config.flo, source_lowpass, filter_leg
+    )
 
     if not np.isclose(lf.attrs["dt"], bb_dt):
         lf = resample_signal(lf, bb_dt)
@@ -441,6 +817,8 @@ def combine_hf_and_lf(
             fhightop=broadband_config.fhightop,
             fmax=broadband_config.fmax,
             site_amp_model=broadband_config.site_amp_version,
+            source_lowpass=source_lowpass,
+            correction_leg=filter_leg,
         ),
         template=template,
     )
@@ -454,6 +832,17 @@ def combine_hf_and_lf(
         fmax=broadband_config.fmax,
         site_amp_model=str(broadband_config.site_amp_version),
     )
+    # Recorded so a broadband file says whether it was corrected and for what.
+    # Without this the correction is invisible downstream, and two files that
+    # differ by it look identical.
+    if source_lowpass is not None:
+        attributes |= {
+            "source_filter_solver": str(solver),
+            "source_filter_order": source_lowpass.order,
+            "source_filter_passes": source_lowpass.passes,
+            "source_filter_corner": source_lowpass.corner,
+            "source_filter_correction": str(filter_leg),
+        }
     # Attributes, unlike station coordinates, are *not* carried through
     # map_blocks: `template` above only has `combined`'s. The LF file's
     # supergrid width describes the run that produced the waveforms, and
