@@ -104,7 +104,7 @@ def default_magnitude_estimation(
         magnitude_scaling.ScalingRelation.LEONARD2014,
         total_area,
         avg_rake,
-        random=strategy == SamplingStrategy.RANDOM,
+        random=strategy == SamplingStrategy.random,
     )
     estimated_moment = moment.magnitude_to_moment(estimated_magnitude, bold_m=True)
     roots = {components[fault_name] for fault_name in faults}
