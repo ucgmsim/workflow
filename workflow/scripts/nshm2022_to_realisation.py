@@ -34,6 +34,7 @@ For More Help
 See the output of `nshm2022-to-realisation --help`.
 """
 
+import random
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
@@ -320,6 +321,7 @@ def generate_realisation(
     faults_info = db.get_rupture_fault_info(rupture_id)
     seeds = Seeds.read_from_realisation_or_random(realisation_ffp)
     np.random.seed(seed=seeds.nshm_to_realisation_seed)
+    random.seed(seeds.nshm_to_realisation_seed)
     source_config = SourceConfig(faults)
 
     rakes = {
