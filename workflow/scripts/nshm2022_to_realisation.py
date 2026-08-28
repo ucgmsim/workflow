@@ -66,7 +66,7 @@ app = typer.Typer()
 
 
 class SamplingStrategy(StrEnum):
-    """Rupture propagation strategy to employ."""
+    """Sampling strategy to employ."""
 
     maximising = "maximising"
     random = "random"
