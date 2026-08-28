@@ -262,8 +262,8 @@ def generate_realisation(
         choose a random rupture propagation tree.
     magnitude_strategy : SamplingStrategy, optional
         The strategy to use when sampling total rupture magnitude. "maximising"
-        will choose the median rupture magnitude. "random" will choose a random
-        rupture propagation tree.
+        will choose the median rupture magnitude. Otherwise, sample from the magnitude
+        distribution for the total rupture area.
     jump_cutoff : float, optional
         The maximum jump distance between faults in km.
     shypo : float, optional
