@@ -13,7 +13,14 @@ dependencies = [
   # UCGMSim Dependencies
   "im-calculation>=2025.12.5",
   "velocity-modelling>=2026.2.1",
-  "nshmdb>=2025.12.1",
+  # Pinned exactly: 2026.8.1+ changed get_rupture_faults()'s query to select
+  # f.fault_system, which the nshmdb.db this project's realisations were
+  # built from (sha256 00e256480618cd15e11fbf744037d037bf3fc2d523fb977ee30e0b84a640bc57,
+  # see cs_nshm_2022 commit 646055c) does not have as a column. 2026.8.1+
+  # also requires NSHMDB to be used as a context manager, which
+  # nshm2022_to_realisation.py does not do. Bump only alongside a
+  # matching nshmdb.db and the context-manager fix.
+  "nshmdb==2025.12.1",
   "oq_wrapper>=2025.12.3",
   "qcore-utils>=2025.12.2",
   "source_modelling>=2026.08.1",

@@ -1731,7 +1731,7 @@ wheels = [
 
 [[package]]
 name = "nshmdb"
-version = "2026.8.3"
+version = "2025.12.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "duckdb" },
@@ -1739,16 +1739,15 @@ dependencies = [
     { name = "numpy" },
     { name = "pandas" },
     { name = "pygmt-helper" },
-    { name = "pyproj" },
+    { name = "pytest" },
     { name = "qcore-utils" },
-    { name = "requests" },
     { name = "shapely" },
     { name = "source-modelling" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/30/0c/dbcac49e61d6a4e8f0dd460d3dab376c3978a79f003294e7b47d8b153c11/nshmdb-2026.8.3.tar.gz", hash = "sha256:0fb515ba8c6c8410084a14632faa9339a90082f90d60c6cecd7dfb33adf582f9", size = 200264, upload-time = "2026-08-20T04:34:39.836Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6c/8d/0afa18ac8323f2220f156f2d3a2b923cb59abd8cf4d77a18a0ec454776ff/nshmdb-2025.12.1.tar.gz", hash = "sha256:d7627319020d226121784d112d07f3774c3802bb7f5a317f54d20ef48c5e1ac5", size = 38044389, upload-time = "2025-12-10T20:46:48.572Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a6/19/0636161438be7f33ef107f475470981831d303fae2ecd33a20101cffbd7b/nshmdb-2026.8.3-py3-none-any.whl", hash = "sha256:f919ecffe74de270534e3c42455de2ce89f8826f48bf27c3dd33ca91821d8a8d", size = 20998, upload-time = "2026-08-20T04:34:38.378Z" },
+    { url = "https://files.pythonhosted.org/packages/16/ca/7b06b69dea5c5f35ccfe06e260889daef7d502465361a2547319f0b77e77/nshmdb-2025.12.1-py3-none-any.whl", hash = "sha256:058790c7d7d0095ded218ac1ce1449aba65ed1d7c112014289f09093e69f196c", size = 13683, upload-time = "2025-12-10T20:46:46.639Z" },
 ]
 
 [[package]]
@@ -3517,7 +3516,7 @@ requires-dist = [
     { name = "geopandas" },
     { name = "hypothesis", extras = ["numpy"], marker = "extra == 'test'", specifier = ">=6.0.0" },
     { name = "im-calculation", specifier = ">=2025.12.5" },
-    { name = "nshmdb", specifier = ">=2025.12.1" },
+    { name = "nshmdb", specifier = "==2025.12.1" },
     { name = "numpy" },
     { name = "numpydoc", marker = "extra == 'dev'" },
     { name = "oq-wrapper", specifier = ">=2025.12.3" },
