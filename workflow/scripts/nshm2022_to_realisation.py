@@ -92,6 +92,10 @@ def default_magnitude_estimation(
         and share a common rupture propagation path.
     avg_rake : float
         The average rake angle of the rupture.
+    strategy : SamplingStrategy
+        Sampling strategy for magnitude estimation. If maximising choose the
+        mean leonard scaling relation magnitude, else sample from the magnitude
+        distribution for the total rupture area.
 
     Returns
     -------
