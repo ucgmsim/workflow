@@ -49,7 +49,7 @@ def test_invocation_of_script(script_module: ModuleType) -> None:
         f"Module {script_module.__name__} is missing the 'app' attribute."
     )
 
-    app = getattr(script_module, "app")
+    app = script_module.app
 
     assert isinstance(app, Typer), (
         f"'app' in {script_module.__name__} should be a Typer instance, but got {type(app)}."

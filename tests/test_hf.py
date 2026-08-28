@@ -64,7 +64,7 @@ def test_build_hf_input_serialisation() -> None:
         shallow_transition_range=1,
         deep_depth=2.0,
         deep_transition_range=1,
-        rvfrac_slip_sig=None
+        rvfrac_slip_sig=None,
     )
     # Rather than create DomainParameters with a bounding box, we simplify with a mock object
     domain = SimpleNamespace(duration=100.0)
@@ -75,7 +75,7 @@ def test_build_hf_input_serialisation() -> None:
         res,
         hf_config,
         rv,
-        domain,  # type: ignore[invalid-argument-type]
+        domain,  # ty: ignore[invalid-argument-type]
     )
 
     lines = result.split("\n")

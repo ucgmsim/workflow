@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """SRF Generation.
 
 Description
@@ -529,7 +528,7 @@ def generate_fault_srf(
     if isinstance(fault, Point):
         generate_point_source_srf(name, params, environment)
         # Return None here as no other code in this function should be run if generating a point source SRF.
-        return None
+        return
 
     resolution = params.srf_config.resolution
 
@@ -891,7 +890,7 @@ def generate_srf(
             srf_name,
         )
     else:
-        source_name = list(source_config.source_geometries)[0]
+        source_name = next(iter(source_config.source_geometries))
         input_srf_path = work_directory / "srf" / f"{normalise_name(source_name)}.srf"
         output_srf_path = work_directory / f"{srf_name}.srf"
         shutil.move(input_srf_path, output_srf_path)

@@ -64,7 +64,7 @@ def test_estimate_domain_contains_fault_geometry() -> None:
     nz_outline = shapely.box(0, 0, 500000, 500000)
 
     result_domain = generate_domain.estimate_domain(
-        source_config=source_config,  # type: ignore[invalid-argument-type]
+        source_config=source_config,  # ty: ignore[invalid-argument-type]
         rrups=rrups,
         nz_outline=nz_outline,
         fault_buffer=2000.0,
@@ -89,9 +89,9 @@ def test_generate_domain() -> None:
         dip=45.0,
         dip_dir=180.0,
     )
-    source_config = SourceConfig(dict(source=source))
-    magnitudes = Magnitudes(dict(source=magnitude_scaling.BoldM(6.0)))
-    rakes = Rakes(dict(source=180.0))
+    source_config = SourceConfig({"source": source})
+    magnitudes = Magnitudes({"source": magnitude_scaling.BoldM(6.0)})
+    rakes = Rakes({"source": 180.0})
 
     velocity_model_parameters = VelocityModelParameters(
         min_vs=500.0,

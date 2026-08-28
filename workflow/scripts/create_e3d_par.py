@@ -212,7 +212,7 @@ def emod3d_metadata(
     }
 
 
-def format_as_emod3d_value(value: int | float | str | Path) -> str:
+def format_as_emod3d_value(value: float | str | Path) -> str:
     """Format a value in a format valid for an e3d.par file.
 
     Parameters

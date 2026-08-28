@@ -9,7 +9,7 @@ from collections import defaultdict
 from collections.abc import MutableMapping
 from enum import Enum, auto
 from pathlib import Path
-from typing import Annotated, TypeVar
+from typing import Annotated, TypeGuard
 
 import parse
 import schema
@@ -25,13 +25,18 @@ app = typer.Typer()
 console = Console()
 
 
-def is_realisation_configuration(cls: type) -> bool:
+# Every use site refers to a RealisationConfiguration *subclass* (the classes
+# returned by realisation_configurations), not an instance of one.
+type ConfigType = type[realisations.RealisationConfiguration]
+
+
+def is_realisation_configuration(cls: object) -> TypeGuard[ConfigType]:
     """Returns True if the class is a subclass of realisation configuration.
 
     Parameters
     ----------
-    cls : type
-        Type to check.
+    cls : object
+        Object to check.
 
     Returns
     -------
@@ -43,9 +48,6 @@ def is_realisation_configuration(cls: type) -> bool:
         and inspect.isclass(cls)
         and issubclass(cls, realisations.RealisationConfiguration)
     )
-
-
-ConfigType = TypeVar("ConfigType", bound=realisations.RealisationConfiguration)
 
 
 def realisation_configurations() -> list[ConfigType]:
@@ -64,7 +66,7 @@ def realisation_configurations() -> list[ConfigType]:
 
 
 def loadable_defaults(
-    configurations: list[type], defaults: DefaultsVersion
+    configurations: list[ConfigType], defaults: DefaultsVersion
 ) -> dict[ConfigType, realisations.RealisationConfiguration]:
     """Filter a list of realisation configurations for those with loadable defaults.
 
@@ -72,7 +74,7 @@ def loadable_defaults(
 
     Parameters
     ----------
-    configurations : list[type]
+    configurations : list[ConfigType]
         Configurations to filter.
     defaults : defaults.DefaultsVersion
         Defaults to try and load.
@@ -91,7 +93,7 @@ def loadable_defaults(
         realisation configuration.
 
     """
-    config_defaults = {}
+    config_defaults: dict[ConfigType, realisations.RealisationConfiguration] = {}
     for config in configurations:
         if not is_realisation_configuration(config):
             raise TypeError(
@@ -99,7 +101,7 @@ def loadable_defaults(
             )
         else:
             try:
-                default_config = config.read_from_defaults(defaults)  # type: ignore[unresolved-attribute]
+                default_config = config.read_from_defaults(defaults)
                 config_defaults[config] = default_config
             except realisations.RealisationParseError:
                 continue
@@ -370,10 +372,10 @@ def migrate(
         if not default_config:
             continue
         default_config_dict = default_config.to_dict()
-        current_config = json_data.get(config._config_key, dict())
+        current_config = json_data.get(config._config_key, {})
         if current_config != default_config_dict:
             print_diff(current_config, default_config_dict)
-            print("")
+            print()
             response = auto_response.get((config, Action.UPDATE)) or should_update(
                 config
             )
@@ -430,7 +432,7 @@ def migrate(
             console.print(str(e))
 
 
-@cli.from_docstring(app, name="migrate")  # type: ignore[invalid-argument-type]
+@cli.from_docstring(app, name="migrate")
 def migrate_all(
     realisation_directory: Annotated[
         Path, typer.Argument(exists=True, file_okay=False)
@@ -458,7 +460,7 @@ def migrate_all(
         If given, print instead of writing. Useful to check what would
         be migrated.
     """
-    auto_response = dict()
+    auto_response = {}
     configs = realisation_configurations()
     defaults = loadable_defaults(configs, defaults_version)
 

@@ -19,19 +19,19 @@ from velocity_modelling import bounding_box
 import numpy as np
 
 domain_parameters = realisations.DomainParameters(
-    resolution=0.1, # a 0.1km resolution
+    resolution=0.1,  # a 0.1km resolution
     domain=bounding_box.BoundingBox.from_centroid_bearing_extents(
         centroid=np.array([-43.53092, 172.63701]),
         bearing=45,
         extent_x=100,
-        extent_y=100
+        extent_y=100,
     ),
     depth=40.0,
     duration=60.0,
-    dt=0.005
+    dt=0.005,
 )
 
-domain_parameters.write_to_realisation('path/to/realisation.json')
+domain_parameters.write_to_realisation("path/to/realisation.json")
 ```
 
 Inside the `realisation.json` file you would find the following
@@ -69,14 +69,14 @@ Everything under the `domain` keyword is the configuration for the domain parame
 
 ```python
 srf_config = realisations.SRFConfig(
-    genslip_dt = 1.0,
+    genslip_dt=1.0,
     genslip_seed=1,
-    genslip_version='5.4.2',
+    genslip_version="5.4.2",
     resolution=0.1,
-    srfgen_seed=1
+    srfgen_seed=1,
 )
 
-srf_config.write_to_realisation('path/to/realisation.json')
+srf_config.write_to_realisation("path/to/realisation.json")
 ```
 
 And then, inside the `realisation.json` file you'll find
