@@ -331,7 +331,9 @@ def generate_realisation(
     components = moment.find_connected_faults(
         faults, separation_distance, dip_delta, min_connected_depth
     )
-    magnitudes = default_magnitude_estimation(faults, components, float(avg_rake))
+    magnitudes = default_magnitude_estimation(
+        faults, components, float(avg_rake), strategy
+    )
     if lat_hypo is not None and lon_hypo is not None:
         initial_fault, hypocentre = find_fault_and_hypocentre(
             faults, lat_hypo, lon_hypo
