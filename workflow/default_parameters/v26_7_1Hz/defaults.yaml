@@ -105,3 +105,6 @@ sw4:
     - name: "imagehdf5"
       parameters:
         { mode: "vmax", z: 0.0, file: "surf_vmax", precision: "float" }
+hf:
+  record:
+    dt: 0.005

@@ -60,39 +60,31 @@ emod3d:
   yseis: 0
   zseis: 0
   pertbfile: none.pertb
+# Mirrors `hf_simulation.HfConfig` group for group and field for field, so this block can
+# be deserialised straight into it rather than translated. Two of that class's inputs are
+# absent on purpose: `record.duration_s` is computed from the domain, and the three
+# `source.rupture_velocity` multipliers live in `rupture_velocity:` below because SRF
+# generation reads the same physical values. hf-sim injects both.
 hf:
-  nbu: 4
-  ift: 0
-  flo: 0.02
-  fhi: 19.9
-  nl_skip: -99
-  vp_sig: 0.0
-  vsh_sig: 0.0
-  rho_sig: 0.0
-  qs_sig: 0.0
-  ic_flag: true
-  velocity_name: "-1"
-  t_sec: 0.0
-  sdrop: 50.0
-  rayset: [1]
-  no_siteamp: false
-  fmax: 10.0
-  kappa: 0.045
-  qfexp: 0.6
-  czero: 2.1
-  calpha: -99.0
-  mom: null
-  rupv: null
-  site_specific: false
-  vs_moho: 999.9
-  fa_sig1: 0.0
-  fa_sig2: 0.0
-  rv_sig1: 0.1
-  path_dur: 11
-  dpath_pert: 0.0
-  stress_parameter_adjustment_tect_type: 0
-  stress_parameter_adjustment_target_magnitude: null
-  stress_parameter_adjustment_fault_area: null
+  source:
+    stress_drop_bars: 50.0
+    corner_frequency_constant: 2.1
+    # 0.1, not -99.0. The Fortran read any value below -1.0 as "use the built-in default"
+    # (`if(Calpha.lt.-1.0) Calpha = Calpha_default`), so -99.0 here MEANT 0.1. That decode
+    # lived in the deck reader, which is gone -- hf-simulation takes the value literally
+    # now, and -99.0 makes alpha_T negative for anything but a vertical strike-slip fault.
+    corner_frequency_alpha: 0.1
+    rupture_velocity:
+      sigma: 0.1
+  path:
+    rayset: [1]
+    q_frequency_exponent: 0.6
+    path_duration_model: 11
+  site:
+    kappa_s: 0.045
+    fmax_hz: 10.0
+  record:
+    dt: 0.005
 stoch:
   stoch_dx: 2.0
   stoch_dy: 2.0
@@ -1530,6 +1522,8 @@ hf_velocity_model_1d:
       rho: 3.33
       Qp: 394.80
       Qs: 197.40
+  # Truncate the model where Vs reaches this. 999.9 means no layer does.
+  vs_moho: 999.9
 bb:
   fmin: 0.2
   fmidbot: 0.5
