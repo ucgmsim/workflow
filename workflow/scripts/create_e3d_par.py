@@ -47,6 +47,33 @@ from workflow.realisations import (
 app = typer.Typer()
 
 
+def padded_nz(domain_parameters: DomainParameters, resolution: Resolution) -> int:
+    """The number of z gridpoints EMOD3D reads, including the padding row.
+
+    `velocity_modelling` generates one more layer than the domain implies,
+    because EMOD3D shifts the model down a gridpoint for the free surface and
+    so never reads the last layer (`genmodel.c`). EMOD3D has to be told the
+    padded count, and the velocity model files are sized by it.
+
+    Both the `e3d.par` `nz` and `check_domain_against_velocity_model` come
+    through here. They must not compute it separately: a check that drifts
+    from the value it is checking is worse than no check at all.
+
+    Parameters
+    ----------
+    domain_parameters : DomainParameters
+        The realisation domain parameters.
+    resolution : Resolution
+        The simulation resolution.
+
+    Returns
+    -------
+    int
+        The z gridpoint count including the free-surface padding row.
+    """
+    return domain_parameters.nz(resolution.resolution) + 1
+
+
 def emod3d_domain_parameters(
     resolution: Resolution,
     domain_parameters: DomainParameters,
@@ -68,8 +95,7 @@ def emod3d_domain_parameters(
 
     nx = domain_parameters.nx(resolution.resolution)
     ny = domain_parameters.ny(resolution.resolution)
-    # nz + 1 for consistency with the velocity model
-    nz = domain_parameters.nz(resolution.resolution) + 1
+    nz = padded_nz(domain_parameters, resolution)
     return {
         "nx": nx,
         "ny": ny,
@@ -232,6 +258,70 @@ def format_as_emod3d_value(value: float | str | Path) -> str:
         return str(value)
 
 
+def check_domain_against_velocity_model(
+    domain_parameters: DomainParameters,
+    resolution: Resolution,
+    parameters: EMOD3DParameters,
+    velocity_model_ffp: Path,
+) -> None:
+    """Validate that generated velocity model files match the expected domain size.
+
+    Computes the expected file size for the pmodfile, smodfile, and dmodfile
+    from the domain's nx, ny, nz (with the EMOD3D free-surface padding row added
+    to nz), and compares it against the actual size of each file on disk. A
+    mismatch is an error, but a missing file or unreadable file is not
+    considered an error because this code is often run in a container with the
+    paths only used for templating and hence it would fail on many workflows.
+
+    Parameters
+    ----------
+    domain_parameters : DomainParameters
+        Domain parameters used to compute the expected nx, ny, nz grid
+        dimensions at the given resolution.
+    resolution : Resolution
+        Resolution at which to evaluate the domain's grid dimensions.
+    parameters : EMOD3DParameters
+        EMOD3D parameters providing the pmodfile, smodfile, and dmodfile
+        filenames to check.
+    velocity_model_ffp : Path
+        Directory containing the velocity model files to validate.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    RuntimeError
+        If a velocity model file's size does not match the expected size
+        computed from the domain parameters.
+
+    """
+    nx = domain_parameters.nx(resolution.resolution)
+    ny = domain_parameters.ny(resolution.resolution)
+    nz = padded_nz(domain_parameters, resolution)
+
+    expected_file_size = nx * ny * nz * np.float32().nbytes
+    for filename in [parameters.pmodfile, parameters.smodfile, parameters.dmodfile]:
+        velocity_model_file = velocity_model_ffp / filename
+        try:
+            file_size = velocity_model_file.stat().st_size
+        except OSError as e:
+            # Unreadable is not a mismatch. This stage is routinely run in a
+            # container where the velocity model paths are only being
+            # templated and nothing is on disk yet. Handled per file rather
+            # than around the loop, so one absent file does not stop the
+            # others from being checked.
+            print(
+                f"WARNING: could not validate domain parameters against velocity model supplied:\n{e}"
+            )
+            continue
+        if file_size != expected_file_size:
+            raise RuntimeError(
+                f"Velocity model file {velocity_model_file} does not have the expected size (expected: {expected_file_size}, found: {file_size})"
+            )
+
+
 @cli.from_docstring(app)
 def create_e3d_par(
     realisation_ffp: Path,
@@ -270,6 +360,10 @@ def create_e3d_par(
     emod3d_parameters = EMOD3DParameters.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
+    check_domain_against_velocity_model(
+        domain_parameters, resolution, emod3d_parameters, velocity_model_ffp
+    )
+
     e3d_par_values = (
         emod3d_parameters.to_dict()
         | emod3d_domain_parameters(resolution, domain_parameters)
@@ -291,4 +385,5 @@ def create_e3d_par(
             for key, value in e3d_par_values.items()
         )
     )
+
     realisations.append_log_entry(realisation_ffp)
