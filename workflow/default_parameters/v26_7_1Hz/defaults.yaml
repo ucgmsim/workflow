@@ -1,9 +1,6 @@
 ---
 bb:
   flo: 1.0
-  fmidbot: 0.5
-  fmin: 0.2
-  site_amp_version: "ba2018"
 velocity_model:
   # Minimum that clears the SW4 sponge on a 400 m grid; see
   # `workflow.sw4.minimum_fault_buffer_m`.
