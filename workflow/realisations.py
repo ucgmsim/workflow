@@ -77,6 +77,25 @@ class RealisationParseError(Exception):
     """Realisation JSON parse error."""
 
 
+def path_serialiser(obj: Any) -> Any:
+    """Serialise `Path` values, which `json` does not handle natively.
+
+    Parameters
+    ----------
+    obj : Any
+        The object `json` could not serialise.
+
+    Returns
+    -------
+    Any
+        The string form of `obj` if it is a `Path`, and `obj` unchanged
+        otherwise.
+    """
+    if isinstance(obj, Path):
+        return str(obj)
+    return obj
+
+
 @dataclasses.dataclass
 class RealisationConfiguration(ABC):
     """Abstract base class for RealisationConfiguration."""
@@ -220,7 +239,12 @@ class RealisationConfiguration(ABC):
                 realisation_configuration = json.load(realisation_file_handle)
         realisation_configuration.update({self._config_key: self.to_dict()})
         with open(realisation_ffp, "w", encoding="utf-8") as realisation_file_handle:
-            json.dump(realisation_configuration, realisation_file_handle, indent=4)
+            json.dump(
+                realisation_configuration,
+                realisation_file_handle,
+                indent=4,
+                default=path_serialiser,
+            )
 
 
 @dataclasses.dataclass
@@ -372,6 +396,9 @@ class SRFConfig(RealisationConfiguration):
 
     resolution: float
     """The resolution of the SRF discretisation (different, in general, from the simulation resolution)."""
+
+    dt: float
+    """SRF temporal resolution (timestep)."""
 
     point_source_params: schemas.PointSourceParams | None
     """Parameters for point source approximation, if applicable."""
@@ -1049,11 +1076,23 @@ class HFConfig(RealisationConfiguration):
     """Target magnitude (or inferred if None)"""
     stress_parameter_adjustment_fault_area: float | None
     """Target magnitude (or inferred if None)"""
-    # these are used in stoch generation, rather than HF invocation
+
+
+@dataclasses.dataclass
+class StochConfig(RealisationConfiguration):
+    """Stoch file generation.
+
+    Not part of :class:`HFConfig`: these size the stoch grid, which is an input to the
+    high-frequency simulation rather than one of its parameters.
+    """
+
+    _config_key: ClassVar[str] = "stoch"
+    _schema: ClassVar[Schema] = schemas.STOCH_CONFIG_SCHEMA
+
     stoch_dx: float
     """stoch file resolution in x."""
     stoch_dy: float
-    """stoch file resolution in x."""
+    """stoch file resolution in y."""
 
 
 @dataclasses.dataclass
