@@ -16,7 +16,7 @@ from IM import im_calculation
 from source_modelling import magnitude_scaling, rupture_propagation
 from velocity_modelling import bounding_box
 from workflow import defaults, realisations, schemas
-from workflow.realisations import SourceConfig
+from workflow.realisations import SourceConfig, SW4Command
 
 
 def test_bounding_box_example(tmp_path: Path) -> None:
@@ -886,6 +886,133 @@ def test_resolution(tmp_path: Path) -> None:
     assert realisations.Resolution.read_from_realisation(realisation_path) == resolution
 
 
+def test_refinements(tmp_path: Path) -> None:
+    refinements = realisations.Refinements(
+        refinements=[
+            realisations.Refinement(resolution=50.0, bottom=2000.0),
+            realisations.Refinement(resolution=100.0, bottom=5000.0),
+            realisations.Refinement(resolution=200.0, bottom=25000.0),
+        ],
+        unbounded_refinement_resolution=400.0,
+    )
+
+    realisation_path = tmp_path / "realisation.json"
+    refinements.write_to_realisation(realisation_path)
+    with open(realisation_path, "r") as realisation_handle:
+        assert json.load(realisation_handle) == {
+            "refinements": {
+                "refinements": [
+                    {"resolution": 50.0, "bottom": 2000.0},
+                    {"resolution": 100.0, "bottom": 5000.0},
+                    {"resolution": 200.0, "bottom": 25000.0},
+                ],
+                "unbounded_refinement_resolution": 400.0,
+            }
+        }
+
+    assert (
+        realisations.Refinements.read_from_realisation(realisation_path) == refinements
+    )
+
+
+def test_sw4_command() -> None:
+    command = SW4Command(
+        "imagehdf5",
+        {
+            "mode": "hmax",
+            "plane": "z",
+            "plane_value": 0,
+            "file": "surf_hmax",
+            "time": None,
+        },
+    )
+    assert (
+        command.render() == "imagehdf5 mode=hmax plane=z plane_value=0 file=surf_hmax"
+    )
+
+    merged = command.merged(time=10.0, cycle=None)
+    assert merged.parameters["time"] == 10.0
+    assert (
+        merged.render()
+        == "imagehdf5 mode=hmax plane=z plane_value=0 file=surf_hmax time=10.0"
+    )
+    # merged() must not mutate the original command.
+    assert command.parameters["time"] is None
+
+
+def test_sw4_command_renders_bools_as_ints() -> None:
+    """SW4 expects 0/1 for boolean flags, not Python's True/False."""
+    command = SW4Command("developer", {"reporttiming": True, "failonnan": False})
+    assert command.render() == "developer reporttiming=1 failonnan=0"
+
+
+def test_sw4_parameters(tmp_path: Path) -> None:
+    sw4 = realisations.SW4Parameters(
+        verbose=2,
+        printcycle=10,
+        nz_min=12,
+        commands=[
+            SW4Command(
+                "grid",
+                {
+                    "proj": "tmerc",
+                    "ellps": "GRS80",
+                    "lon_p": 173.0,
+                    "lat_p": 0.0,
+                    "scale": 0.9996,
+                },
+            ),
+            SW4Command("developer", {"cfl": 0.9, "reporttiming": True}),
+            SW4Command(
+                "topography",
+                {"order": 3},
+            ),
+            SW4Command(
+                "imagehdf5",
+                {
+                    "mode": "hmax",
+                    "plane": "z",
+                    "plane_value": 0,
+                    "file": "surf_hmax",
+                    "precision": "float",
+                },
+            ),
+        ],
+    )
+
+    realisation_path = tmp_path / "realisation.json"
+    sw4.write_to_realisation(realisation_path)
+    with open(realisation_path, "r") as realisation_handle:
+        written = json.load(realisation_handle)
+        assert written["sw4"]["verbose"] == 2
+        assert len(written["sw4"]["commands"]) == 4
+        assert written["sw4"]["commands"][1] == {
+            "name": "developer",
+            "parameters": {"cfl": 0.9, "reporttiming": True},
+        }
+
+    assert realisations.SW4Parameters.read_from_realisation(realisation_path) == sw4
+
+
+def test_sw4_parameters_defaults_loadable() -> None:
+    """SW4Parameters should load from v26_7_1Hz defaults and raise for older versions."""
+    sw4 = realisations.SW4Parameters.read_from_defaults(
+        defaults.DefaultsVersion.v26_7_1Hz
+    )
+    assert sw4.verbose == 2
+    developer = realisations.find_command(sw4.commands, "developer")
+    assert developer is not None
+    assert developer.parameters["reporttiming"] is True
+    assert developer.parameters["cfl"] == 0.9
+    assert sum(1 for command in sw4.commands if command.name == "imagehdf5") == 10
+
+    for version in defaults.DefaultsVersion:
+        if version == defaults.DefaultsVersion.v26_7_1Hz:
+            continue
+        with pytest.raises(realisations.RealisationParseError):
+            realisations.SW4Parameters.read_from_defaults(version)
+
+
 def test_sources(tmp_path: Path) -> None:
     realisation_ffp = tmp_path / "realisation.json"
     source_json = {
@@ -934,6 +1061,17 @@ def test_sources(tmp_path: Path) -> None:
         assert json.load(f_old) == json.load(f_new)
 
 
+SKIP_PAIRS = {
+    # `refinements` and `sw4` describe an SW4 grid; the EMOD3D-only versions
+    # have neither. `resolution` is the uniform EMOD3D grid spacing, which an
+    # SW4 run has no single value for.
+    (defaults.DefaultsVersion.v24_2_2_1, realisations.Refinements),
+    (defaults.DefaultsVersion.v24_2_2_2, realisations.Refinements),
+    (defaults.DefaultsVersion.v24_2_2_4, realisations.Refinements),
+    (defaults.DefaultsVersion.v26_7_1Hz, realisations.Resolution),
+}
+
+
 @pytest.mark.parametrize(
     "realisation_config",
     [
@@ -947,6 +1085,7 @@ def test_sources(tmp_path: Path) -> None:
         realisations.HFVelocityModel1D,
         realisations.Resolution,
         realisations.RuptureVelocity,
+        realisations.Refinements,
     ],
 )
 @pytest.mark.parametrize("defaults_version", list(defaults.DefaultsVersion))
@@ -955,4 +1094,8 @@ def test_defaults_are_loadable(
     realisation_config: realisations.RealisationConfiguration,
     defaults_version: defaults.DefaultsVersion,
 ) -> None:
+    if (defaults_version, realisation_config) in SKIP_PAIRS:
+        pytest.skip(
+            f"Configuration {realisation_config} unsupported for defaults {defaults_version}"
+        )
     realisation_config.read_from_defaults(defaults_version)

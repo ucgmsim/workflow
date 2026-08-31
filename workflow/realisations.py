@@ -923,6 +923,82 @@ class DomainParameters(RealisationConfiguration):
 
 
 @dataclasses.dataclass
+class Refinement:
+    """One vertical mesh refinement layer."""
+
+    resolution: float
+    """Grid spacing within this layer (metres)."""
+    bottom: float
+    """Depth of the bottom of this layer (metres)."""
+
+
+@dataclasses.dataclass
+class Refinements(RealisationConfiguration):
+    """The vertical mesh refinements, from the surface down.
+
+    SW4 solves on a stack of grids that coarsen with depth. This describes
+    that stack in the abstract -- the layers a domain of *any* depth would
+    be given -- and `refinements_for_depth` resolves it against a
+    particular domain.
+    """
+
+    _config_key: ClassVar[str] = "refinements"
+    _schema: ClassVar[Schema] = schemas.REFINEMENTS_SCHEMA
+    refinements: list[Refinement]
+    unbounded_refinement_resolution: float
+
+    def __post_init__(self) -> None:
+        """Coerce refinements read from JSON into `Refinement` instances."""
+        if self.refinements and not isinstance(self.refinements[0], Refinement):
+            self.refinements = [Refinement(**item) for item in self.refinements]  # type: ignore
+
+    def refinements_for_depth(self, depth: float) -> list[Refinement]:
+        """Resolve the refinement stack against a domain of a given depth.
+
+        Layers below `depth` are dropped and the last one is truncated to
+        it. If the stack does not reach `depth`, a final layer at
+        `unbounded_refinement_resolution` extends to the bottom. The last
+        layer is always given at least two cells, so a domain that ends
+        just past a refinement boundary does not produce a degenerate grid.
+
+        Parameters
+        ----------
+        depth : float
+            The domain depth, in kilometres.
+
+        Returns
+        -------
+        list of Refinement
+            The layers covering `depth`, from the surface down.
+        """
+        depth_m = depth * 1000.0
+        refinements = []
+        for refinement in self.refinements:
+            refinements.append(
+                dataclasses.replace(refinement, bottom=min(refinement.bottom, depth_m))
+            )
+            if refinement.bottom > depth_m:
+                break
+        else:
+            # This block only runs when we finish the loop without breaking, i.e. we
+            # exhaust the refinement list.
+            refinements.append(
+                Refinement(
+                    resolution=self.unbounded_refinement_resolution, bottom=depth_m
+                )
+            )
+
+        match refinements:
+            case [*_, previous_layer, last_layer]:
+                # Ensure a minimum amount in the last layer.
+                last_layer.bottom = max(
+                    previous_layer.bottom + last_layer.resolution * 2, last_layer.bottom
+                )
+
+        return refinements
+
+
+@dataclasses.dataclass
 class VelocityModelParameters(RealisationConfiguration):
     """Parameters defining the velocity model."""
 
@@ -1279,6 +1355,94 @@ class BroadbandParameters(RealisationConfiguration):
     fmin: float
     """fmin for site amplification."""
     site_amp_version: str
+
+
+@dataclasses.dataclass
+class SW4Command:
+    """A single SW4 input file command, e.g. `attenuation maxfreq=10 nmech=3`."""
+
+    name: str
+    """The SW4 command name (e.g. `attenuation`, `supergrid`, `imagehdf5`)."""
+    parameters: dict[str, str | int | float | bool | None] = dataclasses.field(
+        default_factory=dict
+    )
+    """The command's key=value parameters. None values are omitted when rendered."""
+
+    def render(self) -> str:
+        """Render this command as a single SW4 input file line.
+
+        Returns
+        -------
+        str
+            The command name followed by its non-None `key=value` parameters.
+            Booleans render as `0`/`1`, SW4's expected format, rather than
+            Python's `False`/`True`.
+        """
+        parts = [self.name]
+        for key, value in self.parameters.items():
+            if value is None:
+                continue
+            if isinstance(value, bool):
+                value = int(value)
+            parts.append(f"{key}={value}")
+        return " ".join(parts)
+
+    def merged(self, **overrides: str | int | float | bool | None) -> "SW4Command":
+        """Return a copy of this command with `overrides` merged into its parameters.
+
+        Parameters
+        ----------
+        **overrides : str | int | float | bool | None
+            Parameter values to overlay on top of the existing parameters.
+
+        Returns
+        -------
+        SW4Command
+            A new command with the merged parameters.
+        """
+        return dataclasses.replace(self, parameters={**self.parameters, **overrides})
+
+
+def find_command(commands: list[SW4Command], name: str) -> SW4Command | None:
+    """Find the first command with the given name.
+
+    Parameters
+    ----------
+    commands : list[SW4Command]
+        The commands to search.
+    name : str
+        The command name to look for.
+
+    Returns
+    -------
+    SW4Command | None
+        The first matching command, or None if no command has this name.
+    """
+    return next((command for command in commands if command.name == name), None)
+
+
+@dataclasses.dataclass
+class SW4Parameters(RealisationConfiguration):
+    """Parameters for SW4 simulation."""
+
+    _config_key: ClassVar[str] = "sw4"
+    _schema: ClassVar[Schema] = schemas.SW4_PARAMETERS_SCHEMA
+
+    verbose: int
+    """Fileio verbosity level."""
+    printcycle: int
+    """Output fileio print cycle."""
+    nz_min: int
+    """Minimum vertical cells in each refinement layer."""
+    commands: list[SW4Command]
+    """All other SW4 input file commands (grid projection, attenuation, supergrid,
+    developer, prefilter, topography, imagehdf5 outputs, and any other non-testing
+    SW4 command). Add any SW4 command here as `{"name": ..., "parameters": {...}}`."""
+
+    def __post_init__(self) -> None:
+        """Coerce commands read from JSON into `SW4Command` instances."""
+        if self.commands and not isinstance(self.commands[0], SW4Command):
+            self.commands = [SW4Command(**item) for item in self.commands]  # type: ignore
 
 
 @dataclasses.dataclass
