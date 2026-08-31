@@ -35,6 +35,13 @@ class Stype(StrEnum):
     seki = "seki"
 
 
+class SiteAmpModel(StrEnum):
+    """Site amplification models for broadband simulation."""
+
+    CB2014 = "cb2014"
+    BA2018 = "ba2018"
+
+
 class KModel(IntEnum):
     """Correlation length models for genslip."""
 
@@ -1168,7 +1175,13 @@ BROADBAND_PARAMETERS_SCHEMA = Schema(
         Literal("fmin", description="fmin for site amplification"): And(
             NUMBER, _is_non_negative
         ),
-        "site_amp_version": str,
+        Literal("fhightop", description="fhightop for site amplification"): And(
+            NUMBER, _is_non_negative
+        ),
+        Literal("fmax", description="fmax for site amplification"): And(
+            NUMBER, _is_non_negative
+        ),
+        "site_amp_version": Use(SiteAmpModel),
     }
 )
 
