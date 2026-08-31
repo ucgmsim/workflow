@@ -14,11 +14,12 @@ dependencies = [
   "im-calculation>=2026.09.2",
   "velocity-modelling>=2026.2.1",
   "nshmdb>=2026.09.1",
-  "oq_wrapper>=2025.12.3",
+  "oq_wrapper>=2026.05.2",
   "qcore-utils>=2025.12.2",
   "source_modelling>=2026.08.1",
   # Data Formats
   "geopandas",
+  "netCDF4",               # Required for openquake shenanigans
   "pandas[parquet, hdf5]",
   "pyyaml",
   "xarray[io]",
