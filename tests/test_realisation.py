@@ -115,6 +115,7 @@ def test_srf_config_example(tmp_path: Path) -> None:
     )
     srf_config = realisations.SRFConfig(
         resolution=0.1,
+        dt=0.005,
         point_source_params=schemas.PointSourceParams(
             stype=schemas.Stype.cos,
             risetime=0.5,
@@ -249,6 +250,7 @@ def test_srf_config_example(tmp_path: Path) -> None:
             },
             "srf": {
                 "resolution": 0.1,
+                "dt": 0.005,
                 "point_source_params": {
                     "stype": "cos",
                     "risetime": 0.5,

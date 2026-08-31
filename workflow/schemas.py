@@ -428,6 +428,9 @@ SRF_SCHEMA = Schema(
         Literal(
             "resolution", description="The resolution of the SRF discretisation."
         ): And(NUMBER, _is_positive),
+        Literal("dt", description="SRF temporal resolution (timestep)."): And(
+            NUMBER, _is_positive
+        ),
         Optional(
             Literal(
                 "point_source_params",
@@ -1069,6 +1072,11 @@ HF_CONFIG_SCHEMA = Schema(
         Literal(
             "stress_parameter_adjustment_fault_area", "Fault area (or inferred if null)"
         ): Or(NUMBER, None),
+    }
+)
+
+STOCH_CONFIG_SCHEMA = Schema(
+    {
         Literal("stoch_dx", description="Stoch file dx"): And(NUMBER, _is_positive),
         Literal("stoch_dy", description="Stoch file dy"): And(NUMBER, _is_positive),
     }

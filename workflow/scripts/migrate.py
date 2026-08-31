@@ -304,8 +304,8 @@ def print_diff(config_a: dict, config_b: dict) -> None:
     config_b : dict
         Dictionary b.
     """
-    config_a_str = json.dumps(config_a, indent=4)
-    config_b_str = json.dumps(config_b, indent=4)
+    config_a_str = json.dumps(config_a, indent=4, default=realisations.path_serialiser)
+    config_b_str = json.dumps(config_b, indent=4, default=realisations.path_serialiser)
 
     diff = difflib.context_diff(
         config_a_str.splitlines(keepends=True),
