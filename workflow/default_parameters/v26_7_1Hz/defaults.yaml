@@ -1,0 +1,110 @@
+---
+bb:
+  flo: 1.0
+  fmidbot: 0.5
+  fmin: 0.2
+  site_amp_version: "ba2018"
+velocity_model:
+  # Overrides the root default of 2.0 km, which is an EMOD3D value and has no
+  # absorbing layer to clear. Two criteria bear on this number, and only the
+  # first is enforced (`workflow.sw4.check_fault_buffer`):
+  #
+  # 1. HARD FLOOR, 14 km. A source must sit outside the SW4 supergrid sponge,
+  #    inside which SW4 solves a damped, coordinate-stretched equation rather
+  #    than the wave equation, plus a discretisation margin for its own stencil:
+  #    `(gp + STENCIL_MARGIN_GRIDPOINTS) * coarsest_resolution`
+  #    = (30 + 5) * 400 m = 14 km at the widest sponge any supported domain
+  #    produces. Below this the run is not a ground motion prediction; it is
+  #    the standing-wave failure seen in validation_results_24-08.
+  #
+  # 2. LONG-PERIOD CRITERION, ~80 km. Clearing the sponge is not the same as
+  #    the sponge working. The layer absorbs adiabatically only while
+  #    `W cos(theta) / lambda >> max|Psi0'| / 2pi = 0.431`, so a 12 km sponge
+  #    absorbs only below ~8 s at normal incidence and ~4 s at 60 degrees.
+  #    Empirically, sound runs in that campaign were 83-113 km from the domain
+  #    edge and broken ones 4-5 km. This is NOT enforced: it is a property of
+  #    the period band being asked for, not of the buffer alone, and enforcing
+  #    it would reject every affordable domain.
+  fault_buffer: 14.0
+refinements:
+  refinements:
+    [
+      { resolution: 100.0, bottom: 5000.0 },
+      { resolution: 200.0, bottom: 25000.0 },
+    ]
+  unbounded_refinement_resolution: 400.0
+sw4:
+  verbose: 2
+  printcycle: 10
+  nz_min: 12
+  commands:
+    - name: "grid"
+      parameters:
+        {
+          proj: "tmerc",
+          ellps: "GRS80",
+          lon_p: 173.0,
+          lat_p: 0.0,
+          scale: 0.9996,
+        }
+    # The sponge width is stated in metres rather than as `gp: 30`, which would
+    # be 30 gridpoints of the coarsest (400 m) grid and so vary with the
+    # domain depth. `gp` and `width` are mutually exclusive in SW4.
+    - name: "supergrid"
+      parameters: { width: 12000.0 }
+    - name: "attenuation"
+      parameters: { maxfreq: 10.0, phasefreq: 0.5, nmech: 3 }
+    - name: "developer"
+      parameters: { cfl: 0.9, reporttiming: true, failonnan: true }
+    - name: "prefilter"
+      parameters: { order: 2, passes: 2, fc1: null, fc2: 1.0, type: "lowpass" }
+    - name: "topography"
+      parameters: { order: 3 }
+    - name: "imagehdf5"
+      parameters:
+        { mode: "topo", z: 0.0, file: "topo", cycle: 0, precision: "float" }
+    - name: "imagehdf5"
+      parameters:
+        { mode: "grid", z: 0.0, file: "grid", cycle: 0, precision: "float" }
+    - name: "imagehdf5"
+      parameters:
+        { mode: "p", z: 0.0, file: "surf_vp", cycle: 0, precision: "float" }
+    - name: "imagehdf5"
+      parameters:
+        { mode: "s", z: 0.0, file: "surf_vs", cycle: 0, precision: "float" }
+    - name: "imagehdf5"
+      parameters:
+        { mode: "rho", z: 0.0, file: "surf_rho", cycle: 0, precision: "float" }
+    - name: "imagehdf5"
+      parameters:
+        {
+          mode: "mag",
+          z: 0.0,
+          file: "surf_mag",
+          timeInterval: 0.5,
+          precision: "float",
+        }
+    - name: "imagehdf5"
+      parameters:
+        {
+          mode: "velmag",
+          z: 0.0,
+          file: "surf_velmag",
+          timeInterval: 0.5,
+          precision: "float",
+        }
+    - name: "imagehdf5"
+      parameters:
+        {
+          mode: "uz",
+          z: 0.0,
+          file: "surf_uz",
+          timeInterval: 0.5,
+          precision: "float",
+        }
+    - name: "imagehdf5"
+      parameters:
+        { mode: "hmax", z: 0.0, file: "surf_hmax", precision: "float" }
+    - name: "imagehdf5"
+      parameters:
+        { mode: "vmax", z: 0.0, file: "surf_vmax", precision: "float" }
