@@ -1,9 +1,6 @@
 ---
 bb:
   flo: 1.0
-  fmidbot: 0.5
-  fmin: 0.2
-  site_amp_version: "ba2018"
 velocity_model:
   # Overrides the root default of 2.0 km, which is an EMOD3D value and has no
   # absorbing layer to clear. Two criteria bear on this number, and only the

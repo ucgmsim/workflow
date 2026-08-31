@@ -1526,3 +1526,9 @@ hf_velocity_model_1d:
       rho: 3.33
       Qp: 394.80
       Qs: 197.40
+bb:
+  fmin: 0.2
+  fmidbot: 0.5
+  fhightop: 100.0
+  fmax: 101.0
+  site_amp_version: "ba2018"

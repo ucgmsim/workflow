@@ -1366,10 +1366,15 @@ class BroadbandParameters(RealisationConfiguration):
     flo: float
     """low/high frequency cutoff."""
     fmidbot: float
-    """fmidbot for site amplification"""
+    """fmidbot for the site amplification lowpass taper."""
     fmin: float
-    """fmin for site amplification."""
-    site_amp_version: str
+    """fmin for the site amplification lowpass taper."""
+    fhightop: float
+    """fhightop for the site amplification highpass taper."""
+    fmax: float
+    """fmax for the site amplification highpass taper."""
+    site_amp_version: schemas.SiteAmpModel
+    """The site amplification model to apply."""
 
 
 @dataclasses.dataclass
