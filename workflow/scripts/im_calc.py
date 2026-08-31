@@ -161,6 +161,98 @@ EMPIRICAL_STATISTIC_METADATA = {
 }
 
 
+SUPERGRID_COORDINATES = ("supergrid_depth", "supergrid_depth_gp")
+"""Per-station absorbing-layer penetration, as written by `lf-to-xarray`.
+
+Station-dimension *coordinates*, never data variables: `bb-sim` carries
+coordinates through untouched but drops data variables
+(`bb_sim._process_bb_chunk`).
+"""
+
+SUPERGRID_WIDTH_ATTRIBUTES = {
+    "SGWIDTH": "absorbing_layer_width_m",
+    "SGWIDTHGP": "absorbing_layer_width_gp",
+}
+"""Map from the LF file's own supergrid-width attributes to the IM root attrs.
+
+The width is taken from the waveform file rather than from the realisation
+configuration on purpose: the configuration can be edited after the run, so
+reading it would make the IM file's self-description disagree with the run
+that produced it.
+"""
+
+
+def supergrid_coordinates(dataset: xr.Dataset) -> dict[str, xr.DataArray]:
+    """Extract the absorbing-layer penetration coordinates from a waveform file.
+
+    The coordinates are present on SW4 low-frequency output (and, riding along
+    as coordinates, on the broadband file derived from it). They are absent for
+    every other solver, and absent on SW4 output written before SW4 reported
+    the supergrid. Both cases give an all-NaN coordinate: the penetration is
+    *unknown*, which is not the same claim as `0.0` ("checked, in the
+    interior"). Materialising it unconditionally means every IM file carries
+    the coordinate, whatever the solver.
+
+    Parameters
+    ----------
+    dataset : xr.Dataset
+        The waveform dataset, with a `station` dimension.
+
+    Returns
+    -------
+    dict[str, xr.DataArray]
+        A map from coordinate name to per-station values, loaded eagerly.
+    """
+
+    def absent() -> xr.DataArray:  # numpydoc ignore=GL08
+        return xr.DataArray(
+            np.full(dataset.sizes["station"], np.nan, dtype=np.float32),
+            dims="station",
+            coords={"station": dataset.station},
+        )
+
+    return {
+        name: (
+            dataset.coords[name].astype(np.float32).compute()
+            if name in dataset.coords
+            else absent()
+        )
+        for name in SUPERGRID_COORDINATES
+    }
+
+
+def supergrid_attributes(
+    dataset: xr.Dataset, supergrid: dict[str, xr.DataArray]
+) -> dict[str, str | float]:
+    """Describe the absorbing layer at the root of the IM file.
+
+    Nothing is said unless at least one station has a *reported* penetration:
+    an all-NaN coordinate means no solver reported one, and claiming an
+    absorbing layer then would be a claim about a run nobody measured.
+
+    Parameters
+    ----------
+    dataset : xr.Dataset
+        The waveform dataset, whose attributes carry the sponge width.
+    supergrid : dict[str, xr.DataArray]
+        The output of `supergrid_coordinates`.
+
+    Returns
+    -------
+    dict[str, str | float]
+        Root attributes naming the absorbing layer and its width, or an empty
+        dict if the run does not report one.
+    """
+    if not bool(np.isfinite(supergrid["supergrid_depth"]).any()):
+        return {}
+
+    attributes: dict[str, str | float] = {"absorbing_layer": "sw4_supergrid"}
+    for source_name, attribute_name in SUPERGRID_WIDTH_ATTRIBUTES.items():
+        if source_name in dataset.attrs:
+            attributes[attribute_name] = float(dataset.attrs[source_name])
+    return attributes
+
+
 def add_station_parameters(
     dtree: xr.DataTree, station_parameters: dict[str, xr.DataArray]
 ) -> xr.DataTree:
@@ -181,7 +273,7 @@ def add_station_parameters(
         data.
     """
 
-    def parameterise(dataset: xr.Dataset) -> xr.Dataset:
+    def parameterise(dataset: xr.Dataset) -> xr.Dataset:  # numpydoc ignore=GL08
         if not dataset.data_vars:
             return dataset
 
@@ -197,6 +289,10 @@ def add_station_parameters(
 def add_units(dtree: xr.DataTree) -> xr.DataTree:
     """Annotate coordinates and intensity measures with units and descriptions.
 
+    Empirical datasets are left alone, because they are annotated as they
+    are calculated (their values are in log-space, so they do not share the
+    units of the simulated intensity measures).
+
     Parameters
     ----------
     dtree : xr.DataTree
@@ -208,7 +304,7 @@ def add_units(dtree: xr.DataTree) -> xr.DataTree:
         The tree, with unit and description metadata attached.
     """
 
-    def unitify(dataset: xr.Dataset) -> xr.Dataset:
+    def unitify(dataset: xr.Dataset) -> xr.Dataset:  # numpydoc ignore=GL08
         if not dataset.data_vars:
             return dataset
 
@@ -346,8 +442,6 @@ def calculate_distances(
     longitude = broadband.longitude.values
     station_locations = np.stack((latitude, longitude), axis=-1)
 
-    # TODO: Cannot use the vectorised form of rjb and rrup just yet because
-    # source modelling lacks the vectorised calculations on the Point class.
     rrup = xr.DataArray(
         np.array(
             [
@@ -533,7 +627,6 @@ def calculate_site_parameters(vs30: xr.DataArray) -> SiteParameters:
         The site parameters, with basin depths estimated using the Chiou
         and Youngs (2008) relations.
     """
-    # TODO: Update these to pull in actual z1p0 values when the site database changes propagate through here.
     z1pt0 = chiou_young_08_calc_z1p0(vs30)  # ty: ignore[invalid-argument-type]
     z2pt5 = chiou_young_08_calc_z2p5(z1pt0)
     return SiteParameters(vs30=vs30, z1pt0=z1pt0, z2pt5=z2pt5)
@@ -654,7 +747,9 @@ def calculate_empirical(
     -------
     dict
         A map from data tree path (`{im}/empirical/{model}`) to the log-mean
-        and log-standard deviation of that intensity measure.
+        and log-standard deviation of that intensity measure. The paths are
+        chosen so this map can be merged with the simulated intensity
+        measures before building the output data tree.
     """
     inputs = empirical_inputs(source_parameters, site_parameters, distances)
     tect_type = oqw.constants.TectType(empirical_config.tect_type)
@@ -764,6 +859,11 @@ def calculate_intensity_measures(
             station=broadband.station.str.match(r"^(\w{4})$").values
         )
 
+    # Read once the station set is final. `im-calc` runs on a raw SW4 LF file
+    # as well as on `realisation.bb`, and the coordinates ride through `bb-sim`
+    # untouched, so both paths carry the flag; every other solver gets NaN.
+    supergrid = supergrid_coordinates(broadband)
+
     intensity_measures = override_ims or intensity_measure_parameters.ims
 
     psa_periods = np.array(intensity_measure_parameters.valid_periods, dtype=np.float64)
@@ -810,6 +910,10 @@ def calculate_intensity_measures(
         source_geometries, magnitudes, rakes, hypocentre
     )
 
+    # Each IM function is dask-native: it accepts the lazy `waveform` DataArray
+    # and returns a lazy Dataset with the same `station` chunking, one data
+    # variable per component. Nothing is computed until `dtree.to_netcdf`
+    # below, which streams the result chunk by chunk.
     im_results: dict[str, xr.Dataset] = {
         im_name: im_function_map[im_name](broadband.waveform)
         for im_name in intensity_measures
@@ -833,7 +937,7 @@ def calculate_intensity_measures(
         "ztor": source_parameters.avg_ztor,
         "zbot": source_parameters.avg_zbot,
         "hypo_depth": source_parameters.hypo_depth,
-    }
+    } | supergrid_attributes(broadband, supergrid)
     site_parameters = None
     if empirical:
         # vs30 is one float per station; load it eagerly rather than letting it
@@ -863,7 +967,12 @@ def calculate_intensity_measures(
         dtree,
         distances.as_dict()
         | ((site_parameters).as_dict() if site_parameters else {})
-        | {"latitude": broadband["latitude"], "longitude": broadband["longitude"]},
+        # Belt and braces: these already ride along as coordinates on every
+        # leaf, so re-attaching them is idempotent -- but it makes the
+        # guarantee independent of xarray's coordinate propagation, and
+        # supplies the all-NaN fallback for solvers that report nothing.
+        | {"latitude": broadband["latitude"], "longitude": broadband["longitude"]}
+        | supergrid,
     )
     dtree = add_units(dtree)
 
