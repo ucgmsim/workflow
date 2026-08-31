@@ -40,13 +40,16 @@ from qcore import cli, geo
 from source_modelling import magnitude_scaling, moment, sources
 from velocity_modelling import bounding_box
 from velocity_modelling.bounding_box import BoundingBox
-from workflow import log_utils, realisations, utils
+from workflow import log_utils, realisations, sw4, utils
 from workflow.realisations import (
     DomainParameters,
     Magnitudes,
     Rakes,
     RealisationMetadata,
+    RealisationParseError,
+    Refinements,
     SourceConfig,
+    SW4Parameters,
     VelocityModelParameters,
 )
 
@@ -519,6 +522,8 @@ def generate_domain(
     magnitudes: Magnitudes,
     rakes: Rakes,
     velocity_model_parameters: VelocityModelParameters,
+    sw4_params: SW4Parameters | None = None,
+    refinements: Refinements | None = None,
 ) -> DomainParameters:
     """
     Computes simulation domain spatial extent and temporal duration.
@@ -535,12 +540,27 @@ def generate_domain(
     velocity_model_parameters : VelocityModelParameters
         Parameters defining the velocity model, including Vs30, S-wave
         velocity, and the duration scaling multiplier.
+    sw4_params : SW4Parameters, optional
+        The SW4 parameters, when the realisation is destined for SW4. Given
+        together with `refinements`, the fault buffer is checked against the
+        supergrid sponge before a domain is written. Both default to None,
+        which skips the check, because the EMOD3D-only defaults versions have
+        no `sw4` or `refinements` section at all.
+    refinements : Refinements, optional
+        The theoretical mesh refinements, needed to know the coarsest grid
+        spacing the sponge will be measured on. See `sw4_params`.
 
     Returns
     -------
     DomainParameters
         An object containing the computed model domain (bounding box),
         the maximum simulation depth, and the estimated simulation duration.
+
+    Raises
+    ------
+    ValueError
+        If `sw4_params` and `refinements` are both given and the fault buffer
+        is too small to keep sources out of the SW4 supergrid sponge.
     """
 
     rupture_context = rupture_context_from(magnitudes, rakes, velocity_model_parameters)
@@ -548,6 +568,19 @@ def generate_domain(
     rrups = find_r_surfaces(
         source_config, magnitudes, velocity_model_parameters.rrup_interpolants
     )
+
+    # The depth does not depend on the lateral domain, so it can be computed
+    # first and used to resolve the refinements. Gate A: refuse to write a
+    # domain whose fault buffer cannot keep sources out of the SW4 supergrid
+    # sponge, rather than discovering it at the end of a run.
+    depth = domain_max_depth(source_config, magnitudes)
+    if sw4_params is not None and refinements is not None:
+        sw4.check_fault_buffer(
+            velocity_model_parameters.fault_buffer,
+            sw4_params,
+            sw4.coarsest_resolution(refinements, depth),
+        )
+
     nz_outline = utils.get_nz_outline_polygon()
     model_domain = estimate_domain(
         source_config, rrups, nz_outline, velocity_model_parameters.fault_buffer
@@ -555,7 +588,6 @@ def generate_domain(
     sim_duration = estimate_simulation_duration(
         rupture_context, model_domain, source_config.source_geometries.values()
     )
-    depth = domain_max_depth(source_config, magnitudes)
 
     domain_parameters = DomainParameters(
         domain=model_domain,
@@ -602,8 +634,27 @@ def generate_domain_from_realisation(
 
     magnitudes = Magnitudes.read_from_realisation(realisation_ffp)
     rakes = Rakes.read_from_realisation(realisation_ffp)
+
+    # The EMOD3D-only defaults versions have no `sw4` or `refinements` section,
+    # so these are genuinely optional and their absence is not an error.
+    try:
+        sw4_params = SW4Parameters.read_from_realisation_or_defaults(
+            realisation_ffp, metadata.defaults_version
+        )
+        refinements = Refinements.read_from_realisation_or_defaults(
+            realisation_ffp, metadata.defaults_version
+        )
+    except RealisationParseError:
+        sw4_params = None
+        refinements = None
+
     domain_parameters = generate_domain(
-        source_config, magnitudes, rakes, velocity_model_parameters
+        source_config,
+        magnitudes,
+        rakes,
+        velocity_model_parameters,
+        sw4_params=sw4_params,
+        refinements=refinements,
     )
     domain_parameters.write_to_realisation(realisation_ffp)
     realisations.append_log_entry(realisation_ffp)
