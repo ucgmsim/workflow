@@ -804,6 +804,10 @@ velocity_model_1d:
       rho: 3.33
       Qp: 394.80
       Qs: 197.40
+empirical:
+  tect_type: "active_shallow"
+  models: ["NSHM2022"]
+
 im:
   ims: ["PGA", "PGV", "PGD", "CAV", "AI", "Ds575", "Ds595", "pSA", "FAS"]
   valid_periods:

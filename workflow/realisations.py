@@ -1495,6 +1495,21 @@ class IntensityMeasureCalculationParameters(RealisationConfiguration):
 
 
 @dataclasses.dataclass
+class EmpiricalParameters(RealisationConfiguration):
+    """Empirical (ground motion model) intensity measure parameters."""
+
+    _config_key: ClassVar[str] = "empirical"
+    _schema: ClassVar[Schema] = schemas.EMPIRICAL_PARAMETERS
+
+    # Types here are not explicitly declared so we do not pay the openquake tax
+    # importing this module.
+    tect_type: Any
+    """The tectonic type of the source (an `oq_wrapper.constants.TectType`)."""
+    models: list[Any]
+    """The ground motion models or logic trees to evaluate."""
+
+
+@dataclasses.dataclass
 class LogEntry:
     """Log entry for workflow utilities."""
 
