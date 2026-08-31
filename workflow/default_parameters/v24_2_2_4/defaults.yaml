@@ -3,6 +3,3 @@ resolution:
   resolution: 0.4
 bb:
   flo: 0.25
-  fmidbot: 0.5
-  fmin: 0.25
-  site_amp_version: "2014"
