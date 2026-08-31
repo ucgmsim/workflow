@@ -18,7 +18,7 @@ from abc import ABC
 from collections.abc import Sequence
 from importlib import metadata
 from pathlib import Path
-from typing import Any, ClassVar, Literal, Self
+from typing import Any, ClassVar, Self
 
 import numpy as np
 import numpy.typing as npt
@@ -1091,10 +1091,15 @@ class HFVelocityModel1D(VelocityModel1D):
     """1D Velocity Model for SRF and HF.
 
     Differs from the VelocityModel1D class in the default case with a minimum
-    Vs of 500 m/s."""
+    Vs of 500 m/s, and in carrying `vs_moho` -- which is a property of the model, not of
+    the simulation, and truncates it.
+    """
 
     _config_key: ClassVar[str] = "hf_velocity_model_1d"
-    _schema: ClassVar[Schema] = schemas.VELOCITY_MODEL_1D_SCHEMA
+    _schema: ClassVar[Schema] = schemas.HF_VELOCITY_MODEL_1D_SCHEMA
+
+    vs_moho: float = 999.9
+    """Shear velocity at which to truncate the model at the Moho, km/s."""
 
 
 @dataclasses.dataclass
@@ -1142,80 +1147,35 @@ class RuptureVelocity(RealisationConfiguration):
 
 @dataclasses.dataclass
 class HFConfig(RealisationConfiguration):
-    """High frequency simulation configuration."""
+    """High frequency simulation configuration.
+
+    **Mirrors `hf_simulation.HfConfig` group for group and field for field**, so this
+    section can be deserialised straight into it rather than translated. Keep it that way:
+    a translation layer between two descriptions of the same physics is the thing that
+    drifts.
+
+    Two of that class's inputs are deliberately absent. `record.duration_s` is computed
+    from the domain, and the three `source.rupture_velocity` multipliers live in
+    :class:`RuptureVelocity` because SRF generation reads the same physical values. Both
+    are injected by `hf-sim`.
+    """
 
     _config_key: ClassVar[str] = "hf"
     _schema: ClassVar[Schema] = schemas.HF_CONFIG_SCHEMA
 
-    nbu: int
-    """Unknown!"""
-    ift: int
-    """Unknown!"""
-    flo: float
-    """Unknown!"""
-    fhi: float
-    """Unknown!"""
-    nl_skip: int
-    """Skip empty lines in input?"""
-    vp_sig: float
-    """Unknown!"""
-    vsh_sig: float
-    """Unknown!"""
-    qs_sig: float
-    """Unknown!"""
-    rho_sig: float
-    """Unknown!"""
-    ic_flag: bool
-    """Unknown!"""
-    velocity_name: str
-    """Unknown"""
-    t_sec: float
-    """High frequency output start time."""
-    sdrop: float
-    """Stress drop average (bars)"""
-    rayset: list[Literal[1, 2]]
-    """ray types 1: direct, 2: moho"""
-    no_siteamp: bool
-    """Disable BJ97 site amplification factors"""
-    fmax: float
-    """Max simulation frequency"""
-    kappa: float
-    """Unknown!"""
-    qfexp: float
-    """Q frequency exponent"""
-    czero: float
-    """C0 coefficient"""
-    calpha: float
-    """Ca coefficient"""
-    mom: float | None
-    """Seismic moment for HF simulation (or None, to infer value)"""
-    rupv: float | None
-    """Rupture velocity (or binary default)"""
-    site_specific: bool
-    """Enable site-specific calculation"""
-    vs_moho: float
-    """vs of moho layer"""
-    fa_sig1: float
-    """Fourier amplitude uncertainty (1)"""
-    fa_sig2: float
-    """Fourier amplitude uncertainty (2)"""
-    rv_sig1: float
-    """Rupture velocity uncertainty"""
-    path_dur: Literal[0, 1, 2, 11, 12]
-    """path duration model.
-        - 0: GP2010
-        - 1: WUS modification trail/error
-        - 2: ENA modification trial/error
-        - 11: WUS formulation of BT2014
-        - 12: ENA formulation of BT2015. Models 11 and 12 over predict for multiple rays."""
-    dpath_pert: float
-    """Log of path duration multiplier"""
-    stress_parameter_adjustment_tect_type: Literal[0, 1, 2]
-    """Adjustment option 0 = off, 1 = active tectonic, 2 = stable continent"""
-    stress_parameter_adjustment_target_magnitude: float | None
-    """Target magnitude (or inferred if None)"""
-    stress_parameter_adjustment_fault_area: float | None
-    """Target magnitude (or inferred if None)"""
+    source: dict[str, Any]
+    """Radiation strength and rupture speed. See `hf_simulation.SourceParameters`."""
+    path: dict[str, Any]
+    """Rays and attenuation. See `hf_simulation.PathParameters`."""
+    site: dict[str, Any]
+    """The near-surface. See `hf_simulation.SiteParameters`."""
+    record: dict[str, Any]
+    """Duration and sample interval. See `hf_simulation.RecordParameters`."""
+
+    @property
+    def dt(self) -> float:
+        """float: Sample interval, seconds."""
+        return self.record["dt"]
 
 
 @dataclasses.dataclass
@@ -1407,7 +1367,7 @@ class SW4Command:
             parts.append(f"{key}={value}")
         return " ".join(parts)
 
-    def merged(self, **overrides: str | int | float | bool | None) -> "SW4Command":
+    def merged(self, **overrides: str | float | bool | None) -> "SW4Command":
         """Return a copy of this command with `overrides` merged into its parameters.
 
         Parameters

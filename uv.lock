@@ -1041,6 +1041,14 @@ wheels = [
 ]
 
 [[package]]
+name = "hf-simulation"
+version = "0.1.dev178+g15175ed01"
+source = { git = "https://github.com/ucgmsim/high-frequency#15175ed012fabc37c164d9ee49c65f2ecf0e4186" }
+dependencies = [
+    { name = "numpy" },
+]
+
+[[package]]
 name = "hpack"
 version = "4.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3522,6 +3530,7 @@ dependencies = [
     { name = "dask" },
     { name = "geopandas" },
     { name = "h5py" },
+    { name = "hf-simulation" },
     { name = "im-calculation" },
     { name = "netcdf4" },
     { name = "nshmdb" },
@@ -3574,6 +3583,7 @@ requires-dist = [
     { name = "deptry", marker = "extra == 'dev'" },
     { name = "geopandas" },
     { name = "h5py", specifier = ">=3.15.1" },
+    { name = "hf-simulation", git = "https://github.com/ucgmsim/high-frequency" },
     { name = "hypothesis", extras = ["numpy"], marker = "extra == 'test'", specifier = ">=6.0.0" },
     { name = "im-calculation", git = "https://github.com/ucgmsim/im_calculation?branch=no_parallel" },
     { name = "netcdf4" },
