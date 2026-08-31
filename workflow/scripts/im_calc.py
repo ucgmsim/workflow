@@ -27,36 +27,190 @@ For More Help
 See the output of `im-calc --help`.
 """
 
+import dataclasses
 import functools
 from pathlib import Path
 from typing import Annotated
 
 import numpy as np
-import pandas as pd
 import shapely
-import tqdm
 import typer
 import xarray as xr
 
-from IM import im_reader, ims
-from IM.im_calculation import IM
+from IM import ims
+from IM.ims import IM
 from qcore import cli, coordinates
 from source_modelling import sources
 from source_modelling.sources import IsSource
-from workflow import realisations, utils
+from workflow import realisations
 from workflow.realisations import (
     DomainParameters,
     IntensityMeasureCalculationParameters,
     Magnitudes,
+    Rakes,
     RealisationMetadata,
-    Resolution,
     RupturePropagationConfig,
     SourceConfig,
 )
 
-PSA_STEP = 10000
-
 app = typer.Typer()
+
+
+COORDINATE_METADATA = {
+    "station": {"description": "Station identifiers"},
+    "vs30": {
+        "description": "Average shear-wave velocity to 30m depth",
+        "units": "m/s",
+    },
+    "z1pt0": {
+        "description": "Depth to the 1.0 km/s shear-wave velocity horizon",
+        "units": "km",
+    },
+    "z2pt5": {
+        "description": "Depth to the 2.5 km/s shear-wave velocity horizon",
+        "units": "km",
+    },
+    "epi": {"description": "Epicentral distance", "units": "km"},
+    "hyp": {"description": "Hypocentral distance", "units": "km"},
+    "rrup": {"description": "Rupture distance", "units": "km"},
+    "rjb": {"description": "Joyner-Boore distance", "units": "km"},
+    "rx": {"description": "Generalised strike-parallel distance", "units": "km"},
+    "ry": {"description": "Generalised strike-normal distance", "units": "km"},
+    "supergrid_depth": {
+        "description": (
+            "Penetration of the station into the solver's absorbing layer. "
+            "0 = interior (valid ground motion); > 0 = inside the damped, "
+            "coordinate-stretched sponge, where the trace is NOT a "
+            "ground-motion prediction and should be excluded (recommended "
+            "threshold: supergrid_depth > 0); NaN = not reported by this "
+            "solver, i.e. unknown rather than clean."
+        ),
+        "units": "m",
+    },
+    "supergrid_depth_gp": {
+        "description": (
+            "Penetration of the station into the solver's absorbing layer, "
+            "in grid points. Same three states as supergrid_depth (0 = "
+            "interior; > 0 = inside the sponge, the trace is NOT a "
+            "ground-motion prediction; NaN = not reported by this solver) "
+            "and the same recommended threshold of > 0."
+        ),
+        "units": "gridpoints",
+    },
+    "latitude": {"description": "Station latitude", "units": "degrees"},
+    "longitude": {"description": "Station longitude", "units": "degrees"},
+    "frequency": {"description": "Frequency of motion", "units": "Hz"},
+    "period": {"description": "Period of motion", "units": "s"},
+}
+
+IM_METADATA = {
+    IM.PGA: "Peak ground acceleration",
+    IM.PGV: "Peak ground velocity",
+    IM.PGD: "Peak ground displacement",
+    IM.CAV: "Cumulative absolute velocity",
+    IM.CAV5: "Cumulative absolute velocity (above 5 cm/s)",
+    IM.AI: "Arias intensity",
+    IM.Ds575: "Significant duration (5-75%)",
+    IM.Ds595: "Significant duration (5-95%)",
+    IM.pSA: "Pseudo-spectral acceleration",
+    IM.FAS: "Fourier amplitude spectrum",
+}
+
+
+# The 'g0' unit is used for acceleration and is equivalent to 9.81 m/s^2. The
+# reason for this is that 'g' is reserved for 'grams'. This is a decision
+# made by the `pint` library, which is used to handle the units.
+IM_UNITS = {
+    IM.PGA: "g0",
+    IM.PGV: "cm/s",
+    IM.PGD: "cm",
+    IM.CAV: "m/s",
+    IM.CAV5: "m/s",
+    IM.AI: "m/s",
+    IM.Ds575: "s",
+    IM.Ds595: "s",
+    IM.FAS: "g0 * s",
+    IM.pSA: "g0",
+}
+
+
+def add_station_parameters(
+    dtree: xr.DataTree, station_parameters: dict[str, xr.DataArray]
+) -> xr.DataTree:
+    """Attach per-station parameters as coordinates on every leaf of the tree.
+
+    Parameters
+    ----------
+    dtree : xr.DataTree
+        The tree of intensity measure datasets.
+    station_parameters : dict
+        A map from parameter name (distance and site measures) to the
+        per-station values.
+
+    Returns
+    -------
+    xr.DataTree
+        The tree, with the parameters attached to every dataset containing
+        data.
+    """
+
+    def parameterise(dataset: xr.Dataset) -> xr.Dataset:  # numpydoc ignore=GL08
+        if not dataset.data_vars:
+            return dataset
+
+        dataset = dataset.copy(deep=False)
+        dataset.coords.update(station_parameters)
+        return dataset
+
+    dtree = dtree.map_over_datasets(parameterise)
+
+    return dtree
+
+
+def add_units(dtree: xr.DataTree) -> xr.DataTree:
+    """Annotate coordinates and intensity measures with units and descriptions.
+
+    Empirical datasets are left alone, because they are annotated as they
+    are calculated (their values are in log-space, so they do not share the
+    units of the simulated intensity measures).
+
+    Parameters
+    ----------
+    dtree : xr.DataTree
+        The tree of intensity measure datasets.
+
+    Returns
+    -------
+    xr.DataTree
+        The tree, with unit and description metadata attached.
+    """
+
+    def unitify(dataset: xr.Dataset) -> xr.Dataset:  # numpydoc ignore=GL08
+        if not dataset.data_vars:
+            return dataset
+
+        dataset = dataset.copy(deep=False)
+
+        for name, description in COORDINATE_METADATA.items():
+            if name not in dataset.coords:
+                continue
+            dataset.coords[name].attrs.update(description)
+
+        if "name" not in dataset.attrs:
+            return dataset
+
+        name = dataset.attrs["name"]
+
+        for data_var in dataset.data_vars.values():
+            data_var.attrs["units"] = IM_UNITS[name]
+
+        description = IM_METADATA[name]
+        dataset.attrs["description"] = description
+        return dataset
+
+    dtree = dtree.map_over_datasets(unitify)
+
+    return dtree
 
 
 def _source_polygon(source_geometries: dict[str, IsSource]) -> shapely.Geometry:
@@ -111,6 +265,221 @@ def _trace_polygon(source_geometries: dict[str, IsSource]) -> shapely.Geometry:
     return shapely.normalize(shapely.union_all(geometries))
 
 
+@dataclasses.dataclass
+class Distances:
+    """Source-to-site distance measures, in kilometres."""
+
+    rrup: xr.DataArray
+    """Shortest distance to the rupture plane."""
+    rjb: xr.DataArray
+    """Shortest distance to the surface projection of the rupture."""
+    hyp: xr.DataArray
+    """Distance to the hypocentre."""
+    epi: xr.DataArray
+    """Distance to the epicentre."""
+    rx: xr.DataArray | None = None
+    """Strike-parallel distance. Only defined for planar sources."""
+    ry: xr.DataArray | None = None
+    """Strike-normal distance. Only defined for planar sources."""
+
+    def as_dict(self) -> dict[str, xr.DataArray]:
+        """Map distance measure name to distances, omitting undefined measures.
+
+        Returns
+        -------
+        dict
+            A map from distance measure name to per-station distances.
+        """
+        return {
+            field.name: value
+            for field in dataclasses.fields(self)
+            if (value := getattr(self, field.name)) is not None
+        }
+
+
+def calculate_distances(
+    source_geometries: SourceConfig,
+    hypocentre: np.ndarray,
+    broadband: xr.Dataset,
+) -> Distances:
+    """Calculate source-to-site distances for every station in the broadband.
+
+    Parameters
+    ----------
+    source_geometries : SourceConfig
+        The source geometries of the realisation.
+    hypocentre : np.ndarray
+        The hypocentre, in latitude, longitude, depth format.
+    broadband : xr.Dataset
+        The broadband waveform dataset, supplying the station locations.
+
+    Returns
+    -------
+    Distances
+        The distance measures for each station, in kilometres. `rx` and `ry`
+        are only calculated if every source in the realisation is planar.
+    """
+    latitude = broadband.latitude.values
+    longitude = broadband.longitude.values
+    station_locations = np.stack((latitude, longitude), axis=-1)
+
+    rrup = xr.DataArray(
+        np.array(
+            [
+                min(
+                    source.rrup_distance(np.append(station, 0))
+                    for source in source_geometries.source_geometries.values()
+                )
+                for station in station_locations
+            ]
+        )
+        / 1000,
+        dims=["station"],
+        coords=dict(station=broadband.station),
+    )
+    rjb = xr.DataArray(
+        np.array(
+            [
+                min(
+                    source.rjb_distance(np.append(station, 0))
+                    for source in source_geometries.source_geometries.values()
+                )
+                for station in station_locations
+            ]
+        )
+        / 1000,
+        dims=["station"],
+        coords=dict(station=broadband.station),
+    )
+
+    hyp = xr.DataArray(
+        coordinates.distance_between_wgs_depth_coordinates(
+            np.c_[station_locations, np.zeros_like(latitude)],
+            hypocentre,
+        )
+        / 1000,
+        dims=["station"],
+        coords=dict(station=broadband.station),
+    )
+    epi = xr.DataArray(
+        coordinates.distance_between_wgs_depth_coordinates(
+            station_locations,
+            hypocentre[:2],
+        )
+        / 1000,
+        dims=["station"],
+        coords=dict(station=broadband.station),
+    )
+
+    distances = Distances(rrup=rrup, rjb=rjb, hyp=hyp, epi=epi)
+    all_faults_have_rx_ry = all(
+        isinstance(source, sources.Plane | sources.Fault)
+        for source in source_geometries.source_geometries.values()
+    )
+    if all_faults_have_rx_ry:
+        rx, ry = sources.multi_fault_rx_ry_distance(
+            list(source_geometries.source_geometries.values()),  # ty: ignore[invalid-argument-type]
+            station_locations,
+        )
+        rx /= 1000.0
+        ry /= 1000.0
+        distances.rx = xr.DataArray(
+            rx, dims="station", coords=dict(station=broadband.station)
+        )
+        distances.ry = xr.DataArray(
+            ry, dims="station", coords=dict(station=broadband.station)
+        )
+    return distances
+
+
+@dataclasses.dataclass
+class SourceParameters:
+    """Rupture parameters describing the realisation as a single source."""
+
+    mag: float
+    """The total moment magnitude of the rupture."""
+    avg_rake: float
+    """The moment-averaged rake angle (degrees)."""
+    avg_dip: float
+    """The moment-averaged dip angle (degrees)."""
+    avg_ztor: float
+    """The moment-averaged depth to the top of the rupture (km)."""
+    avg_zbot: float
+    """The moment-averaged depth to the bottom of the rupture (km)."""
+    hypo_depth: float
+    """The depth of the hypocentre (km)."""
+
+
+def calculate_source_parameters(
+    source_config: SourceConfig,
+    magnitudes: Magnitudes,
+    rakes: Rakes,
+    hypocentre: np.ndarray,
+) -> SourceParameters:
+    """Reduce a multi-fault realisation to a single set of rupture parameters.
+
+    Ground motion models describe a rupture with a single magnitude, rake,
+    dip and depth. Multi-fault realisations are collapsed into these by
+    averaging each fault's contribution, weighted by its moment.
+
+    Parameters
+    ----------
+    source_config : SourceConfig
+        The source geometries of the realisation.
+    magnitudes : Magnitudes
+        The per-fault magnitudes, used for the moment weighting.
+    rakes : Rakes
+        The per-fault rake angles.
+    hypocentre : np.ndarray
+        The hypocentre, in latitude, longitude, depth (metres) format.
+
+    Returns
+    -------
+    SourceParameters
+        The rupture parameters of the realisation as a whole.
+    """
+    mag = magnitudes.total_magnitude
+
+    avg_rake_vector = magnitudes.moment_averaged(rakes.as_vectors())
+    avg_rake = np.degrees(np.arctan2(avg_rake_vector[1], avg_rake_vector[0]))
+
+    avg_dip_vector = magnitudes.moment_averaged(
+        {
+            k: np.array([np.cos(np.radians(f.dip)), np.sin(np.radians(f.dip))])
+            for k, f in source_config.source_geometries.items()
+        }
+    )
+    avg_dip = np.degrees(np.arctan2(avg_dip_vector[1], avg_dip_vector[0]))
+
+    if all(
+        hasattr(f, "top_m") and hasattr(f, "bottom_m")
+        for f in source_config.source_geometries.values()
+    ):
+        avg_ztor = magnitudes.moment_averaged(
+            {k: f.top_m / 1000.0 for k, f in source_config.source_geometries.items()}  # ty: ignore[unresolved-attribute]
+        )
+        avg_zbot = magnitudes.moment_averaged(
+            {k: f.bottom_m / 1000.0 for k, f in source_config.source_geometries.items()}  # ty: ignore[unresolved-attribute]
+        )
+    else:
+        avg_ztor = magnitudes.moment_averaged(
+            {
+                k: f.centroid[-1] / 1000.0
+                for k, f in source_config.source_geometries.items()
+            }
+        )
+        avg_zbot = avg_ztor
+
+    return SourceParameters(
+        mag=mag,
+        avg_rake=float(avg_rake),
+        avg_dip=float(avg_dip),
+        avg_ztor=avg_ztor,
+        avg_zbot=avg_zbot,
+        hypo_depth=float(hypocentre[2]) / 1000.0,
+    )
+
+
 @cli.from_docstring(app)
 def calculate_intensity_measures(
     realisation_ffp: Annotated[
@@ -121,12 +490,10 @@ def calculate_intensity_measures(
     ],
     output_path: Annotated[Path, typer.Argument(dir_okay=False, writable=True)],
     simulated_stations: Annotated[bool, typer.Option()] = True,
-    psa_step: Annotated[int, typer.Option()] = PSA_STEP,
     ko_directory: Annotated[
         Path | None, typer.Option(exists=True, file_okay=False)
     ] = None,
     override_ims: Annotated[list[IM] | None, typer.Option("-i", "--im")] = None,
-    cores: Annotated[int | None, typer.Option(min=1)] = None,
 ) -> None:
     """Calculate intensity measures for simulation data.
 
@@ -140,23 +507,12 @@ def calculate_intensity_measures(
         Output directory for IM calc summary statistics.
     simulated_stations : bool, default True
         If passed, calculate for simulated stations.
-    psa_step : int
-        Maximum number of stations to read from disk at once for pSA calculation
     ko_directory : Path
         Directory containing the KO matrix files for FAS calculation. Not required for other IMs.
     override_ims : list of str
         Intensity measures to calculate. If not set, reads from the realisation file.
-    cores : int or None
-        Set the number of cores for parallel processing of IMs. If set
-        to `None`, will default to the available cores from
-        `utils.get_available_cores`.
     """
-    cores = cores or utils.get_available_cores()
-
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
-    resolution = Resolution.read_from_realisation_or_defaults(
-        realisation_ffp, metadata.defaults_version
-    )
     intensity_measure_parameters = (
         IntensityMeasureCalculationParameters.read_from_realisation_or_defaults(
             realisation_ffp, metadata.defaults_version
@@ -167,39 +523,45 @@ def calculate_intensity_measures(
     rup_prop_config = RupturePropagationConfig.read_from_realisation(realisation_ffp)
     magnitudes = Magnitudes.read_from_realisation(realisation_ffp)
 
-    broadband = xr.open_dataset(broadband_simulation_ffp)
+    # Chunk over stations only: `component` and `time` must each be a single
+    # chunk because the IM kernels take them as core dimensions, and the
+    # file's own on-disk chunking may split either. Dask sizes the station
+    # chunks from its `array.chunk-size` config.
+    broadband = xr.open_dataset(broadband_simulation_ffp).chunk(
+        {"component": -1, "time": -1, "station": "auto"}
+    )
+    # SW4 low-frequency files name these `lat`/`lon`; EMOD3D's name them
+    # `latitude`/`longitude`. Normalise once, here.
+    if "latitude" not in broadband and "lat" in broadband:
+        broadband = broadband.rename({"lat": "latitude", "lon": "longitude"})
+
+    dt = broadband.attrs["dt"]
+    if broadband.attrs["units"] == "cm/s^2":
+        broadband["waveform"] = broadband["waveform"] / 981.0
 
     if not simulated_stations:
-        broadband = broadband.where(
-            broadband.station.str.match(r"^(\w{4})$"), drop=True
+        broadband = broadband.isel(
+            station=broadband.station.str.match(r"^(\w{4})$").values
         )
 
     intensity_measures = override_ims or intensity_measure_parameters.ims
 
-    nyquist_frequency = 1 / (2 * resolution.dt)
+    psa_periods = np.array(intensity_measure_parameters.valid_periods, dtype=np.float64)
+
+    nyquist_frequency = 1 / (2 * dt)
 
     im_function_map = {
-        IM.PGA: functools.partial(ims.peak_ground_acceleration, cores=cores),
-        IM.PGV: functools.partial(
-            ims.peak_ground_velocity, dt=resolution.dt, cores=cores
-        ),
-        IM.PGD: functools.partial(
-            ims.peak_ground_displacement, dt=resolution.dt, cores=cores
-        ),
-        IM.CAV: functools.partial(
-            ims.cumulative_absolute_velocity, dt=resolution.dt, cores=cores
-        ),
-        IM.AI: functools.partial(ims.arias_intensity, dt=resolution.dt, cores=cores),
-        IM.Ds575: functools.partial(ims.ds575, dt=resolution.dt, cores=cores),
-        IM.Ds595: functools.partial(ims.ds595, dt=resolution.dt, cores=cores),
+        IM.PGA: (ims.peak_ground_acceleration),
+        IM.PGV: functools.partial(ims.peak_ground_velocity, dt=dt),
+        IM.PGD: functools.partial(ims.peak_ground_displacement, dt=dt),
+        IM.CAV: functools.partial(ims.cumulative_absolute_velocity, dt=dt),
+        IM.AI: functools.partial(ims.arias_intensity, dt=dt),
+        IM.Ds575: functools.partial(ims.ds575, dt=dt),
+        IM.Ds595: functools.partial(ims.ds595, dt=dt),
         IM.pSA: functools.partial(
             ims.pseudo_spectral_acceleration,
-            periods=np.array(
-                intensity_measure_parameters.valid_periods, dtype=np.float64
-            ),
-            dt=np.float64(resolution.dt),
-            step=psa_step,
-            cores=cores,
+            periods=psa_periods,
+            dt=dt,
         ),
     }
 
@@ -212,119 +574,64 @@ def calculate_intensity_measures(
             )
         im_function_map[IM.FAS] = functools.partial(
             ims.fourier_amplitude_spectra,
-            dt=resolution.dt,
+            dt=dt,
             freqs=intensity_measure_parameters.fas_frequencies[
                 intensity_measure_parameters.fas_frequencies <= nyquist_frequency
             ],
             ko_directory=ko_directory,
-            cores=cores,
         )
 
-    latitude = broadband.latitude.values
-    longitude = broadband.longitude.values
-    station_locations = np.stack((latitude, longitude), axis=-1)
-
-    rrup = (
-        np.array(
-            [
-                min(
-                    source.rrup_distance(np.append(station, 0))
-                    for source in source_geometries.source_geometries.values()
-                )
-                for station in station_locations
-            ]
-        )
-        / 1000
-    )
-    rjb = (
-        np.array(
-            [
-                min(
-                    source.rjb_distance(np.append(station, 0))
-                    for source in source_geometries.source_geometries.values()
-                )
-                for station in station_locations
-            ]
-        )
-        / 1000
-    )
     hypocentre = source_geometries.source_geometries[
         rup_prop_config.initial_fault
     ].fault_coordinates_to_wgs_depth_coordinates(rup_prop_config.hypocentre)
-
-    hyp = (
-        coordinates.distance_between_wgs_depth_coordinates(
-            np.c_[station_locations, np.zeros_like(latitude)],
-            hypocentre,
-        )
-        / 1000
-    )
-    epi = (
-        coordinates.distance_between_wgs_depth_coordinates(
-            station_locations,
-            hypocentre[:2],
-        )
-        / 1000
-    )
-    stations = broadband.station.values
-    dataset = xr.Dataset(
-        coords={
-            "station": ("station", stations),
-            "component": (
-                "component",
-                ["000", "090", "ver", "geom", "rotd0", "rotd50", "rotd100", "eas"],
-            ),
-            "rrup": ("station", rrup),
-            "rjb": ("station", rjb),
-            "hyp": ("station", hyp),
-            "epi": ("station", epi),
-        },
-        attrs={
-            "hypo_lat": hypocentre[0],
-            "hypo_lon": hypocentre[1],
-            "source": shapely.to_wkt(
-                _source_polygon(source_geometries.source_geometries)
-            ),
-            "trace": shapely.to_wkt(
-                _trace_polygon(source_geometries.source_geometries)
-            ),
-            "domain": shapely.to_wkt(
-                shapely.transform(
-                    domain_parameters.domain.polygon,
-                    lambda c: coordinates.nztm_to_wgs_depth(c)[:, ::-1],
-                )
-            ),
-            "magnitude": magnitudes.total_magnitude,
-            "event": metadata.name,
-        },
+    distances = calculate_distances(source_geometries, hypocentre, broadband)
+    rakes = Rakes.read_from_realisation(realisation_ffp)
+    source_parameters = calculate_source_parameters(
+        source_geometries, magnitudes, rakes, hypocentre
     )
 
-    all_faults_have_rx_ry = all(
-        isinstance(source, sources.Plane | sources.Fault)
-        for source in source_geometries.source_geometries.values()
+    # Each IM function is dask-native: it accepts the lazy `waveform` DataArray
+    # and returns a lazy Dataset with the same `station` chunking, one data
+    # variable per component. Nothing is computed until `dtree.to_netcdf`
+    # below, which streams the result chunk by chunk.
+    im_results: dict[str, xr.Dataset] = {
+        im_name: im_function_map[im_name](broadband.waveform)
+        for im_name in intensity_measures
+    }
+
+    attributes = {
+        "hypo_lat": hypocentre[0],
+        "hypo_lon": hypocentre[1],
+        "source": shapely.to_wkt(_source_polygon(source_geometries.source_geometries)),
+        "trace": shapely.to_wkt(_trace_polygon(source_geometries.source_geometries)),
+        "domain": shapely.to_wkt(
+            shapely.transform(
+                domain_parameters.domain.polygon,
+                lambda c: coordinates.nztm_to_wgs_depth(c)[:, ::-1],
+            )
+        ),
+        "magnitude": magnitudes.total_magnitude,
+        "event": metadata.name,
+        "rake": source_parameters.avg_rake,
+        "dip": source_parameters.avg_dip,
+        "ztor": source_parameters.avg_ztor,
+        "zbot": source_parameters.avg_zbot,
+        "hypo_depth": source_parameters.hypo_depth,
+    }
+
+    dtree = xr.DataTree.from_dict(im_results, nested=True)
+
+    dtree.attrs = attributes
+
+    dtree = add_station_parameters(
+        dtree,
+        distances.as_dict()
+        # Belt and braces: these already ride along as coordinates on every
+        # leaf, so re-attaching them is idempotent -- but it makes the
+        # guarantee independent of xarray's coordinate propagation.
+        | {"latitude": broadband["latitude"], "longitude": broadband["longitude"]},
     )
-    if all_faults_have_rx_ry:
-        rx, ry = sources.multi_fault_rx_ry_distance(
-            list(source_geometries.source_geometries.values()),  # ty: ignore[invalid-argument-type]
-            station_locations,
-        )
-        dataset["rx"] = xr.DataArray(rx, dims="station", coords={"station": stations})
-        dataset["ry"] = xr.DataArray(ry, dims="station", coords={"station": stations})
+    dtree = add_units(dtree)
 
-    waveform = broadband.waveform.values.astype(np.float64)
-
-    for im_name in (pbar := tqdm.tqdm(intensity_measures)):
-        pbar.set_description(im_name)
-        im_fn = im_function_map[im_name]
-
-        result = im_fn(waveform)
-
-        if isinstance(result, pd.DataFrame):
-            result["station"] = broadband.station.values
-            result = result.set_index("station").to_xarray().to_array(dim="component")
-        elif isinstance(result, xr.DataArray):
-            result = result.assign_coords(station=broadband.station)
-        dataset[im_name] = result
-        im_reader.write_intensity_measures(dataset, output_path)
-
+    dtree.to_netcdf(output_path)
     realisations.append_log_entry(realisation_ffp)
