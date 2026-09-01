@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Low-frequency output merger.
 
 Description

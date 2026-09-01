@@ -37,7 +37,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 
@@ -165,7 +165,7 @@ def generate_velocity_model(
         Path, typer.Argument(readable=True, exists=True, dir_okay=False)
     ],
     velocity_model_output: Annotated[
-        Optional[Path], typer.Argument(writable=True, file_okay=False)
+        Path | None, typer.Argument(writable=True, file_okay=False)
     ] = None,
     velocity_model_bin_path: Annotated[
         Path | None, typer.Option(exists=True, readable=True)
@@ -174,7 +174,7 @@ def generate_velocity_model(
         Path, typer.Option(exists=False, writable=True, file_okay=False)
     ] = Path("/out"),
     use_nzcvm: Annotated[bool, typer.Option()] = False,
-    num_threads: Annotated[Optional[int], typer.Option(min=1)] = None,
+    num_threads: Annotated[int | None, typer.Option(min=1)] = None,
 ) -> None:
     """
     Generate a velocity model for a seismic realisation using NZVM.

@@ -68,7 +68,7 @@ def gcmt_auto_simulate(
         with open(old_gcmt_solutions_path) as old_gcmt_solutions_handle:
             old_gcmt_solutions = json.load(old_gcmt_solutions_handle)
     else:
-        old_gcmt_solutions = dict()
+        old_gcmt_solutions = {}
     nz_polygon = utils.get_nz_outline_polygon()
     solutions_to_simulate = [
         gcmt_id
@@ -93,7 +93,9 @@ def gcmt_auto_simulate(
     ]
     if not solutions_to_simulate:
         raise typer.Exit(code=0)
-    now = datetime.datetime.now()
+    # Local time (via astimezone) so the workflow id reads naturally for the
+    # operator; the tz-aware now() keeps it unambiguous.
+    now = datetime.datetime.now(tz=datetime.UTC).astimezone()
     workflow_id = f"gcmt_{now.strftime('%Y%m%d_%H%M%S')}"
     cylc_directory = Path.home() / "cylc-src" / workflow_id
     cylc_directory.mkdir(exist_ok=True, parents=True)

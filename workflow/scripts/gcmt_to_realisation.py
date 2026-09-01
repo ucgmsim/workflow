@@ -31,7 +31,7 @@ See the output of `gcmt-to-realisation --help`.
 import warnings
 from enum import StrEnum, auto
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import numpy as np
 import pandas as pd
@@ -96,14 +96,14 @@ def gcmt_to_realisation(
     hypocentre_strategy: Annotated[
         SamplingStrategy, typer.Option()
     ] = SamplingStrategy.CENTROID,
-    shypo: Annotated[Optional[float], typer.Option(min=0, max=1)] = None,
-    dhypo: Annotated[Optional[float], typer.Option(min=0, max=1)] = None,
+    shypo: Annotated[float | None, typer.Option(min=0, max=1)] = None,
+    dhypo: Annotated[float | None, typer.Option(min=0, max=1)] = None,
     lat_hypo: Annotated[
-        Optional[float],
+        float | None,
         typer.Option(min=-90, max=90),
     ] = None,
     lon_hypo: Annotated[
-        Optional[float],
+        float | None,
         typer.Option(min=-180, max=180),
     ] = None,
     scaling_relation: Annotated[
@@ -174,18 +174,18 @@ def gcmt_to_realisation(
 
     if gcmt_event_id in gcmt_solutions.index:
         row = gcmt_solutions.loc[gcmt_event_id]
-        latitude = float(row["Latitude"])  # type: ignore[invalid-argument-type]
-        longitude = float(gcmt_solutions.at[gcmt_event_id, "Longitude"])  # type: ignore[invalid-argument-type]
-        centroid_depth = float(gcmt_solutions.at[gcmt_event_id, "CD"])  # type: ignore[invalid-argument-type]
-        solution_moment = float(gcmt_solutions.at[gcmt_event_id, "Mo"])  # type: ignore[invalid-argument-type]
+        latitude = float(row["Latitude"])  # ty: ignore[invalid-argument-type]
+        longitude = float(gcmt_solutions.at[gcmt_event_id, "Longitude"])  # ty: ignore[invalid-argument-type]
+        centroid_depth = float(gcmt_solutions.at[gcmt_event_id, "CD"])  # ty: ignore[invalid-argument-type]
+        solution_moment = float(gcmt_solutions.at[gcmt_event_id, "Mo"])  # ty: ignore[invalid-argument-type]
 
-        strike1 = float(gcmt_solutions.at[gcmt_event_id, "strike1"])  # type: ignore[invalid-argument-type]
-        dip1 = float(gcmt_solutions.at[gcmt_event_id, "dip1"])  # type: ignore[invalid-argument-type]
-        rake1 = float(gcmt_solutions.at[gcmt_event_id, "rake1"])  # type: ignore[invalid-argument-type]
+        strike1 = float(gcmt_solutions.at[gcmt_event_id, "strike1"])  # ty: ignore[invalid-argument-type]
+        dip1 = float(gcmt_solutions.at[gcmt_event_id, "dip1"])  # ty: ignore[invalid-argument-type]
+        rake1 = float(gcmt_solutions.at[gcmt_event_id, "rake1"])  # ty: ignore[invalid-argument-type]
 
-        strike2 = float(gcmt_solutions.at[gcmt_event_id, "strike2"])  # type: ignore[invalid-argument-type]
-        dip2 = float(gcmt_solutions.at[gcmt_event_id, "dip2"])  # type: ignore[invalid-argument-type]
-        rake2 = float(gcmt_solutions.at[gcmt_event_id, "rake2"])  # type: ignore[invalid-argument-type]
+        strike2 = float(gcmt_solutions.at[gcmt_event_id, "strike2"])  # ty: ignore[invalid-argument-type]
+        dip2 = float(gcmt_solutions.at[gcmt_event_id, "dip2"])  # ty: ignore[invalid-argument-type]
+        rake2 = float(gcmt_solutions.at[gcmt_event_id, "rake2"])  # ty: ignore[invalid-argument-type]
 
         nodal_plane_1 = NodalPlane(strike1, dip1, rake1)
         nodal_plane_2 = NodalPlane(strike2, dip2, rake2)

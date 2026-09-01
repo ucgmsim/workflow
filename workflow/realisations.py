@@ -15,9 +15,10 @@ import random
 import struct
 import sys
 from abc import ABC
+from collections.abc import Sequence
 from importlib import metadata
 from pathlib import Path
-from typing import Any, ClassVar, Literal, Self, Union
+from typing import Any, ClassVar, Literal, Self
 
 import numpy as np
 import numpy.typing as npt
@@ -36,16 +37,16 @@ from workflow.defaults import DefaultsVersion
 
 def to_name_coordinate_dictionary(
     coordinate_array: npt.NDArray[np.float64],
-    coordinate_names: list[str] = ["latitude", "longitude", "depth"],
-) -> Union[dict[str, float], list[dict[str, float]]]:
+    coordinate_names: Sequence[str] = ("latitude", "longitude", "depth"),
+) -> dict[str, float] | list[dict[str, float]]:
     """Convert an array of coordinates values into a (list of) dictionaries tagged with coordinate names.
 
     Parameters
     ----------
     coordinate_array : np.ndarray
         The array of values. Should have shape (k,), (m, k) where k is at most the length of `coordinate_names`.
-    coordinate_names : list[str]
-        The names of the coordinates. Defaults to ['latitude', 'longitude', 'depth'].
+    coordinate_names : Sequence[str]
+        The names of the coordinates. Defaults to ('latitude', 'longitude', 'depth').
 
     Returns
     -------
@@ -74,8 +75,6 @@ def to_name_coordinate_dictionary(
 
 class RealisationParseError(Exception):
     """Realisation JSON parse error."""
-
-    pass
 
 
 @dataclasses.dataclass
@@ -1270,7 +1269,7 @@ class LogEntry:
         return cls(
             utility=utility,
             version=version,
-            timestamp=datetime.datetime.now(),
+            timestamp=datetime.datetime.now(tz=datetime.UTC),
             args=args,
         )
 

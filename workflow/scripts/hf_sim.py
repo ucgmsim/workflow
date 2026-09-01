@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """High Frequency Simulation.
 
 Description
@@ -123,8 +122,10 @@ def build_hf_input(
         substituted to yield a high-frequency input in for each
         station.
     """
-    shallow_min, shallow_max, deep_min, deep_max = rupture_velocity_hf_transition_bands(
-        rupture_velocity
+    # Underscore-prefixed because the line consuming them is commented out
+    # below, pending the EMOD3D PR noted there.
+    _shallow_min, _shallow_max, _deep_min, _deep_max = (
+        rupture_velocity_hf_transition_bands(rupture_velocity)
     )
     hf_sim_input = [
         "",
@@ -139,7 +140,7 @@ def build_hf_input(
         f"{domain_parameters.duration} {resolution.dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",
         f"{rupture_velocity.rvfrac} {rupture_velocity.rvfrac_shal} {rupture_velocity.rvfrac_deep} {hf_config.czero} {hf_config.calpha}",
         # TODO: This requires PR from EMOD3D to merge before we can do this!
-        # f"{shallow_min} {shallow_max} {deep_min} {deep_max}",
+        # f"{_shallow_min} {_shallow_max} {_deep_min} {_deep_max}",
         f"{hf_config.mom or -1} {hf_config.rupv or -1}",
         stoch_ffp,
         velocity_model,
@@ -152,9 +153,11 @@ def build_hf_input(
         # If running v5.4.5 it stops reading input here and so
         # these parameters are unused. It is harmless to add them
         # regardless of version
-        f"{hf_config.stress_parameter_adjustment_fault_area or -1} "
-        f"{hf_config.stress_parameter_adjustment_target_magnitude or -1} "
-        f"{hf_config.stress_parameter_adjustment_tect_type or -1}",
+        (
+            f"{hf_config.stress_parameter_adjustment_fault_area or -1} "
+            f"{hf_config.stress_parameter_adjustment_target_magnitude or -1} "
+            f"{hf_config.stress_parameter_adjustment_tect_type or -1}"
+        ),
         0,  # seek bytes to 0 (no binary offset for this output)
         "",
     ]

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Merge EMOD3D Timeslices.
 
 Description
