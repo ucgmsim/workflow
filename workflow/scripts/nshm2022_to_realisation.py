@@ -256,8 +256,8 @@ def generate_realisation(
         Scientific default parameters version to use.
     fault_system : FaultSystem, optional
         The NSHM fault system rupture_id belongs to. Defaults to Crustal.
-        rupture_id is an NSHM id (nshmdb.nshmdb.FaultSystem), unique only
-        within one fault system, not a raw database primary key.
+        rupture_id is an NSHM id, unique only within one fault system, not
+        a raw database primary key.
     initial_fault : str, optional
         The name of the fault to use as the initial fault for rupture
         propagation. If not specified, the initial fault will be drawn
