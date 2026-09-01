@@ -34,6 +34,7 @@ For More Help
 See the output of `nshm2022-to-realisation --help`.
 """
 
+import random
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
@@ -64,12 +65,20 @@ from workflow.realisations import (
 app = typer.Typer()
 
 
+class SamplingStrategy(StrEnum):
+    """Sampling strategy to employ."""
+
+    maximising = "maximising"
+    random = "random"
+
+
 def default_magnitude_estimation(
     faults: dict[str, Fault],
     # NOTE: this must be in quotes because the runtime class DisjointSet is
     # not generic, just the stub implementation.
     components: "DisjointSet[str]",
     avg_rake: float,
+    strategy: SamplingStrategy,
 ) -> dict[str, magnitude_scaling.BoldM]:
     """Estimate the magnitudes for a set of faults based on their areas and average rake.
 
@@ -83,6 +92,10 @@ def default_magnitude_estimation(
         and share a common rupture propagation path.
     avg_rake : float
         The average rake angle of the rupture.
+    strategy : SamplingStrategy
+        Sampling strategy for magnitude estimation. If maximising choose the
+        mean leonard scaling relation magnitude, else sample from the magnitude
+        distribution for the total rupture area.
 
     Returns
     -------
@@ -91,8 +104,12 @@ def default_magnitude_estimation(
         estimated magnitudes (in the `BoldM` convention) for each fault.
     """
     total_area = sum(fault.area() for fault in faults.values())
+
     estimated_magnitude = magnitude_scaling.area_to_magnitude(
-        magnitude_scaling.ScalingRelation.LEONARD2014, total_area, avg_rake
+        magnitude_scaling.ScalingRelation.LEONARD2014,
+        total_area,
+        avg_rake,
+        random=strategy == SamplingStrategy.random,
     )
     estimated_moment = moment.magnitude_to_moment(estimated_magnitude, bold_m=True)
     roots = {components[fault_name] for fault_name in faults}
@@ -157,13 +174,6 @@ def find_fault_and_hypocentre(
     raise ValueError("Hypocentre not on any fault.")
 
 
-class SamplingStrategy(StrEnum):
-    """Rupture propagation strategy to employ."""
-
-    maximising = "maximising"
-    random = "random"
-
-
 @cli.from_docstring(app)
 @log_call()
 def generate_realisation(
@@ -184,6 +194,9 @@ def generate_realisation(
     strategy: Annotated[
         SamplingStrategy,
         typer.Option(),
+    ] = SamplingStrategy.random,
+    magnitude_strategy: Annotated[
+        SamplingStrategy, typer.Option()
     ] = SamplingStrategy.random,
     jump_cutoff: Annotated[
         float,
@@ -247,6 +260,10 @@ def generate_realisation(
         The strategy to use when sampling rupture propagation. "maximising" will
         choose the maximally likely rupture propagation tree. "random" will
         choose a random rupture propagation tree.
+    magnitude_strategy : SamplingStrategy, optional
+        The strategy to use when sampling total rupture magnitude. "maximising"
+        will choose the median rupture magnitude. Otherwise, sample from the magnitude
+        distribution for the total rupture area.
     jump_cutoff : float, optional
         The maximum jump distance between faults in km.
     shypo : float, optional
@@ -308,9 +325,7 @@ def generate_realisation(
     faults_info = db.get_rupture_fault_info(rupture_id)
     seeds = Seeds.read_from_realisation_or_random(realisation_ffp)
     np.random.seed(seed=seeds.nshm_to_realisation_seed)
-    # `faults` is a dict[str, Fault], but these APIs declare invariant
-    # dict[str, IsSource] / dict[str, Fault | Plane] parameters that they only
-    # read from. Passing a copy widens the value type without upstream changes.
+    random.seed(seeds.nshm_to_realisation_seed)
     source_config = SourceConfig(dict(faults))
 
     rakes = {
@@ -320,7 +335,9 @@ def generate_realisation(
     components = moment.find_connected_faults(
         dict(faults), separation_distance, dip_delta, min_connected_depth
     )
-    magnitudes = default_magnitude_estimation(faults, components, float(avg_rake))
+    magnitudes = default_magnitude_estimation(
+        faults, components, float(avg_rake), magnitude_strategy
+    )
     if lat_hypo is not None and lon_hypo is not None:
         initial_fault, hypocentre = find_fault_and_hypocentre(
             faults, lat_hypo, lon_hypo

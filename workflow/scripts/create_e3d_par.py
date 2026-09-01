@@ -68,7 +68,8 @@ def emod3d_domain_parameters(
 
     nx = domain_parameters.nx(resolution.resolution)
     ny = domain_parameters.ny(resolution.resolution)
-    nz = domain_parameters.nz(resolution.resolution)
+    # nz + 1 for consistency with the velocity model
+    nz = domain_parameters.nz(resolution.resolution) + 1
     return {
         "nx": nx,
         "ny": ny,
