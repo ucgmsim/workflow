@@ -13,7 +13,7 @@ dependencies = [
   # UCGMSim Dependencies
   "im-calculation>=2025.12.5",
   "velocity-modelling>=2026.2.1",
-  "nshmdb>=2025.12.1",
+  "nshmdb>=2026.09.1",
   "oq_wrapper>=2025.12.3",
   "qcore-utils>=2025.12.2",
   "source_modelling>=2026.08.1",

@@ -1731,7 +1731,7 @@ wheels = [
 
 [[package]]
 name = "nshmdb"
-version = "2026.8.3"
+version = "2026.9.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "duckdb" },
@@ -1746,9 +1746,9 @@ dependencies = [
     { name = "source-modelling" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/30/0c/dbcac49e61d6a4e8f0dd460d3dab376c3978a79f003294e7b47d8b153c11/nshmdb-2026.8.3.tar.gz", hash = "sha256:0fb515ba8c6c8410084a14632faa9339a90082f90d60c6cecd7dfb33adf582f9", size = 200264, upload-time = "2026-08-20T04:34:39.836Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/66/5b/e6ea2fd119b58a2b1aa3a4616de0ee34356ac62dece7887398f6f7603260/nshmdb-2026.9.1.tar.gz", hash = "sha256:c89ed5c351d71000a0486515d9c0ffe94083a41b299a566119e44b20d1c3ca6b", size = 200270, upload-time = "2026-09-02T00:28:32.238Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a6/19/0636161438be7f33ef107f475470981831d303fae2ecd33a20101cffbd7b/nshmdb-2026.8.3-py3-none-any.whl", hash = "sha256:f919ecffe74de270534e3c42455de2ce89f8826f48bf27c3dd33ca91821d8a8d", size = 20998, upload-time = "2026-08-20T04:34:38.378Z" },
+    { url = "https://files.pythonhosted.org/packages/d0/3c/da88ebde8c67962ced54ca49f9c66ae6cd059b58418051d79a1b9fab4cdc/nshmdb-2026.9.1-py3-none-any.whl", hash = "sha256:afb2055836fb89eb6ded94daf6c618cba9777d628cf85e289d46242da3d6dea0", size = 20998, upload-time = "2026-09-02T00:28:30.803Z" },
 ]
 
 [[package]]
@@ -3517,7 +3517,7 @@ requires-dist = [
     { name = "geopandas" },
     { name = "hypothesis", extras = ["numpy"], marker = "extra == 'test'", specifier = ">=6.0.0" },
     { name = "im-calculation", specifier = ">=2025.12.5" },
-    { name = "nshmdb", specifier = ">=2025.12.1" },
+    { name = "nshmdb", specifier = ">=2026.9.1" },
     { name = "numpy" },
     { name = "numpydoc", marker = "extra == 'dev'" },
     { name = "oq-wrapper", specifier = ">=2025.12.3" },
