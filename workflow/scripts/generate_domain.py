@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Domain Generation.
 
 Description
@@ -237,7 +236,7 @@ def average_rake(rakes: Rakes, magnitudes: Magnitudes) -> float:
     moments = {k: moment / max_moment for k, moment in moments.items()}
 
     weighted_rakes = list(utils.dict_zip(rakes.rakes, moments).values())
-    return geo.avg_wbearing(weighted_rakes)  # type: ignore[invalid-argument-type]
+    return geo.avg_wbearing(weighted_rakes)  # ty: ignore[invalid-argument-type]
 
 
 def estimate_simulation_duration(
@@ -486,7 +485,7 @@ def estimate_domain(
     model_domain = bounding_box.minimum_area_bounding_box_for_polygons_masked(
         must_include=fault_buffer_polygons,
         may_include=rrup_bounding_polygons,
-        mask=nz_outline,  # type: ignore[invalid-argument-type]
+        mask=nz_outline,  # ty: ignore[invalid-argument-type]
     )
     return model_domain
 

@@ -333,14 +333,14 @@ def generate_realisation(
     seeds = Seeds.read_from_realisation_or_random(realisation_ffp)
     np.random.seed(seed=seeds.nshm_to_realisation_seed)
     random.seed(seeds.nshm_to_realisation_seed)
-    source_config = SourceConfig(faults)
+    source_config = SourceConfig(dict(faults))
 
     rakes = {
         fault_name: fault_info.rake for fault_name, fault_info in faults_info.items()
     }
     avg_rake = np.mean(list(rakes.values()))
     components = moment.find_connected_faults(
-        faults, separation_distance, dip_delta, min_connected_depth
+        dict(faults), separation_distance, dip_delta, min_connected_depth
     )
     magnitudes = default_magnitude_estimation(
         faults, components, float(avg_rake), magnitude_strategy
@@ -361,7 +361,11 @@ def generate_realisation(
     else:
         # The ty ignore below can be removed once NSHM2022DB merges the change to
         # accept dict[str, BoldM] in most_likely_fault (branch support-BoldM-in-workflow).
-        mfds_rates = db.most_likely_fault(fault_system, rupture_id, magnitudes)  # ty: ignore[invalid-argument-type]
+        mfds_rates = db.most_likely_fault(
+            fault_system,
+            rupture_id,
+            magnitudes,  # ty: ignore[invalid-argument-type]
+        )
         mfds_probabilities = np.array(list(mfds_rates.values()))
         if np.allclose(mfds_probabilities, 0):
             mfds_probabilities = np.ones_like(mfds_probabilities)
@@ -377,7 +381,7 @@ def generate_realisation(
         )
 
     rupture_causality_tree = rupture_propagation.sample_rupture_propagation(
-        faults,
+        dict(faults),
         initial_source=initial_fault,
         strategy=str(strategy),  # type: ignore
         jump_impossibility_limit_distance=round(jump_cutoff * 1000),
@@ -387,7 +391,7 @@ def generate_realisation(
     rupture_propagation_config = RupturePropagationConfig(
         rupture_causality_tree=rupture_causality_tree,
         jump_points=rupture_propagation.jump_points_from_rupture_tree(
-            faults, rupture_causality_tree, min_depth=min_connected_depth
+            dict(faults), rupture_causality_tree, min_depth=min_connected_depth
         ),
         hypocentre=hypocentre,
     )

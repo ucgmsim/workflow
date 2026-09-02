@@ -6,8 +6,8 @@ from importlib import resources
 
 import yaml
 
-import workflow.default_parameters.root as root
 from workflow import utils
+from workflow.default_parameters import root
 
 
 class DefaultsVersion(StrEnum):

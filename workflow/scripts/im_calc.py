@@ -176,11 +176,6 @@ def calculate_intensity_measures(
 
     intensity_measures = override_ims or intensity_measure_parameters.ims
 
-    if IM.FAS in intensity_measures and not ko_directory:
-        raise ValueError(
-            "FAS calculation requires KO directory. Please provide a valid KO directory."
-        )
-
     nyquist_frequency = 1 / (2 * resolution.dt)
 
     im_function_map = {
@@ -202,11 +197,20 @@ def calculate_intensity_measures(
             periods=np.array(
                 intensity_measure_parameters.valid_periods, dtype=np.float64
             ),
-            dt=resolution.dt,
+            dt=np.float64(resolution.dt),
             step=psa_step,
             cores=cores,
         ),
-        IM.FAS: functools.partial(
+    }
+
+    # Built separately from the literal above so the ko_directory check narrows
+    # away None: FAS is the only measure that needs it.
+    if IM.FAS in intensity_measures:
+        if ko_directory is None:
+            raise ValueError(
+                "FAS calculation requires KO directory. Please provide a valid KO directory."
+            )
+        im_function_map[IM.FAS] = functools.partial(
             ims.fourier_amplitude_spectra,
             dt=resolution.dt,
             freqs=intensity_measure_parameters.fas_frequencies[
@@ -214,8 +218,8 @@ def calculate_intensity_measures(
             ],
             ko_directory=ko_directory,
             cores=cores,
-        ),
-    }
+        )
+
     latitude = broadband.latitude.values
     longitude = broadband.longitude.values
     station_locations = np.stack((latitude, longitude), axis=-1)
@@ -304,8 +308,8 @@ def calculate_intensity_measures(
             list(source_geometries.source_geometries.values()),  # ty: ignore[invalid-argument-type]
             station_locations,
         )
-        dataset["rx"] = xr.DataArray(rx, dims="station", coords=dict(station=stations))
-        dataset["ry"] = xr.DataArray(ry, dims="station", coords=dict(station=stations))
+        dataset["rx"] = xr.DataArray(rx, dims="station", coords={"station": stations})
+        dataset["ry"] = xr.DataArray(ry, dims="station", coords={"station": stations})
 
     waveform = broadband.waveform.values.astype(np.float64)
 

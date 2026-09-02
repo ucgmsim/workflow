@@ -42,12 +42,18 @@ dependencies = [
 test = [
   "pytest>=6.0.0",            # required for the tool.pytest section
   "hypothesis[numpy]>=6.0.0",
+  "pytest-cov",               # CI runs pytest --cov
+  "coverage[toml]",           # CI runs coverage report/html
 ]
 types = ["pandas-stubs", "types-geopandas", "types-requests", "scipy-stubs"]
-dev = ["ruff", "deptry", "ty", "numpydoc"]
+dev = ["ruff>=0.16.5", "deptry", "ty>=0.0.75", "numpydoc"]
+
+[tool.ty.src]
+# Generated/dynamic schema definitions that ty cannot usefully analyse.
+exclude = ["workflow/schemas.py"]
 
 [tool.deptry]
-pep621_dev_dependency_groups = ["test", "dev", "types"]
+optional_dependencies_dev_groups = ["test", "dev", "types"]
 
 [project.scripts]
 nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:app"

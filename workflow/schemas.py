@@ -106,43 +106,43 @@ class PointSourceParams:
 # Accordingly, the most trivial of these functions lack docstrings.
 
 
-def _is_positive(x: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+def _is_positive(x: float) -> bool:  # numpydoc ignore=GL08
     return x > 0
 
 
-def _is_non_negative(x: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+def _is_non_negative(x: float) -> bool:  # numpydoc ignore=GL08
     return x >= 0
 
 
-def _is_valid_latitude(latitude: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+def _is_valid_latitude(latitude: float) -> bool:  # numpydoc ignore=GL08
     return -90 <= latitude <= 90
 
 
-def _is_valid_longitude(longitude: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+def _is_valid_longitude(longitude: float) -> bool:  # numpydoc ignore=GL08
     return -180 <= longitude <= 180
 
 
 def _is_plausible_magnitude(
     magnitude: float,
-) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+) -> bool:  # numpydoc ignore=GL08
     return magnitude < 11
 
 
-def _is_valid_degrees(degrees: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+def _is_valid_degrees(degrees: float) -> bool:  # numpydoc ignore=GL08
     return -360 <= degrees <= 360
 
 
 def _is_valid_local_coordinate(
     coordinate: float,
-) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+) -> bool:  # numpydoc ignore=GL08
     return 0 <= coordinate <= 1
 
 
-def _is_valid_bearing(bearing: float) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+def _is_valid_bearing(bearing: float) -> bool:  # numpydoc ignore=GL08
     return 0 <= bearing <= 360
 
 
-def _is_proportion(x: float | int) -> bool:  # noqa: D103 # numpydoc ignore=GL08
+def _is_proportion(x: float) -> bool:  # numpydoc ignore=GL08
     return 0 <= x <= 1
 
 

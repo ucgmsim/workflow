@@ -3,7 +3,7 @@
 # it stays consistent with the codebase.
 import json
 import struct
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest import mock
 
@@ -630,10 +630,10 @@ def test_logtrail_init_empty() -> None:
 def test_logtrail_init_with_log_entries() -> None:
     """Test LogTrail initialization with a list of LogEntry objects."""
     entry1 = realisations.LogEntry(
-        utility="util1", args=["a"], version="1", timestamp=datetime.now()
+        utility="util1", args=["a"], version="1", timestamp=datetime.now(tz=UTC)
     )
     entry2 = realisations.LogEntry(
-        utility="util2", args=["b", "c"], timestamp=datetime.now(), version="1"
+        utility="util2", args=["b", "c"], timestamp=datetime.now(tz=UTC), version="1"
     )
     trail = realisations.LogTrail(log=[entry1, entry2])
     assert trail.log == [entry1, entry2]
@@ -659,13 +659,13 @@ def test_logtrail_init_with_dicts_post_init() -> None:
             "utility": "util1",
             "args": ["a"],
             "version": "1",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(tz=UTC).isoformat(),
         },
         {
             "utility": "util2",
             "args": ["b"],
             "version": "1",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(tz=UTC).isoformat(),
         },
     ]
     # Pass raw list of dicts
@@ -692,7 +692,7 @@ def test_logtrail_log_entry_method() -> None:
 
 def test_logtrail_to_dict() -> None:
     """Test converting LogTrail to a dictionary."""
-    ts = datetime.now()
+    ts = datetime.now(tz=UTC)
     entry1 = realisations.LogEntry(
         utility="util1", args=["a"], version="1", timestamp=ts
     )

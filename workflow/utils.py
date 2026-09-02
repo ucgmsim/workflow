@@ -5,7 +5,7 @@ import os
 import tempfile
 import urllib.request
 from collections.abc import Mapping
-from typing import Any, TypeVar, overload
+from typing import Any, overload
 
 import geopandas as gpd
 import numpy as np
@@ -106,42 +106,39 @@ def get_available_cores() -> int:
         raise RuntimeError("Cannot determine CPU count.")
 
 
-K = TypeVar("K")
-V1 = TypeVar("V1")
-V2 = TypeVar("V2")
-V3 = TypeVar("V3")
-
-
 # These overloads provide better type inference in the common case
 @overload
-def dict_zip(
-    __d1: Mapping[K, V1], *, strict: bool = ...
+def dict_zip[K, V1](
+    d1: Mapping[K, V1], /, *, strict: bool = ...
 ) -> dict[K, tuple[V1]]: ...  # numpydoc ignore=GL08
 
 
 @overload
-def dict_zip(
-    __d1: Mapping[K, V1], __d2: Mapping[K, V2], *, strict: bool = ...
+def dict_zip[K, V1, V2](
+    d1: Mapping[K, V1], d2: Mapping[K, V2], /, *, strict: bool = ...
 ) -> dict[K, tuple[V1, V2]]: ...  # numpydoc ignore=GL08
 
 
 @overload
-def dict_zip(
-    __d1: Mapping[K, V1],
-    __d2: Mapping[K, V2],
-    __d3: Mapping[K, V3],
+def dict_zip[K, V1, V2, V3](
+    d1: Mapping[K, V1],
+    d2: Mapping[K, V2],
+    d3: Mapping[K, V3],
+    /,
     *,
     strict: bool = ...,
 ) -> dict[K, tuple[V1, V2, V3]]: ...  # numpydoc ignore=GL08
 
 
 @overload
-def dict_zip(
+def dict_zip[K](
     *dicts: Mapping[K, Any], strict: bool = ...
 ) -> dict[K, tuple[Any, ...]]: ...  # numpydoc ignore=GL08
 
 
-def dict_zip(*dicts: Mapping[K, Any], strict: bool = True) -> dict[K, tuple[Any, ...]]:
+def dict_zip[K](
+    *dicts: Mapping[K, Any], strict: bool = True
+) -> dict[K, tuple[Any, ...]]:
     """
     Takes the product of one or more dictionaries.
 
@@ -192,7 +189,7 @@ def merge_dictionaries(dict_a: dict[str, Any], dict_b: dict[str, Any]) -> None:
 
     for key, value in dict_b.items():
         if key in dict_a and isinstance(dict_a[key], dict) and isinstance(value, dict):
-            merge_dictionaries(dict_a[key], dict_b[key])
+            merge_dictionaries(dict_a[key], value)
         else:
             dict_a[key] = value
 

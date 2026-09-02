@@ -35,7 +35,7 @@ See the output of `nshm2022-to-realisation --help`.
 import random
 from enum import StrEnum, auto
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import numpy as np
 import typer
