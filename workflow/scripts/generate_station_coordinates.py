@@ -190,6 +190,9 @@ def write_sw4_station_format(
     mask = shapely.contains_xy(poly, nzvm_coordinates[:, 0], nzvm_coordinates[:, 1])
     stations = stations.loc[mask]
 
+    if len(stations) == 0:
+        raise ValueError("No stations in domain.")
+
     with h5py.File(output_path / "stations.h5", "w") as f:
         for station_name, position in stations.set_index("name").iterrows():
             station_dset = f.create_group(station_name)
