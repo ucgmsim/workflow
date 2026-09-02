@@ -45,6 +45,7 @@ import typer
 from scipy.cluster.hierarchy import DisjointSet
 
 from nshmdb import nshmdb
+from nshmdb.nshmdb import FaultSystem
 from qcore import cli
 from qcore.uncertainties import distributions
 from source_modelling import magnitude_scaling, moment, rupture_propagation, sources
@@ -187,6 +188,7 @@ def generate_realisation(
         DefaultsVersion,
         typer.Argument(),
     ],
+    fault_system: Annotated[FaultSystem, typer.Option()] = FaultSystem.Crustal,
     initial_fault: Annotated[
         str | None,
         typer.Option(),
@@ -252,6 +254,10 @@ def generate_realisation(
         Location to write out the realisation.
     defaults_version : DefaultsVersion
         Scientific default parameters version to use.
+    fault_system : FaultSystem, optional
+        The NSHM fault system rupture_id belongs to. Defaults to Crustal.
+        rupture_id is an NSHM id, unique only within one fault system, not
+        a database primary key.
     initial_fault : str, optional
         The name of the fault to use as the initial fault for rupture
         propagation. If not specified, the initial fault will be drawn
@@ -311,7 +317,8 @@ def generate_realisation(
         realisation_ffp, defaults_version
     )
     db = nshmdb.NSHMDB(nshmdb_path)
-    faults = db.get_rupture_faults(rupture_id)
+    db.connect()
+    faults = db.get_rupture_faults(fault_system, rupture_id)
     faults = {
         fault_name: sources.simplify_fault(fault, srf_config.resolution)
         for fault_name, fault in faults.items()
@@ -322,7 +329,7 @@ def generate_realisation(
             f"Initial fault '{initial_fault}' not found in rupture. Options are {', '.join(list(faults))}"
         )
         raise typer.Exit(code=1)
-    faults_info = db.get_rupture_fault_info(rupture_id)
+    faults_info = db.get_rupture_fault_info(fault_system, rupture_id)
     seeds = Seeds.read_from_realisation_or_random(realisation_ffp)
     np.random.seed(seed=seeds.nshm_to_realisation_seed)
     random.seed(seeds.nshm_to_realisation_seed)
@@ -355,7 +362,7 @@ def generate_realisation(
         # The ty ignore below can be removed once NSHM2022DB merges the change to
         # accept dict[str, BoldM] in most_likely_fault (branch support-BoldM-in-workflow).
         mfds_rates = db.most_likely_fault(
-            nshmdb.FaultSystem.Crustal,
+            fault_system,
             rupture_id,
             magnitudes,  # ty: ignore[invalid-argument-type]
         )
