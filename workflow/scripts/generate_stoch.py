@@ -33,7 +33,7 @@ import typer
 from qcore import cli
 from source_modelling import sources, srf
 from workflow import log_utils, realisations
-from workflow.realisations import HFConfig, RealisationMetadata, SourceConfig
+from workflow.realisations import RealisationMetadata, SourceConfig, StochConfig
 
 app = typer.Typer()
 
@@ -64,7 +64,7 @@ def generate_stoch(
         Path to the `srf2stoch` binary used for the conversion.
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
-    hf_config = HFConfig.read_from_realisation_or_defaults(
+    stoch_config = StochConfig.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
 
@@ -87,8 +87,8 @@ def generate_stoch(
         min_length = min(fault.length for fault in geometries)
         min_width = min(fault.width for fault in geometries)
         # If the stoch dx is greater than the length (resp. dy and width), we might get an empty stoch file
-        dx = min(hf_config.stoch_dx, min_length / 2)
-        dy = min(hf_config.stoch_dy, min_width / 2)
+        dx = min(stoch_config.stoch_dx, min_length / 2)
+        dy = min(stoch_config.stoch_dy, min_width / 2)
 
     log_utils.log_check_call(
         [
