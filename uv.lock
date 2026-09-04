@@ -3548,7 +3548,7 @@ requires-dist = [
     { name = "typer" },
     { name = "types-geopandas", marker = "extra == 'types'" },
     { name = "types-requests", marker = "extra == 'types'" },
-    { name = "velocity-modelling", specifier = ">=2026.2.1" },
+    { name = "velocity-modelling", specifier = ">=2026.8.1" },
     { name = "xarray", extras = ["io"] },
 ]
 provides-extras = ["test", "types", "dev"]
