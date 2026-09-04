@@ -93,8 +93,10 @@ def check_srf(
     mu = velocity_model["mu"].iloc[indices].values
     srf_magnitude = moment.moment_to_magnitude(
         (
-            np.array(srf_file.points["area"].values) * CM2_TO_M2
-            * np.array(srf_file.points["slip"].values) * CM_TO_M
+            np.array(srf_file.points["area"].values)
+            * CM2_TO_M2
+            * np.array(srf_file.points["slip"].values)
+            * CM_TO_M
             * mu
         ).sum(),
         bold_m=True,

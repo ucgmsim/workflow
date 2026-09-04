@@ -2851,6 +2851,24 @@ wheels = [
 ]
 
 [[package]]
+name = "rupture-generator"
+version = "0.1.0"
+source = { git = "https://github.com/ucgmsim/rupture_generator?rev=master#a36ed60b280ca2f63e2559e13b29327a845611dc" }
+dependencies = [
+    { name = "h5netcdf" },
+    { name = "h5py" },
+    { name = "mashumaro", extra = ["toml", "yaml"] },
+    { name = "numcodecs" },
+    { name = "numpy" },
+    { name = "pyproj" },
+    { name = "rich" },
+    { name = "scipy" },
+    { name = "typer" },
+    { name = "xarray" },
+    { name = "zarr" },
+]
+
+[[package]]
 name = "schema"
 version = "0.7.8"
 source = { registry = "https://pypi.org/simple" }
@@ -3540,16 +3558,19 @@ dependencies = [
     { name = "pandas", extra = ["hdf5", "parquet"] },
     { name = "parse" },
     { name = "psutil" },
+    { name = "pyproj" },
     { name = "pyyaml" },
     { name = "qcore-utils" },
     { name = "requests" },
     { name = "rich" },
+    { name = "rupture-generator" },
     { name = "schema" },
     { name = "scipy" },
     { name = "shapely" },
     { name = "site-calculation" },
     { name = "source-modelling" },
     { name = "structlog" },
+    { name = "tomli-w" },
     { name = "tqdm" },
     { name = "typer" },
     { name = "velocity-modelling" },
@@ -3596,6 +3617,7 @@ requires-dist = [
     { name = "pandas-stubs", marker = "extra == 'types'" },
     { name = "parse", specifier = ">=1.21.0" },
     { name = "psutil" },
+    { name = "pyproj" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=6.0.0" },
     { name = "pytest-cov", marker = "extra == 'test'" },
     { name = "pyyaml" },
@@ -3603,6 +3625,7 @@ requires-dist = [
     { name = "requests" },
     { name = "rich", specifier = ">=14.3.2" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16.5" },
+    { name = "rupture-generator", git = "https://github.com/ucgmsim/rupture_generator?rev=master" },
     { name = "schema" },
     { name = "scipy" },
     { name = "scipy-stubs", marker = "extra == 'types'" },
@@ -3610,6 +3633,7 @@ requires-dist = [
     { name = "site-calculation", specifier = ">=2026.7.1" },
     { name = "source-modelling", specifier = ">=2026.8.1" },
     { name = "structlog" },
+    { name = "tomli-w" },
     { name = "tqdm" },
     { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.75" },
     { name = "typer" },

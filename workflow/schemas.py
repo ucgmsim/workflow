@@ -382,18 +382,14 @@ SRF_SCHEMA = Schema(
             "resolution",
             description="Subfault size (km) the fault is discretised at",
         ): And(NUMBER, _is_positive),
-        Literal(
-            "source", description="How rise time scales with moment"
-        ): {
+        Literal("source", description="How rise time scales with moment"): {
             Literal(
                 "rise_time_coefficient",
                 description="Rise time per cube-root dyne-centimetre (Graves & Pitarka)",
             ): And(NUMBER, _is_positive),
         },
         Literal("slip", description="The slip field"): {
-            Literal(
-                "shape", description="Spectral falloff of the slip field"
-            ): str,
+            Literal("shape", description="Spectral falloff of the slip field"): str,
             Literal(
                 "coefficient_of_variation",
                 description="Spread of the slip field, dimensionless. The truncated exponential family runs from 0.5774 to 1 and attains neither end",
@@ -412,9 +408,7 @@ SRF_SCHEMA = Schema(
                 description="Taper at the bottom edge, as a fraction of width",
             ): And(NUMBER, _is_proportion),
         },
-        Literal(
-            "timing", description="Onsets, rise times and the slip-rate shape"
-        ): {
+        Literal("timing", description="Onsets, rise times and the slip-rate shape"): {
             Literal(
                 "rupture_time_offset_s",
                 description="The `offset` of sigma = offset + coefficient * 1e-9 * M0^(1/3). Both it and the coefficient zero is a coherent front",
@@ -464,12 +458,12 @@ SRF_SCHEMA = Schema(
             Literal(
                 "beta_shallow", description="Slip-rate pulse beta at the surface"
             ): And(NUMBER, _is_positive),
-            Literal(
-                "beta_mid", description="Slip-rate pulse beta at mid depth"
-            ): And(NUMBER, _is_positive),
-            Literal(
-                "beta_deep", description="Slip-rate pulse beta at depth"
-            ): And(NUMBER, _is_positive),
+            Literal("beta_mid", description="Slip-rate pulse beta at mid depth"): And(
+                NUMBER, _is_positive
+            ),
+            Literal("beta_deep", description="Slip-rate pulse beta at depth"): And(
+                NUMBER, _is_positive
+            ),
             Literal(
                 "sample_interval_s", description="Slip-rate sample interval, seconds"
             ): And(NUMBER, _is_positive),
