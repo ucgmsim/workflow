@@ -387,6 +387,18 @@ SRF_SCHEMA = Schema(
                 "rise_time_coefficient",
                 description="Rise time per cube-root dyne-centimetre (Graves & Pitarka)",
             ): And(NUMBER, _is_positive),
+            # Optional, and open: the generator's own `HybridConfig` validates the
+            # contents and names the failing key, so restating its fields here would
+            # be a second copy of a schema to drift from -- the thing the `srf` block
+            # mirroring `RuptureConfig` section for section exists to avoid. Present
+            # at all is what matters on this side: absent is Mai & Beroza at every
+            # depth, and an empty table is the shipped shallow relation.
+            Optional(
+                Literal(
+                    "hybrid",
+                    description="Draw shallow slip patches off a different corner relation (Suzuki et al. 2022) than the deep ones (Mai & Beroza 2002), blended over a depth ramp. Omit for Mai & Beroza throughout",
+                )
+            ): dict,
         },
         Literal("slip", description="The slip field"): {
             Literal("shape", description="Spectral falloff of the slip field"): str,
