@@ -97,126 +97,73 @@ rupture_velocity:
   deep_depth: 17.5
   shallow_transition_range: 1.5
   deep_transition_range: 2.5
+# Mirrors `rupture_generator.config.rupture.RuptureConfig` section for section, so this
+# block can be deserialised straight into it rather than translated. The sections it does
+# not carry are the ones the realisation already knows: `hypocentre`, `velocity_model`,
+# `random`, the per-fault `source.magnitudes`/`rakes` and `propagation.parents`. Nor does
+# it carry the depth-dependent rupture-speed profile -- `field.velocity_fraction`,
+# `timing.shallow_speed_factor`, `deep_speed_factor`, `shallow_ramp` and `deep_ramp` --
+# which lives in `rupture_velocity:` above because hf-sim reads the same physical values.
+# create-rupture-input injects all of them.
 srf:
-  alpha_rough: 0.0
-  aseis_dep: 10.0
-  aseis_fac: null
-  aseis_flag: false
-  aseis_smooth: false
-  asp_taper_fac: 0.05
-  beta_asp: 0.3
-  beta_deep: 0.13
-  beta_mid: 0.13
-  beta_mid_depth: 6.5
-  beta_mid_depth_range: 1.5
-  beta_shal: 0.5
-  beta_shal_depth: 2.0
-  beta_shal_depth_range: 1.0
-  beta_subevt: 0.1
-  bot_taper: 0.0
-  circular_average: false
-  deep_risetimedep: 17.5
-  deep_risetimedep_range: 2.5
-  deep_risetimefac: 2.0
-  dump_last_seed: true
-  extend_fac: 1.10
-  fdrup_scale_slip: false
-  fdrup_time: true
-  flen_max: null
-  fractal_rake: false
-  fwid_max: null
-  gwid: []
-  hyb_corlen_deep_wt_end: 1.0
-  hyb_corlen_deep_wt_start: 0.0
-  hyb_corlen_dep: 6.5
-  hyb_corlen_dep_range: 1.5
-  hyb_corlen_fac: 2.0
-  hyb_corlen_flag: false
-  hyb_corlen_kmodel: 5
-  hyb_corlen_shal_wt_end: 0.0
-  hyb_corlen_shal_wt_start: 1.0
-  hyb_corlen_side_taper: 0.08
-  kmodel: 2
-  kord: 4
-  kx_corner: null
-  ky_corner: null
-  lambda_max: null
-  lambda_min: null
-  magC: 6.3
-  mag_area_Acoef: null
-  mag_area_Bcoef: null
-  mai_wt: 0.5
-  modified_corners: false
-  moment_fraction: null
-  perturb_subfault_location: true
-  print_command: true
-  print_seed: true
-  rake_sigma: 15.0
-  rand_rake_degs: 60.0
-  read_erf: false
-  read_gsf: true
+  # Subfault size the fault is cut into, km. Not the simulation grid spacing.
   resolution: 0.1
-  dt: 0.005
-  risetime_coef: 1.6
-  risetimedep: 6.5
-  risetimedep_range: 1.5
-  risetimefac: 2.0
-  rt_rand: 0.0
-  rt_scalefac: 1.0
-  rtime1_depth: null
-  rtime1_depth_range: null
-  rtime1_scor: 0.9
-  rtime1_sigma: null
-  rtime2_scor: 0.5
-  rtime2slip_exp: 0.5
-  rtime_rand: null
-  rupture_delay: 0.0
-  rvfac_seg: []
-  rvfmax: 1.414
-  rvfmin: 0.25
-  seg_delay: false
-  set_rake: null
-  side_taper: 0.02
-  slip_sigma: 0.75
-  slip_water_level: null
-  somerville_wt: 0.5
-  srf_version: "2.0"
-  stretch_kcorner: false
-  stype: null
-  svr_wt: 0.0
-  target_savg: null
-  top_taper: 0.0
-  truncate_zero_slip: true
-  tsfac1_scor: 0.8
-  tsfac1_sigma: 1.0
-  tsfac2_lambda_max: 5.0
-  tsfac2_lambda_min: 0.08
-  tsfac2_scor: 0.5
-  tsfac2_sigma: 1.0e-10
-  tsfac_bzero: -0.1
-  tsfac_coef: 1.1
-  tsfac_main: null
-  tsfac_slope: -0.5
-  use_Mw: false
-  use_gaus: true
-  use_median_mag: false
-  wavelength_max: null
-  wavelength_min: null
-  write_gsf: false
-  write_srf: true
-  xmag_exponent: null
-  xshift: 0.0
-  ymag_exponent: null
-  yshift: 0.0
-  # The following parameters are only used for the point source approximation.
-  point_source_params:
-    # Valid options for the slip time function (stype) are:
-    # esg2006, urs, ucsb, ucsb2, ucsb-T, ucsb-varT1, cos, and seki
-    stype: "cos"
-    risetime: 0.5
-    risetimefac: 1.0
-    risetimedep: 0.0
-    inittime: 0.0
+  source:
+    # Rise time per cube-root dyne-centimetre, Graves & Pitarka's convention. The corner
+    # relation that sets how big the slip patches are is not stated: a `per_fault` source,
+    # which is what create-rupture-input always builds, is Mai & Beroza (2002) and takes no
+    # coefficients -- they are the published fit. A different relation over the upper few
+    # kilometres comes via a `hybrid:` sub-block here, not by naming one.
+    rise_time_coefficient: 1.6
+  slip:
+    # von Karman is Mai's own, and the only falloff left.
+    shape: von_karman
+    # 0.90, not the 0.75 this used to carry. That 0.75 came from genslip, alongside the
+    # clip that the truncated-exponential marginal replaced. Slip is now drawn from a
+    # truncated exponential (Thingbaijam & Mai 2016, fitted to 190 SRCMOD models), for
+    # which the spread and the largest slip on the fault are one number: 0.90 is a
+    # maximum of 4.30 mean slips, against their own regression's 3.9 to 4.4.
+    coefficient_of_variation: 0.90
+    # Degrees. The slip field's spread above is dimensionless; handing one to the other
+    # is a factor of twenty on every fault, which is why they are never bare numbers in
+    # the same expression.
+    rake_sigma_deg: 15.0
+    side_taper: 0.02
+    top_taper: 0.0
+    bottom_taper: 0.0
+  timing:
+    # The onset spread follows the moment rather than being a constant:
+    #     sigma = offset + coefficient * 1e-9 * M0^(1/3)     M0 in dyne-cm
+    # which is Graves & Pitarka's relation. These two are the magnitudes of genslip's
+    # `tsfac_bzero` and `tsfac_slope` as this file used to set them. Both zero is a
+    # coherent front.
+    rupture_time_offset_s: 0.1
+    rupture_time_coefficient: 0.5
+    rupture_time_correlation: 0.8
+    # How far the front travels before it carries the full displacement, in units of that
+    # spread. The rupture leaves the hypocentre smooth and roughens with distance.
+    rupture_time_blend_sigma: 4.0
+    # genslip's `rvfmin` and `rvfmax`. Bounds on the *perturbed* rupture speed, so they
+    # are not part of the depth taper in `rupture_velocity:` and stay here.
+    rupture_velocity_min_fraction: 0.25
+    rupture_velocity_max_fraction: 1.414
+    rupture_delay_s: 0.0
+    rise_time_correlation: 0.9
+    rise_time_sigma: 0.75
+    slip_exponent: 0.5
+    shallow_rise_factor: 2.0
+    deep_rise_factor: 2.0
+    beta_shallow: 0.5
+    beta_mid: 0.13
+    beta_deep: 0.13
+    # Slip-rate sample interval, seconds. This was `srf.dt`, and it is the SRF's own
+    # sampling, independent of the simulation grid spacing.
+    sample_interval_s: 0.005
+    rise_time_blend:   { centre_km: 2.0, half_width_km: 1.0 }
+    beta_shallow_ramp: { centre_km: 2.0, half_width_km: 1.0 }
+    beta_mid_ramp:     { centre_km: 6.5, half_width_km: 1.5 }
+  field:
+    base_rake_deg: 175.0
 nzcvm:
   surface: /nzcvm/resources/dem.zarr
   chunks:

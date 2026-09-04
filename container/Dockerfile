@@ -79,8 +79,10 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ARG WORKFLOW_BRANCH=pegasus
 # nzcvm is a bare requirement resolved through `[tool.uv.sources]`, which pip does
 # not read, so it has to be named explicitly here. The other git-sourced
-# dependencies (im-calculation, hf-simulation) are PEP 508 direct references in
-# `dependencies` and pip resolves those itself.
+# dependencies (im-calculation, hf-simulation, rupture-generator) are PEP 508 direct
+# references in `dependencies` and pip resolves those itself. rupture-generator builds
+# two Rust extensions through setuptools-rust; the toolchain installed above is what
+# they compile with, and `debug = false` in its pyproject keeps that a release build.
 ARG NZCVM_BRANCH=master
 RUN python3 -m venv $VIRTUAL_ENV && \
     pip install --no-cache-dir --upgrade pip setuptools wheel && \

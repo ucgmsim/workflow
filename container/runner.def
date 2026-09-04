@@ -8,8 +8,7 @@ From: earthquakesuc/workflow-bootstrap:latest
     cd /EMOD3D && \
       mkdir build && cd build && \
       cmake -DHF_TIME_WINDOW=off -DUSE_FFTW=on -DCMAKE_C_FLAGS="-march=x86-64 -mtune=generic -std=gnu89" .. && \
-      make -j $(nproc) genslip_v5.6.2 generic_slip2srf \
-                      hb_high_binmod_v6.0.3
+      make -j $(nproc) hb_high_binmod_v6.0.3
 
     cd /
     # Keep only the EMOD3D tools folder and compiled binaries

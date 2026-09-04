@@ -19,6 +19,7 @@ dependencies = [
   "hf-simulation @ git+https://github.com/ucgmsim/high-frequency",
   "site-calculation>=2026.7.1",
   "source_modelling>=2026.08.1",
+  "rupture-generator @ git+https://github.com/ucgmsim/rupture_generator@master",
   # Data Formats
   "geopandas",
   "netCDF4",               # Required for openquake shenanigans
@@ -64,7 +65,7 @@ optional_dependencies_dev_groups = ["test", "dev", "types"]
 [project.scripts]
 nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:app"
 gcmt-to-realisation = "workflow.scripts.gcmt_to_realisation:app"
-realisation-to-srf = "workflow.scripts.realisation_to_srf:app"
+create-rupture-input = "workflow.scripts.rupture_input_template:app"
 generate-domain = "workflow.scripts.generate_domain:app"
 generate-velocity-model = "workflow.scripts.generate_velocity_model:app"
 convert-vm-hdf5-to-emod3d = "workflow.scripts.convert_vm_hdf5_to_emod3d:app"
@@ -136,6 +137,7 @@ convention = "numpy"
 [tool.ruff.lint.isort]
 known-first-party = [
   "source_modelling",
+  "rupture_generator",
   "workflow",
   "pygmt_helper",
   "qcore",
