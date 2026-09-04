@@ -1214,3 +1214,49 @@ RESOLUTION_SCHEMA = Schema(
         )
     }
 )
+
+REFINEMENT_SCHEMA = Schema(
+    {
+        Literal(
+            "resolution", description="Vertical mesh resolution in this layer."
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "bottom", description="Bottom depth of this refinement layer (m)."
+        ): And(NUMBER, _is_positive),
+    }
+)
+
+REFINEMENTS_SCHEMA = Schema(
+    {
+        Literal(
+            "refinements",
+            description="List of vertical mesh refinements from top to bottom.",
+        ): [REFINEMENT_SCHEMA],
+        Literal(
+            "unbounded_refinement_resolution",
+            description="Resolution below the last refinement layer.",
+        ): And(NUMBER, _is_positive),
+    }
+)
+
+SW4_COMMAND_SCHEMA = Schema(
+    {
+        "name": str,
+        "parameters": {str: Or(str, int, float, bool, None)},
+    }
+)
+
+SW4_PARAMETERS_SCHEMA = Schema(
+    {
+        Literal("verbose", description="Fileio verbosity level."): int,
+        Literal("printcycle", description="Output fileio print cycle."): int,
+        Literal(
+            "nz_min",
+            description="Minimum vertical cells in each refinement layer.",
+        ): int,
+        Literal(
+            "commands",
+            description="List of SW4 input file commands (grid, attenuation, supergrid, developer, prefilter, topography, imagehdf5, or any other non-testing SW4 command).",
+        ): [SW4_COMMAND_SCHEMA],
+    }
+)
