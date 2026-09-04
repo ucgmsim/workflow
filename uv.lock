@@ -482,6 +482,15 @@ wheels = [
 ]
 
 [[package]]
+name = "cloudpickle"
+version = "3.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/27/fb/576f067976d320f5f0114a8d9fa1215425441bb35627b1993e5afd8111e5/cloudpickle-3.1.2.tar.gz", hash = "sha256:7fda9eb655c9c230dab534f1983763de5835249750e85fbcef43aaa30a9a2414", size = 22330, upload-time = "2025-11-03T09:25:26.604Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/88/39/799be3f2f0f38cc727ee3b4f1445fe6d5e4133064ec2e4115069418a5bb6/cloudpickle-3.1.2-py3-none-any.whl", hash = "sha256:9acb47f6afd73f60dc1df93bb801b472f05ff42fa6c84167d25cb206be1fbf4a", size = 22228, upload-time = "2025-11-03T09:25:25.534Z" },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -662,6 +671,24 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a9/95/a3dbbb5028f35eafb79008e7522a75244477d2838f38cbb722248dabc2a8/cycler-0.12.1.tar.gz", hash = "sha256:88bb128f02ba341da8ef447245a9e138fae777f6a23943da4540077d3601eb1c", size = 7615, upload-time = "2023-10-07T05:32:18.335Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e7/05/c19819d5e3d95294a6f5947fb9b9629efb316b96de511b418c53d245aae6/cycler-0.12.1-py3-none-any.whl", hash = "sha256:85cef7cff222d8644161529808465972e51340599459b8ac3ccbac5a854e0d30", size = 8321, upload-time = "2023-10-07T05:32:16.783Z" },
+]
+
+[[package]]
+name = "dask"
+version = "2026.8.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "cloudpickle" },
+    { name = "fsspec" },
+    { name = "packaging" },
+    { name = "partd" },
+    { name = "pyyaml" },
+    { name = "toolz" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/33/a7/6b3c7ac32b642fbbe0821111654e0bd8cfbe88f68560bcf23cc78ab35c71/dask-2026.8.0.tar.gz", hash = "sha256:8a94c37b5de6d869343340dc26c3c3acca7ec48a3abdabe00ea3abb1125884d5", size = 11561752, upload-time = "2026-08-24T19:21:25.906Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f8/3a/4fc99e788bcfa1b3b3f21abf57da45898d807d007e7f6fd1c7300904eb70/dask-2026.8.0-py3-none-any.whl", hash = "sha256:ccc0c83a189b0398602435189771d28dad7b5773b6089bb8dce14ae732dd782c", size = 1492182, upload-time = "2026-08-24T19:21:23.997Z" },
 ]
 
 [[package]]
@@ -1166,8 +1193,8 @@ wheels = [
 
 [[package]]
 name = "im-calculation"
-version = "2026.7.2"
-source = { registry = "https://pypi.org/simple" }
+version = "2026.7.3.dev4+g5a0c1a5e1"
+source = { git = "https://github.com/ucgmsim/im_calculation?branch=no_parallel#5a0c1a5e1b6ae9728a8e68806b220aa65c9ff111" }
 dependencies = [
     { name = "numpy" },
     { name = "pandas", extra = ["hdf5"] },
@@ -1175,24 +1202,8 @@ dependencies = [
     { name = "pyfftw" },
     { name = "qcore-utils" },
     { name = "scipy" },
-    { name = "tqdm" },
     { name = "typer" },
     { name = "xarray", extra = ["io"] },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/d3/3a/0cbe62d24188c3f19b70e001bb5f67d2652b11c8e418120f2d34dce6a19e/im_calculation-2026.7.2.tar.gz", hash = "sha256:5ff212f205cb497e72a23715d5d08a9e4bc8460b5a3c3fa1dec85a7ed9cd85ee", size = 36853, upload-time = "2026-07-24T01:37:37.363Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/44/41/19df181c1b329737abe77fc2ed4b7387aa2d6254aa5d1ae77b48224a9f56/im_calculation-2026.7.2-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:b3dbe685ac7c899cb1ccbb85c254820fe3eff8d74bb040ac8b0e63c6bb8720e8", size = 335354, upload-time = "2026-07-24T01:37:21.588Z" },
-    { url = "https://files.pythonhosted.org/packages/ef/a3/b8da5118812dc422fb57ba90fe937a50b795086d3ced08b0b34089b5c5e4/im_calculation-2026.7.2-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:207f80a357c369602b4bc225905f518489d526ee48f61d408703b730bdf41b06", size = 324311, upload-time = "2026-07-24T01:37:22.957Z" },
-    { url = "https://files.pythonhosted.org/packages/0c/49/e9d8f63d39ba119a78fa55f6b66331c07d1a8c652a969b04d15fbe913fe0/im_calculation-2026.7.2-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:b18552e381ecc2b66e83e65184f8bc96eb3846ee27eb5ad2c495432f54355571", size = 379780, upload-time = "2026-07-24T01:37:24.397Z" },
-    { url = "https://files.pythonhosted.org/packages/02/e0/7497a21bcab4ec718900b30fbf06b4fcc0a72106d3531d8a0b85c359518b/im_calculation-2026.7.2-cp312-cp312-win_amd64.whl", hash = "sha256:058792616f43eecf3d476e8fce2b7877df08f10ffb960b0668b98ad9aab618a5", size = 214835, upload-time = "2026-07-24T01:37:25.888Z" },
-    { url = "https://files.pythonhosted.org/packages/b9/1a/1665f6b1537044ea37a487efbb974d97fc0473678a510647430283b1db2f/im_calculation-2026.7.2-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:c1cd23663eb0c7c31a6a519a02b31c49cdc6b93b19dc5c0ec681573bbe86bc62", size = 335722, upload-time = "2026-07-24T01:37:27.138Z" },
-    { url = "https://files.pythonhosted.org/packages/af/75/5aaae7c0cbeac1aacd0d12fd63fe16f2adebabd6a81b25c3270e89d68028/im_calculation-2026.7.2-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:975ac472625f8e89243433469d80a16e9965e2b25d43d425bb769f1af1336c03", size = 324461, upload-time = "2026-07-24T01:37:28.504Z" },
-    { url = "https://files.pythonhosted.org/packages/a7/c8/8dcbd6d3c9437c7142f4b3ac3d30c88788a88a6b9afe2e94fe7c97cc7038/im_calculation-2026.7.2-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:40e482eb7f27c2997811638be9226a600840174cbeb45154f92e15dce0b8c9e9", size = 379874, upload-time = "2026-07-24T01:37:29.701Z" },
-    { url = "https://files.pythonhosted.org/packages/6e/69/7359ae8205fa123081e50e5f6e52961413e9bbe978282738f55700819e06/im_calculation-2026.7.2-cp313-cp313-win_amd64.whl", hash = "sha256:8e33932b8c161c6ecb07337a2a344b7eee3687bcf93f29120e764678416255f7", size = 214804, upload-time = "2026-07-24T01:37:31.027Z" },
-    { url = "https://files.pythonhosted.org/packages/c7/9a/9cad373586173e0cae969948e79abd7856c1dd2c7a36b07f9c844ce955bf/im_calculation-2026.7.2-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:ada009ccdad40eff4d7c5372e6d505aafa5edae457bb3c8e011286fea9f4cc14", size = 336098, upload-time = "2026-07-24T01:37:32.152Z" },
-    { url = "https://files.pythonhosted.org/packages/4a/0e/053d6158e0824d10b03b17a06d5894274e94fae897de807211aa7704e068/im_calculation-2026.7.2-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:67b7f592565fa387cafd5bf96467baf9c681530f70a94806e11c45f7ba52788c", size = 325159, upload-time = "2026-07-24T01:37:33.302Z" },
-    { url = "https://files.pythonhosted.org/packages/aa/e4/15c044238dfb35ad449b9928b04fb5e769afe8cc15b31146149dca7d8f2f/im_calculation-2026.7.2-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:8be67bbc8a238fcceccf9bb1994f92eacd1b77c31e81c43f3e4ae0364fd1d868", size = 382310, upload-time = "2026-07-24T01:37:34.574Z" },
-    { url = "https://files.pythonhosted.org/packages/35/f2/65a50321e5f1f1ee4dce5d099315d7deb7cd31fd9ccce3002f36cf35b62f/im_calculation-2026.7.2-cp314-cp314-win_amd64.whl", hash = "sha256:84821d7715992d9f332d309ac764967bcc22f48cc878649807fc0e80c68ad06c", size = 223493, upload-time = "2026-07-24T01:37:36.243Z" },
 ]
 
 [[package]]
@@ -1343,6 +1354,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/98/07/a2c4f04e2111ccc274b4d5e3331398a9dcf6d6e5e55d6444b1ad9d6381cf/llvmlite-0.49.0-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:d5555ea1d63928481cbf7fcb1d67452b216c7e5b393a4eb7aa1401e67f2a4fc4", size = 59890658, upload-time = "2026-08-11T16:25:43.294Z" },
     { url = "https://files.pythonhosted.org/packages/80/f9/7b7b50f80b4585bcd78675ff3110c256877b11df32a8cde284f851762f57/llvmlite-0.49.0-cp314-cp314t-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:e32adb84fdaae28aeb86fdb6253084ee707ee157289a2e98fe3caf48a62bee82", size = 58344482, upload-time = "2026-08-11T16:25:51.527Z" },
     { url = "https://files.pythonhosted.org/packages/d8/c6/32d68bfbf1d0c36888530ef6fd72864861af23dc546302b41033471a8c3a/llvmlite-0.49.0-cp314-cp314t-win_amd64.whl", hash = "sha256:be637e465010bc9c50f070468f7f1cf5385e92fee364d192dd5e6cea790ecba9", size = 42986602, upload-time = "2026-08-11T16:25:57.69Z" },
+]
+
+[[package]]
+name = "locket"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2f/83/97b29fe05cb6ae28d2dbd30b81e2e402a3eed5f460c26e9eaa5895ceacf5/locket-1.0.0.tar.gz", hash = "sha256:5c0d4c052a8bbbf750e056a8e65ccd309086f4f0f18a2eac306a8dfa4112a632", size = 4350, upload-time = "2022-04-20T22:04:44.312Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/db/bc/83e112abc66cd466c6b83f99118035867cecd41802f8d044638aa78a106e/locket-1.0.0-py2.py3-none-any.whl", hash = "sha256:b6c819a722f7b6bd955b80781788e4a66a55628b858d347536b7e81325a3a5e3", size = 4398, upload-time = "2022-04-20T22:04:42.23Z" },
 ]
 
 [[package]]
@@ -2102,6 +2122,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a4/f2/0b504486c2a5564798607d3860e48ed19c6443d5e9cc3ec61cc6b8b4ef58/parse-1.22.1.tar.gz", hash = "sha256:d3a4740ec3da338e2b258b2d69741b731eadfddca59e24a14bc4ee5fce38c911", size = 36970, upload-time = "2026-05-26T03:44:52.624Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6f/c5/7c16e99869e1f422629092cfd23e3b58e461988c3f9c36fd3624bb4142e6/parse-1.22.1-py2.py3-none-any.whl", hash = "sha256:20f0925a46f06602485ac90d751764d0697fd8455aaa97489ba8953a4b66de32", size = 20925, upload-time = "2026-05-26T03:44:51.156Z" },
+]
+
+[[package]]
+name = "partd"
+version = "1.4.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "locket" },
+    { name = "toolz" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b2/3a/3f06f34820a31257ddcabdfafc2672c5816be79c7e353b02c1f318daa7d4/partd-1.4.2.tar.gz", hash = "sha256:d022c33afbdc8405c226621b015e8067888173d85f7f5ecebb3cafed9a20f02c", size = 21029, upload-time = "2024-05-06T19:51:41.945Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/71/e7/40fb618334dcdf7c5a316c0e7343c5cd82d3d866edc100d98e29bc945ecd/partd-1.4.2-py3-none-any.whl", hash = "sha256:978e4ac767ec4ba5b86c6eaa52e5a2a3bc748a2ca839e8cc798f1cc6ce6efb0f", size = 18905, upload-time = "2024-05-06T19:51:39.271Z" },
 ]
 
 [[package]]
@@ -3288,6 +3321,15 @@ wheels = [
 ]
 
 [[package]]
+name = "toolz"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/11/d6/114b492226588d6ff54579d95847662fc69196bdeec318eb45393b24c192/toolz-1.1.0.tar.gz", hash = "sha256:27a5c770d068c110d9ed9323f24f1543e83b2f300a687b7891c1a6d56b697b5b", size = 52613, upload-time = "2025-10-17T04:03:21.661Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fb/12/5911ae3eeec47800503a238d971e51722ccea5feb8569b735184d5fcdbc0/toolz-1.1.0-py3-none-any.whl", hash = "sha256:15ccc861ac51c53696de0a5d6d4607f99c210739caf987b5d2054f3efed429d8", size = 58093, upload-time = "2025-10-17T04:03:20.435Z" },
+]
+
+[[package]]
 name = "tqdm"
 version = "4.70.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3470,6 +3512,7 @@ wheels = [
 name = "workflow"
 source = { editable = "." }
 dependencies = [
+    { name = "dask" },
     { name = "geopandas" },
     { name = "h5py" },
     { name = "im-calculation" },
@@ -3517,11 +3560,12 @@ types = [
 [package.metadata]
 requires-dist = [
     { name = "coverage", extras = ["toml"], marker = "extra == 'test'" },
+    { name = "dask", specifier = ">=2026.6.0" },
     { name = "deptry", marker = "extra == 'dev'" },
     { name = "geopandas" },
     { name = "h5py", specifier = ">=3.15.1" },
     { name = "hypothesis", extras = ["numpy"], marker = "extra == 'test'", specifier = ">=6.0.0" },
-    { name = "im-calculation", specifier = ">=2025.12.5" },
+    { name = "im-calculation", git = "https://github.com/ucgmsim/im_calculation?branch=no_parallel" },
     { name = "nshmdb", specifier = ">=2026.9.1" },
     { name = "numpy" },
     { name = "numpydoc", marker = "extra == 'dev'" },
