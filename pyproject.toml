@@ -24,7 +24,9 @@ dependencies = [
   "geopandas",
   "netCDF4",               # Required for openquake shenanigans
   "pandas[parquet, hdf5]",
+  "pyproj",
   "pyyaml",
+  "tomli-w",         # Writing the rupture generator's input files
   "xarray[io]",
   # Numerics
   "numpy",
