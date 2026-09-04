@@ -3019,6 +3019,31 @@ wheels = [
 ]
 
 [[package]]
+name = "site-calculation"
+version = "2026.7.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pyfftw" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ea/0e/d8c2513b130fd5e23cbc9455f10ac85541dd897b88563c2002c330509176/site_calculation-2026.7.1.tar.gz", hash = "sha256:9e32970aa5b5f4b2650d94441c75bf0dbe83f82cfe57d38ea258c2ddfa8857e7", size = 127578, upload-time = "2026-07-31T04:46:27.647Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1d/64/f7cabee255e847e01a1fca39933aa5a9ace6ba0ac552c2fd40b73154a07b/site_calculation-2026.7.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:9a66ea2e32ed2b73ef91dddb091117775e0f7894526382caa5a7b5883c1ed325", size = 254857, upload-time = "2026-07-31T04:46:12.745Z" },
+    { url = "https://files.pythonhosted.org/packages/16/9c/774d399059501ad14293e3a373fe5608b87696f4cad9606a7a32a5a5422f/site_calculation-2026.7.1-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:7dbc8d4bb442af684593279e05f749f152d307458955b56ab689d85e5006d5bf", size = 259469, upload-time = "2026-07-31T04:46:14.067Z" },
+    { url = "https://files.pythonhosted.org/packages/4c/9d/b1fcdfc26fcc202d7800cbd13f63977ddb774091dd10985f92afe02db2bc/site_calculation-2026.7.1-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:1d13f6f7a178162a6d81770d9ce1c8a4e3a0caaa90da9f717200fa5db2a644d9", size = 294668, upload-time = "2026-07-31T04:46:15.313Z" },
+    { url = "https://files.pythonhosted.org/packages/ee/25/1c154149e6b6b0967fc28e919b19b455836f05a3372d979f8405dfe5a5b6/site_calculation-2026.7.1-cp313-cp313-win_amd64.whl", hash = "sha256:c06018d59f8dd4fdc6c89c30b125e6e671e2fa50a54fada663f0a17c8f11b2de", size = 149183, upload-time = "2026-07-31T04:46:16.575Z" },
+    { url = "https://files.pythonhosted.org/packages/be/7e/5335a1b9ce66c060ce6f089c7271ca21d488ea03265df2f620c220039399/site_calculation-2026.7.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:26db03728f865c738e65f2aae027e545f6e8f25f47497d9fcd7e370bcbd24905", size = 254473, upload-time = "2026-07-31T04:46:18.134Z" },
+    { url = "https://files.pythonhosted.org/packages/0c/69/6487c0bc361c82214e032d916ea125b28fdc0c0c8672a0215444500d646c/site_calculation-2026.7.1-cp314-cp314-macosx_11_0_x86_64.whl", hash = "sha256:23b2443f599ba737a6158a6742b27c051bb362355915115fdfb7a07ab3415439", size = 259136, upload-time = "2026-07-31T04:46:19.666Z" },
+    { url = "https://files.pythonhosted.org/packages/da/52/49553e8d6194dba19439703f25e628e2bb9388aaec14f06e48d3b5c62ece/site_calculation-2026.7.1-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:67855ec4c7c3288e753f349b6f6d915e86a05c42ddbca9bdead24c780639a79e", size = 294532, upload-time = "2026-07-31T04:46:20.854Z" },
+    { url = "https://files.pythonhosted.org/packages/55/b3/6d9670475b007be219b249300b9f2c6167bd4f65ecd34afc42e5351d76f0/site_calculation-2026.7.1-cp314-cp314-win_amd64.whl", hash = "sha256:2c428c6d491728f9ab502819a1ae1e4cb95a84293e6da938dc8dfd9dfc1313bb", size = 153606, upload-time = "2026-07-31T04:46:21.963Z" },
+    { url = "https://files.pythonhosted.org/packages/0c/36/5f24de7b7cf370e552108f180e4403f85253257db3df278dde86c1a31cc0/site_calculation-2026.7.1-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:5cd24e0c69905436b86073edcde12f2b4981d0e1b091366b435bf5b82788ed69", size = 254443, upload-time = "2026-07-31T04:46:23.089Z" },
+    { url = "https://files.pythonhosted.org/packages/67/c0/8981b96ffbef6da17d9f85f946839dc344b914a9db9a343a6a76f0cfeaee/site_calculation-2026.7.1-cp314-cp314t-macosx_11_0_x86_64.whl", hash = "sha256:01804b221c4ed7332052b27693c41f147d0beaf6b48e7def4dc8904af5050340", size = 258922, upload-time = "2026-07-31T04:46:24.307Z" },
+    { url = "https://files.pythonhosted.org/packages/31/4c/03bbd62ccdea3780dd154ee078b15a2d3fac8cda3c1f98bbf9d0976c5511/site_calculation-2026.7.1-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:1c86e27e6d985a827fafef1bbe841060c411df4af00d62ba8ec077ac0815e2ef", size = 294490, upload-time = "2026-07-31T04:46:25.426Z" },
+    { url = "https://files.pythonhosted.org/packages/e4/16/1c6cd0b224abf7e88361679657243265eb3c89d863daa9d2d7c37e09cf37/site_calculation-2026.7.1-cp314-cp314t-win_amd64.whl", hash = "sha256:81e9bffdc595d85d25044a1d2119e32266d0886c387373b5da1a5c6535f8a897", size = 153507, upload-time = "2026-07-31T04:46:26.504Z" },
+]
+
+[[package]]
 name = "six"
 version = "1.17.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3512,6 +3537,7 @@ dependencies = [
     { name = "schema" },
     { name = "scipy" },
     { name = "shapely" },
+    { name = "site-calculation" },
     { name = "source-modelling" },
     { name = "structlog" },
     { name = "tqdm" },
@@ -3569,6 +3595,7 @@ requires-dist = [
     { name = "scipy" },
     { name = "scipy-stubs", marker = "extra == 'types'" },
     { name = "shapely" },
+    { name = "site-calculation", specifier = ">=2026.7.1" },
     { name = "source-modelling", specifier = ">=2026.8.1" },
     { name = "structlog" },
     { name = "tqdm" },
