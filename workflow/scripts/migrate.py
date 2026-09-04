@@ -261,6 +261,53 @@ def should_update(config: ConfigType) -> Response:
     return yes_no_always_prompt(f"Merge with defaults for {config._config_key}?")
 
 
+RENAMED_KEYS: dict[str, dict[str, str]] = {
+    realisations.Seeds._config_key: {"genslip_seed": "rupture_seed"},
+}
+"""Keys that changed name, by config key, as ``{old: new}``.
+
+A renamed key cannot be handled by trimming and refilling like every other change:
+:class:`~workflow.realisations.Seeds` has no defaults to refill *from*, and generating a
+fresh block would change every other seed in it -- including `hf_seed`, which nothing
+about this rename touches. So the value is carried over to its new name instead.
+"""
+
+
+def rename_keys(realisation: Path, dry_run: bool) -> None:
+    """Carry values in `RENAMED_KEYS` over to the names they are read under now.
+
+    Parameters
+    ----------
+    realisation : Path
+        Path to realisation.
+    dry_run : bool
+        If True, print instead of renaming.
+    """
+    with open(realisation, "r") as f:
+        data = json.load(f)
+
+    renamed = []
+    for config_key, renames in RENAMED_KEYS.items():
+        config_data = data.get(config_key)
+        if not isinstance(config_data, dict):
+            continue
+        for old, new in renames.items():
+            if old in config_data and new not in config_data:
+                config_data[new] = config_data.pop(old)
+                renamed.append(f"{config_key}.{old} -> {config_key}.{new}")
+
+    if not renamed:
+        return
+
+    if dry_run:
+        console.print(f"DRY RUN: Would rename {', '.join(renamed)} in {realisation}")
+        return
+
+    console.print(f"Renaming {', '.join(renamed)} in {realisation}")
+    with open(realisation, "w") as f:
+        json.dump(data, f, indent=4)
+
+
 def trim_keys(
     realisation: Path,
     config: ConfigType,
@@ -367,13 +414,18 @@ def migrate(
         )
         return
 
+    rename_keys(realisation, dry_run)
+    if not dry_run:
+        with open(realisation, "r") as f:
+            json_data = json.load(f)
+
     for config in check_configs:
         default_config = defaults.get(config)
-        if not default_config:
-            continue
-        default_config_dict = default_config.to_dict()
+        # A config with no defaults has nothing to diff against, but it can still carry
+        # keys the schema no longer knows, so it goes on to the read below.
+        default_config_dict = default_config.to_dict() if default_config else None
         current_config = json_data.get(config._config_key, {})
-        if current_config != default_config_dict:
+        if default_config_dict is not None and current_config != default_config_dict:
             print_diff(current_config, default_config_dict)
             print()
             response = auto_response.get((config, Action.UPDATE)) or should_update(
