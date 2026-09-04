@@ -1,22 +1,9 @@
 Bootstrap: docker
 From: earthquakesuc/workflow-bootstrap:latest
 
-%files
-    EMOD3D /EMOD3D
-
-%post
-    cd /EMOD3D && \
-      mkdir build && cd build && \
-      cmake -DHF_TIME_WINDOW=off -DUSE_FFTW=on -DCMAKE_C_FLAGS="-march=x86-64 -mtune=generic -std=gnu89" .. && \
-      make -j $(nproc) hb_high_binmod_v6.0.3
-
-    cd /
-    # Keep only the EMOD3D tools folder and compiled binaries
-    find /EMOD3D -mindepth 1 -maxdepth 1 ! -name "tools" -exec rm -rf {} \;
-
 %environment
     export RUSTUP_HOME=/sw/rust
     export CARGO_HOME=/sw/cargo
-    export PATH="/sw/venv/bin:/EMOD3D/tools:/sw/cargo/bin:/sw/python/bin:$PATH"
+    export PATH="/sw/venv/bin:/sw/cargo/bin:/sw/python/bin:$PATH"
     export VIRTUAL_ENV="/sw/venv"
     export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
