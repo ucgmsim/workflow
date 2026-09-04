@@ -1,9 +1,0 @@
-Bootstrap: docker
-From: earthquakesuc/workflow-bootstrap:latest
-
-%environment
-    export RUSTUP_HOME=/sw/rust
-    export CARGO_HOME=/sw/cargo
-    export PATH="/sw/venv/bin:/sw/cargo/bin:/sw/python/bin:$PATH"
-    export VIRTUAL_ENV="/sw/venv"
-    export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
