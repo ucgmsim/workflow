@@ -231,7 +231,6 @@ def generate_fd_files(
     """
     output_path.mkdir(exist_ok=True)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
-    resolution_parameters = Resolution.read_from_realisation(realisation_ffp)
 
     # retrieve in station names, latitudes and longitudes
     stations = pd.read_csv(
@@ -243,6 +242,7 @@ def generate_fd_files(
 
     match format:
         case Format.EMOD3D:
+            resolution_parameters = Resolution.read_from_realisation(realisation_ffp)
             write_emod3d_station_format(
                 domain_parameters, resolution_parameters, stations, output_path
             )
