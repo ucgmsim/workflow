@@ -8,9 +8,12 @@ for a description of realisations and the schemas.
 
 import dataclasses
 from enum import IntEnum, StrEnum
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from nzcvm.config.layers import LayerConfig
+from nzcvm.coordinates import Coordinate
 from schema import And, Literal, Optional, Or, Schema, Use
 
 from IM import im_calculation
@@ -960,6 +963,13 @@ VELOCITY_MODEL_SCHEMA = Schema(
     }
 )
 
+NZCVM_SCHEMA = Schema(
+    {
+        Literal("layers"): [Use(LayerConfig.from_dict)],
+        Literal("chunks"): Or({}, {Use(Coordinate): int}),
+        Literal("surface"): Use(Path),
+    }
+)
 SEED_SCHEMA = Schema(
     {
         Literal("genslip_seed", description="The random seed passed to genslip."): int,

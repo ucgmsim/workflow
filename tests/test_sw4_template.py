@@ -16,7 +16,7 @@ from nzcvm.formats import sfile
 from velocity_modelling.bounding_box import BoundingBox
 from workflow import defaults, sw4
 from workflow.realisations import Refinement, Refinements, SW4Parameters
-from workflow.scripts import sw4_template
+from workflow.scripts import nzvm_input_template, sw4_template
 
 SPONGE_KM = 12.0
 """The v26_7_1Hz sponge width, in kilometres."""
@@ -112,6 +112,25 @@ def test_bottom_refinement_holds_the_sponge(depth_km: float) -> None:
     # to be at least one cell of the layer that is not sponge.
     assert thickness > supergrid_width
     assert thickness / coarsest > supergrid_width / coarsest
+
+
+def test_model_padding_contains_the_padded_grid(domain: BoundingBox) -> None:
+    """`create-nzvm-input` pads by more than `create-sw4-input` does.
+
+    If this ordering ever inverts, SW4 queries outside the sfile.
+    """
+    model_padding_km = (
+        SPONGE_KM + nzvm_input_template.SW4_MODEL_SLACK_GRIDPOINTS * 400.0 / 1000.0
+    )
+    grid = domain.pad(pad_x=(SPONGE_KM, SPONGE_KM), pad_y=(SPONGE_KM, SPONGE_KM))
+    model = domain.pad(
+        pad_x=(model_padding_km, model_padding_km),
+        pad_y=(model_padding_km, model_padding_km),
+    )
+
+    assert model.polygon.contains_properly(grid.polygon)
+    assert model.extent_x > grid.extent_x
+    assert model.extent_y > grid.extent_y
 
 
 def test_adjust_for_topography_leaves_resolutions_alone() -> None:
