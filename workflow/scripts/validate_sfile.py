@@ -287,6 +287,7 @@ class DatasetStats:
         return dataclasses.replace(
             self,
             lo=min(self.lo, other.lo),
+            hi=max(self.hi, other.hi),
             n_nan=self.n_nan + other.n_nan,
             n_inf=self.n_inf + other.n_inf,
             n_zero=self.n_zero + other.n_zero,
@@ -1161,11 +1162,14 @@ def _scan_grid(
             continue
         # Select before dividing, so the division runs over the solid cells only.
         ratios = chunks["Cp"][solid].astype(np.float64) / chunks["Cs"][solid]
+        # A NaN in Cp is reported by its own statistics; here it would only
+        # poison the range, so the bounds are taken over finite ratios.
+        finite = np.isfinite(ratios)
         ratio = ratio.merge(
             RatioStats(
                 n_solid=int(ratios.size),
-                lo=float(ratios.min()),
-                hi=float(ratios.max()),
+                lo=float(np.min(ratios, where=finite, initial=np.inf)),
+                hi=float(np.max(ratios, where=finite, initial=-np.inf)),
                 n_below_one=int(np.count_nonzero(ratios < 1.0)),
                 n_below_sqrt2=int(np.count_nonzero(ratios < SQRT2)),
             )
@@ -1201,7 +1205,7 @@ def _report_variable(
         f"{label}: {spec.label} in [{stats.lo:.4g}, {stats.hi:.4g}]{unit}, "
         f"zeros={stats.n_zero} nan={stats.n_nan} inf={stats.n_inf}",
         **where,
-        **stats._asdict(),
+        **dataclasses.asdict(stats),
     )
     if stats.n_nan:
         yield Finding.error(f"{label}: {stats.n_nan} NaN value(s)", **where)
