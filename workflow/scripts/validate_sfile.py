@@ -1,51 +1,342 @@
-#!/usr/bin/env python3
-"""Check an SW4 sfile (HDF5 velocity model) for issues.
+"""Validate SW4 sfile Script.
 
-Checks performed
-----------------
-  Structure    : required groups/attributes, dataset counts match ngrids
-  Attributes   : types, value ranges, NaN/Inf
-  Z_interfaces : NaN/Inf, strict monotonicity z_values_0 < z_values_1 < ... at
-                 every (i,j) (interfaces stored at different resolutions are
-                 nearest-resampled to a common grid, not skipped),
-                 zero/negative-thickness layers (triggers hv=0 division in
-                 SW4), large topographic gradients between cells, consistency
-                 between Min/max depth attribute and actual data
-  Material     : NaN/Inf, Rho > 0 (zero density is the most common SW4 crash),
-                 Cp > 0, Cs >= 0, Qp/Qs > 0 (when attenuation=1), Vp/Vs >= 1,
-                 nk >= 2 (nk=1 causes 0*inf=NaN in SW4 interpolation)
-  Boundaries   : grid corners in geographic coordinates
+Description
+-----------
+Checks an SW4 sfile (HDF5 velocity model) for the structural and physical
+defects that make SW4 abort or silently produce NaNs.
 
-The geographic projection assumed is:
-    proj=tmerc  ellps=GRS80  lon_0=173.0  lat_0=0.0  k=0.9996
-    (NZTM2000 central meridian and scale but without false origin offsets)
+Every observation is recorded as a `Finding` with one of four severities:
+
+error
+    The model is unusable. SW4 aborts, or propagates NaNs.
+warn
+    The model is usable but suspicious, and worth a look.
+info
+    A measurement, reported so the model can be eyeballed. Suppressed by
+    `--no-verbose`.
+skip
+    A check could not run because a prerequisite was missing. A run with skips
+    is not a clean pass: something went unverified.
+
+Recording is separate from reporting. Checks are generators over a parsed
+`Sfile` and never print; `log_report` is the only thing that writes output, and
+`Report.counts` tallies the four severities.
+
+Boundaries are reported in NZTM2000. The sfile origin and azimuth define a
+local grid, and the projection's false-origin offsets cancel over the
+forward/inverse round trip, so these corners agree with the writer's.
+
+Inputs
+------
+1. An SW4 sfile (HDF5 velocity model).
+
+Outputs
+-------
+No direct outputs. Logs one record per finding and a closing tally, and exits
+non-zero if any finding is an error.
+
+Environment
+-----------
+Can be run in the cybershake container. Can also be run from your own computer using the `validate-sfile` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+
+Usage
+-----
+`validate-sfile [OPTIONS] SFILE`
+
+For More Help
+-------------
+See the output of `validate-sfile --help`.
 """
 
+import dataclasses
 import itertools
-import sys
+from collections import Counter
+from collections.abc import Iterator, Mapping, Sequence
+from enum import StrEnum, auto
+from functools import cached_property
 from pathlib import Path
+from typing import Annotated, Any, NamedTuple, Protocol, Self
 
 import h5py
 import numpy as np
 import numpy.typing as npt
-import pyproj
 import typer
 
-app = typer.Typer()
-PROJ_STRING = (
-    "+proj=tmerc +ellps=GRS80 +lon_0=173.0 +lat_0=0.0 +k=0.9996 +units=m +no_defs"
-)
+from qcore import cli, coordinates
+from workflow import log_utils
 
-REQUIRED_ATTRS = [
-    "Attenuation",
-    "ngrids",
-    "Min, max depth",
-    "Origin longitude, latitude, azimuth",
-]
-SPACING_ATTRS = ["Finest horizontal grid spacing", "Coarsest horizontal grid spacing"]
-REQUIRED_VARS = {"Cp", "Cs", "Rho"}
-ATTN_VARS = {"Qp", "Qs"}
-SQRT2 = np.sqrt(2.0)
+app = typer.Typer()
+
+SURFACE_GROUP = "Z_interfaces"
+MATERIAL_GROUP = "Material_model"
+ATTENUATION_ATTR = "Attenuation"
+NGRIDS_ATTR = "ngrids"
+DEPTH_ATTR = "Min, max depth"
+ORIGIN_ATTR = "Origin longitude, latitude, azimuth"
+HORIZONTAL_ATTR = "Horizontal grid size"
+COMPONENTS_ATTR = "Number of components"
+SPACING_ATTRS = ("Finest horizontal grid spacing", "Coarsest horizontal grid spacing")
+REQUIRED_ATTRS = (ATTENUATION_ATTR, NGRIDS_ATTR, DEPTH_ATTR, ORIGIN_ATTR)
+
+SQRT2 = float(np.sqrt(2.0))
+#: Cell-to-cell jump in the top interface above which the surface looks like a
+#: fill-value boundary rather than terrain.
+TERRAIN_JUMP_WARN_M = 500.0
+#: Vertical cell size below which SW4's timestep becomes impractical.
+THIN_CELL_WARN_M = 0.01
+#: Fractional disagreement in horizontal extent tolerated between grids.
+EXTENT_TOLERANCE = 0.001
+#: Disagreement tolerated between the depth attribute and the interface data.
+DEPTH_TOLERANCE_M = 1.0
+#: Expected values of the "Number of components" attribute (with and without Q).
+COMPONENT_COUNTS = (3, 5)
+
+
+class Severity(StrEnum):
+    """How much a finding matters."""
+
+    ERROR = auto()
+    WARN = auto()
+    INFO = auto()
+    SKIP = auto()
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class Finding:
+    """A single observation made about an sfile."""
+
+    severity: Severity
+    """How much this finding matters."""
+
+    message: str
+    """Human-readable description of the observation."""
+
+    context: Mapping[str, Any] = dataclasses.field(default_factory=dict)
+    """Structured fields backing the message, logged alongside it."""
+
+    check: str = ""
+    """Name of the check that produced this finding, filled in by `validate`."""
+
+    @classmethod
+    def error(cls, message: str, **context: Any) -> "Finding":
+        """Record that the model is unusable.
+
+        Parameters
+        ----------
+        message : str
+            Description of the defect.
+        **context : Any
+            Structured fields to log alongside the message.
+
+        Returns
+        -------
+        Finding
+            The finding.
+        """
+        return cls(Severity.ERROR, message, context)
+
+    @classmethod
+    def warn(cls, message: str, **context: Any) -> "Finding":
+        """Record that the model is usable but suspicious.
+
+        Parameters
+        ----------
+        message : str
+            Description of the suspicion.
+        **context : Any
+            Structured fields to log alongside the message.
+
+        Returns
+        -------
+        Finding
+            The finding.
+        """
+        return cls(Severity.WARN, message, context)
+
+    @classmethod
+    def info(cls, message: str, **context: Any) -> "Finding":
+        """Record a measurement of the model.
+
+        Parameters
+        ----------
+        message : str
+            Description of the measurement.
+        **context : Any
+            Structured fields to log alongside the message.
+
+        Returns
+        -------
+        Finding
+            The finding.
+        """
+        return cls(Severity.INFO, message, context)
+
+    @classmethod
+    def skip(cls, message: str, **context: Any) -> "Finding":
+        """Record that a check could not run.
+
+        Parameters
+        ----------
+        message : str
+            What could not be checked, and why.
+        **context : Any
+            Structured fields to log alongside the message.
+
+        Returns
+        -------
+        Finding
+            The finding.
+        """
+        return cls(Severity.SKIP, message, context)
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class Report:
+    """The findings from one validation run."""
+
+    findings: tuple[Finding, ...]
+    """Every finding, in the order the checks produced them."""
+
+    @property
+    def counts(self) -> Counter[Severity]:  # numpydoc ignore=RT01
+        """Counter[Severity]: how many findings of each severity."""
+        return Counter(finding.severity for finding in self.findings)
+
+    @property
+    def failed(self) -> bool:  # numpydoc ignore=RT01
+        """bool: whether any finding is an error."""
+        return any(finding.severity is Severity.ERROR for finding in self.findings)
+
+
+class UnavailableError(Exception):
+    """A check's prerequisite is missing, so the check cannot run."""
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class VarSpec:
+    """How one material variable is checked and reported."""
+
+    label: str
+    """Name used in messages, e.g. `Vp` for the `Cp` dataset."""
+
+    unit: str
+    """Unit appended to reported ranges."""
+
+    zero_allowed: bool
+    """Whether zero is legal, as it is for Vs in fluid cells."""
+
+    nonpositive_note: str
+    """Why a non-positive value breaks SW4."""
+
+    low_warn: float | None
+    """Warn when the minimum is positive but below this, or None to not warn."""
+
+    attenuation_only: bool = False
+    """Whether the variable is only required when attenuation is enabled."""
+
+
+VARS = {
+    "Rho": VarSpec("Rho", "kg/m^3", False, "SW4 aborts on a zero density", 100.0),
+    "Cp": VarSpec("Vp", "m/s", False, "SW4 requires a positive Vp", 200.0),
+    "Cs": VarSpec("Vs", "m/s", True, "Vs may not be negative", None),
+    "Qp": VarSpec("Qp", "", False, "Q must be > 0 when attenuation=1", None, True),
+    "Qs": VarSpec("Qs", "", False, "Q must be > 0 when attenuation=1", None, True),
+}
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class DatasetStats:
+    """Summary of one material dataset, accumulated over chunks."""
+
+    lo: float
+    """Smallest finite value, or +inf if there are none."""
+
+    hi: float
+    """Largest finite value, or -inf if there are none."""
+
+    n_nan: int
+    """Count of NaN values."""
+
+    n_inf: int
+    """Count of infinite values."""
+
+    n_zero: int
+    """Count of exactly-zero values."""
+
+    n_neg: int
+    """Count of negative values."""
+
+    @property
+    def n_nonpositive(self) -> int:  # numpydoc ignore=RT01
+        """int: count of values that are zero or negative."""
+        return self.n_zero + self.n_neg
+
+    def merge(self, other: Self) -> Self:
+        """Combine these statistics with those of another chunk.
+
+        Parameters
+        ----------
+        other : DatasetStats
+            Statistics from a further chunk of the same dataset.
+
+        Returns
+        -------
+        DatasetStats
+            Statistics covering both chunks.
+        """
+        return dataclasses.replace(
+            self,
+            lo=min(self.lo, other.lo),
+            n_nan=self.n_nan + other.n_nan,
+            n_inf=self.n_inf + other.n_inf,
+            n_zero=self.n_zero + other.n_zero,
+            n_neg=self.n_neg + other.n_neg,
+        )
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class RatioStats:
+    """Summary of the Vp/Vs ratio over the solid (Vs > 0) cells of a grid."""
+
+    n_solid: int
+    """Number of cells with Vs > 0."""
+
+    lo: float
+    """Smallest ratio, or +inf if there are no solid cells."""
+
+    hi: float
+    """Largest ratio, or -inf if there are no solid cells."""
+
+    n_below_one: int
+    """Count of cells with Vp/Vs < 1, which is physically impossible."""
+
+    n_below_sqrt2: int
+    """Count of cells with Vp/Vs < sqrt(2). Contains `n_below_one`."""
+
+    def merge(self, other: Self) -> Self:
+        """Combine these statistics with those of another chunk.
+
+        Parameters
+        ----------
+        other : RatioStats
+            Statistics from a further chunk of the same grid.
+
+        Returns
+        -------
+        RatioStats
+            Statistics covering both chunks.
+        """
+        # TODO: obvious replace implementation here...
+        return RatioStats(
+            self.n_solid + other.n_solid,
+            min(self.lo, other.lo),
+            max(self.hi, other.hi),
+            self.n_below_one + other.n_below_one,
+            self.n_below_sqrt2 + other.n_below_sqrt2,
+        )
+
+
+EMPTY_RATIO = RatioStats(0, np.inf, -np.inf, 0, 0)
 
 
 def _sorted_keys(group: h5py.Group) -> list[str]:
@@ -62,15 +353,15 @@ def _sorted_keys(group: h5py.Group) -> list[str]:
         The keys, ordered by trailing index rather than lexically, so
         `z_values_10` sorts after `z_values_9`.
     """
-    return sorted(group.keys(), key=lambda k: int(k.rsplit("_", 1)[-1]))
+    return sorted(group.keys(), key=lambda key: int(key.rsplit("_", 1)[-1]))
 
 
-def _scalar(v: npt.ArrayLike) -> float:
-    """Read the first element of `v` as a float.
+def _scalar(value: npt.ArrayLike) -> float:
+    """Read the first element of `value` as a float.
 
     Parameters
     ----------
-    v : array_like
+    value : array_like
         An HDF5 attribute value, which may be a scalar or a 1-element array.
 
     Returns
@@ -78,721 +369,1372 @@ def _scalar(v: npt.ArrayLike) -> float:
     float
         The first element.
     """
-    return float(np.asarray(v).flat[0])
+    return float(np.asarray(value).flat[0])
 
 
-class Validator:
-    """Accumulates errors and warnings while walking an sfile."""
+def _vector(value: npt.ArrayLike, length: int) -> tuple[float, ...] | None:
+    """Read `value` as a flat tuple of exactly `length` floats.
 
-    def __init__(self, path: Path, chunk_rows: int = 20, verbose: bool = False) -> None:
-        """Prepare a validator for `path`.
+    Parameters
+    ----------
+    value : array_like
+        An HDF5 attribute value.
+    length : int
+        The number of elements the attribute must hold.
 
-        Parameters
-        ----------
-        path : Path
-            The sfile to check.
-        chunk_rows : int, optional
-            Number of `i` rows to read at a time when scanning material
-            datasets, which are too large to hold in memory.
-        verbose : bool, optional
-            Report per-dataset statistics as well as problems.
-        """
-        self.path = path
-        self.chunk_rows = chunk_rows
-        self.verbose = verbose
-        self.errors = []
-        self.warnings = []
-        # State shared across phases
-        self.ngrids = None
-        self.attn = 0
-        self.zmin_attr = self.zmax_attr = None
-        self.origin = None  # (lon, lat, az)
-        self.zi_keys = []
-        self.grid_shapes = {}  # gname -> (ni, nj, nk)
-        self.grid_h = {}  # gname -> h
+    Returns
+    -------
+    tuple of float or None
+        The elements, or None if the attribute is the wrong length.
+    """
+    flat = np.asarray(value).ravel()
+    return tuple(float(element) for element in flat) if len(flat) == length else None
 
-    def error(self, msg: str) -> None:
-        """Record `msg` as an error and print it.
 
-        Parameters
-        ----------
-        msg : str
-            The message to record.
-        """
-        self.errors.append(msg)
-        print(f"  [ERROR] {msg}")
+def _resample_to(
+    src: npt.NDArray[np.floating], shape: tuple[int, int]
+) -> npt.NDArray[np.floating]:
+    """Nearest-neighbour resample 2-D `src` onto `shape`.
 
-    def warn(self, msg: str) -> None:
-        """Record `msg` as a warning and print it.
+    Parameters
+    ----------
+    src : numpy.ndarray
+        The 2-D array to resample.
+    shape : tuple of int
+        The target `(rows, columns)`.
 
-        Parameters
-        ----------
-        msg : str
-            The message to record.
-        """
-        self.warnings.append(msg)
-        print(f"  [WARN]  {msg}")
+    Returns
+    -------
+    numpy.ndarray
+        `src` resampled onto `shape`, or `src` itself if it already has that
+        shape.
+    """
+    if src.shape == shape:
+        return src
+    rows = np.rint(np.linspace(0.0, src.shape[0] - 1, shape[0])).astype(int)
+    columns = np.rint(np.linspace(0.0, src.shape[1] - 1, shape[1])).astype(int)
+    return src[np.ix_(rows, columns)]
 
-    def info(self, msg: str) -> None:
-        """Print `msg` without recording it.
 
-        Parameters
-        ----------
-        msg : str
-            The message to print.
-        """
-        print(f"         {msg}")
+# TODO: remove and subsume into cached property: only one callsite
+def _align(
+    a: npt.NDArray[np.floating], b: npt.NDArray[np.floating]
+) -> tuple[npt.NDArray[np.floating], npt.NDArray[np.floating], bool]:
+    """Put `a` and `b` on a common grid so they compare elementwise.
 
-    # ── resampling helpers ─────────────────────────────────────────────────────────
+    Parameters
+    ----------
+    a, b : numpy.ndarray
+        The 2-D arrays to align. The coarser is resampled onto the finer one's
+        grid.
 
-    @staticmethod
-    def _resample_to(
-        src: npt.NDArray[np.floating], shape: tuple[int, int]
-    ) -> npt.NDArray[np.floating]:
-        """Nearest-neighbour resample 2-D `src` onto `shape`.
+    Returns
+    -------
+    tuple
+        `(a, b, resampled)`, where `resampled` says whether either array had to
+        be resampled.
+    """
+    if a.shape == b.shape:
+        return a, b, False
+    target = a.shape if a.size >= b.size else b.shape
+    return _resample_to(a, target), _resample_to(b, target), True
 
-        Both arrays are treated as covering the same physical extent
-        corner-to-corner, as SW4's nested sfile interface grids do. Nearest
-        (not bilinear) is deliberate: it preserves every stored node value --
-        mirroring how SW4 samples interfaces via integer strides -- so a
-        crossing sitting on a single coarse node is never smoothed away, and
-        well-separated layers never produce a spurious crossing.
 
-        Parameters
-        ----------
-        src : numpy.ndarray
-            The 2-D array to resample.
-        shape : tuple of int
-            The target `(rows, columns)`.
+# TODO: remove and subsume into caller: only one callsite
+def _worst_of(
+    field: npt.NDArray[np.floating], selected: npt.NDArray[np.bool_]
+) -> tuple[int, int, float]:
+    """Locate the smallest selected element of a 2-D field.
 
-        Returns
-        -------
-        numpy.ndarray
-            `src` resampled onto `shape`, or `src` itself if it already
-            has that shape.
-        """
-        sr, sc = src.shape
-        tr, tc = shape
-        if (sr, sc) == (tr, tc):
-            return src
-        ri = np.rint(np.linspace(0.0, sr - 1, tr)).astype(int)
-        ci = np.rint(np.linspace(0.0, sc - 1, tc)).astype(int)
-        return src[np.ix_(ri, ci)]
+    Masking to the selected points before searching keeps NaNs elsewhere in
+    the field from displacing the answer, since a NaN compares false against
+    every threshold and so is never selected.
 
-    @classmethod
-    def _align(
-        cls, a: npt.NDArray[np.floating], b: npt.NDArray[np.floating]
-    ) -> tuple[npt.NDArray[np.floating], npt.NDArray[np.floating], bool]:
-        """Put `a` and `b` on a common grid so they compare elementwise.
+    Parameters
+    ----------
+    field : numpy.ndarray
+        The 2-D field to search.
+    selected : numpy.ndarray
+        Boolean mask of the points to consider, which must select at least
+        one point.
 
-        Parameters
-        ----------
-        a, b : numpy.ndarray
-            The 2-D arrays to align. The coarser is resampled onto the
-            finer one's grid.
+    Returns
+    -------
+    tuple
+        `(i, j, value)`: the index of the smallest selected point, and its
+        value.
+    """
+    flat_index = int(np.argmin(np.where(selected, field, np.inf)))
+    i, j = np.unravel_index(flat_index, field.shape)
+    return int(i), int(j), float(field.flat[flat_index])
 
-        Returns
-        -------
-        tuple
-            `(a, b, resampled)`, where `resampled` says whether either
-            array had to be resampled.
-        """
-        if a.shape == b.shape:
-            return a, b, False
-        target = a.shape if a.size >= b.size else b.shape
-        return cls._resample_to(a, target), cls._resample_to(b, target), True
 
-    @staticmethod
-    def _worst_loc(
-        field: npt.NDArray[np.floating], want_max: bool = True
-    ) -> tuple[int, int, float, float]:
-        """Locate the extremum of `field` within the domain.
+# TODO: remove and subsume into caller: only one callsite
+def _chunk_stats(chunk: npt.NDArray[np.floating]) -> DatasetStats:
+    """Summarise one slab of a material dataset.
 
-        Parameters
-        ----------
-        field : numpy.ndarray
-            The 2-D field to search.
-        want_max : bool, optional
-            Find the maximum rather than the minimum.
+    Parameters
+    ----------
+    chunk : numpy.ndarray
+        A slab of the dataset.
 
-        Returns
-        -------
-        tuple
-            `(i, j, fx, fy)`: the index of the extremum and its position as
-            a percentage of the domain along each axis (axis 0 = i/x,
-            axis 1 = j/y). Used to locate the worst crossing or pinch.
-        """
-        idx = np.unravel_index(
-            int(np.argmax(field) if want_max else np.argmin(field)), field.shape
+    Returns
+    -------
+    DatasetStats
+        The statistics for this slab.
+    """
+    finite = np.isfinite(chunk)
+    n_nan = int(np.count_nonzero(np.isnan(chunk)))
+    return DatasetStats(
+        float(np.min(chunk, where=finite, initial=np.inf)),
+        float(np.max(chunk, where=finite, initial=-np.inf)),
+        n_nan,
+        chunk.size - int(np.count_nonzero(finite)) - n_nan,
+        int(np.count_nonzero(chunk == 0.0)),
+        int(np.count_nonzero(chunk < 0.0)),
+    )
+
+
+# TODO: remove and subsume into caller: only one callsite
+def _chunk_ratio(
+    cp: npt.NDArray[np.floating], cs: npt.NDArray[np.floating]
+) -> RatioStats:
+    """Summarise the Vp/Vs ratio over the solid cells of one slab.
+
+    Parameters
+    ----------
+    cp : numpy.ndarray
+        A slab of the Cp dataset.
+    cs : numpy.ndarray
+        The matching slab of the Cs dataset.
+
+    Returns
+    -------
+    RatioStats
+        The ratio statistics for this slab.
+    """
+    solid = cs > 0.0
+    if not solid.any():
+        return EMPTY_RATIO
+    # Select before dividing, so the division runs over the solid cells only.
+    ratio = cp[solid].astype(np.float64) / cs[solid]
+    return RatioStats(
+        int(ratio.size),
+        float(ratio.min()),
+        float(ratio.max()),
+        int(np.count_nonzero(ratio < 1.0)),
+        int(np.count_nonzero(ratio < SQRT2)),
+    )
+
+
+class GridExtent(NamedTuple):
+    """The horizontal domain one material grid spans."""
+
+    h: float
+    """Horizontal grid spacing in metres."""
+
+    x: float
+    """Extent along the grid's x-axis in metres."""
+
+    y: float
+    """Extent along the grid's y-axis in metres."""
+
+
+@dataclasses.dataclass
+class MaterialGrid:
+    """One refinement level of an sfile's material model."""
+
+    name: str
+    """The grid's name within the material group."""
+
+    group: h5py.Group
+    """The HDF5 group holding this grid's datasets."""
+
+    h: float | None
+    """Horizontal grid spacing in metres, or None if the attribute is absent."""
+
+    n_components: int | None
+    """Declared component count, or None if the attribute is absent."""
+
+    shape: tuple[int, ...] | None
+    """Shape of the Cp dataset, or None if Cp is absent."""
+
+    @property
+    def extent(self) -> Self | None:  # numpydoc ignore=RT01
+        """GridExtent or None: the domain this grid spans, if it is known."""
+        if self.h is None or self.shape is None or len(self.shape) != 3:
+            return None
+        # TODO: obvious replace implementation
+        return GridExtent(
+            self.h, (self.shape[0] - 1) * self.h, (self.shape[1] - 1) * self.h
         )
-        ni, nj = field.shape
-        fx = 100.0 * idx[0] / (ni - 1) if ni > 1 else 0.0
-        fy = 100.0 * idx[1] / (nj - 1) if nj > 1 else 0.0
-        return idx[0], idx[1], fx, fy
 
-    # ── entry ────────────────────────────────────────────────────────────────────
 
-    def run(self) -> None:
-        """Open the sfile and run every check, printing a summary at the end."""
-        print(f"\n{'=' * 72}\n  SW4 sfile validator\n  {self.path}\n{'=' * 72}\n")
-        try:
-            f = h5py.File(self.path, "r")
-        except (OSError, KeyError, ValueError) as exc:
-            self.error(f"Cannot open file: {exc}")
-            self._summary()
-            return
+@dataclasses.dataclass
+class Sfile:
+    """An sfile parsed into the values the checks assert against.
 
-        with f:
-            self._check_attrs(f)
-            self._check_structure(f)
-            if "Z_interfaces" in f:
-                self._check_z_interfaces(f)
-            if "Material_model" in f:
-                self._check_material(f)
-            self._check_cross(f)
-            self._boundaries(f)
-        self._summary()
+    Parsing records what the file says; it does not judge it. A malformed or
+    absent value becomes None here and is reported by `check_attributes`, so
+    one bad attribute does not silently disable unrelated checks.
+    """
 
-    # ── attributes ───────────────────────────────────────────────────────────────
+    path: Path
+    """Path the model was read from."""
 
-    def _check_attrs(self, f: h5py.File) -> None:
-        print("--- Root Attributes ---")
-        attrs = f.attrs
+    handle: h5py.File
+    """The open HDF5 file. Datasets are read lazily through it."""
 
-        for name in REQUIRED_ATTRS:
-            if name not in attrs:
-                self.error(f"Missing required attribute '{name}'")
+    chunk_rows: int
+    """Number of `i` rows read at a time when scanning material datasets."""
 
-        if not any(n in attrs for n in SPACING_ATTRS):
-            self.error(f"Missing spacing attribute; need one of: {SPACING_ATTRS}")
-        for name in SPACING_ATTRS:
-            if name not in attrs:
-                continue
-            h = _scalar(attrs[name])
-            self.info(f"{name}: {h} m")
-            if h <= 0 or not np.isfinite(h):
-                self.error(f"'{name}' must be finite and > 0, got {h}")
+    ngrids: int | None
+    """Declared number of material grids."""
 
-        if "Attenuation" in attrs:
-            att = int(_scalar(attrs["Attenuation"]))
-            self.info(f"Attenuation: {att}")
-            if att not in (0, 1):
-                self.error(f"Attenuation must be 0 or 1, got {att}")
-            self.attn = att
+    attenuation: int | None
+    """Declared attenuation flag."""
 
-        if "ngrids" in attrs:
-            ng = int(_scalar(attrs["ngrids"]))
-            self.info(f"ngrids: {ng}")
-            if ng <= 0:
-                self.error(f"ngrids must be > 0, got {ng}")
-            self.ngrids = ng
+    depth_range: tuple[float, ...] | None
+    """Declared `(min, max)` depth in metres, depth-positive."""
 
-        if "Min, max depth" in attrs:
-            mmd = np.asarray(attrs["Min, max depth"]).ravel()
-            if len(mmd) < 2:
-                self.error("'Min, max depth' must have 2 values")
-            else:
-                zmin, zmax = float(mmd[0]), float(mmd[1])
-                self.info(
-                    f"Min, max depth: [{zmin:.2f}, {zmax:.2f}] m  (depth-positive; negative = above sea level)"
-                )
-                if not (np.isfinite(zmin) and np.isfinite(zmax)):
-                    self.error("'Min, max depth' contains NaN or Inf")
-                elif zmin >= zmax:
-                    self.error(
-                        f"Min depth ({zmin:.2f}) must be < max depth ({zmax:.2f})"
-                    )
-                self.zmin_attr, self.zmax_attr = zmin, zmax
+    origin: tuple[float, ...] | None
+    """Declared `(longitude, latitude, azimuth)` of the grid origin."""
 
-        if "Origin longitude, latitude, azimuth" in attrs:
-            ola = np.asarray(attrs["Origin longitude, latitude, azimuth"]).ravel()
-            if len(ola) < 3:
-                self.error("'Origin longitude, latitude, azimuth' must have 3 values")
-            else:
-                lon0, lat0, az = float(ola[0]), float(ola[1]), float(ola[2])
-                self.info(f"Origin: lon={lon0:.6f}°  lat={lat0:.6f}°  az={az:.4f}°")
-                if not (-180 <= lon0 <= 180):
-                    self.error(f"Origin longitude {lon0} out of range [-180, 180]")
-                if not (-90 <= lat0 <= 90):
-                    self.error(f"Origin latitude {lat0} out of range [-90, 90]")
-                if not np.isfinite(az):
-                    self.error(f"Origin azimuth {az} is not finite")
-                self.origin = (lon0, lat0, az)
-        print()
+    spacings: dict[str, float]
+    """The horizontal spacing attributes that are present, by attribute name."""
 
-    # ── structure ─────────────────────────────────────────────────────────────────
+    interfaces: dict[str, h5py.Dataset]
+    """Depth interface datasets, shallowest first."""
 
-    def _check_structure(self, f: h5py.File) -> None:
-        print("--- File Structure ---")
-        expect = f"{self.ngrids + 1}" if self.ngrids else "?"
+    grids: dict[str, MaterialGrid]
+    """Material grids, in refinement order."""
 
-        if "Z_interfaces" not in f:
-            self.error("Missing 'Z_interfaces' group")
-        else:
-            self.info(
-                f"Z_interfaces:  {len(f['Z_interfaces'])} dataset(s)  (expect ngrids+1 = {expect})"
-            )
+    @cached_property
+    def interface_arrays(self) -> dict[str, npt.NDArray[np.float64]]:
+        """Mapping of interface arrays.
 
-        if "Material_model" not in f:
-            self.error("Missing 'Material_model' group")
-        else:
-            n = len(f["Material_model"])
-            self.info(f"Material_model: {n} grid(s)")
-            if self.ngrids is not None and n != self.ngrids:
-                self.error(f"ngrids={self.ngrids} but Material_model has {n} grid(s)")
-        print()
-
-    # ── z_interfaces ─────────────────────────────────────────────────────────────
-
-    def _check_z_interfaces(self, f: h5py.File) -> None:
-        print("--- Z_interfaces ---")
-        zi = f["Z_interfaces"]
-        keys = _sorted_keys(zi)
-        self.zi_keys = keys
-
-        if self.ngrids is not None and len(keys) != self.ngrids + 1:
-            self.error(
-                f"Expected {self.ngrids + 1} interface datasets, found {len(keys)}"
-            )
-
-        arrays = {}
-        for name in keys:
-            ds = zi[name]
-            if ds.ndim != 2:
-                self.error(f"{name}: expected 2-D, got shape {ds.shape}")
-                continue
-            arr = ds[()].astype(np.float64)
-            arrays[name] = arr
-
-            n_nan = int(np.isnan(arr).sum())
-            n_inf = int(np.isinf(arr).sum())
-            if n_nan:
-                self.error(f"{name}: {n_nan} NaN value(s)")
-            if n_inf:
-                self.error(f"{name}: {n_inf} Inf value(s)")
-
-            valid = arr[np.isfinite(arr)]
-            z_lo = float(valid.min()) if valid.size else float("nan")
-            z_hi = float(valid.max()) if valid.size else float("nan")
-            self.info(
-                f"{name}: shape={ds.shape}  z=[{z_lo:.2f}, {z_hi:.2f}] m  elev=[{-z_hi:.1f}, {-z_lo:.1f}] m ASL"
-            )
-
-        # Monotonicity — compare each consecutive pair. Interface grids may be
-        # stored at different resolutions; resample the coarser onto the finer
-        # rather than skip (crossed/pinched layers are a leading cause of
-        # localized SW4 instabilities right at the grid-refinement interfaces).
-        for a_name, b_name in itertools.pairwise(keys):
-            a, b = arrays.get(a_name), arrays.get(b_name)
-            if a is None or b is None:
-                continue
-            a, b, resampled = self._align(a, b)
-            note = " (after nearest resample to common grid)" if resampled else ""
-            diff = a - b  # >= 0 where b <= a: deeper interface not below shallower
-            n_bad = int((diff >= 0.0).sum())
-            if n_bad:
-                i, j, fx, fy = self._worst_loc(diff, want_max=True)
-                self.error(
-                    f"{b_name} <= {a_name} at {n_bad} point(s){note} — "
-                    f"worst gap {float(diff.max()):.2f} m at (i,j)=({i},{j}) "
-                    f"≈ ({fx:.1f}%, {fy:.1f}%) of domain — "
-                    f"SW4 patch-selection requires strict depth ordering"
-                )
-
-        # Terrain gradient on z_values_0
-        topo = arrays.get(keys[0]) if keys else None
-        if topo is not None and topo.shape[0] > 1 and topo.shape[1] > 1:
-            max_grad = max(
-                float(np.abs(np.diff(topo, axis=0)).max()),
-                float(np.abs(np.diff(topo, axis=1)).max()),
-            )
-            if max_grad > 500:
-                self.warn(
-                    f"{keys[0]}: max cell-to-cell z jump {max_grad:.1f} m — check for fill-value boundaries"
-                )
-            else:
-                self.info(f"  max terrain gradient: {max_grad:.1f} m/cell")
-
-        # Min/max depth attribute vs actual data
-        if len(keys) >= 2 and self.zmin_attr is not None:
-            a_first, a_last = arrays.get(keys[0]), arrays.get(keys[-1])
-            if a_first is not None and a_last is not None:
-                checks = [
-                    ("min", self.zmin_attr, float(a_first.min())),
-                    ("max", self.zmax_attr, float(a_last.max())),
-                ]
-                for label, attr_v, actual_v in checks:
-                    if abs(attr_v - actual_v) > 1.0:
-                        self.warn(
-                            f"'Min, max depth' {label}={attr_v:.2f} m but data {label} is {actual_v:.2f} m ({actual_v - attr_v:+.2f} m diff)"
-                        )
-        print()
-
-    # ── material model ────────────────────────────────────────────────────────────
-
-    def _check_material(self, f: h5py.File) -> None:
-        print("--- Material Model ---")
-        mm = f["Material_model"]
-        for gname in _sorted_keys(mm):
-            print(f"\n  [{gname}]")
-            self._check_grid(mm[gname], gname)
-        print()
-
-    def _check_grid(self, g: h5py.Group, gname: str) -> None:
-        if "Horizontal grid size" not in g.attrs:
-            self.error(f"{gname}: missing 'Horizontal grid size'")
-        else:
-            h = _scalar(g.attrs["Horizontal grid size"])
-            self.info(f"  h = {h} m")
-            if h <= 0 or not np.isfinite(h):
-                self.error(f"{gname}: h must be > 0, got {h}")
-            else:
-                self.grid_h[gname] = h
-
-        if "Number of components" in g.attrs:
-            nc = int(_scalar(g.attrs["Number of components"]))
-            if nc not in (3, 5):
-                self.warn(
-                    f"{gname}: unexpected Number of components={nc} (expected 3 or 5)"
-                )
-
-        for name in sorted(REQUIRED_VARS):
-            if name not in g:
-                self.error(f"{gname}: missing required dataset '{name}'")
-        if self.attn:
-            for name in sorted(ATTN_VARS):
-                if name not in g:
-                    self.error(f"{gname}: attenuation=1 but '{name}' is absent")
-
-        if "Cp" not in g:
-            return
-        shape = tuple(g["Cp"].shape)
-        if len(shape) != 3:
-            self.error(f"{gname}/Cp: expected 3-D, got {shape}")
-            return
-
-        _, _, nk = shape
-        self.grid_shapes[gname] = shape
-        self.info(f"  shape (ni, nj, nk) = {shape}")
-        if nk < 2:
-            self.error(
-                f"{gname}: nk={nk} — SW4 computes hv=thickness/(nk-1); nk<2 produces NaN"
-            )
-
-        vars_to_check = sorted(REQUIRED_VARS | (ATTN_VARS if self.attn else set()))
-        for name in vars_to_check:
-            if name in g:
-                self._check_dataset(g[name], f"{gname}/{name}", name)
-
-        if "Cp" in g and "Cs" in g:
-            self._check_vp_vs(g["Cp"], g["Cs"], gname)
-
-    def _dataset_stats(self, ds: h5py.Dataset) -> dict[str, float | int]:
-        n_nan = n_inf = n_zero = n_neg = n_total = 0
-        val_min, val_max = np.inf, -np.inf
-        for start in range(0, ds.shape[0], self.chunk_rows):
-            chunk = ds[start : start + self.chunk_rows].astype(np.float64)
-            n_total += chunk.size
-            n_nan += int(np.isnan(chunk).sum())
-            n_inf += int(np.isinf(chunk).sum())
-            n_zero += int((chunk == 0.0).sum())
-            n_neg += int((chunk < 0.0).sum())
-            finite = chunk[np.isfinite(chunk)]
-            if finite.size:
-                val_min = min(val_min, float(finite.min()))
-                val_max = max(val_max, float(finite.max()))
+        Returns
+        -------
+        dict
+            Each 2-D interface by name, shallowest first.
+        """
         return {
-            "min": val_min,
-            "max": val_max,
-            "n_nan": n_nan,
-            "n_inf": n_inf,
-            "n_zero": n_zero,
-            "n_neg": n_neg,
-            "n_total": n_total,
+            name: dataset[()].astype(np.float64)
+            for name, dataset in self.interfaces.items()
+            if dataset.ndim == 2
         }
 
-    def _check_dataset(self, ds: h5py.Dataset, label: str, kind: str) -> None:
-        s = self._dataset_stats(ds)
+    @cached_property
+    def layers(self) -> dict[tuple[str, str], tuple[npt.NDArray[np.float64], bool]]:
+        """Compute the thickness of every layer between consecutive interfaces.
 
-        if self.verbose:
-            self.info(
-                f"  {kind}: min={s['min']:.4g}  max={s['max']:.4g}  "
-                f"zeros={s['n_zero']}  nan={s['n_nan']}  inf={s['n_inf']}"
-            )
-        if s["n_nan"]:
-            self.error(f"{label}: {s['n_nan']} NaN value(s)")
-        if s["n_inf"]:
-            self.error(f"{label}: {s['n_inf']} Inf value(s)")
+        A non-positive thickness is both a monotonicity violation (the deeper
+        interface is not below the shallower one) and a zero-thickness layer,
+        so both checks read one array rather than each computing its own.
 
-        if kind == "Rho":
-            bad = s["n_zero"] + s["n_neg"]
-            if bad:
-                self.error(
-                    f"{label}: {bad} point(s) with density <= 0 "
-                    f"(zeros={s['n_zero']}, neg={s['n_neg']}) — SW4 aborts with Density=0"
-                )
-            if not self.verbose:
-                self.info(f"  Rho: [{s['min']:.2f}, {s['max']:.2f}] kg/m³")
-            if 0 < s["min"] < 100:
-                self.warn(f"{label}: suspiciously low density min={s['min']:.2f} kg/m³")
+        Returns
+        -------
+        dict
+            Keyed by `(top name, bottom name)`, holding `(thickness,
+            resampled)`, where `resampled` says whether the pair had to be put
+            on a common grid first.
+        """
+        arrays = self.interface_arrays
+        layers = {}
+        for top, bottom in itertools.pairwise(arrays):
+            top_z, bottom_z, resampled = _align(arrays[top], arrays[bottom])
+            layers[top, bottom] = (bottom_z - top_z, resampled)
+        return layers
 
-        elif kind == "Cp":
-            if s["min"] <= 0:
-                self.error(f"{label}: {s['n_zero'] + s['n_neg']} point(s) with Vp <= 0")
-            if not self.verbose:
-                self.info(f"  Vp:  [{s['min']:.1f}, {s['max']:.1f}] m/s")
-            if 0 < s["min"] < 200:
-                self.warn(f"{label}: suspiciously low Vp min={s['min']:.1f} m/s")
+    def require_interfaces(self) -> dict[str, npt.NDArray[np.float64]]:
+        """Return the interface arrays, or refuse to run the check.
 
-        elif kind == "Cs":
-            if s["n_neg"]:
-                self.error(f"{label}: {s['n_neg']} negative Vs value(s)")
-            if not self.verbose:
-                self.info(f"  Vs:  [{s['min']:.1f}, {s['max']:.1f}] m/s")
-            if s["n_zero"]:
-                self.warn(
-                    f"{label}: {s['n_zero']} zero Vs value(s) (fluid cells?) — verify intentional"
-                )
+        Returns
+        -------
+        dict
+            Each 2-D interface by name, shallowest first.
 
-        elif kind in ("Qp", "Qs"):
-            bad = s["n_zero"] + s["n_neg"]
-            if bad:
-                self.error(
-                    f"{label}: {bad} point(s) with Q <= 0 (required > 0 when attenuation=1)"
-                )
-            if not self.verbose:
-                self.info(f"  {kind}: [{s['min']:.3g}, {s['max']:.3g}]")
+        Raises
+        ------
+        UnavailableError
+            If the file holds no readable 2-D interfaces.
+        """
+        if not self.interface_arrays:
+            raise UnavailableError(f"no readable 2-D datasets in '{SURFACE_GROUP}'")
+        return self.interface_arrays
 
-    def _check_vp_vs(
-        self, cp_ds: h5py.Dataset, cs_ds: h5py.Dataset, gname: str
-    ) -> None:
-        n_below_1 = n_below_sqrt2 = 0
-        ratio_min, ratio_max = np.inf, -np.inf
-        for start in range(0, cp_ds.shape[0], self.chunk_rows):
-            cp = cp_ds[start : start + self.chunk_rows].astype(np.float64)
-            cs = cs_ds[start : start + self.chunk_rows].astype(np.float64)
-            solid = cs > 0.0
-            if not solid.any():
-                continue
-            ratio = np.where(solid, cp / np.where(solid, cs, 1.0), np.nan)
-            r = ratio[solid]
-            ratio_min = min(ratio_min, float(r.min()))
-            ratio_max = max(ratio_max, float(r.max()))
-            n_below_1 += int((solid & (ratio < 1.0)).sum())
-            n_below_sqrt2 += int((solid & (ratio < SQRT2)).sum())
+    def require_grids(self) -> dict[str, MaterialGrid]:
+        """Return the material grids, or refuse to run the check.
 
-        if ratio_min < np.inf:
-            self.info(f"  Vp/Vs (solid cells): [{ratio_min:.3f}, {ratio_max:.3f}]")
-        if n_below_1:
-            self.error(
-                f"{gname}: {n_below_1} solid point(s) with Vp/Vs < 1 (physically impossible)"
-            )
-        elif n_below_sqrt2:
-            self.warn(
-                f"{gname}: {n_below_sqrt2} solid point(s) with Vp/Vs < √2 ≈ 1.414"
-            )
+        Returns
+        -------
+        dict
+            Material grids, in refinement order.
 
-    # ── cross-consistency ─────────────────────────────────────────────────────────
+        Raises
+        ------
+        UnavailableError
+            If the file holds no material grids.
+        """
+        if not self.grids:
+            raise UnavailableError(f"no grids in '{MATERIAL_GROUP}'")
+        return self.grids
 
-    def _check_cross(self, f: h5py.File) -> None:
-        print("--- Cross-Consistency ---")
-        ok = True
+    def require_origin(self) -> tuple[float, ...]:
+        """Return the grid origin, or refuse to run the check.
 
-        if "Z_interfaces" in f and "Material_model" in f:
-            n_zi, n_mm = len(f["Z_interfaces"]), len(f["Material_model"])
-            if n_zi != n_mm + 1:
-                self.error(
-                    f"Z_interfaces has {n_zi} datasets, Material_model has {n_mm} grids — need n_zi = n_mm+1"
-                )
-                ok = False
+        Returns
+        -------
+        tuple of float
+            The `(longitude, latitude, azimuth)` of the grid origin.
 
-        # All material grids must span the same horizontal domain
-        extents_x = [
-            (self.grid_shapes[gn][0] - 1) * h
-            for gn, h in self.grid_h.items()
-            if gn in self.grid_shapes
-        ]
-        extents_y = [
-            (self.grid_shapes[gn][1] - 1) * h
-            for gn, h in self.grid_h.items()
-            if gn in self.grid_shapes
-        ]
-        if extents_x:
-            tol = max(1.0, max(extents_x) * 0.001)
-            if max(extents_x) - min(extents_x) > tol:
-                self.warn(
-                    f"Inconsistent x-extents across grids: {[f'{x:.0f}m' for x in extents_x]}"
-                )
-                ok = False
-            if max(extents_y) - min(extents_y) > tol:
-                self.warn(
-                    f"Inconsistent y-extents across grids: {[f'{y:.0f}m' for y in extents_y]}"
-                )
-                ok = False
-
-        # Per-patch layer thickness and nk check
-        if "Z_interfaces" not in f or len(self.zi_keys) < 2:
-            if ok:
-                self.info("Cross-consistency OK")
-            print()
-            return
-
-        zi = f["Z_interfaces"]
-        for gi, gname in enumerate(_sorted_keys(f["Material_model"])):
-            shape = self.grid_shapes.get(gname)
-            top_key = self.zi_keys[gi] if gi < len(self.zi_keys) else None
-            bot_key = self.zi_keys[gi + 1] if gi + 1 < len(self.zi_keys) else None
-            if not shape or top_key is None or bot_key is None:
-                continue
-
-            nk = shape[2]
-            top = zi[top_key][()].astype(np.float64)
-            bot = zi[bot_key][()].astype(np.float64)
-            # Bracketing interfaces may be at different resolutions — resample
-            # to a common grid rather than silently skip the thickness check.
-            top, bot, resampled = self._align(top, bot)
-            note = " (interfaces resampled to common grid)" if resampled else ""
-
-            thickness = bot - top
-            t_min, t_max = float(thickness.min()), float(thickness.max())
-            self.info(
-                f"{gname} ({top_key}→{bot_key}): thickness=[{t_min:.1f}, {t_max:.1f}] m  nk={nk}{note}"
-            )
-
-            n_bad = int((thickness <= 0).sum())
-            if n_bad:
-                i, j, fx, fy = self._worst_loc(thickness, want_max=False)
-                self.error(
-                    f"{gname}: {n_bad} point(s) with zero/negative thickness{note} — "
-                    f"min {t_min:.2f} m at (i,j)=({i},{j}) ≈ ({fx:.1f}%, {fy:.1f}%) of domain — "
-                    f"SW4 hv=thickness/(nk-1) → NaN"
-                )
-                ok = False
-            elif nk >= 2 and 0 < t_min / (nk - 1) < 0.01:
-                self.warn(
-                    f"{gname}: min vertical cell size {t_min / (nk - 1):.4f} m — extremely thin"
-                )
-
-        if ok:
-            self.info("Cross-consistency OK")
-        print()
-
-    # ── boundaries ────────────────────────────────────────────────────────────────
-
-    def _boundaries(self, f: h5py.File) -> None:
-        print("--- Model Boundaries ---")
-
+        Raises
+        ------
+        UnavailableError
+            If the origin attribute is absent or malformed.
+        """
         if self.origin is None:
-            self.warn("Cannot compute boundaries: origin attribute missing")
-            print()
-            return
+            raise UnavailableError(f"'{ORIGIN_ATTR}' is absent or malformed")
+        return self.origin
 
-        lon0, lat0, az = self.origin
 
-        by_h = sorted(
-            (h, gn) for gn, h in self.grid_h.items() if gn in self.grid_shapes
-        )
-        if not by_h:
-            self.warn("Cannot compute extent: no valid material grid found")
-            print()
-            return
+def read_sfile(path: Path, handle: h5py.File, chunk_rows: int) -> Sfile:
+    """Parse an open sfile into the model the checks run against.
 
-        best_h, best_gname = by_h[0]
-        ni, nj, nk = self.grid_shapes[best_gname]
-        x_m, y_m = (ni - 1) * best_h, (nj - 1) * best_h
+    Parameters
+    ----------
+    path : Path
+        The path the file was opened from, used only in messages.
+    handle : h5py.File
+        The open sfile.
+    chunk_rows : int
+        Number of `i` rows to read at a time when scanning material datasets.
 
-        self.info(f"Using {best_gname} (h={best_h:.1f} m, shape {ni}×{nj}×{nk})")
-        self.info(
-            f"Extent:     {x_m / 1e3:.3f} km × {y_m / 1e3:.3f} km  (x at azimuth {az:.2f}° from north)"
-        )
-        if self.zmin_attr is not None:
-            self.info(
-                f"Depth:      {self.zmin_attr:.0f} m to {self.zmax_attr:.0f} m  "
-                f"(~{(self.zmax_attr - max(0.0, self.zmin_attr)) / 1e3:.1f} km rock column)"
+    Returns
+    -------
+    Sfile
+        The parsed model.
+    """
+    attrs = handle.attrs
+    interfaces: dict[str, h5py.Dataset] = {}
+    if SURFACE_GROUP in handle:
+        group = handle[SURFACE_GROUP]
+        interfaces = {name: group[name] for name in _sorted_keys(group)}
+
+    grids: dict[str, MaterialGrid] = {}
+    if MATERIAL_GROUP in handle:
+        group = handle[MATERIAL_GROUP]
+        for name in _sorted_keys(group):
+            grid = group[name]
+            grids[name] = MaterialGrid(
+                name=name,
+                group=grid,
+                h=_scalar(grid.attrs[HORIZONTAL_ATTR])
+                if HORIZONTAL_ATTR in grid.attrs
+                else None,
+                n_components=int(_scalar(grid.attrs[COMPONENTS_ATTR]))
+                if COMPONENTS_ATTR in grid.attrs
+                else None,
+                shape=tuple(grid["Cp"].shape) if "Cp" in grid else None,
             )
 
-        if self.zi_keys and "Z_interfaces" in f:
-            topo = f["Z_interfaces"][self.zi_keys[0]][()].astype(np.float64)
-            t_lo, t_hi = float(np.nanmin(topo)), float(np.nanmax(topo))
-            self.info(
-                f"Topography: z=[{t_lo:.2f}, {t_hi:.2f}] m  elev=[{-t_hi:.1f}, {-t_lo:.1f}] m ASL"
+    return Sfile(
+        path=path,
+        handle=handle,
+        chunk_rows=chunk_rows,
+        ngrids=int(_scalar(attrs[NGRIDS_ATTR])) if NGRIDS_ATTR in attrs else None,
+        attenuation=int(_scalar(attrs[ATTENUATION_ATTR]))
+        if ATTENUATION_ATTR in attrs
+        else None,
+        depth_range=_vector(attrs[DEPTH_ATTR], 2) if DEPTH_ATTR in attrs else None,
+        origin=_vector(attrs[ORIGIN_ATTR], 3) if ORIGIN_ATTR in attrs else None,
+        spacings={
+            name: _scalar(attrs[name]) for name in SPACING_ATTRS if name in attrs
+        },
+        interfaces=interfaces,
+        grids=grids,
+    )
+
+
+def check_attributes(model: Sfile) -> Iterator[Finding]:
+    """Root attributes are present, well-formed and in range.
+
+    Parameters
+    ----------
+    model : Sfile
+        The parsed sfile to check.
+
+    Yields
+    ------
+    Finding
+        One finding per observation, and a skip for anything it could not
+        check.
+    """
+    for name in REQUIRED_ATTRS:
+        if name not in model.handle.attrs:
+            yield Finding.error(f"missing required attribute '{name}'", attr=name)
+
+    if not model.spacings:
+        yield Finding.error(
+            f"missing a horizontal spacing attribute; need one of {list(SPACING_ATTRS)}"
+        )
+    for name, spacing in model.spacings.items():
+        yield Finding.info(f"{name}: {spacing} m", attr=name, spacing=spacing)
+        if not np.isfinite(spacing) or spacing <= 0:
+            yield Finding.error(
+                f"'{name}' must be finite and > 0, got {spacing}", attr=name
             )
 
-        try:
-            proj = pyproj.Proj(PROJ_STRING)
-        except pyproj.exceptions.ProjError as exc:
-            self.warn(f"pyproj failed: {exc}")
-            print()
-            return
-
-        e0, n0 = proj(lon0, lat0)
-        # SW4 azimuth: angle from north to x-axis, clockwise
-        # x-unit in (east, north) = (sin_az, cos_az); y-unit = (cos_az, -sin_az)
-        sin_az = np.sin(np.radians(az))
-        cos_az = np.cos(np.radians(az))
-
-        corners = [
-            (0, 0, "origin (SW)"),
-            (x_m, 0, "far-x"),
-            (0, y_m, "far-y"),
-            (x_m, y_m, "far corner"),
-        ]
-        lons, lats = [], []
-        print()
-        self.info(
-            f"  {'Corner':<14} {'Longitude':>12}  {'Latitude':>11}  {'Easting':>13}  {'Northing':>13}"
+    if model.attenuation is not None:
+        yield Finding.info(
+            f"attenuation: {model.attenuation}", attenuation=model.attenuation
         )
-        self.info("  " + "-" * 68)
-        for sx, sy, label in corners:
-            e = e0 + sx * sin_az + sy * cos_az
-            n = n0 + sx * cos_az - sy * sin_az
-            lon_c, lat_c = proj(e, n, inverse=True)
-            lons.append(lon_c)
-            lats.append(lat_c)
-            self.info(
-                f"  {label:<14} {lon_c:12.6f}°  {lat_c:11.6f}°  {e:13.1f}  {n:13.1f}"
+        if model.attenuation not in (0, 1):
+            yield Finding.error(
+                f"attenuation must be 0 or 1, got {model.attenuation}",
+                attenuation=model.attenuation,
             )
 
-        print()
-        self.info(
-            f"Bounding box:  lon [{min(lons):.6f}°, {max(lons):.6f}°]   lat [{min(lats):.6f}°, {max(lats):.6f}°]"
+    if model.ngrids is not None:
+        yield Finding.info(f"ngrids: {model.ngrids}", ngrids=model.ngrids)
+        if model.ngrids <= 0:
+            yield Finding.error(
+                f"ngrids must be > 0, got {model.ngrids}", ngrids=model.ngrids
+            )
+
+    yield from _check_depth_attr(model)
+    yield from _check_origin_attr(model)
+
+
+def _check_depth_attr(model: Sfile) -> Iterator[Finding]:
+    """Check the declared depth range.
+
+    Parameters
+    ----------
+    model : Sfile
+        The parsed sfile.
+
+    Yields
+    ------
+    Finding
+        One finding per observation about the depth attribute.
+    """
+    if DEPTH_ATTR not in model.handle.attrs:
+        return
+    if model.depth_range is None:
+        yield Finding.error(f"'{DEPTH_ATTR}' must have 2 values")
+        return
+
+    zmin, zmax = model.depth_range
+    yield Finding.info(
+        f"depth range [{zmin:.2f}, {zmax:.2f}] m, depth-positive "
+        f"(negative is above sea level)",
+        zmin=zmin,
+        zmax=zmax,
+    )
+    if not (np.isfinite(zmin) and np.isfinite(zmax)):
+        yield Finding.error(f"'{DEPTH_ATTR}' contains NaN or Inf")
+    elif zmin >= zmax:
+        yield Finding.error(
+            f"min depth ({zmin:.2f} m) must be < max depth ({zmax:.2f} m)"
         )
-        print()
-
-    # ── summary ───────────────────────────────────────────────────────────────────
-
-    def _summary(self) -> None:
-        n_e, n_w = len(self.errors), len(self.warnings)
-        print("=" * 72)
-        if n_e == 0 and n_w == 0:
-            print("  RESULT: PASS — no issues found")
-        elif n_e == 0:
-            print(f"  RESULT: PASS with {n_w} warning(s)")
-        else:
-            print(f"  RESULT: FAIL — {n_e} error(s), {n_w} warning(s)")
-        for e in self.errors:
-            print(f"    • {e}")
-        if self.errors and self.warnings:
-            print()
-        for w in self.warnings:
-            print(f"    ~ {w}")
-        print("=" * 72)
 
 
-@app.command()
-def validate_sfile(sfile: Path, chunk_rows: int = 20, verbose: bool = True) -> None:
+def _check_origin_attr(model: Sfile) -> Iterator[Finding]:
+    """Check the declared grid origin.
+
+    Parameters
+    ----------
+    model : Sfile
+        The parsed sfile.
+
+    Yields
+    ------
+    Finding
+        One finding per observation about the origin attribute.
+    """
+    if ORIGIN_ATTR not in model.handle.attrs:
+        return
+    if model.origin is None:
+        yield Finding.error(f"'{ORIGIN_ATTR}' must have 3 values")
+        return
+
+    lon, lat, azimuth = model.origin
+    yield Finding.info(
+        f"origin lon={lon:.6f}° lat={lat:.6f}° azimuth={azimuth:.4f}°",
+        lon=lon,
+        lat=lat,
+        azimuth=azimuth,
+    )
+    if not -180 <= lon <= 180:
+        yield Finding.error(f"origin longitude {lon} out of range [-180, 180]", lon=lon)
+    if not -90 <= lat <= 90:
+        yield Finding.error(f"origin latitude {lat} out of range [-90, 90]", lat=lat)
+    if not np.isfinite(azimuth):
+        yield Finding.error(f"origin azimuth {azimuth} is not finite", azimuth=azimuth)
+
+
+def check_structure(model: Sfile) -> Iterator[Finding]:
+    """Required groups exist and hold the counts that ngrids implies.
+
+    Parameters
+    ----------
+    model : Sfile
+        The parsed sfile to check.
+
+    Yields
+    ------
+    Finding
+        One finding per observation, and a skip for anything it could not
+        check.
+    """
+    for group in (SURFACE_GROUP, MATERIAL_GROUP):
+        if group not in model.handle:
+            yield Finding.error(f"missing '{group}' group", group=group)
+
+    n_interfaces, n_grids = len(model.interfaces), len(model.grids)
+    yield Finding.info(
+        f"{n_interfaces} interface dataset(s), {n_grids} material grid(s)",
+        interfaces=n_interfaces,
+        grids=n_grids,
+    )
+
+    # An sfile has exactly one more interface than it has grids (top and bottom sandwich each grid), and ngrids
+    # must agree with both.
+    if (
+        SURFACE_GROUP in model.handle
+        and MATERIAL_GROUP in model.handle
+        and n_interfaces != n_grids + 1
+    ):
+        yield Finding.error(
+            f"{n_interfaces} interface dataset(s) for {n_grids} grid(s); expected "
+            f"one more interface than grids",
+            interfaces=n_interfaces,
+            grids=n_grids,
+        )
+    if model.ngrids is None:
+        yield Finding.skip(f"cannot cross-check group sizes: '{NGRIDS_ATTR}' is absent")
+    elif model.ngrids != n_grids and MATERIAL_GROUP in model.handle:
+        yield Finding.error(
+            f"ngrids={model.ngrids} but '{MATERIAL_GROUP}' holds {n_grids} grid(s)",
+            ngrids=model.ngrids,
+            grids=n_grids,
+        )
+
+
+def check_interfaces(model: Sfile) -> Iterator[Finding]:
+    """Depth interfaces are finite, strictly ordered, and match the depth attribute.
+
+    Parameters
+    ----------
+    model : Sfile
+        The parsed sfile to check.
+
+    Yields
+    ------
+    Finding
+        One finding per observation, and a skip for anything it could not
+        check.
+    """
+    arrays = model.require_interfaces()
+
+    for name, dataset in model.interfaces.items():
+        if dataset.ndim != 2:
+            yield Finding.error(
+                f"{name}: expected a 2-D dataset, got shape {dataset.shape}",
+                interface=name,
+            )
+            yield Finding.skip(
+                f"{name}: not checked for NaN, ordering or extent", interface=name
+            )
+
+    for name, array in arrays.items():
+        n_nan = int(np.count_nonzero(np.isnan(array)))
+        n_inf = int(np.count_nonzero(np.isinf(array)))
+        if n_nan:
+            yield Finding.error(
+                f"{name}: {n_nan} NaN value(s)", interface=name, n_nan=n_nan
+            )
+        if n_inf:
+            yield Finding.error(
+                f"{name}: {n_inf} Inf value(s)", interface=name, n_inf=n_inf
+            )
+        lo, hi = float(np.nanmin(array)), float(np.nanmax(array))
+        yield Finding.info(
+            f"{name}: shape={array.shape} z=[{lo:.2f}, {hi:.2f}] m "
+            f"elev=[{-hi:.1f}, {-lo:.1f}] m ASL",
+            interface=name,
+            zmin=lo,
+            zmax=hi,
+        )
+
+    yield from _check_layer_ordering(model)
+    yield from _check_terrain(arrays)
+    yield from _check_depth_agreement(model, arrays)
+
+
+def _check_layer_ordering(model: Sfile) -> Iterator[Finding]:
+    """Check that each interface lies strictly below the one above it.
+
+    Parameters
+    ----------
+    model : Sfile
+        The parsed sfile.
+
+    Yields
+    ------
+    Finding
+        One finding per layer whose thickness is not everywhere positive.
+    """
+    for (top, bottom), (thickness, resampled) in model.layers.items():
+        violating = thickness <= 0.0
+        n_bad = int(np.count_nonzero(violating))
+        if not n_bad:
+            continue
+        i, j, worst = _worst_of(thickness, violating)
+        note = " (after nearest resample to a common grid)" if resampled else ""
+        yield Finding.error(
+            f"{bottom} is not below {top} at {n_bad} point(s){note}; thinnest "
+            f"{worst:.2f} m at (i, j)=({i}, {j}). SW4 patch selection requires "
+            f"strict depth ordering, and computes hv=thickness/(nk-1)",
+            top=top,
+            bottom=bottom,
+            n_bad=n_bad,
+            min_thickness=worst,
+            i=i,
+            j=j,
+        )
+
+
+def _check_terrain(arrays: Mapping[str, npt.NDArray[np.float64]]) -> Iterator[Finding]:
+    """Check the top interface for implausible cell-to-cell jumps.
+
+    Parameters
+    ----------
+    arrays : Mapping
+        The readable interface arrays, shallowest first.
+
+    Yields
+    ------
+    Finding
+        The largest gradient found, or a warning if it is implausible.
+    """
+    name = next(iter(arrays))
+    topography = arrays[name]
+    if min(topography.shape) < 2:
+        yield Finding.skip(
+            f"{name}: too small to measure a terrain gradient", interface=name
+        )
+        return
+
+    gradient = max(
+        float(np.abs(np.diff(topography, axis=axis)).max()) for axis in (0, 1)
+    )
+    if gradient > TERRAIN_JUMP_WARN_M:
+        yield Finding.warn(
+            f"{name}: max cell-to-cell z jump {gradient:.1f} m; check for "
+            f"fill-value boundaries",
+            interface=name,
+            gradient_m=gradient,
+        )
+    else:
+        yield Finding.info(
+            f"{name}: max terrain gradient {gradient:.1f} m/cell",
+            interface=name,
+            gradient_m=gradient,
+        )
+
+
+def _check_depth_agreement(
+    model: Sfile, arrays: Mapping[str, npt.NDArray[np.float64]]
+) -> Iterator[Finding]:
+    """Check the depth attribute against the shallowest and deepest interfaces.
+
+    Parameters
+    ----------
+    model : Sfile
+        The parsed sfile.
+    arrays : Mapping
+        The readable interface arrays, shallowest first.
+
+    Yields
+    ------
+    Finding
+        One finding per end of the depth range that disagrees with the data.
+    """
+    if model.depth_range is None:
+        yield Finding.skip(
+            f"cannot compare interfaces against '{DEPTH_ATTR}': absent or malformed"
+        )
+        return
+    if len(arrays) < 2:
+        yield Finding.skip(
+            f"cannot compare interfaces against '{DEPTH_ATTR}': need 2 interfaces"
+        )
+        return
+
+    names = list(arrays)
+    for label, declared, actual in (
+        ("min", model.depth_range[0], float(np.nanmin(arrays[names[0]]))),
+        ("max", model.depth_range[1], float(np.nanmax(arrays[names[-1]]))),
+    ):
+        if abs(declared - actual) > DEPTH_TOLERANCE_M:
+            yield Finding.warn(
+                f"'{DEPTH_ATTR}' {label}={declared:.2f} m but the data {label} is "
+                f"{actual:.2f} m ({actual - declared:+.2f} m)",
+                bound=label,
+                declared=declared,
+                actual=actual,
+            )
+
+
+def check_material(model: Sfile) -> Iterator[Finding]:
+    """Material variables are present, finite and physically plausible.
+
+    Parameters
+    ----------
+    model : Sfile
+        The parsed sfile to check.
+
+    Yields
+    ------
+    Finding
+        One finding per observation, and a skip for anything it could not
+        check.
+    """
+    for grid in model.require_grids().values():
+        yield from _check_grid(model, grid)
+
+
+def _check_grid(model: Sfile, grid: MaterialGrid) -> Iterator[Finding]:
+    """Check one material grid's attributes and datasets.
+
+    Parameters
+    ----------
+    model : Sfile
+        The parsed sfile.
+    grid : MaterialGrid
+        The grid to check.
+
+    Yields
+    ------
+    Finding
+        One finding per observation about the grid.
+    """
+    if grid.h is None:
+        yield Finding.error(f"{grid.name}: missing '{HORIZONTAL_ATTR}'", grid=grid.name)
+    else:
+        yield Finding.info(f"{grid.name}: h = {grid.h} m", grid=grid.name, h=grid.h)
+        if not np.isfinite(grid.h) or grid.h <= 0:
+            yield Finding.error(
+                f"{grid.name}: h must be finite and > 0, got {grid.h}", grid=grid.name
+            )
+
+    if grid.n_components is not None and grid.n_components not in COMPONENT_COUNTS:
+        yield Finding.warn(
+            f"{grid.name}: unexpected {COMPONENTS_ATTR}={grid.n_components}, expected "
+            f"one of {list(COMPONENT_COUNTS)}",
+            grid=grid.name,
+            n_components=grid.n_components,
+        )
+
+    expected = [
+        name
+        for name, spec in VARS.items()
+        if not spec.attenuation_only or model.attenuation
+    ]
+    for name in expected:
+        if name not in grid.group:
+            reason = (
+                "attenuation=1 requires it"
+                if VARS[name].attenuation_only
+                else "it is required"
+            )
+            yield Finding.error(
+                f"{grid.name}: missing dataset '{name}'; {reason}",
+                grid=grid.name,
+                dataset=name,
+            )
+
+    if grid.shape is None:
+        yield Finding.skip(
+            f"{grid.name}: cannot scan datasets or check nk without Cp", grid=grid.name
+        )
+        return
+    if len(grid.shape) != 3:
+        yield Finding.error(
+            f"{grid.name}/Cp: expected a 3-D dataset, got shape {grid.shape}",
+            grid=grid.name,
+        )
+        yield Finding.skip(
+            f"{grid.name}: cannot scan datasets or check nk", grid=grid.name
+        )
+        return
+
+    yield Finding.info(
+        f"{grid.name}: shape (ni, nj, nk) = {grid.shape}",
+        grid=grid.name,
+        shape=grid.shape,
+    )
+    nk = grid.shape[2]
+    if nk < 2:
+        yield Finding.error(
+            f"{grid.name}: nk={nk}; SW4 computes hv=thickness/(nk-1), so nk<2 gives NaN",
+            grid=grid.name,
+            nk=nk,
+        )
+
+    present = {name: grid.group[name] for name in expected if name in grid.group}
+    scannable = {
+        name: dataset
+        for name, dataset in present.items()
+        if tuple(dataset.shape) == grid.shape
+    }
+    for name in present.keys() - scannable.keys():
+        yield Finding.error(
+            f"{grid.name}/{name}: shape {tuple(present[name].shape)} does not match "
+            f"Cp's {grid.shape}",
+            grid=grid.name,
+            dataset=name,
+        )
+        yield Finding.skip(
+            f"{grid.name}/{name}: not scanned", grid=grid.name, dataset=name
+        )
+
+    stats, ratio = _scan_grid(scannable, model.chunk_rows)
+    for name, summary in stats.items():
+        yield from _report_variable(grid.name, name, summary)
+    yield from _report_ratio(grid.name, ratio)
+
+
+# NOTE: This function is complex enough to warrant its existence despite being a single callsite function.
+def _scan_grid(
+    datasets: Mapping[str, h5py.Dataset], chunk_rows: int
+) -> tuple[dict[str, DatasetStats], RatioStats]:
+    """Summarise a grid's datasets in a single chunked pass.
+
+    Every dataset is read once, in matching row slabs, so the Vp/Vs ratio comes
+    out of the same pass that produces the per-variable statistics rather than
+    re-reading Cp and Cs.
+
+    Parameters
+    ----------
+    datasets : Mapping
+        The datasets to scan, all of the same shape.
+    chunk_rows : int
+        Number of `i` rows to read at a time.
+
+    Returns
+    -------
+    tuple
+        `(stats, ratio)`: the per-dataset statistics by name, and the Vp/Vs
+        ratio statistics over solid cells.
+    """
+    stats: dict[str, DatasetStats] = {}
+    ratio = EMPTY_RATIO
+    if not datasets:
+        return stats, ratio
+
+    n_rows = next(iter(datasets.values())).shape[0]
+    for start in range(0, n_rows, chunk_rows):
+        chunks = {
+            name: dataset[start : start + chunk_rows]
+            for name, dataset in datasets.items()
+        }
+        for name, chunk in chunks.items():
+            summary = _chunk_stats(chunk)
+            stats[name] = stats[name].merge(summary) if name in stats else summary
+        if "Cp" in chunks and "Cs" in chunks:
+            ratio = ratio.merge(_chunk_ratio(chunks["Cp"], chunks["Cs"]))
+    return stats, ratio
+
+
+def _report_variable(
+    grid_name: str, name: str, stats: DatasetStats
+) -> Iterator[Finding]:
+    """Turn one dataset's statistics into findings, per its `VarSpec`.
+
+    Parameters
+    ----------
+    grid_name : str
+        The grid the dataset belongs to.
+    name : str
+        The dataset name, a key of `VARS`.
+    stats : DatasetStats
+        The statistics gathered for the dataset.
+
+    Yields
+    ------
+    Finding
+        One finding per observation about the dataset.
+    """
+    spec = VARS[name]
+    label = f"{grid_name}/{name}"
+    unit = f" {spec.unit}" if spec.unit else ""
+    where = {"grid": grid_name, "dataset": name}
+
+    yield Finding.info(
+        f"{label}: {spec.label} in [{stats.lo:.4g}, {stats.hi:.4g}]{unit}, "
+        f"zeros={stats.n_zero} nan={stats.n_nan} inf={stats.n_inf}",
+        **where,
+        **stats._asdict(),
+    )
+    if stats.n_nan:
+        yield Finding.error(f"{label}: {stats.n_nan} NaN value(s)", **where)
+    if stats.n_inf:
+        yield Finding.error(f"{label}: {stats.n_inf} Inf value(s)", **where)
+
+    if spec.zero_allowed:
+        if stats.n_neg:
+            yield Finding.error(
+                f"{label}: {stats.n_neg} negative value(s); {spec.nonpositive_note}",
+                **where,
+            )
+        if stats.n_zero:
+            yield Finding.error(
+                f"{label}: {stats.n_zero} zero value(s)",
+                **where,
+            )
+    elif stats.n_nonpositive:
+        yield Finding.error(
+            f"{label}: {stats.n_nonpositive} non-positive value(s) "
+            f"(zeros={stats.n_zero}, negative={stats.n_neg}); {spec.nonpositive_note}",
+            **where,
+        )
+
+    if spec.low_warn is not None and 0 < stats.lo < spec.low_warn:
+        yield Finding.warn(
+            f"{label}: suspiciously low {spec.label} minimum {stats.lo:.4g}{unit}",
+            **where,
+        )
+
+
+def _report_ratio(grid_name: str, ratio: RatioStats) -> Iterator[Finding]:
+    """Turn a grid's Vp/Vs statistics into findings.
+
+    Parameters
+    ----------
+    grid_name : str
+        The grid the ratio was measured over.
+    ratio : RatioStats
+        The ratio statistics over solid cells.
+
+    Yields
+    ------
+    Finding
+        One finding per observation about the ratio.
+    """
+    if not ratio.n_solid:
+        yield Finding.skip(
+            f"{grid_name}: no solid (Vs > 0) cells, so Vp/Vs was not checked",
+            grid=grid_name,
+        )
+        return
+
+    yield Finding.info(
+        f"{grid_name}: Vp/Vs over solid cells in [{ratio.lo:.3f}, {ratio.hi:.3f}]",
+        grid=grid_name,
+        n_solid=ratio.n_solid,
+    )
+    if ratio.n_below_one:
+        yield Finding.error(
+            f"{grid_name}: {ratio.n_below_one} solid point(s) with Vp/Vs < 1, which "
+            f"is physically impossible",
+            grid=grid_name,
+            n_below_one=ratio.n_below_one,
+        )
+    # n_below_sqrt2 contains n_below_one, so report only the marginal band.
+    # Reporting both totals would count the same points twice.
+    marginal = ratio.n_below_sqrt2 - ratio.n_below_one
+    if marginal:
+        yield Finding.warn(
+            f"{grid_name}: {marginal} solid point(s) with 1 <= Vp/Vs < √2 ≈ 1.414",
+            grid=grid_name,
+            n_marginal=marginal,
+        )
+
+
+def check_grid_consistency(model: Sfile) -> Iterator[Finding]:
+    """Grids span the same horizontal domain and resolve the layers they span.
+
+    Parameters
+    ----------
+    model : Sfile
+        The parsed sfile to check.
+
+    Yields
+    ------
+    Finding
+        One finding per observation, and a skip for anything it could not
+        check.
+    """
+    grids = model.require_grids()
+
+    known = [extent for grid in grids.values() if (extent := grid.extent) is not None]
+    if not known:
+        yield Finding.skip(
+            "no grid has both a spacing and a Cp shape, so extents are unknown"
+        )
+    for axis in ("x", "y"):
+        spans = [getattr(extent, axis) for extent in known]
+        if not spans:
+            continue
+        if max(spans) - min(spans) > max(1.0, max(spans) * EXTENT_TOLERANCE):
+            yield Finding.warn(
+                f"inconsistent {axis}-extents across grids: "
+                f"{[f'{span:.0f}m' for span in spans]}",
+                axis=axis,
+                extents=spans,
+            )
+
+    yield from _check_vertical_resolution(model, grids)
+
+
+def _check_vertical_resolution(
+    model: Sfile, grids: Mapping[str, MaterialGrid]
+) -> Iterator[Finding]:
+    """Check each grid's vertical cell size against the layer it spans.
+
+    Parameters
+    ----------
+    model : Sfile
+        The parsed sfile.
+    grids : Mapping
+        The material grids, in refinement order.
+
+    Yields
+    ------
+    Finding
+        One finding per grid whose layer is unresolvable or extremely thin.
+    """
+    layers = list(model.layers.items())
+    if not layers:
+        yield Finding.skip(
+            "cannot check vertical resolution: fewer than 2 readable interfaces"
+        )
+        return
+
+    for index, grid in enumerate(grids.values()):
+        if grid.shape is None or len(grid.shape) != 3:
+            yield Finding.skip(
+                f"{grid.name}: cannot check vertical resolution without a 3-D Cp",
+                grid=grid.name,
+            )
+            continue
+        if index >= len(layers):
+            yield Finding.skip(
+                f"{grid.name}: no bracketing interface pair", grid=grid.name
+            )
+            continue
+
+        (top, bottom), (thickness, _) = layers[index]
+        nk = grid.shape[2]
+        lo, hi = float(np.nanmin(thickness)), float(np.nanmax(thickness))
+        yield Finding.info(
+            f"{grid.name} ({top} - {bottom}): thickness in [{lo:.1f}, {hi:.1f}] m, nk={nk}",
+            grid=grid.name,
+            min_thickness=lo,
+            max_thickness=hi,
+            nk=nk,
+        )
+        # Non-positive thickness is reported by _check_layer_ordering; here it
+        # matters only through the vertical cell size it implies.
+        if lo > 0 and nk >= 2 and lo / (nk - 1) < THIN_CELL_WARN_M:
+            yield Finding.warn(
+                f"{grid.name}: minimum vertical cell size {lo / (nk - 1):.4f} m is "
+                f"extremely thin",
+                grid=grid.name,
+                cell_m=lo / (nk - 1),
+            )
+
+
+def describe_boundaries(model: Sfile) -> Iterator[Finding]:
+    """Report the model's extent, depth range and geographic corners.
+
+    Parameters
+    ----------
+    model : Sfile
+        The parsed sfile to check.
+
+    Yields
+    ------
+    Finding
+        One finding per observation, and a skip for anything it could not
+        check.
+    """
+    lon, lat, azimuth = model.require_origin()
+    grids = model.require_grids()
+
+    measured = [
+        (grid, extent) for grid in grids.values() if (extent := grid.extent) is not None
+    ]
+    if not measured:
+        yield Finding.skip(
+            "cannot compute an extent: no grid has a spacing and a shape"
+        )
+        return
+
+    finest, extent = min(measured, key=lambda pair: pair[1].h)
+    yield Finding.info(
+        f"using {finest.name} (h={extent.h:.1f} m, shape {finest.shape}): "
+        f"{extent.x / 1e3:.3f} km × {extent.y / 1e3:.3f} km, "
+        f"x at azimuth {azimuth:.2f}° from north",
+        grid=finest.name,
+        x_km=extent.x / 1e3,
+        y_km=extent.y / 1e3,
+    )
+    if model.depth_range is not None:
+        zmin, zmax = model.depth_range
+        yield Finding.info(
+            f"depth {zmin:.0f} m to {zmax:.0f} m "
+            f"(~{(zmax - max(0.0, zmin)) / 1e3:.1f} km rock column)",
+            zmin=zmin,
+            zmax=zmax,
+        )
+    if model.interface_arrays:
+        name, topography = next(iter(model.interface_arrays.items()))
+        lo, hi = float(np.nanmin(topography)), float(np.nanmax(topography))
+        yield Finding.info(
+            f"topography {name}: z=[{lo:.2f}, {hi:.2f}] m, elev=[{-hi:.1f}, {-lo:.1f}] m ASL",
+            interface=name,
+        )
+
+    yield from _describe_corners(lon, lat, azimuth, extent.x, extent.y)
+
+
+def _describe_corners(
+    lon: float, lat: float, azimuth: float, x_m: float, y_m: float
+) -> Iterator[Finding]:
+    """Report the geographic position of the model's four corners.
+
+    Parameters
+    ----------
+    lon : float
+        Longitude of the grid origin, in degrees.
+    lat : float
+        Latitude of the grid origin, in degrees.
+    azimuth : float
+        Clockwise angle from north to the grid's x-axis, in degrees.
+    x_m : float
+        Extent along the grid's x-axis, in metres.
+    y_m : float
+        Extent along the grid's y-axis, in metres.
+
+    Yields
+    ------
+    Finding
+        One finding per corner, then the bounding box.
+    """
+    try:
+        northing, easting = coordinates.wgs_depth_to_nztm(np.array([lat, lon]))
+    except ValueError as exc:
+        yield Finding.skip(
+            f"cannot project the origin to NZTM: {exc}", lon=lon, lat=lat
+        )
+        return
+
+    # SW4 azimuth is the clockwise angle from north to the x-axis, so the x
+    # unit vector in (east, north) is (sin, cos) and y's is (cos, -sin).
+    sin_azimuth, cos_azimuth = np.sin(np.radians(azimuth)), np.cos(np.radians(azimuth))
+    offsets = np.array([(0.0, 0.0), (x_m, 0.0), (0.0, y_m), (x_m, y_m)])
+    eastings = easting + offsets[:, 0] * sin_azimuth + offsets[:, 1] * cos_azimuth
+    northings = northing + offsets[:, 0] * cos_azimuth - offsets[:, 1] * sin_azimuth
+
+    corners = coordinates.nztm_to_wgs_depth(np.column_stack([northings, eastings]))
+    labels = ("origin (SW)", "far-x", "far-y", "far corner")
+    for label, (corner_lat, corner_lon), corner_e, corner_n in zip(
+        labels, corners, eastings, northings, strict=True
+    ):
+        yield Finding.info(
+            f"corner {label}: lon={corner_lon:.6f}° lat={corner_lat:.6f}° "
+            f"easting={corner_e:.1f} northing={corner_n:.1f}",
+            corner=label,
+            lon=float(corner_lon),
+            lat=float(corner_lat),
+        )
+
+    lats, lons = corners[:, 0], corners[:, 1]
+    yield Finding.info(
+        f"bounding box lon [{lons.min():.6f}°, {lons.max():.6f}°] "
+        f"lat [{lats.min():.6f}°, {lats.max():.6f}°]",
+        lon_min=float(lons.min()),
+        lon_max=float(lons.max()),
+        lat_min=float(lats.min()),
+        lat_max=float(lats.max()),
+    )
+
+
+class Check(Protocol):
+    """One validation pass over a parsed sfile.
+
+    The name is part of the interface: `validate` tags every finding with it,
+    so a consumer can tell which pass produced a record.
+    """
+
+    __name__: str
+
+    def __call__(self, model: Sfile) -> Iterator[Finding]:
+        """Run the check.
+
+        Parameters
+        ----------
+        model : Sfile
+            The parsed sfile to check.
+
+        Returns
+        -------
+        Iterator[Finding]
+            One finding per observation the check makes.
+        """
+        ...
+
+
+CHECKS: Sequence[Check] = (
+    check_attributes,
+    check_structure,
+    check_interfaces,
+    check_material,
+    check_grid_consistency,
+    describe_boundaries,
+)
+
+
+def _run_check(check: Check, model: Sfile) -> Iterator[Finding]:
+    """Run one check, recording a skip if its prerequisites are missing.
+
+    Parameters
+    ----------
+    check : Check
+        The check to run.
+    model : Sfile
+        The parsed sfile to check.
+
+    Yields
+    ------
+    Finding
+        The check's findings, tagged with its name, or a single skip.
+    """
+    try:
+        for finding in check(model):
+            yield dataclasses.replace(finding, check=check.__name__)
+    except UnavailableError as exc:
+        yield Finding(
+            Severity.SKIP, f"{check.__name__} did not run: {exc}", {}, check.__name__
+        )
+
+
+def validate(model: Sfile) -> Report:
+    """Run every check against a parsed sfile.
+
+    Parameters
+    ----------
+    model : Sfile
+        The parsed sfile to check.
+
+    Returns
+    -------
+    Report
+        Every finding the checks produced.
+    """
+    return Report(
+        tuple(finding for check in CHECKS for finding in _run_check(check, model))
+    )
+
+
+#: structlog level to report each severity at. A skipped check is a caveat on
+#: the result, so it is not quietly filed under info.
+LOG_LEVELS = {
+    Severity.ERROR: "error",
+    Severity.WARN: "warning",
+    Severity.SKIP: "warning",
+    Severity.INFO: "info",
+}
+
+
+def log_report(report: Report, verbose: bool) -> None:
+    """Write a report out, one structured record per finding plus a tally.
+
+    Parameters
+    ----------
+    report : Report
+        The findings to write.
+    verbose : bool
+        Whether to include info findings, which are measurements rather than
+        problems.
+    """
+    logger = log_utils.get_logger(__name__)
+    for finding in report.findings:
+        if verbose or finding.severity is not Severity.INFO:
+            log = getattr(logger, LOG_LEVELS[finding.severity])
+            log(
+                finding.message,
+                severity=str(finding.severity),
+                check=finding.check,
+                **finding.context,
+            )
+
+    counts = report.counts
+    logger.info(
+        "validation complete",
+        result="fail" if report.failed else "pass",
+        **{str(severity): counts[severity] for severity in Severity},
+    )
+
+
+@log_utils.log_call()
+def validate_path(sfile: Path, chunk_rows: int, verbose: bool) -> bool:
+    """Validate one sfile and write its report.
+
+    Parameters
+    ----------
+    sfile : Path
+        The sfile (HDF5 velocity model) to check.
+    chunk_rows : int
+        Number of `i` rows to read at a time when scanning material datasets.
+    verbose : bool
+        Whether to report measurements as well as problems.
+
+    Returns
+    -------
+    bool
+        Whether any finding was an error.
+    """
+    try:
+        with h5py.File(sfile, "r") as handle:
+            report = validate(read_sfile(sfile, handle, chunk_rows))
+    except (OSError, KeyError, ValueError) as exc:
+        report = Report(
+            (Finding(Severity.ERROR, f"cannot read sfile: {exc}", {}, "read_sfile"),)
+        )
+
+    log_report(report, verbose)
+    return report.failed
+
+
+@cli.from_docstring(app)
+def validate_sfile(
+    sfile: Annotated[Path, typer.Argument(exists=True, readable=True, dir_okay=False)],
+    chunk_rows: Annotated[int, typer.Option(min=1)] = 20,
+    verbose: bool = True,
+) -> None:
     """Check an SW4 sfile for issues, exiting non-zero if any are errors.
 
     Parameters
     ----------
     sfile : Path
         The sfile (HDF5 velocity model) to check.
-    chunk_rows : int, optional
-        Number of `i` rows to read at a time when scanning material
-        datasets, which do not fit in memory.
-    verbose : bool, optional
-        Report per-dataset statistics as well as problems.
+    chunk_rows : int
+        Number of `i` rows to read at a time when scanning material datasets,
+        which do not fit in memory.
+    verbose : bool
+        Report measurements as well as problems.
+
+    Raises
+    ------
+    typer.Exit
+        If any check reports an error.
     """
-    v = Validator(sfile, chunk_rows=chunk_rows, verbose=verbose)
-    v.run()
-    sys.exit(1 if v.errors else 0)
+    # Raised outside the logged call: a model that fails validation is an
+    # expected outcome, not an exception worth a logged traceback.
+    if validate_path(sfile, chunk_rows, verbose):
+        raise typer.Exit(code=1)
