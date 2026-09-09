@@ -326,13 +326,13 @@ class RatioStats:
         RatioStats
             Statistics covering both chunks.
         """
-        # TODO: obvious replace implementation here...
-        return RatioStats(
-            self.n_solid + other.n_solid,
-            min(self.lo, other.lo),
-            max(self.hi, other.hi),
-            self.n_below_one + other.n_below_one,
-            self.n_below_sqrt2 + other.n_below_sqrt2,
+        return dataclasses.replace(
+            self,
+            n_solid=self.n_solid + other.n_solid,
+            lo=min(self.lo, other.lo),
+            hi=max(self.hi, other.hi),
+            n_below_one=self.n_below_one + other.n_below_one,
+            n_below_sqrt2=self.n_below_sqrt2 + other.n_below_sqrt2,
         )
 
 
@@ -416,117 +416,6 @@ def _resample_to(
     return src[np.ix_(rows, columns)]
 
 
-# TODO: remove and subsume into cached property: only one callsite
-def _align(
-    a: npt.NDArray[np.floating], b: npt.NDArray[np.floating]
-) -> tuple[npt.NDArray[np.floating], npt.NDArray[np.floating], bool]:
-    """Put `a` and `b` on a common grid so they compare elementwise.
-
-    Parameters
-    ----------
-    a, b : numpy.ndarray
-        The 2-D arrays to align. The coarser is resampled onto the finer one's
-        grid.
-
-    Returns
-    -------
-    tuple
-        `(a, b, resampled)`, where `resampled` says whether either array had to
-        be resampled.
-    """
-    if a.shape == b.shape:
-        return a, b, False
-    target = a.shape if a.size >= b.size else b.shape
-    return _resample_to(a, target), _resample_to(b, target), True
-
-
-# TODO: remove and subsume into caller: only one callsite
-def _worst_of(
-    field: npt.NDArray[np.floating], selected: npt.NDArray[np.bool_]
-) -> tuple[int, int, float]:
-    """Locate the smallest selected element of a 2-D field.
-
-    Masking to the selected points before searching keeps NaNs elsewhere in
-    the field from displacing the answer, since a NaN compares false against
-    every threshold and so is never selected.
-
-    Parameters
-    ----------
-    field : numpy.ndarray
-        The 2-D field to search.
-    selected : numpy.ndarray
-        Boolean mask of the points to consider, which must select at least
-        one point.
-
-    Returns
-    -------
-    tuple
-        `(i, j, value)`: the index of the smallest selected point, and its
-        value.
-    """
-    flat_index = int(np.argmin(np.where(selected, field, np.inf)))
-    i, j = np.unravel_index(flat_index, field.shape)
-    return int(i), int(j), float(field.flat[flat_index])
-
-
-# TODO: remove and subsume into caller: only one callsite
-def _chunk_stats(chunk: npt.NDArray[np.floating]) -> DatasetStats:
-    """Summarise one slab of a material dataset.
-
-    Parameters
-    ----------
-    chunk : numpy.ndarray
-        A slab of the dataset.
-
-    Returns
-    -------
-    DatasetStats
-        The statistics for this slab.
-    """
-    finite = np.isfinite(chunk)
-    n_nan = int(np.count_nonzero(np.isnan(chunk)))
-    return DatasetStats(
-        float(np.min(chunk, where=finite, initial=np.inf)),
-        float(np.max(chunk, where=finite, initial=-np.inf)),
-        n_nan,
-        chunk.size - int(np.count_nonzero(finite)) - n_nan,
-        int(np.count_nonzero(chunk == 0.0)),
-        int(np.count_nonzero(chunk < 0.0)),
-    )
-
-
-# TODO: remove and subsume into caller: only one callsite
-def _chunk_ratio(
-    cp: npt.NDArray[np.floating], cs: npt.NDArray[np.floating]
-) -> RatioStats:
-    """Summarise the Vp/Vs ratio over the solid cells of one slab.
-
-    Parameters
-    ----------
-    cp : numpy.ndarray
-        A slab of the Cp dataset.
-    cs : numpy.ndarray
-        The matching slab of the Cs dataset.
-
-    Returns
-    -------
-    RatioStats
-        The ratio statistics for this slab.
-    """
-    solid = cs > 0.0
-    if not solid.any():
-        return EMPTY_RATIO
-    # Select before dividing, so the division runs over the solid cells only.
-    ratio = cp[solid].astype(np.float64) / cs[solid]
-    return RatioStats(
-        int(ratio.size),
-        float(ratio.min()),
-        float(ratio.max()),
-        int(np.count_nonzero(ratio < 1.0)),
-        int(np.count_nonzero(ratio < SQRT2)),
-    )
-
-
 class GridExtent(NamedTuple):
     """The horizontal domain one material grid spans."""
 
@@ -560,13 +449,12 @@ class MaterialGrid:
     """Shape of the Cp dataset, or None if Cp is absent."""
 
     @property
-    def extent(self) -> Self | None:  # numpydoc ignore=RT01
+    def extent(self) -> GridExtent | None:  # numpydoc ignore=RT01
         """GridExtent or None: the domain this grid spans, if it is known."""
         if self.h is None or self.shape is None or len(self.shape) != 3:
             return None
-        # TODO: obvious replace implementation
         return GridExtent(
-            self.h, (self.shape[0] - 1) * self.h, (self.shape[1] - 1) * self.h
+            h=self.h, x=(self.shape[0] - 1) * self.h, y=(self.shape[1] - 1) * self.h
         )
 
 
@@ -642,7 +530,14 @@ class Sfile:
         arrays = self.interface_arrays
         layers = {}
         for top, bottom in itertools.pairwise(arrays):
-            top_z, bottom_z, resampled = _align(arrays[top], arrays[bottom])
+            top_z, bottom_z = arrays[top], arrays[bottom]
+            # Interfaces on different grids are compared on the finer one, with
+            # the coarser resampled onto it.
+            resampled = top_z.shape != bottom_z.shape
+            if resampled:
+                target = top_z.shape if top_z.size >= bottom_z.size else bottom_z.shape
+                top_z = _resample_to(top_z, target)
+                bottom_z = _resample_to(bottom_z, target)
             layers[top, bottom] = (bottom_z - top_z, resampled)
         return layers
 
@@ -991,7 +886,12 @@ def _check_layer_ordering(model: Sfile) -> Iterator[Finding]:
         n_bad = int(np.count_nonzero(violating))
         if not n_bad:
             continue
-        i, j, worst = _worst_of(thickness, violating)
+        # Mask to the violating points before searching, so a NaN elsewhere in
+        # the layer cannot displace the answer: NaN compares false against the
+        # threshold and so is never selected.
+        flat_index = int(np.argmin(np.where(violating, thickness, np.inf)))
+        i, j = (int(index) for index in np.unravel_index(flat_index, thickness.shape))
+        worst = float(thickness.flat[flat_index])
         note = " (after nearest resample to a common grid)" if resampled else ""
         yield Finding.error(
             f"{bottom} is not below {top} at {n_bad} point(s){note}; thinnest "
@@ -1242,10 +1142,34 @@ def _scan_grid(
             for name, dataset in datasets.items()
         }
         for name, chunk in chunks.items():
-            summary = _chunk_stats(chunk)
+            finite = np.isfinite(chunk)
+            n_nan = int(np.count_nonzero(np.isnan(chunk)))
+            summary = DatasetStats(
+                lo=float(np.min(chunk, where=finite, initial=np.inf)),
+                hi=float(np.max(chunk, where=finite, initial=-np.inf)),
+                n_nan=n_nan,
+                n_inf=chunk.size - int(np.count_nonzero(finite)) - n_nan,
+                n_zero=int(np.count_nonzero(chunk == 0.0)),
+                n_neg=int(np.count_nonzero(chunk < 0.0)),
+            )
             stats[name] = stats[name].merge(summary) if name in stats else summary
-        if "Cp" in chunks and "Cs" in chunks:
-            ratio = ratio.merge(_chunk_ratio(chunks["Cp"], chunks["Cs"]))
+
+        if "Cp" not in chunks or "Cs" not in chunks:
+            continue
+        solid = chunks["Cs"] > 0.0
+        if not solid.any():
+            continue
+        # Select before dividing, so the division runs over the solid cells only.
+        ratios = chunks["Cp"][solid].astype(np.float64) / chunks["Cs"][solid]
+        ratio = ratio.merge(
+            RatioStats(
+                n_solid=int(ratios.size),
+                lo=float(ratios.min()),
+                hi=float(ratios.max()),
+                n_below_one=int(np.count_nonzero(ratios < 1.0)),
+                n_below_sqrt2=int(np.count_nonzero(ratios < SQRT2)),
+            )
+        )
     return stats, ratio
 
 
