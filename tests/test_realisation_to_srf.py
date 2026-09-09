@@ -8,6 +8,7 @@ from workflow.scripts import realisation_to_srf
 def test_build_genslip_command_static_args() -> None:
     srf_config = SRFConfig(
         resolution=0.1,
+        dt=0.005,
         point_source_params=schemas.PointSourceParams(
             stype=schemas.Stype.cos,
             risetime=0.5,

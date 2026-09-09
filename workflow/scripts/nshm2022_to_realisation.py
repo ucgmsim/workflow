@@ -317,19 +317,19 @@ def generate_realisation(
         realisation_ffp, defaults_version
     )
     db = nshmdb.NSHMDB(nshmdb_path)
-    db.connect()
-    faults = db.get_rupture_faults(fault_system, rupture_id)
-    faults = {
-        fault_name: sources.simplify_fault(fault, srf_config.resolution)
-        for fault_name, fault in faults.items()
-    }
+    with db:
+        faults = db.get_rupture_faults(fault_system, rupture_id)
+        faults = {
+            fault_name: sources.simplify_fault(fault, srf_config.resolution)
+            for fault_name, fault in faults.items()
+        }
 
-    if initial_fault and initial_fault not in faults:
-        print(
-            f"Initial fault '{initial_fault}' not found in rupture. Options are {', '.join(list(faults))}"
-        )
-        raise typer.Exit(code=1)
-    faults_info = db.get_rupture_fault_info(fault_system, rupture_id)
+        if initial_fault and initial_fault not in faults:
+            print(
+                f"Initial fault '{initial_fault}' not found in rupture. Options are {', '.join(list(faults))}"
+            )
+            raise typer.Exit(code=1)
+        faults_info = db.get_rupture_fault_info(fault_system, rupture_id)
     seeds = Seeds.read_from_realisation_or_random(realisation_ffp)
     np.random.seed(seed=seeds.nshm_to_realisation_seed)
     random.seed(seeds.nshm_to_realisation_seed)
@@ -361,11 +361,12 @@ def generate_realisation(
     else:
         # The ty ignore below can be removed once NSHM2022DB merges the change to
         # accept dict[str, BoldM] in most_likely_fault (branch support-BoldM-in-workflow).
-        mfds_rates = db.most_likely_fault(
-            fault_system,
-            rupture_id,
-            magnitudes,  # ty: ignore[invalid-argument-type]
-        )
+        with db:
+            mfds_rates = db.most_likely_fault(
+                fault_system,
+                rupture_id,
+                magnitudes,  # ty: ignore[invalid-argument-type]
+            )
         mfds_probabilities = np.array(list(mfds_rates.values()))
         if np.allclose(mfds_probabilities, 0):
             mfds_probabilities = np.ones_like(mfds_probabilities)
