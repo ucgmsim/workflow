@@ -77,7 +77,12 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 # openquake.engine 3.26+ requires gdal~=3.13.1, which is sdist-only and refuses to
 # build against the libgdal 3.12.2 that Ubuntu ships. Cap it until libgdal catches up.
 ARG WORKFLOW_BRANCH=pegasus
+# nzcvm is a bare requirement resolved through `[tool.uv.sources]`, which pip does
+# not read, so it has to be named explicitly here. The other git-sourced
+# dependencies (im-calculation, hf-simulation) are PEP 508 direct references in
+# `dependencies` and pip resolves those itself.
+ARG NZCVM_BRANCH=master
 RUN python3 -m venv $VIRTUAL_ENV && \
     pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir "git+https://github.com/ucgmsim/workflow@${WORKFLOW_BRANCH}" "openquake.engine<3.26" --no-binary=h5py && \
+    pip install --no-cache-dir "git+https://github.com/lispandfound/nzcvm@${NZCVM_BRANCH}" "git+https://github.com/ucgmsim/workflow@${WORKFLOW_BRANCH}" "openquake.engine<3.26" --no-binary=h5py && \
     chmod -R a+rX /sw
