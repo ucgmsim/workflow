@@ -45,7 +45,6 @@ from workflow.realisations import (
 )
 
 app = typer.Typer()
-LOGGER = log_utils.get_logger(__name__)
 
 
 def emod3d_domain_parameters(
@@ -270,7 +269,7 @@ def check_domain_against_velocity_model(
     ny = domain_parameters.ny(resolution.resolution)
     # nz + 1 for consistency with the velocity model
     nz = domain_parameters.nz(resolution.resolution) + 1
-
+    logger = log_utils.get_logger(__name__)
     expected_file_size = nx * ny * nz * np.float32().nbytes
     for filename in [parameters.pmodfile, parameters.smodfile, parameters.dmodfile]:
         velocity_model_file = velocity_model_ffp / filename
@@ -280,7 +279,7 @@ def check_domain_against_velocity_model(
             # Unreadable is not a mismatch. This stage is routinely run in a
             # container where the velocity model paths are only being
             # templated and nothing is on disk yet.
-            LOGGER.warn(
+            logger.warn(
                 "could not validate domain parameters against velocity model supplied",
                 error=e,
             )
