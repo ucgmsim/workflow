@@ -222,9 +222,6 @@ class VarSpec:
     unit: str
     """Unit appended to reported ranges."""
 
-    zero_allowed: bool
-    """Whether zero is legal, as it is for Vs in fluid cells."""
-
     nonpositive_note: str
     """Why a non-positive value breaks SW4."""
 
@@ -236,11 +233,11 @@ class VarSpec:
 
 
 VARS = {
-    "Rho": VarSpec("Rho", "kg/m^3", False, "SW4 aborts on a zero density", 100.0),
-    "Cp": VarSpec("Vp", "m/s", False, "SW4 requires a positive Vp", 200.0),
-    "Cs": VarSpec("Vs", "m/s", True, "Vs may not be negative", None),
-    "Qp": VarSpec("Qp", "", False, "Q must be > 0 when attenuation=1", None, True),
-    "Qs": VarSpec("Qs", "", False, "Q must be > 0 when attenuation=1", None, True),
+    "Rho": VarSpec("Rho", "kg/m^3", "SW4 aborts on a zero density", 100.0),
+    "Cp": VarSpec("Vp", "m/s", "SW4 requires a positive Vp", 200.0),
+    "Cs": VarSpec("Vs", "m/s", "SW4 requires a positive Vs", None),
+    "Qp": VarSpec("Qp", "", "Q must be > 0 when attenuation=1", None, True),
+    "Qs": VarSpec("Qs", "", "Q must be > 0 when attenuation=1", None, True),
 }
 
 
@@ -1212,18 +1209,7 @@ def _report_variable(
     if stats.n_inf:
         yield Finding.error(f"{label}: {stats.n_inf} Inf value(s)", **where)
 
-    if spec.zero_allowed:
-        if stats.n_neg:
-            yield Finding.error(
-                f"{label}: {stats.n_neg} negative value(s); {spec.nonpositive_note}",
-                **where,
-            )
-        if stats.n_zero:
-            yield Finding.error(
-                f"{label}: {stats.n_zero} zero value(s)",
-                **where,
-            )
-    elif stats.n_nonpositive:
+    if stats.n_nonpositive:
         yield Finding.error(
             f"{label}: {stats.n_nonpositive} non-positive value(s) "
             f"(zeros={stats.n_zero}, negative={stats.n_neg}); {spec.nonpositive_note}",
