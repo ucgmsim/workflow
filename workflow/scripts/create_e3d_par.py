@@ -254,10 +254,6 @@ def check_domain_against_velocity_model(
     velocity_model_ffp : Path
         Directory containing the velocity model files to validate.
 
-    Returns
-    -------
-    None
-
     Raises
     ------
     RuntimeError
