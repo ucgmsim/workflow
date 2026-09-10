@@ -35,7 +35,7 @@ import numpy as np
 import typer
 
 from qcore import cli
-from workflow import realisations
+from workflow import log_utils, realisations
 from workflow.realisations import (
     DomainParameters,
     EMOD3DParameters,
@@ -278,11 +278,11 @@ def check_domain_against_velocity_model(
         except OSError as e:
             # Unreadable is not a mismatch. This stage is routinely run in a
             # container where the velocity model paths are only being
-            # templated and nothing is on disk yet. Handled per file rather
-            # than around the loop, so one absent file does not stop the
-            # others from being checked.
-            print(
-                f"WARNING: could not validate domain parameters against velocity model supplied:\n{e}"
+            # templated and nothing is on disk yet.
+            logger = log_utils.get_logger(__name__)
+            logger.warn(
+                "could not validate domain parameters against velocity model supplied",
+                error=e,
             )
             continue
         if file_size != expected_file_size:
