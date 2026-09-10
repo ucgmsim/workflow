@@ -29,13 +29,23 @@ See the output of `im-calc --help`.
 
 import dataclasses
 import functools
+import warnings
 from pathlib import Path
 from typing import Annotated
 
+# NOTE: netCDF4 must be imported before OpenQuake (which oq_wrapper imports).
+# OpenQuake pulls in h5py, which is linked against a different build of HDF5
+# than netCDF4 is. Whichever of the two loads second fails to open our
+# waveform files, so the import order here is load bearing.
+import netCDF4  # noqa: F401
 import numpy as np
+import numpy.typing as npt
+import oq_wrapper as oqw
+import oq_wrapper.xarray as oqwx
 import shapely
 import typer
 import xarray as xr
+from oq_wrapper.estimations import chiou_young_08_calc_z1p0, chiou_young_08_calc_z2p5
 
 from IM import ims
 from IM.ims import IM
@@ -45,6 +55,7 @@ from source_modelling.sources import IsSource
 from workflow import realisations
 from workflow.realisations import (
     DomainParameters,
+    EmpiricalParameters,
     IntensityMeasureCalculationParameters,
     Magnitudes,
     Rakes,
@@ -131,6 +142,25 @@ IM_UNITS = {
     IM.Ds595: "s",
     IM.FAS: "g0 * s",
     IM.pSA: "g0",
+}
+
+
+EMPIRICAL_IM_NAMES = {
+    IM.PGA: "PGA",
+    IM.PGV: "PGV",
+    IM.CAV: "CAV",
+    IM.AI: "AI",
+    IM.Ds575: "Ds575",
+    IM.Ds595: "Ds595",
+    IM.pSA: "pSA",
+}
+
+
+EMPIRICAL_STATISTIC_METADATA = {
+    "mean": "Mean of the natural logarithm of {description}",
+    "std_Total": "Total standard deviation of the natural logarithm of {description}",
+    "std_Inter": "Between-event standard deviation of the natural logarithm of {description}",
+    "std_Intra": "Within-event standard deviation of the natural logarithm of {description}",
 }
 
 
@@ -572,6 +602,207 @@ def calculate_source_parameters(
     )
 
 
+@dataclasses.dataclass
+class SiteParameters:
+    """Per-station site parameters."""
+
+    vs30: xr.DataArray
+    """Average shear-wave velocity to 30m depth (m/s)."""
+    z1pt0: xr.DataArray
+    """Depth to the 1.0 km/s shear-wave velocity horizon (km)."""
+    z2pt5: xr.DataArray
+    """Depth to the 2.5 km/s shear-wave velocity horizon (km)."""
+
+    def as_dict(self) -> dict[str, xr.DataArray]:
+        """Map site parameter name to per-station values.
+
+        Returns
+        -------
+        dict
+            A map from site parameter name to per-station values.
+        """
+        return {
+            field.name: getattr(self, field.name) for field in dataclasses.fields(self)
+        }
+
+
+def calculate_site_parameters(vs30: xr.DataArray) -> SiteParameters:
+    """Estimate site parameters from vs30.
+
+    Parameters
+    ----------
+    vs30 : xr.DataArray
+        The per-station vs30 values (m/s).
+
+    Returns
+    -------
+    SiteParameters
+        The site parameters, with basin depths estimated using the Chiou
+        and Youngs (2008) relations.
+    """
+    z1pt0 = chiou_young_08_calc_z1p0(vs30)  # ty: ignore[invalid-argument-type]
+    z2pt5 = chiou_young_08_calc_z2p5(z1pt0)
+    return SiteParameters(vs30=vs30, z1pt0=z1pt0, z2pt5=z2pt5)
+
+
+def empirical_inputs(
+    source_parameters: SourceParameters,
+    site_parameters: SiteParameters,
+    distances: Distances,
+) -> xr.Dataset:
+    """Assemble the rupture context ground motion models are evaluated against.
+
+    Parameters
+    ----------
+    source_parameters : SourceParameters
+        The rupture parameters of the realisation.
+    site_parameters : SiteParameters
+        The per-station site parameters.
+    distances : Distances
+        The per-station source-to-site distances.
+
+    Returns
+    -------
+    xr.Dataset
+        A dataset of OpenQuake rupture context variables. Site and distance
+        variables vary over the station dimension, rupture variables are
+        scalars.
+    """
+    return xr.Dataset(
+        dict(
+            mag=source_parameters.mag,
+            dip=source_parameters.avg_dip,
+            rake=source_parameters.avg_rake,
+            ztor=source_parameters.avg_ztor,
+            zbot=source_parameters.avg_zbot,
+            hypo_depth=source_parameters.hypo_depth,
+            vs30=site_parameters.vs30,
+            z1pt0=site_parameters.z1pt0,
+            z2pt5=site_parameters.z2pt5,
+            vs30measured=False,
+            # TODO: Calculate backarc!
+            backarc=False,
+        )
+        | distances.as_dict()
+    )
+
+
+def annotate_empirical(dataset: xr.Dataset, im_name: IM, model_name: str) -> xr.Dataset:
+    """Attach units and descriptions to an empirical intensity measure dataset.
+
+    Ground motion models predict the distribution of the natural logarithm
+    of an intensity measure, so the values are dimensionless. The units of
+    the intensity measure itself are recorded in the `log_units` attribute.
+
+    Parameters
+    ----------
+    dataset : xr.Dataset
+        The dataset of statistics returned by `oq_wrapper`.
+    im_name : IM
+        The intensity measure the dataset describes.
+    model_name : str
+        The ground motion model (or logic tree) that produced the dataset.
+
+    Returns
+    -------
+    xr.Dataset
+        The dataset, with metadata attached.
+    """
+    dataset = dataset.copy(deep=False)
+    description = IM_METADATA[im_name]
+
+    for statistic, data_var in dataset.data_vars.items():
+        data_var.attrs["units"] = "dimensionless"
+        data_var.attrs["log_units"] = IM_UNITS[im_name]
+        if statistic in EMPIRICAL_STATISTIC_METADATA:
+            data_var.attrs["description"] = EMPIRICAL_STATISTIC_METADATA[
+                str(statistic)
+            ].format(description=description)
+
+    dataset.attrs["intensity_measure"] = str(im_name)
+    dataset.attrs["model"] = model_name
+    dataset.attrs["description"] = (
+        f"{description} predicted by the {model_name} ground motion model"
+    )
+    return dataset
+
+
+def calculate_empirical(
+    empirical_config: EmpiricalParameters,
+    source_parameters: SourceParameters,
+    site_parameters: SiteParameters,
+    distances: Distances,
+    intensity_measures: list[IM],
+    periods: npt.NDArray[np.float64],
+) -> dict[str, xr.Dataset]:
+    """Calculate empirical intensity measures from ground motion models.
+
+    Each model in the empirical configuration is evaluated for each
+    intensity measure a ground motion model can predict. Combinations that
+    a model does not support are skipped with a warning.
+
+    Parameters
+    ----------
+    empirical_config : EmpiricalParameters
+        The tectonic type and models to evaluate.
+    source_parameters : SourceParameters
+        The rupture parameters of the realisation.
+    site_parameters : SiteParameters
+        The per-station site parameters.
+    distances : Distances
+        The per-station source-to-site distances.
+    intensity_measures : list of IM
+        The intensity measures to calculate.
+    periods : np.ndarray
+        The periods to calculate pSA at.
+
+    Returns
+    -------
+    dict
+        A map from data tree path (`{im}/empirical/{model}`) to the log-mean
+        and log-standard deviation of that intensity measure. The paths are
+        chosen so this map can be merged with the simulated intensity
+        measures before building the output data tree.
+    """
+    inputs = empirical_inputs(source_parameters, site_parameters, distances)
+    tect_type = oqw.constants.TectType(empirical_config.tect_type)
+
+    empirical_results: dict[str, xr.Dataset] = {}
+    model_ims = [im for im in intensity_measures if im in EMPIRICAL_IM_NAMES]
+
+    for model_name in empirical_config.models:
+        for im_name in model_ims:
+            try:
+                if model_name in oqw.constants.GMMLogicTree.__members__:
+                    dataset = oqwx.run_gmm_logic_tree_xarray(
+                        oqw.constants.GMMLogicTree[model_name],
+                        tect_type,
+                        inputs,
+                        EMPIRICAL_IM_NAMES[im_name],
+                        periods=periods.tolist(),
+                    )
+                else:
+                    dataset = oqwx.run_gmm_xarray(
+                        oqw.constants.GMM[model_name],
+                        tect_type,
+                        inputs,
+                        EMPIRICAL_IM_NAMES[im_name],
+                        periods=periods.tolist(),
+                    )
+            except (ValueError, KeyError, AttributeError) as e:
+                warnings.warn(
+                    f"Skipping empirical {im_name} for {model_name}: {e}",
+                    stacklevel=1,
+                )
+                continue
+
+            empirical_results[f"{im_name}/empirical/{model_name}"] = annotate_empirical(
+                dataset, im_name, model_name
+            )
+
+    return empirical_results
+
+
 @cli.from_docstring(app)
 def calculate_intensity_measures(
     realisation_ffp: Annotated[
@@ -586,6 +817,7 @@ def calculate_intensity_measures(
         Path | None, typer.Option(exists=True, file_okay=False)
     ] = None,
     override_ims: Annotated[list[IM] | None, typer.Option("-i", "--im")] = None,
+    empirical: Annotated[bool, typer.Option()] = True,
 ) -> None:
     """Calculate intensity measures for simulation data.
 
@@ -603,6 +835,10 @@ def calculate_intensity_measures(
         Directory containing the KO matrix files for FAS calculation. Not required for other IMs.
     override_ims : list of str
         Intensity measures to calculate. If not set, reads from the realisation file.
+    empirical : bool, default True
+        If passed, additionally estimate intensity measures from the ground
+        motion models in the realisation file. Requires the broadband
+        waveforms to carry a `vs30` coordinate.
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     intensity_measure_parameters = (
@@ -715,6 +951,26 @@ def calculate_intensity_measures(
         "zbot": source_parameters.avg_zbot,
         "hypo_depth": source_parameters.hypo_depth,
     } | supergrid_attributes(broadband, supergrid)
+    site_parameters = None
+    if empirical:
+        # vs30 is one float per station; load it eagerly rather than letting it
+        # propagate as a dask array into the distance/site coordinates below.
+        site_parameters = calculate_site_parameters(
+            broadband.vs30.astype(np.float64).load()
+        )
+
+        empirical_parameters = EmpiricalParameters.read_from_realisation_or_defaults(
+            realisation_ffp, metadata.defaults_version
+        )
+        im_results |= calculate_empirical(
+            empirical_parameters,
+            source_parameters,
+            site_parameters,
+            distances,
+            intensity_measures,
+            psa_periods,
+        )
+        attributes["tect_type"] = str(empirical_parameters.tect_type)
 
     dtree = xr.DataTree.from_dict(im_results, nested=True)
 
@@ -723,6 +979,7 @@ def calculate_intensity_measures(
     dtree = add_station_parameters(
         dtree,
         distances.as_dict()
+        | ((site_parameters).as_dict() if site_parameters else {})
         # Belt and braces: these already ride along as coordinates on every
         # leaf, so re-attaching them is idempotent -- but it makes the
         # guarantee independent of xarray's coordinate propagation, and
