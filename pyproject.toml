@@ -16,6 +16,7 @@ dependencies = [
   "nshmdb>=2026.09.1",
   "oq_wrapper>=2025.12.3",
   "qcore-utils>=2025.12.2",
+  "site-calculation>=2026.7.1",
   "source_modelling>=2026.08.1",
   # Data Formats
   "geopandas",
@@ -141,6 +142,7 @@ known-first-party = [
   "IM",
   "mera",
   "velocity_modelling",
+  "site_calculation",
 ]
 
 [tool.ruff.lint.per-file-ignores]
