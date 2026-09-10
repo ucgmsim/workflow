@@ -275,7 +275,7 @@ def check_domain_against_velocity_model(
             # Unreadable is not a mismatch. This stage is routinely run in a
             # container where the velocity model paths are only being
             # templated and nothing is on disk yet.
-            logger.warn(
+            logger.warning(
                 "could not validate domain parameters against velocity model supplied",
                 error=e,
             )
