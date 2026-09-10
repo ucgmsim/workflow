@@ -7,7 +7,7 @@ name = "workflow"
 authors = [{ name = "QuakeCoRE" }]
 description = "Next generation workflow powered by cylc."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dynamic = ["version"]
 dependencies = [
   # UCGMSim Dependencies
@@ -30,14 +30,15 @@ dependencies = [
   "tqdm",
   "typer",
   # Misc.
-  "requests",      # For gcmt-to-realisation
-  "schema",        # For loading realisations
-  "structlog",     # Logging.
-  "psutil",        # To get the CPU affinity for jobs
+  "requests",       # For gcmt-to-realisation
+  "schema",         # For loading realisations
+  "structlog",      # Logging.
+  "psutil",         # To get the CPU affinity for jobs
   "h5py>=3.15.1",
   "parse>=1.21.0",
   "rich>=14.3.2",
   "dask>=2026.6.0",
+  "nzcvm",
 ]
 
 [project.optional-dependencies]
@@ -70,6 +71,7 @@ generate-rupture-propagation = "workflow.scripts.generate_rupture_propagation:ap
 copy-domain-parameters = "workflow.scripts.copy_velocity_model_parameters:app"
 srf-to-hdf5 = "workflow.scripts.srf_to_hdf5:app"
 create-e3d-par = "workflow.scripts.create_e3d_par:app"
+create-sw4-input = "workflow.scripts.sw4_template:app"
 generate-stoch = "workflow.scripts.generate_stoch:app"
 merge-ts = "workflow.scripts.merge_ts:app"
 hf-sim = "workflow.scripts.hf_sim:app"
