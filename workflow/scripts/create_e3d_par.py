@@ -47,33 +47,6 @@ from workflow.realisations import (
 app = typer.Typer()
 
 
-def padded_nz(domain_parameters: DomainParameters, resolution: Resolution) -> int:
-    """The number of z gridpoints EMOD3D reads, including the padding row.
-
-    `velocity_modelling` generates one more layer than the domain implies,
-    because EMOD3D shifts the model down a gridpoint for the free surface and
-    so never reads the last layer (`genmodel.c`). EMOD3D has to be told the
-    padded count, and the velocity model files are sized by it.
-
-    Both the `e3d.par` `nz` and `check_domain_against_velocity_model` come
-    through here. They must not compute it separately: a check that drifts
-    from the value it is checking is worse than no check at all.
-
-    Parameters
-    ----------
-    domain_parameters : DomainParameters
-        The realisation domain parameters.
-    resolution : Resolution
-        The simulation resolution.
-
-    Returns
-    -------
-    int
-        The z gridpoint count including the free-surface padding row.
-    """
-    return domain_parameters.nz(resolution.resolution) + 1
-
-
 def emod3d_domain_parameters(
     resolution: Resolution,
     domain_parameters: DomainParameters,
@@ -95,7 +68,9 @@ def emod3d_domain_parameters(
 
     nx = domain_parameters.nx(resolution.resolution)
     ny = domain_parameters.ny(resolution.resolution)
-    nz = padded_nz(domain_parameters, resolution)
+    # nz + 1 for consistency with the velocity model
+    nz = domain_parameters.nz(resolution.resolution) + 1
+
     return {
         "nx": nx,
         "ny": ny,
@@ -266,13 +241,6 @@ def check_domain_against_velocity_model(
 ) -> None:
     """Validate that generated velocity model files match the expected domain size.
 
-    Computes the expected file size for the pmodfile, smodfile, and dmodfile
-    from the domain's nx, ny, nz (with the EMOD3D free-surface padding row added
-    to nz), and compares it against the actual size of each file on disk. A
-    mismatch is an error, but a missing file or unreadable file is not
-    considered an error because this code is often run in a container with the
-    paths only used for templating and hence it would fail on many workflows.
-
     Parameters
     ----------
     domain_parameters : DomainParameters
@@ -299,7 +267,8 @@ def check_domain_against_velocity_model(
     """
     nx = domain_parameters.nx(resolution.resolution)
     ny = domain_parameters.ny(resolution.resolution)
-    nz = padded_nz(domain_parameters, resolution)
+    # nz + 1 for consistency with the velocity model
+    nz = domain_parameters.nz(resolution.resolution) + 1
 
     expected_file_size = nx * ny * nz * np.float32().nbytes
     for filename in [parameters.pmodfile, parameters.smodfile, parameters.dmodfile]:
