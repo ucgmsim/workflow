@@ -7,10 +7,13 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from source_modelling import magnitude_scaling, sources
+from workflow import defaults
 from workflow.realisations import (
     Magnitudes,
     Rakes,
+    Refinements,
     SourceConfig,
+    SW4Parameters,
     VelocityModelParameters,
 )
 from workflow.scripts import generate_domain
@@ -67,7 +70,7 @@ def test_estimate_domain_contains_fault_geometry() -> None:
         source_config=source_config,  # ty: ignore[invalid-argument-type]
         rrups=rrups,
         nz_outline=nz_outline,
-        fault_buffer=2000.0,
+        fault_buffer=14.0,
     )
 
     assert result_domain.polygon.contains(fault_geom), (
@@ -99,7 +102,7 @@ def test_generate_domain() -> None:
         topo_type="BULLDOZED",
         ds_multiplier=1.2,
         vs30=500.0,
-        fault_buffer=2000,
+        fault_buffer=14.0,
         s_wave_velocity=3500,
         rrup_interpolants=np.array([[5.0, 8.0], [50.0, 50.0]]),
     )
@@ -110,3 +113,59 @@ def test_generate_domain() -> None:
         velocity_model_parameters,
     )
     assert shapely.contains(domain_parameters.domain.polygon, source.geometry)
+
+
+# Slow because of openquake import
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("fault_buffer", "raises"), [(14.0, False), (13.9, True), (2.0, True)]
+)
+def test_generate_domain_gates_the_fault_buffer(
+    fault_buffer: float, raises: bool
+) -> None:
+    """Gate A: refuse to write a domain whose buffer sits inside the SW4 sponge.
+
+    The check is passed the SW4 parameters and refinements explicitly and both
+    default to None, because the EMOD3D-only defaults versions have neither.
+    """
+    version = defaults.DefaultsVersion.v26_7_1Hz
+    sw4_params = SW4Parameters.read_from_defaults(version)
+    refinements = Refinements.read_from_defaults(version)
+
+    source = sources.Point(
+        np.array([-43.0, -172.0, 10000.0]),
+        length_m=1000,
+        width_m=1000,
+        strike=90.0,
+        dip=45.0,
+        dip_dir=180.0,
+    )
+    arguments = (
+        SourceConfig(dict(source=source)),
+        Magnitudes(dict(source=magnitude_scaling.BoldM(6.0))),
+        Rakes(dict(source=180.0)),
+        VelocityModelParameters(
+            min_vs=500.0,
+            version="2.09",
+            topo_type="BULLDOZED",
+            ds_multiplier=1.2,
+            vs30=500.0,
+            fault_buffer=fault_buffer,
+            s_wave_velocity=3500,
+            rrup_interpolants=np.array([[5.0, 8.0], [50.0, 50.0]]),
+        ),
+    )
+
+    if raises:
+        with pytest.raises(ValueError, match="supergrid absorbing layer"):
+            generate_domain.generate_domain(
+                *arguments, sw4_params=sw4_params, refinements=refinements
+            )
+    else:
+        generate_domain.generate_domain(
+            *arguments, sw4_params=sw4_params, refinements=refinements
+        )
+
+    # Without the SW4 parameters there is nothing to check against, so even a
+    # 2 km buffer is accepted: that is the EMOD3D path, and it is unchanged.
+    generate_domain.generate_domain(*arguments)
