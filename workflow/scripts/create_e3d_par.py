@@ -45,6 +45,7 @@ from workflow.realisations import (
 )
 
 app = typer.Typer()
+LOGGER = log_utils.get_logger(__name__)
 
 
 def emod3d_domain_parameters(
@@ -279,8 +280,7 @@ def check_domain_against_velocity_model(
             # Unreadable is not a mismatch. This stage is routinely run in a
             # container where the velocity model paths are only being
             # templated and nothing is on disk yet.
-            logger = log_utils.get_logger(__name__)
-            logger.warn(
+            LOGGER.warn(
                 "could not validate domain parameters against velocity model supplied",
                 error=e,
             )
