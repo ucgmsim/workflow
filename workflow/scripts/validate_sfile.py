@@ -1439,22 +1439,25 @@ def _describe_corners(
     Finding
         One finding per corner, then the bounding box.
     """
+    # Both projections are guarded: the origin may be off the globe, and a
+    # non-finite azimuth or extent puts the corners there even when the origin
+    # itself projects, which is a finding rather than a crash.
     try:
         northing, easting = coordinates.wgs_depth_to_nztm(np.array([lat, lon]))
+        # SW4 azimuth is the clockwise angle from north to the x-axis, so the x
+        # unit vector in (east, north) is (sin, cos) and y's is (cos, -sin).
+        sin_azimuth = np.sin(np.radians(azimuth))
+        cos_azimuth = np.cos(np.radians(azimuth))
+        offsets = np.array([(0.0, 0.0), (x_m, 0.0), (0.0, y_m), (x_m, y_m)])
+        eastings = easting + offsets[:, 0] * sin_azimuth + offsets[:, 1] * cos_azimuth
+        northings = northing + offsets[:, 0] * cos_azimuth - offsets[:, 1] * sin_azimuth
+        corners = coordinates.nztm_to_wgs_depth(np.column_stack([northings, eastings]))
     except ValueError as exc:
         yield Finding.skip(
-            f"cannot project the origin to NZTM: {exc}", lon=lon, lat=lat
+            f"cannot place the model corners geographically: {exc}", lon=lon, lat=lat
         )
         return
 
-    # SW4 azimuth is the clockwise angle from north to the x-axis, so the x
-    # unit vector in (east, north) is (sin, cos) and y's is (cos, -sin).
-    sin_azimuth, cos_azimuth = np.sin(np.radians(azimuth)), np.cos(np.radians(azimuth))
-    offsets = np.array([(0.0, 0.0), (x_m, 0.0), (0.0, y_m), (x_m, y_m)])
-    eastings = easting + offsets[:, 0] * sin_azimuth + offsets[:, 1] * cos_azimuth
-    northings = northing + offsets[:, 0] * cos_azimuth - offsets[:, 1] * sin_azimuth
-
-    corners = coordinates.nztm_to_wgs_depth(np.column_stack([northings, eastings]))
     labels = ("origin (SW)", "far-x", "far-y", "far corner")
     for label, (corner_lat, corner_lon), corner_e, corner_n in zip(
         labels, corners, eastings, northings, strict=True
