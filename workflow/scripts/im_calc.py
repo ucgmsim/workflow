@@ -455,10 +455,10 @@ def calculate_source_parameters(
         for f in source_config.source_geometries.values()
     ):
         avg_ztor = magnitudes.moment_averaged(
-            {k: f.top_m / 1000.0 for k, f in source_config.source_geometries.items()}  # ty: ignore[unresolved-attribute]
+            {k: f.top_m / 1000.0 for k, f in source_config.source_geometries.items()}
         )
         avg_zbot = magnitudes.moment_averaged(
-            {k: f.bottom_m / 1000.0 for k, f in source_config.source_geometries.items()}  # ty: ignore[unresolved-attribute]
+            {k: f.bottom_m / 1000.0 for k, f in source_config.source_geometries.items()}
         )
     else:
         avg_ztor = magnitudes.moment_averaged(
