@@ -3,7 +3,7 @@ requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ucgmsim-workflow"
+name = "workflow"
 authors = [{ name = "QuakeCoRE" }]
 description = "Next generation workflow powered by cylc."
 readme = "README.md"
@@ -11,7 +11,7 @@ requires-python = ">=3.12"
 dynamic = ["version"]
 dependencies = [
   # UCGMSim Dependencies
-  "im-calculation>=2025.12.5,<2026.09.01",
+  "im-calculation>=2025.12.5, <2026.09.1",
   "velocity-modelling>=2026.2.1",
   "nshmdb>=2026.09.1",
   "oq_wrapper>=2025.12.3",
@@ -47,7 +47,7 @@ test = [
   "coverage[toml]",           # CI runs coverage report/html
 ]
 types = ["pandas-stubs", "types-geopandas", "types-requests", "scipy-stubs"]
-dev = ["ruff>=0.16.5", "deptry", "ty>=0.0.75", "numpydoc"]
+dev = ["ruff>=0.16.5", "deptry", "ty>=0.0.75", "npdlint"]
 
 [tool.ty.src]
 # Generated/dynamic schema definitions that ty cannot usefully analyse.
@@ -80,6 +80,7 @@ gcmt-auto-simulate = "workflow.scripts.gcmt_auto_simulate:app"
 import-realisation = "workflow.scripts.import_realisation:app"
 lf-to-xarray = "workflow.scripts.lf_to_xarray:app"
 migrate = "workflow.scripts.migrate:app"
+validate-sfile = "workflow.scripts.validate_sfile:app"
 
 [tool.setuptools.package-dir]
 workflow = "workflow"
@@ -147,8 +148,9 @@ known-first-party = [
 [tool.coverage.run]
 omit = ["workflow/scripts/*.py"]
 
-[tool.numpydoc_validation]
-checks = [
+[tool.npdlint]
+include = ["workflow"]
+select = [
   "GL05",
   "GL08",
   "GL10",
@@ -164,9 +166,16 @@ checks = [
   "RT03",
   "RT04",
   "YD01",
+  "NQ",
 ]
 # remember to use single quotes for regex in TOML
-exclude = [ # don't report on objects that match any of these regex
+exclude-object-patterns = [ # don't report on objects that match any of these regex
   '\.undocumented_method$',
   '\.__repr__$',
 ]
+property-form = "type-line"
+
+# Private functions and methods are not part of the public API.
+[[tool.npdlint.scope]]
+match = { private = true }
+skip = true

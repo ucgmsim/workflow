@@ -258,7 +258,7 @@ class Resolution(RealisationConfiguration):
     """Simulation spatial resolution."""
 
     @property
-    def dt(self) -> float:  # numpydoc ignore=RT01
+    def dt(self) -> float:
         """float: Simulation temporal resolution."""
         return self.resolution / 20
 
@@ -714,7 +714,7 @@ class Magnitudes(RealisationConfiguration):
         return self.magnitudes[key]
 
     @property
-    def total_moment(self) -> float:  # numpydoc ignore=RT01
+    def total_moment(self) -> float:
         """float: total moment of realisation"""
         return sum(
             moment.magnitude_to_moment(mag, bold_m=True)
@@ -722,7 +722,7 @@ class Magnitudes(RealisationConfiguration):
         )
 
     @property
-    def total_magnitude(self) -> BoldM:  # numpydoc ignore=RT01
+    def total_magnitude(self) -> BoldM:
         """BoldM: total magnitude of realisation"""
         return moment.moment_to_magnitude(self.total_moment, bold_m=True)
 
@@ -768,7 +768,7 @@ class RupturePropagationConfig(RealisationConfiguration):
         return config_dict
 
     @property
-    def hypocentres(self) -> dict[str, npt.NDArray[np.float64]]:  # numpydoc ignore=RT01
+    def hypocentres(self) -> dict[str, npt.NDArray[np.float64]]:
         """Dict from str to array: the hypocentres on each fault in the simulation."""
         hypocentres = {
             fault_name: jump_point.to_point
@@ -919,6 +919,7 @@ class VelocityModel1D(RealisationConfiguration):
     _schema: ClassVar[Schema] = schemas.VELOCITY_MODEL_1D_SCHEMA
 
     model: pd.DataFrame
+    """The layers of the velocity model, one row per layer."""
 
     def write_velocity_model(self, velocity_model_path: Path) -> None:
         """Write a 1D velocity model to the specified path.
@@ -1153,13 +1154,21 @@ class EMOD3DParameters(RealisationConfiguration):
     ix_ts: int
     """Timeslice offset for ix?"""
     ix_ys: int
+    """y-slice offset for ix?"""
     ix_zs: int
+    """z-slice offset for ix?"""
     iy_ts: int
+    """Timeslice offset for iy?"""
     iy_xs: int
+    """x-slice offset for iy?"""
     iy_zs: int
+    """z-slice offset for iy?"""
     iz_ts: int
+    """Timeslice offset for iz?"""
     iz_xs: int
+    """x-slice offset for iz?"""
     iz_ys: int
+    """y-slice offset for iz?"""
     lonlat_out: int
     """Unknown!"""
     maxmem: int
@@ -1230,6 +1239,7 @@ class BroadbandParameters(RealisationConfiguration):
     fmin: float
     """fmin for site amplification."""
     site_amp_version: str
+    """Version of the site amplification model (e.g. "2014")."""
 
 
 @dataclasses.dataclass
@@ -1319,13 +1329,14 @@ class LogTrail(RealisationConfiguration):
     _schema: ClassVar[Schema] = schemas.LOG_TRAIL_SCHEMA
 
     log: list[LogEntry]
+    """Log entries, in the order the utilities were executed."""
 
     def __post_init__(self) -> None:
         """Post-initialisation of the log trail."""
         if self.log is None:
             self.log = []
         if self.log and not isinstance(self.log[0], LogEntry):
-            self.log = [LogEntry(**log_entry) for log_entry in self.log]  # type: ignore
+            self.log = [LogEntry(**log_entry) for log_entry in self.log]
 
     def log_entry(self, utility: str, args: list[str]) -> None:
         """Add a log entry to the log trail.

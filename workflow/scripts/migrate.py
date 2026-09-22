@@ -559,7 +559,7 @@ def clone(
     for realisation in realisation_directory.iterdir():
         realisation_path = realisation / "realisation.json"
         parsed_content = parse.parse(realisation_template, realisation.name)
-        if not (realisation.is_dir and realisation_path.exists() and parsed_content):
+        if not (realisation.is_dir() and realisation_path.exists() and parsed_content):
             continue
         assert isinstance(parsed_content, parse.Result)
         event = parsed_content["event"]

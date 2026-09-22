@@ -3,9 +3,8 @@ on: [pull_request]
 
 jobs:
   ci:
-    uses: ucgmsim/meta-ci-action/.github/workflows/ci.yml@v1
+    uses: ucgmsim/meta-ci-action/.github/workflows/ci.yml@v2
     with:
-      package-dir: workflow
       system-packages: "gmt libgmt-dev ghostscript"
       enable-coverage: true
       cov-package: workflow
