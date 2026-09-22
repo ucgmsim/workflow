@@ -14,7 +14,7 @@ A realisation file containing velocity model and domain extent parameters.
 
 Environment
 -----------
-Can be run in the cybershake container. Can also be run from your own computer using the `generate-domain` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`.
+Can be run in the cybershake container. Can also be run from your own computer using the `generate-domain` command which is installed after running `pip install ucgmsim-workflow@git+https://github.com/ucgmsim/workflow`.
 
 Usage
 -----

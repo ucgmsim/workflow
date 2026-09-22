@@ -1,0 +1,91 @@
+name: Publish to PyPI
+run-name: Publish Python Package to PyPI for release ${{ github.event.release.tag_name || inputs.tag_name || github.ref_name }}
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Git tag to checkout and publish'
+        required: false
+        type: string
+
+jobs:
+  build:
+    name: Build distribution 📦
+    # Pure Python, so one py3-none-any wheel serves every interpreter and
+    # platform: no build matrix and no cibuildwheel.
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.1.0
+        with:
+          ref: ${{ inputs.tag_name || github.ref }}
+          # setuptools-scm derives the version from the tag, so it needs the full
+          # history rather than a shallow clone.
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Build wheel and source distribution
+        run: |
+          python3 -m pip install build
+          python3 -m build
+
+      - name: Get the package version
+        id: version
+        # The wheel filename carries the normalised version setuptools-scm
+        # derived from the tag, which is what the container installs.
+        run: |
+          wheel=$(basename dist/*.whl)
+          echo "version=$(echo "$wheel" | cut -d- -f2)" >> "$GITHUB_OUTPUT"
+
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+          if-no-files-found: error
+
+  publish-to-pypi:
+    name: Publish to PyPI
+    needs:
+    - build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: pypi
+      url: https://pypi.org/p/ucgmsim-workflow
+
+    permissions:
+      id-token: write
+
+    steps:
+    - name: Download the dists
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+
+    - name: Publish distribution to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        packages-dir: dist
+
+  build-container:
+    name: Build and push the container
+    needs:
+    - build
+    - publish-to-pypi
+    uses: ./.github/workflows/container.yml
+    with:
+      version: ${{ needs.build.outputs.version }}
+      ref: ${{ inputs.tag_name || github.ref }}
+    secrets: inherit

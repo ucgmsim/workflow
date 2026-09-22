@@ -18,7 +18,7 @@ Usage
 
 Environment
 -----------
-Can be run in the cybershake container. Can also be run from your own computer using the `generate-stoch` command which is installed after running `pip install workflow@git+https://github.com/ucgmsim/workflow`. If you are executing on your own computer you also need to specify the `srf2stoch` path (`--srf2stoch-path`).
+Can be run in the cybershake container. Can also be run from your own computer using the `generate-stoch` command which is installed after running `pip install ucgmsim-workflow@git+https://github.com/ucgmsim/workflow`. If you are executing on your own computer you also need to specify the `srf2stoch` path (`--srf2stoch-path`).
 
 For More Help
 -------------
