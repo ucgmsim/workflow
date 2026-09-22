@@ -27,6 +27,7 @@ dependencies = [
   "xarray[io]",
   # Numerics
   "numpy",
+  "pyproj",
   "scipy",
   "shapely",
   # CLI
