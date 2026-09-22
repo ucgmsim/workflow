@@ -7,7 +7,7 @@ name = "ucgmsim-workflow"
 authors = [{ name = "QuakeCoRE" }]
 description = "Next generation workflow powered by cylc."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dynamic = ["version"]
 dependencies = [
   # UCGMSim Dependencies
@@ -17,6 +17,7 @@ dependencies = [
   "oq_wrapper>=2025.12.3",
   "qcore-utils>=2025.12.2",
   "source_modelling>=2026.08.1",
+  "nzcvm>=2026.9.1",
   # Data Formats
   "geopandas",
   "pandas[parquet, hdf5]",
@@ -24,6 +25,7 @@ dependencies = [
   "xarray[io]",
   # Numerics
   "numpy",
+  "pyproj",
   "scipy",
   "shapely",
   # CLI
