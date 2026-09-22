@@ -332,7 +332,7 @@ def calculate_distances(
         )
         / 1000,
         dims=["station"],
-        coords=dict(station=broadband.station),
+        coords={"station": broadband.station},
     )
     rjb = xr.DataArray(
         np.array(
@@ -346,7 +346,7 @@ def calculate_distances(
         )
         / 1000,
         dims=["station"],
-        coords=dict(station=broadband.station),
+        coords={"station": broadband.station},
     )
 
     hyp = xr.DataArray(
@@ -356,7 +356,7 @@ def calculate_distances(
         )
         / 1000,
         dims=["station"],
-        coords=dict(station=broadband.station),
+        coords={"station": broadband.station},
     )
     epi = xr.DataArray(
         coordinates.distance_between_wgs_depth_coordinates(
@@ -365,7 +365,7 @@ def calculate_distances(
         )
         / 1000,
         dims=["station"],
-        coords=dict(station=broadband.station),
+        coords={"station": broadband.station},
     )
 
     distances = Distances(rrup=rrup, rjb=rjb, hyp=hyp, epi=epi)
@@ -381,10 +381,12 @@ def calculate_distances(
         rx /= 1000.0
         ry /= 1000.0
         distances.rx = xr.DataArray(
-            rx, dims="station", coords=dict(station=broadband.station)
+            rx,
+            dims="station",
+            coords={"station": broadband.station},
         )
         distances.ry = xr.DataArray(
-            ry, dims="station", coords=dict(station=broadband.station)
+            ry, dims="station", coords={"station": broadband.station}
         )
     return distances
 
