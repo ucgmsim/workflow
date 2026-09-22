@@ -338,53 +338,17 @@ EMPTY_RATIO = RatioStats(0, np.inf, -np.inf, 0, 0)
 
 
 def _sorted_keys(group: h5py.Group) -> list[str]:
-    """Sort a group's keys by the integer index in their suffix.
-
-    Parameters
-    ----------
-    group : h5py.Group
-        The group whose keys to sort.
-
-    Returns
-    -------
-    list of str
-        The keys, ordered by trailing index rather than lexically, so
-        `z_values_10` sorts after `z_values_9`.
-    """
+    """Sort a group's keys by the integer index in their suffix."""
     return sorted(group.keys(), key=lambda key: int(key.rsplit("_", 1)[-1]))
 
 
 def _scalar(value: npt.ArrayLike) -> float:
-    """Read the first element of `value` as a float.
-
-    Parameters
-    ----------
-    value : array_like
-        An HDF5 attribute value, which may be a scalar or a 1-element array.
-
-    Returns
-    -------
-    float
-        The first element.
-    """
+    """Read the first element of `value` as a float."""
     return float(np.asarray(value).flat[0])
 
 
 def _vector(value: npt.ArrayLike, length: int) -> tuple[float, ...] | None:
-    """Read `value` as a flat tuple of exactly `length` floats.
-
-    Parameters
-    ----------
-    value : array_like
-        An HDF5 attribute value.
-    length : int
-        The number of elements the attribute must hold.
-
-    Returns
-    -------
-    tuple of float or None
-        The elements, or None if the attribute is the wrong length.
-    """
+    """Read `value` as a flat tuple of exactly `length` floats."""
     flat = np.asarray(value).ravel()
     return tuple(float(element) for element in flat) if len(flat) == length else None
 
@@ -392,21 +356,7 @@ def _vector(value: npt.ArrayLike, length: int) -> tuple[float, ...] | None:
 def _resample_to(
     src: npt.NDArray[np.floating], shape: tuple[int, int]
 ) -> npt.NDArray[np.floating]:
-    """Nearest-neighbour resample 2-D `src` onto `shape`.
-
-    Parameters
-    ----------
-    src : numpy.ndarray
-        The 2-D array to resample.
-    shape : tuple of int
-        The target `(rows, columns)`.
-
-    Returns
-    -------
-    numpy.ndarray
-        `src` resampled onto `shape`, or `src` itself if it already has that
-        shape.
-    """
+    """Nearest-neighbour resample 2-D `src` onto `shape`."""
     if src.shape == shape:
         return src
     rows = np.rint(np.linspace(0.0, src.shape[0] - 1, shape[0])).astype(int)
@@ -700,18 +650,7 @@ def check_attributes(model: Sfile) -> Iterator[Finding]:
 
 
 def _check_depth_attr(model: Sfile) -> Iterator[Finding]:
-    """Check the declared depth range.
-
-    Parameters
-    ----------
-    model : Sfile
-        The parsed sfile.
-
-    Yields
-    ------
-    Finding
-        One finding per observation about the depth attribute.
-    """
+    """Check the declared depth range."""
     if DEPTH_ATTR not in model.handle.attrs:
         return
     if model.depth_range is None:
@@ -734,18 +673,7 @@ def _check_depth_attr(model: Sfile) -> Iterator[Finding]:
 
 
 def _check_origin_attr(model: Sfile) -> Iterator[Finding]:
-    """Check the declared grid origin.
-
-    Parameters
-    ----------
-    model : Sfile
-        The parsed sfile.
-
-    Yields
-    ------
-    Finding
-        One finding per observation about the origin attribute.
-    """
+    """Check the declared grid origin."""
     if ORIGIN_ATTR not in model.handle.attrs:
         return
     if model.origin is None:
@@ -867,18 +795,7 @@ def check_interfaces(model: Sfile) -> Iterator[Finding]:
 
 
 def _check_layer_ordering(model: Sfile) -> Iterator[Finding]:
-    """Check that each interface lies strictly below the one above it.
-
-    Parameters
-    ----------
-    model : Sfile
-        The parsed sfile.
-
-    Yields
-    ------
-    Finding
-        One finding per layer whose thickness is not everywhere positive.
-    """
+    """Check that each interface lies strictly below the one above it."""
     for (top, bottom), (thickness, resampled) in model.layers.items():
         violating = thickness <= 0.0
         n_bad = int(np.count_nonzero(violating))
@@ -905,18 +822,7 @@ def _check_layer_ordering(model: Sfile) -> Iterator[Finding]:
 
 
 def _check_terrain(arrays: Mapping[str, npt.NDArray[np.float64]]) -> Iterator[Finding]:
-    """Check the top interface for implausible cell-to-cell jumps.
-
-    Parameters
-    ----------
-    arrays : Mapping
-        The readable interface arrays, shallowest first.
-
-    Yields
-    ------
-    Finding
-        The largest gradient found, or a warning if it is implausible.
-    """
+    """Check the top interface for implausible cell-to-cell jumps."""
     name = next(iter(arrays))
     topography = arrays[name]
     if min(topography.shape) < 2:
@@ -946,20 +852,7 @@ def _check_terrain(arrays: Mapping[str, npt.NDArray[np.float64]]) -> Iterator[Fi
 def _check_depth_agreement(
     model: Sfile, arrays: Mapping[str, npt.NDArray[np.float64]]
 ) -> Iterator[Finding]:
-    """Check the depth attribute against the shallowest and deepest interfaces.
-
-    Parameters
-    ----------
-    model : Sfile
-        The parsed sfile.
-    arrays : Mapping
-        The readable interface arrays, shallowest first.
-
-    Yields
-    ------
-    Finding
-        One finding per end of the depth range that disagrees with the data.
-    """
+    """Check the depth attribute against the shallowest and deepest interfaces."""
     if model.depth_range is None:
         yield Finding.skip(
             f"cannot compare interfaces against '{DEPTH_ATTR}': absent or malformed"
@@ -1005,20 +898,7 @@ def check_material(model: Sfile) -> Iterator[Finding]:
 
 
 def _check_grid(model: Sfile, grid: MaterialGrid) -> Iterator[Finding]:
-    """Check one material grid's attributes and datasets.
-
-    Parameters
-    ----------
-    model : Sfile
-        The parsed sfile.
-    grid : MaterialGrid
-        The grid to check.
-
-    Yields
-    ------
-    Finding
-        One finding per observation about the grid.
-    """
+    """Check one material grid's attributes and datasets."""
     if grid.h is None:
         yield Finding.error(f"{grid.name}: missing '{HORIZONTAL_ATTR}'", grid=grid.name)
     else:
@@ -1106,28 +986,12 @@ def _check_grid(model: Sfile, grid: MaterialGrid) -> Iterator[Finding]:
 
 
 # NOTE: This function is complex enough to warrant its existence despite being a single callsite function.
+# Every dataset is read once, in matching row slabs, so the Vp/Vs ratio comes out of
+# the same pass as the per-variable statistics rather than re-reading Cp and Cs.
 def _scan_grid(
     datasets: Mapping[str, h5py.Dataset], chunk_rows: int
 ) -> tuple[dict[str, DatasetStats], RatioStats]:
-    """Summarise a grid's datasets in a single chunked pass.
-
-    Every dataset is read once, in matching row slabs, so the Vp/Vs ratio comes
-    out of the same pass that produces the per-variable statistics rather than
-    re-reading Cp and Cs.
-
-    Parameters
-    ----------
-    datasets : Mapping
-        The datasets to scan, all of the same shape.
-    chunk_rows : int
-        Number of `i` rows to read at a time.
-
-    Returns
-    -------
-    tuple
-        `(stats, ratio)`: the per-dataset statistics by name, and the Vp/Vs
-        ratio statistics over solid cells.
-    """
+    """Summarise a grid's datasets in a single chunked pass."""
     stats: dict[str, DatasetStats] = {}
     ratio = EMPTY_RATIO
     if not datasets:
@@ -1177,22 +1041,7 @@ def _scan_grid(
 def _report_variable(
     grid_name: str, name: str, stats: DatasetStats
 ) -> Iterator[Finding]:
-    """Turn one dataset's statistics into findings, per its `VarSpec`.
-
-    Parameters
-    ----------
-    grid_name : str
-        The grid the dataset belongs to.
-    name : str
-        The dataset name, a key of `VARS`.
-    stats : DatasetStats
-        The statistics gathered for the dataset.
-
-    Yields
-    ------
-    Finding
-        One finding per observation about the dataset.
-    """
+    """Turn one dataset's statistics into findings, per its `VarSpec`."""
     spec = VARS[name]
     label = f"{grid_name}/{name}"
     unit = f" {spec.unit}" if spec.unit else ""
@@ -1224,20 +1073,7 @@ def _report_variable(
 
 
 def _report_ratio(grid_name: str, ratio: RatioStats) -> Iterator[Finding]:
-    """Turn a grid's Vp/Vs statistics into findings.
-
-    Parameters
-    ----------
-    grid_name : str
-        The grid the ratio was measured over.
-    ratio : RatioStats
-        The ratio statistics over solid cells.
-
-    Yields
-    ------
-    Finding
-        One finding per observation about the ratio.
-    """
+    """Turn a grid's Vp/Vs statistics into findings."""
     if not ratio.n_solid:
         yield Finding.skip(
             f"{grid_name}: no solid (Vs > 0) cells, so Vp/Vs was not checked",
@@ -1307,20 +1143,7 @@ def check_grid_consistency(model: Sfile) -> Iterator[Finding]:
 def _check_vertical_resolution(
     model: Sfile, grids: Mapping[str, MaterialGrid]
 ) -> Iterator[Finding]:
-    """Check each grid's vertical cell size against the layer it spans.
-
-    Parameters
-    ----------
-    model : Sfile
-        The parsed sfile.
-    grids : Mapping
-        The material grids, in refinement order.
-
-    Yields
-    ------
-    Finding
-        One finding per grid whose layer is unresolvable or extremely thin.
-    """
+    """Check each grid's vertical cell size against the layer it spans."""
     layers = list(model.layers.items())
     if not layers:
         yield Finding.skip(
@@ -1419,29 +1242,10 @@ def describe_boundaries(model: Sfile) -> Iterator[Finding]:
 def _describe_corners(
     lon: float, lat: float, azimuth: float, x_m: float, y_m: float
 ) -> Iterator[Finding]:
-    """Report the geographic position of the model's four corners.
-
-    Parameters
-    ----------
-    lon : float
-        Longitude of the grid origin, in degrees.
-    lat : float
-        Latitude of the grid origin, in degrees.
-    azimuth : float
-        Clockwise angle from north to the grid's x-axis, in degrees.
-    x_m : float
-        Extent along the grid's x-axis, in metres.
-    y_m : float
-        Extent along the grid's y-axis, in metres.
-
-    Yields
-    ------
-    Finding
-        One finding per corner, then the bounding box.
-    """
     # Both projections are guarded: the origin may be off the globe, and a
     # non-finite azimuth or extent puts the corners there even when the origin
     # itself projects, which is a finding rather than a crash.
+    """Report the geographic position of the model's four corners."""
     try:
         northing, easting = coordinates.wgs_depth_to_nztm(np.array([lat, lon]))
         # SW4 azimuth is the clockwise angle from north to the x-axis, so the x
@@ -1517,20 +1321,7 @@ CHECKS: Sequence[Check] = (
 
 
 def _run_check(check: Check, model: Sfile) -> Iterator[Finding]:
-    """Run one check, recording a skip if its prerequisites are missing.
-
-    Parameters
-    ----------
-    check : Check
-        The check to run.
-    model : Sfile
-        The parsed sfile to check.
-
-    Yields
-    ------
-    Finding
-        The check's findings, tagged with its name, or a single skip.
-    """
+    """Run one check, recording a skip if its prerequisites are missing."""
     try:
         for finding in check(model):
             yield dataclasses.replace(finding, check=check.__name__)
