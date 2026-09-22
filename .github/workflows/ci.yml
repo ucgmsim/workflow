@@ -6,6 +6,7 @@ jobs:
     uses: ucgmsim/meta-ci-action/.github/workflows/ci.yml@v1
     with:
       system-packages: "gmt libgmt-dev ghostscript"
+      package-dir: workflow
       enable-coverage: true
       cov-package: workflow
       cov-fail-under: 95
