@@ -1258,14 +1258,12 @@ class LogEntry:
 
         Raises
         ------
-        RuntimeError
-            If package metadata cannot be retrieved.
+        importlib.metadata.PackageNotFoundError
+            If the package is not installed.
         """
-        if not __package__:
-            raise RuntimeError(
-                "Cannot determine package name (__package__ is not set)."
-            )
-        version = metadata.version(__package__)
+        # The distribution name differs from the import package name
+        # (``workflow``), so ``__package__`` cannot be used here.
+        version = metadata.version("ucgmsim-workflow")
         return cls(
             utility=utility,
             version=version,
