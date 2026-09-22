@@ -48,8 +48,6 @@ def test_build_hf_input_serialisation() -> None:
         t_sec=0.0,
         site_specific=False,
         dpath_pert=0,
-        stoch_dx=2.0,
-        stoch_dy=2.0,
         stress_parameter_adjustment_fault_area=None,
         stress_parameter_adjustment_target_magnitude=None,
         stress_parameter_adjustment_tect_type=0,

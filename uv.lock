@@ -3409,91 +3409,6 @@ wheels = [
 ]
 
 [[package]]
-name = "ucgmsim-workflow"
-source = { editable = "." }
-dependencies = [
-    { name = "geopandas" },
-    { name = "im-calculation" },
-    { name = "nshmdb" },
-    { name = "numpy" },
-    { name = "oq-wrapper" },
-    { name = "pandas", extra = ["hdf5", "parquet"] },
-    { name = "parse" },
-    { name = "psutil" },
-    { name = "pyyaml" },
-    { name = "qcore-utils" },
-    { name = "requests" },
-    { name = "rich" },
-    { name = "schema" },
-    { name = "scipy" },
-    { name = "shapely" },
-    { name = "source-modelling" },
-    { name = "structlog" },
-    { name = "tqdm" },
-    { name = "typer" },
-    { name = "velocity-modelling" },
-    { name = "xarray", extra = ["io"] },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "deptry" },
-    { name = "numpydoc" },
-    { name = "ruff" },
-    { name = "ty" },
-]
-test = [
-    { name = "coverage" },
-    { name = "hypothesis", extra = ["numpy"] },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-]
-types = [
-    { name = "pandas-stubs" },
-    { name = "scipy-stubs" },
-    { name = "types-geopandas" },
-    { name = "types-requests" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "coverage", extras = ["toml"], marker = "extra == 'test'" },
-    { name = "deptry", marker = "extra == 'dev'" },
-    { name = "geopandas" },
-    { name = "hypothesis", extras = ["numpy"], marker = "extra == 'test'", specifier = ">=6.0.0" },
-    { name = "im-calculation", specifier = ">=2025.12.5,<2026.9.1" },
-    { name = "nshmdb", specifier = ">=2026.9.1" },
-    { name = "numpy" },
-    { name = "numpydoc", marker = "extra == 'dev'" },
-    { name = "oq-wrapper", specifier = ">=2025.12.3" },
-    { name = "pandas", extras = ["hdf5", "parquet"] },
-    { name = "pandas-stubs", marker = "extra == 'types'" },
-    { name = "parse", specifier = ">=1.21.0" },
-    { name = "psutil" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=6.0.0" },
-    { name = "pytest-cov", marker = "extra == 'test'" },
-    { name = "pyyaml" },
-    { name = "qcore-utils", specifier = ">=2025.12.2" },
-    { name = "requests" },
-    { name = "rich", specifier = ">=14.3.2" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16.5" },
-    { name = "schema" },
-    { name = "scipy" },
-    { name = "scipy-stubs", marker = "extra == 'types'" },
-    { name = "shapely" },
-    { name = "source-modelling", specifier = ">=2026.8.1" },
-    { name = "structlog" },
-    { name = "tqdm" },
-    { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.75" },
-    { name = "typer" },
-    { name = "types-geopandas", marker = "extra == 'types'" },
-    { name = "types-requests", marker = "extra == 'types'" },
-    { name = "velocity-modelling", specifier = ">=2026.2.1" },
-    { name = "xarray", extras = ["io"] },
-]
-provides-extras = ["test", "types", "dev"]
-
-[[package]]
 name = "url-normalize"
 version = "3.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3550,6 +3465,93 @@ sdist = { url = "https://files.pythonhosted.org/packages/e6/92/9329872e36be90e25
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c1/71/370a65bc7726a1cbf478445c898c7affe907aa42e2e9e5bb38319db74115/webob-1.8.11-py2.py3-none-any.whl", hash = "sha256:4addd1d38d6a7fbe0eda22d45f25a40d74c8b290f3a99c0ac3d4023cf21f2da2", size = 118319, upload-time = "2026-08-02T06:26:24.765Z" },
 ]
+
+[[package]]
+name = "workflow"
+source = { editable = "." }
+dependencies = [
+    { name = "geopandas" },
+    { name = "h5py" },
+    { name = "im-calculation" },
+    { name = "nshmdb" },
+    { name = "numpy" },
+    { name = "oq-wrapper" },
+    { name = "pandas", extra = ["hdf5", "parquet"] },
+    { name = "parse" },
+    { name = "psutil" },
+    { name = "pyyaml" },
+    { name = "qcore-utils" },
+    { name = "requests" },
+    { name = "rich" },
+    { name = "schema" },
+    { name = "scipy" },
+    { name = "shapely" },
+    { name = "source-modelling" },
+    { name = "structlog" },
+    { name = "tqdm" },
+    { name = "typer" },
+    { name = "velocity-modelling" },
+    { name = "xarray", extra = ["io"] },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "deptry" },
+    { name = "numpydoc" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+test = [
+    { name = "coverage" },
+    { name = "hypothesis", extra = ["numpy"] },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+]
+types = [
+    { name = "pandas-stubs" },
+    { name = "scipy-stubs" },
+    { name = "types-geopandas" },
+    { name = "types-requests" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "coverage", extras = ["toml"], marker = "extra == 'test'" },
+    { name = "deptry", marker = "extra == 'dev'" },
+    { name = "geopandas" },
+    { name = "h5py", specifier = ">=3.15.1" },
+    { name = "hypothesis", extras = ["numpy"], marker = "extra == 'test'", specifier = ">=6.0.0" },
+    { name = "im-calculation", specifier = ">=2025.12.5" },
+    { name = "nshmdb", specifier = ">=2026.9.1" },
+    { name = "numpy" },
+    { name = "numpydoc", marker = "extra == 'dev'" },
+    { name = "oq-wrapper", specifier = ">=2025.12.3" },
+    { name = "pandas", extras = ["hdf5", "parquet"] },
+    { name = "pandas-stubs", marker = "extra == 'types'" },
+    { name = "parse", specifier = ">=1.21.0" },
+    { name = "psutil" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=6.0.0" },
+    { name = "pytest-cov", marker = "extra == 'test'" },
+    { name = "pyyaml" },
+    { name = "qcore-utils", specifier = ">=2025.12.2" },
+    { name = "requests" },
+    { name = "rich", specifier = ">=14.3.2" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16.5" },
+    { name = "schema" },
+    { name = "scipy" },
+    { name = "scipy-stubs", marker = "extra == 'types'" },
+    { name = "shapely" },
+    { name = "source-modelling", specifier = ">=2026.8.1" },
+    { name = "structlog" },
+    { name = "tqdm" },
+    { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.75" },
+    { name = "typer" },
+    { name = "types-geopandas", marker = "extra == 'types'" },
+    { name = "types-requests", marker = "extra == 'types'" },
+    { name = "velocity-modelling", specifier = ">=2026.2.1" },
+    { name = "xarray", extras = ["io"] },
+]
+provides-extras = ["test", "types", "dev"]
 
 [[package]]
 name = "xarray"

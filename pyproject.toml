@@ -34,6 +34,7 @@ dependencies = [
   "schema",        # For loading realisations
   "structlog",     # Logging.
   "psutil",        # To get the CPU affinity for jobs
+  "h5py>=3.15.1",
   "parse>=1.21.0",
   "rich>=14.3.2",
 ]
@@ -66,6 +67,7 @@ generate-station-coordinates = "workflow.scripts.generate_station_coordinates:ap
 generate-model-coordinates = "workflow.scripts.generate_model_coordinates:app"
 generate-rupture-propagation = "workflow.scripts.generate_rupture_propagation:app"
 copy-domain-parameters = "workflow.scripts.copy_velocity_model_parameters:app"
+srf-to-hdf5 = "workflow.scripts.srf_to_hdf5:app"
 create-e3d-par = "workflow.scripts.create_e3d_par:app"
 generate-stoch = "workflow.scripts.generate_stoch:app"
 merge-ts = "workflow.scripts.merge_ts:app"
