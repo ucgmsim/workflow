@@ -3519,7 +3519,7 @@ requires-dist = [
     { name = "deptry", marker = "extra == 'dev'" },
     { name = "geopandas" },
     { name = "hypothesis", extras = ["numpy"], marker = "extra == 'test'", specifier = ">=6.0.0" },
-    { name = "im-calculation", specifier = ">=2025.12.5" },
+    { name = "im-calculation", specifier = ">=2025.12.5,<2026.9.1" },
     { name = "nshmdb", specifier = ">=2026.9.1" },
     { name = "numpy" },
     { name = "numpydoc", marker = "extra == 'dev'" },
