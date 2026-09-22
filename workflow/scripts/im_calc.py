@@ -551,7 +551,7 @@ def calculate_intensity_measures(
     nyquist_frequency = 1 / (2 * dt)
 
     im_function_map = {
-        IM.PGA: (ims.peak_ground_acceleration),
+        IM.PGA: ims.peak_ground_acceleration,
         IM.PGV: functools.partial(ims.peak_ground_velocity, dt=dt),
         IM.PGD: functools.partial(ims.peak_ground_displacement, dt=dt),
         IM.CAV: functools.partial(ims.cumulative_absolute_velocity, dt=dt),
