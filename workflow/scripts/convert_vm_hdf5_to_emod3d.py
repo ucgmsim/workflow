@@ -20,7 +20,7 @@ Environment
 -----------
 Can be run in the Cybershake container using the ``convert-vm-hdf5-to-emod3d``
 command, which is installed after running
-``pip install workflow@git+https://github.com/ucgmsim/workflow``.
+``pip install ucgmsim-workflow@git+https://github.com/ucgmsim/workflow``.
 
 Usage
 -----

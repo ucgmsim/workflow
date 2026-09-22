@@ -52,7 +52,7 @@ jobs:
 
     environment:
       name: pypi
-      url: https://pypi.org/p/workflow
+      url: https://pypi.org/p/ucgmsim-workflow
 
     permissions:
       id-token: write

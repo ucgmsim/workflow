@@ -22,7 +22,7 @@ Environment
 -----------
 Can be run in the cybershake container. Can also be run from your own
 computer using the `bb-sim` command which is installed after running
-`pip install workflow@git+https://github.com/ucgmsim/workflow`. If
+`pip install ucgmsim-workflow@git+https://github.com/ucgmsim/workflow`. If
 running on your own computer, you need to configure a work directory
 (`--work-directory`).
 
