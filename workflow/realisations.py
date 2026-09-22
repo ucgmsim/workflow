@@ -1336,7 +1336,7 @@ class LogTrail(RealisationConfiguration):
         if self.log is None:
             self.log = []
         if self.log and not isinstance(self.log[0], LogEntry):
-            self.log = [LogEntry(**log_entry) for log_entry in self.log]  # type: ignore
+            self.log = [LogEntry(**log_entry) for log_entry in self.log]
 
     def log_entry(self, utility: str, args: list[str]) -> None:
         """Add a log entry to the log trail.
