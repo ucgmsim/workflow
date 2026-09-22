@@ -258,7 +258,7 @@ class Resolution(RealisationConfiguration):
     """Simulation spatial resolution."""
 
     @property
-    def dt(self) -> float:  # numpydoc ignore=RT01
+    def dt(self) -> float:
         """float: Simulation temporal resolution."""
         return self.resolution / 20
 
@@ -714,7 +714,7 @@ class Magnitudes(RealisationConfiguration):
         return self.magnitudes[key]
 
     @property
-    def total_moment(self) -> float:  # numpydoc ignore=RT01
+    def total_moment(self) -> float:
         """float: total moment of realisation"""
         return sum(
             moment.magnitude_to_moment(mag, bold_m=True)
@@ -722,7 +722,7 @@ class Magnitudes(RealisationConfiguration):
         )
 
     @property
-    def total_magnitude(self) -> BoldM:  # numpydoc ignore=RT01
+    def total_magnitude(self) -> BoldM:
         """BoldM: total magnitude of realisation"""
         return moment.moment_to_magnitude(self.total_moment, bold_m=True)
 
@@ -768,7 +768,7 @@ class RupturePropagationConfig(RealisationConfiguration):
         return config_dict
 
     @property
-    def hypocentres(self) -> dict[str, npt.NDArray[np.float64]]:  # numpydoc ignore=RT01
+    def hypocentres(self) -> dict[str, npt.NDArray[np.float64]]:
         """Dict from str to array: the hypocentres on each fault in the simulation."""
         hypocentres = {
             fault_name: jump_point.to_point

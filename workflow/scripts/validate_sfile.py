@@ -198,12 +198,12 @@ class Report:
     """Every finding, in the order the checks produced them."""
 
     @property
-    def counts(self) -> Counter[Severity]:  # numpydoc ignore=RT01
+    def counts(self) -> Counter[Severity]:
         """Counter[Severity]: how many findings of each severity."""
         return Counter(finding.severity for finding in self.findings)
 
     @property
-    def failed(self) -> bool:  # numpydoc ignore=RT01
+    def failed(self) -> bool:
         """bool: whether any finding is an error."""
         return any(finding.severity is Severity.ERROR for finding in self.findings)
 
@@ -264,7 +264,7 @@ class DatasetStats:
     """Count of negative values."""
 
     @property
-    def n_nonpositive(self) -> int:  # numpydoc ignore=RT01
+    def n_nonpositive(self) -> int:
         """int: count of values that are zero or negative."""
         return self.n_zero + self.n_neg
 
@@ -397,7 +397,7 @@ class MaterialGrid:
     """Shape of the Cp dataset, or None if Cp is absent."""
 
     @property
-    def extent(self) -> GridExtent | None:  # numpydoc ignore=RT01
+    def extent(self) -> GridExtent | None:
         """GridExtent or None: the domain this grid spans, if it is known."""
         if self.h is None or self.shape is None or len(self.shape) != 3:
             return None

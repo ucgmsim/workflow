@@ -166,12 +166,14 @@ select = [
   "RT03",
   "RT04",
   "YD01",
+  "NQ",
 ]
 # remember to use single quotes for regex in TOML
 exclude-object-patterns = [ # don't report on objects that match any of these regex
   '\.undocumented_method$',
   '\.__repr__$',
 ]
+property-form = "type-line"
 
 # Private functions and methods are not part of the public API.
 [[tool.npdlint.scope]]

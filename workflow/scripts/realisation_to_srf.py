@@ -393,17 +393,17 @@ class SRFEnvironmentContext:
     """Random seeds to apply for reproducibility"""
 
     @property
-    def srf_directory(self) -> Path:  # numpydoc ignore=RT01
+    def srf_directory(self) -> Path:
         """Path: the directory to write component SRF files."""
         return self.work_directory / "srf"
 
     @property
-    def gsf_directory(self) -> Path:  # numpydoc ignore=RT01
+    def gsf_directory(self) -> Path:
         """Path: the directory to write geometry definition files."""
         return self.work_directory / "gsf"
 
     @property
-    def velocity_model_path(self) -> Path:  # numpydoc ignore=RT01
+    def velocity_model_path(self) -> Path:
         """Path: the directory to write the 1D velocity model to."""
         return self.work_directory / "velocity_model"
 
