@@ -173,11 +173,6 @@ exclude-object-patterns = [ # don't report on objects that match any of these re
   '\.__repr__$',
 ]
 
-# Properties read as attributes, so they are not held to the numpydoc checks.
-[[tool.npdlint.scope]]
-match = { kind = ["property", "setter"] }
-skip = true
-
 # Private functions and methods are not part of the public API.
 [[tool.npdlint.scope]]
 match = { private = true }
