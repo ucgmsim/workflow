@@ -37,7 +37,7 @@ import shapely
 import typer
 import xarray as xr
 
-from IM import ims
+from IM import ims, konno_ohmachi
 from IM.ims import IM
 from qcore import cli, coordinates
 from source_modelling import sources
@@ -571,13 +571,13 @@ def calculate_intensity_measures(
             raise ValueError(
                 "FAS calculation requires KO directory. Please provide a valid KO directory."
             )
+        konno_ohmachi.set_scratch_directory(ko_directory)
         im_function_map[IM.FAS] = functools.partial(
             ims.fourier_amplitude_spectra,
             dt=dt,
             freqs=intensity_measure_parameters.fas_frequencies[
                 intensity_measure_parameters.fas_frequencies <= nyquist_frequency
             ],
-            ko_directory=ko_directory,
         )
 
     hypocentre = source_geometries.source_geometries[
