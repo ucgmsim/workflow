@@ -17,6 +17,8 @@ jobs:
     # Pure Python, so one py3-none-any wheel serves every interpreter and
     # platform: no build matrix and no cibuildwheel.
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Checkout code
@@ -36,6 +38,14 @@ jobs:
         run: |
           python3 -m pip install build
           python3 -m build
+
+      - name: Get the package version
+        id: version
+        # The wheel filename carries the normalised version setuptools-scm
+        # derived from the tag, which is what the container installs.
+        run: |
+          wheel=$(basename dist/*.whl)
+          echo "version=$(echo "$wheel" | cut -d- -f2)" >> "$GITHUB_OUTPUT"
 
       - name: Store the distribution packages
         uses: actions/upload-artifact@v4
@@ -68,3 +78,14 @@ jobs:
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         packages-dir: dist
+
+  build-container:
+    name: Build and push the container
+    needs:
+    - build
+    - publish-to-pypi
+    uses: ./.github/workflows/container.yml
+    with:
+      version: ${{ needs.build.outputs.version }}
+      ref: ${{ inputs.tag_name || github.ref }}
+    secrets: inherit
