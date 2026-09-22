@@ -919,6 +919,7 @@ class VelocityModel1D(RealisationConfiguration):
     _schema: ClassVar[Schema] = schemas.VELOCITY_MODEL_1D_SCHEMA
 
     model: pd.DataFrame
+    """The layers of the velocity model, one row per layer."""
 
     def write_velocity_model(self, velocity_model_path: Path) -> None:
         """Write a 1D velocity model to the specified path.
@@ -1153,13 +1154,21 @@ class EMOD3DParameters(RealisationConfiguration):
     ix_ts: int
     """Timeslice offset for ix?"""
     ix_ys: int
+    """y-slice offset for ix?"""
     ix_zs: int
+    """z-slice offset for ix?"""
     iy_ts: int
+    """Timeslice offset for iy?"""
     iy_xs: int
+    """x-slice offset for iy?"""
     iy_zs: int
+    """z-slice offset for iy?"""
     iz_ts: int
+    """Timeslice offset for iz?"""
     iz_xs: int
+    """x-slice offset for iz?"""
     iz_ys: int
+    """y-slice offset for iz?"""
     lonlat_out: int
     """Unknown!"""
     maxmem: int
@@ -1230,6 +1239,7 @@ class BroadbandParameters(RealisationConfiguration):
     fmin: float
     """fmin for site amplification."""
     site_amp_version: str
+    """Version of the site amplification model (e.g. "2014")."""
 
 
 @dataclasses.dataclass
@@ -1319,6 +1329,7 @@ class LogTrail(RealisationConfiguration):
     _schema: ClassVar[Schema] = schemas.LOG_TRAIL_SCHEMA
 
     log: list[LogEntry]
+    """Log entries, in the order the utilities were executed."""
 
     def __post_init__(self) -> None:
         """Post-initialisation of the log trail."""
