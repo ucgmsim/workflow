@@ -3,7 +3,7 @@ on: [pull_request]
 
 jobs:
   ci:
-    uses: ucgmsim/meta-ci-action/.github/workflows/ci.yml@v1
+    uses: ucgmsim/meta-ci-action/.github/workflows/ci.yml@v2
     with:
       system-packages: "gmt libgmt-dev ghostscript"
       package-dir: workflow
