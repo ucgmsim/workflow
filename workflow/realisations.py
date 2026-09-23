@@ -969,7 +969,7 @@ class Refinements(RealisationConfiguration):
             refinements.append(
                 dataclasses.replace(refinement, bottom=min(refinement.bottom, depth_m))
             )
-            if refinement.bottom > depth_m:
+            if refinement.bottom >= depth_m:
                 break
         else:
             # Refinements end above `depth`.
