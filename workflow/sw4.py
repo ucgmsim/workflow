@@ -1,12 +1,18 @@
-"""SW4 supergrid (absorbing sponge) geometry and checks.
+"""SW4 grid geometry and checks.
 
-Inside the sponge SW4 solves a damped equation, so sources and receivers there
-do not produce valid ground motion.
+Covers the refined grid and the supergrid (absorbing sponge). Inside the sponge
+SW4 solves a damped equation, so sources and receivers there do not produce
+valid ground motion.
 """
 
 import math
 
-from workflow.realisations import Refinements, SW4Parameters, find_command
+from workflow.realisations import (
+    DomainParameters,
+    Refinements,
+    SW4Parameters,
+    find_command,
+)
 
 SW4_DEFAULT_SUPERGRID_GRIDPOINTS = 30
 """SW4's default supergrid thickness, in grid points (`sw4/src/EW.C`)."""
@@ -73,6 +79,35 @@ def coarsest_resolution(refinements: Refinements, depth_km: float) -> float:
         refinement.resolution
         for refinement in refinements.refinements_for_depth(depth_km)
     )
+
+
+def gridpoints_from_domain(
+    domain_parameters: DomainParameters, refinements: Refinements
+) -> int:
+    """Estimate the number of grid points in a refined domain.
+
+    Parameters
+    ----------
+    domain_parameters : DomainParameters
+        The domain to estimate for.
+    refinements : Refinements
+        The mesh refinements.
+
+    Returns
+    -------
+    int
+        The approximate number of grid points.
+    """
+    depth = domain_parameters.depth
+    area = domain_parameters.domain.area * (1000**2)
+    domain_refinements = refinements.refinements_for_depth(depth)
+    top = 0.0
+    gridpoints = 0
+    for refinement in domain_refinements:
+        volume = (refinement.bottom - top) * area
+        gridpoints += int(volume // (refinement.resolution) ** 3)
+        top = refinement.bottom
+    return gridpoints
 
 
 def minimum_fault_buffer_m(
