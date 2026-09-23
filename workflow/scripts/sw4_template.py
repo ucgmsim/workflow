@@ -178,16 +178,16 @@ def _adjust_for_topography(
 
     # GOAL: We want to ensure every refinement has at least `nzmin` layers. We
     # do this because SW4 requires a minimum number of gridpoints in each
-    # refinement. On a free surface this is achieved simply by ensure each input
-    # refinement is at least 12 `nzmin` gridpoints from the one above it.
+    # refinement. On a free surface this is achieved simply by ensuring each
+    # input refinement is at least `nzmin` gridpoints from the one above it.
     # Topography complicates the picture. SW4 requires that the topography is
     # backed by curvilinear layers down to a certain depth (see the HACK below).
     # These layers we will call topographic layers. Usually these layers subsume
     # the refinements listed in the realisation, so that the bookkeeping is
-    # roughly the same. The last topographic can cut between input refinements
-    # to introduce an additional *implicit* curvilinear layer. So even if each
-    # refinement is well separated, the implicit layer might be too thin. We
-    # illustrate all of this diagramatically here.
+    # roughly the same. The last topographic layer can cut between input
+    # refinements to introduce an additional *implicit* curvilinear layer. So
+    # even if each refinement is well separated, the implicit layer might be
+    # too thin. We illustrate all of this diagrammatically here.
     #
     # Example: refinements of 100 m down to 5000 m and 200 m down to 25000 m,
     # with topography_zmax = 5400 m and nzmin = 12 (depths not to scale).
@@ -210,8 +210,8 @@ def _adjust_for_topography(
     #   ---  input refinement boundary      ===  topographic boundary (zmax)
     #
     # The input refinements are untouched here; only topography_zmax moves. Had
-    # topography_zmax instead landed just *above* an input boundary (e.g. 4800
-    # m), the thin layer would be the one below it, and it is the input
+    # topography_zmax instead landed just *above* an input boundary (e.g.
+    # 4800 m), the thin layer would be the one below it, and it is the input
     # refinement (5000 m -> 6000 m) that gets pushed down instead.
 
     # The solution is to ensure that the input refinement intersecting the
@@ -220,21 +220,21 @@ def _adjust_for_topography(
     # but the algorithm actually ends up being simple:
     #
     # 1. Introduce the topography bottom as an additional refinement with the
-    # same resolution as the bottom of the topography, this accounts for the
+    # same resolution as the bottom of the topography; this accounts for the
     # implicit layer that SW4 inserts in its models.
     # 2. Walk over each refinement and ensure that each refinement is separated
-    # by `nzmin` from the one above.
+    # by `nzmin` cells from the one above.
     # 3. Delete the implicit layer but record its bottom.
 
     # This bottom is where we should tell SW4 to terminate the topographic
-    # layers to close the loop and ensure the model we build here matches what
-    # SW4 constructs in its code.
+    # layers. That closes the loop and ensures the model we build here matches
+    # what SW4 constructs in its code.
 
     # Ensure no side effects
     refinements = copy.deepcopy(refinements)
     # By shallow copying the refinements again, we can record all the
-    # refinements the user specified, but they depths will be automatically
-    # updated by the loop below which mutates the refinements list above. It
+    # refinements the user specified, but their depths will be automatically
+    # updated by the loop below, which mutates the refinements they share. It
     # also means that the topography layer (which is added to the `refinements`
     # list but not `real_refinements`) is not returned at the end.
     real_refinements = refinements.copy()
@@ -250,8 +250,9 @@ def _adjust_for_topography(
     except ValueError as e:
         e.add_note(
             "This can happen if the simulation domain is too shallow for topography,"
-            " or refinements are not deep enough to capture topographic extent."
-            " Raise the simulation depth, or increase the depth of refinements."
+            " or the refinements are not deep enough to capture the topographic"
+            " extent. Raise the simulation depth, or increase the depth of the"
+            " refinements."
         )
         raise
     topography = Refinement(bottom=topography_zmax, resolution=topography_resolution)
@@ -279,22 +280,22 @@ def generate_sw4_input(
     work_directory: Path,
     output_path: Path,
 ) -> None:
-    """Generate SW4 template for realisation
+    """Generate an SW4 input file for a realisation.
 
     Parameters
     ----------
     realisation_ffp : Path
-        Path to realisation file.
+        Path to the realisation file.
     station_path : Path
-        Path to station file.
+        Path to the station file.
     srf_path : Path
-        Path to srf file.
+        Path to the SRF file.
     velocity_model : Path
-        Path to velocity model file.
+        Path to the velocity model file.
     work_directory : Path
-        Path to work directory.
+        Path to the work directory.
     output_path : Path
-        Path to output SW4 file.
+        Path to the output SW4 file.
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
@@ -312,14 +313,14 @@ def generate_sw4_input(
     logger = log_utils.get_logger(__name__)
 
     with h5py.File(velocity_model, "r") as f:
-        # Azimuth must be the same as the velocity model inside SW4
+        # The grid azimuth must match the velocity model's azimuth inside SW4.
         azimuth = _azimuth_from_velocity_model(f)
         topography_height, sfile_zmax = _topography_height_from_velocity_model(f)
         sfile_x, sfile_y = _lateral_footprint_from_velocity_model(f)
 
-    # HACK: SW4 User Guide (Chapter 5) suggests
-    # z_max >= -e_min + 3 (e_max - e_min) where e_min, e_max are the minimum
-    # and maximum topography level of the velocity model we will assume that the
+    # HACK: The SW4 User Guide (Chapter 5) suggests
+    # z_max >= -e_min + 3 (e_max - e_min), where e_min and e_max are the minimum
+    # and maximum topography levels of the velocity model. We assume that the
     # minimum elevation is zero (i.e. every simulation contains ocean, and there
     # is no ocean bathymetry).
     topography_zmax = 3 * topography_height
@@ -353,7 +354,8 @@ def generate_sw4_input(
     x = padded_domain.extent_x * 1000.0
     y = padded_domain.extent_y * 1000.0
 
-    # In SW4 the domain should always begin from the bottom-left (which is corners[0] by construction)
+    # In SW4, the domain always begins at the bottom-left corner (which is
+    # corners[0] by construction).
     lat, lon = padded_domain.corners[0]
 
     # NOTE: In SW4 x = north, but in the workflow y = north.
@@ -362,7 +364,7 @@ def generate_sw4_input(
     if refinements[-1].bottom > sfile_zmax:
         raise ValueError("Bottom of domain exceeds velocity model bounds")
 
-    # Double check that the sfile domain is large enough for the domain we are simulating.
+    # Double-check that the sfile domain is large enough for the domain we are simulating.
     if y > sfile_x or x > sfile_y:
         raise ValueError(
             f"The SW4 grid ({y / 1000.0:.3f} x {x / 1000.0:.3f} km, "
@@ -395,17 +397,16 @@ def generate_sw4_input(
         SW4Command("refinement", {"zmax": f"{refinement.bottom:.1f}"}).render()
         for refinement in refinements[
             :-1
-        ]  # Last refinement layer is implicitly the bottom of the domain
+        ]  # The last refinement layer is implicitly the bottom of the domain.
     )
     dx = refinements[-1].resolution
 
     velocity_model_directory = velocity_model.parent
     velocity_model_name = velocity_model.name
-    # Via either the adjustments for the minimum number of gridpoints in a layer
-    # (`refinements_for_depth`), or the topography following adjustments in
-    # `_adjust_for_topography`, the bottom layer of the refinement can end up
-    # increasing the total depth of the model. Here we account for that by
-    # updating depth to reflect this change.
+    # Either the minimum-gridpoint adjustment in `refinements_for_depth` or the
+    # topography-following adjustment in `_adjust_for_topography` can push the
+    # bottom refinement deeper, increasing the total depth of the model. Here we
+    # account for that by updating `depth` to reflect this change.
     depth = max(depth, refinements[-1].bottom / 1000.0)
     grid_command, other_commands = _build_sw4_commands(
         sw4_params,

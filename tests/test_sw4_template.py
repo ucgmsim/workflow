@@ -145,7 +145,7 @@ def render(
 def test_bottom_refinement_holds_the_sponge(
     tmp_path: Path, domain: BoundingBox, depth_km: float
 ) -> None:
-    """SW4's `check_supergrid_thickness` requires `nz[0] >` the sponge thickness.
+    """SW4's `check_supergrid_thickness` requires `nz[0]` to exceed the sponge.
 
     Only grid 0 carries a bottom taper, so the requirement is on the bottom
     refinement alone: the layer between the last `refinement zmax` and the
@@ -184,8 +184,9 @@ def test_topography_deepens_a_thin_implicit_layer(
     """The worked example in `_adjust_for_topography`.
 
     1800 m of topography puts the curvilinear bottom at 5400 m, 400 m (two
-    200 m cells) below the 5000 m refinement. It is pushed down to give that
-    implicit layer 12 cells, while the input refinements stay where they are.
+    200 m cells) below the 5000 m refinement. That bottom is pushed down to
+    7400 m to give the implicit layer 12 cells, while the input refinements stay
+    where they are.
     """
     commands = render(tmp_path, domain, 30.0, topography_height=1800.0)
 
