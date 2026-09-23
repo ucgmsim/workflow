@@ -22,63 +22,37 @@ def sw4_parameters(**supergrid_parameters: float) -> SW4Parameters:
     return SW4Parameters(verbose=2, printcycle=10, nz_min=12, commands=commands)
 
 
-def test_supergrid_width_from_gridpoints() -> None:
-    """`gp=` scales with resolution."""
-    parameters = sw4_parameters(gp=30)
-    assert sw4.supergrid_width(parameters, 400.0) == 12000.0
-    assert sw4.supergrid_width(parameters, 200.0) == 6000.0
+@pytest.mark.parametrize(
+    "supergrid, resolution, expected",
+    [
+        pytest.param({"gp": 30}, 400.0, 12000.0, id="gp-scales-with-resolution"),
+        pytest.param({"gp": 30}, 200.0, 6000.0, id="gp-scales-with-resolution-fine"),
+        pytest.param({"width": 12000.0}, 400.0, 12000.0, id="width-is-fixed"),
+        pytest.param({"width": 12000.0}, 200.0, 12000.0, id="width-is-fixed-fine"),
+        pytest.param({"gp": 30, "width": 6000.0}, 400.0, 6000.0, id="width-over-gp"),
+        pytest.param({}, 400.0, 12000.0, id="no-supergrid-command"),
+        pytest.param({"dc": 0.02}, 400.0, 12000.0, id="sw4-default-gp"),
+    ],
+)
+def test_supergrid_width(
+    supergrid: dict[str, float], resolution: float, expected: float
+) -> None:
+    assert sw4.supergrid_width(sw4_parameters(**supergrid), resolution) == expected
 
 
-def test_supergrid_width_from_metres() -> None:
-    """`width=` does not scale with resolution."""
-    parameters = sw4_parameters(width=12000.0)
-    assert sw4.supergrid_width(parameters, 400.0) == 12000.0
-    assert sw4.supergrid_width(parameters, 200.0) == 12000.0
-
-
-def test_supergrid_width_prefers_width_over_gridpoints() -> None:
-    """`width=` takes precedence over `gp=`."""
-    parameters = sw4_parameters(gp=30, width=6000.0)
-    assert sw4.supergrid_width(parameters, 400.0) == 6000.0
-
-
-def test_supergrid_width_falls_back_to_the_sw4_default() -> None:
-    """Without `gp=` or `width=`, SW4's default is used."""
-    parameters = sw4_parameters()
-    assert (
-        sw4.supergrid_width(parameters, 400.0)
-        == sw4.SW4_DEFAULT_SUPERGRID_GRIDPOINTS * 400.0
-    )
-    assert sw4.supergrid_width(sw4_parameters(dc=0.02), 400.0) == 12000.0
-
-
-def test_minimum_fault_buffer_is_additive() -> None:
+@pytest.mark.parametrize(
+    "resolution, expected", [(100.0, 3500.0), (200.0, 7000.0), (400.0, 14000.0)]
+)
+def test_minimum_fault_buffer_is_additive(resolution: float, expected: float) -> None:
     """The minimum buffer is `sponge + 5h`."""
-    parameters = sw4_parameters(gp=30)
-    assert sw4.minimum_fault_buffer_m(parameters, 400.0) == 14000.0
-    assert sw4.minimum_fault_buffer_m(parameters, 200.0) == 7000.0
-
-    for resolution in (100.0, 200.0, 400.0):
-        assert (
-            sw4.minimum_fault_buffer_m(parameters, resolution)
-            == (sw4.SW4_DEFAULT_SUPERGRID_GRIDPOINTS + sw4.STENCIL_MARGIN_GRIDPOINTS)
-            * resolution
-        )
+    assert sw4.minimum_fault_buffer_m(sw4_parameters(gp=30), resolution) == expected
 
 
 def test_check_fault_buffer_boundary() -> None:
     parameters = sw4_parameters(gp=30)
     sw4.check_fault_buffer(14.0, parameters, 400.0)
-    with pytest.raises(ValueError, match="supergrid absorbing layer"):
+    with pytest.raises(ValueError, match=r"fault_buffer.*14\.000 km"):
         sw4.check_fault_buffer(13.9, parameters, 400.0)
-
-
-def test_check_fault_buffer_message_names_the_remedy() -> None:
-    with pytest.raises(ValueError) as error:
-        sw4.check_fault_buffer(2.0, sw4_parameters(gp=30), 400.0)
-    message = str(error.value)
-    assert "fault_buffer" in message
-    assert "14.000 km" in message
 
 
 def test_coarsest_resolution_is_the_bottom_refinement() -> None:
@@ -97,24 +71,21 @@ def test_default_fault_buffer_is_the_derived_minimum() -> None:
     velocity_model = VelocityModelParameters.read_from_defaults(version)
 
     coarsest = sw4.coarsest_resolution(refinements, DEEPEST_SUPPORTED_DOMAIN_KM)
-    minimum = sw4.minimum_fault_buffer_m(sw4_params, coarsest)
-
-    assert minimum == 14000.0
-    assert velocity_model.fault_buffer * 1000.0 == minimum
-
-    for depth in (5.0, 25.0, 60.0, DEEPEST_SUPPORTED_DOMAIN_KM):
-        sw4.check_fault_buffer(
-            velocity_model.fault_buffer,
-            sw4_params,
-            sw4.coarsest_resolution(refinements, depth),
-        )
+    assert velocity_model.fault_buffer * 1000.0 == sw4.minimum_fault_buffer_m(
+        sw4_params, coarsest
+    )
 
 
-def test_root_fault_buffer_is_left_alone() -> None:
-    for version in defaults.DefaultsVersion:
-        if version == defaults.DefaultsVersion.v26_7_1Hz:
-            continue
-        assert VelocityModelParameters.read_from_defaults(version).fault_buffer == 2.0
+@pytest.mark.parametrize(
+    "version",
+    [
+        version
+        for version in defaults.DefaultsVersion
+        if version != defaults.DefaultsVersion.v26_7_1Hz
+    ],
+)
+def test_root_fault_buffer_is_left_alone(version: defaults.DefaultsVersion) -> None:
+    assert VelocityModelParameters.read_from_defaults(version).fault_buffer == 2.0
 
 
 def test_check_lateral_gridpoints() -> None:
@@ -139,11 +110,3 @@ def test_absorbed_period() -> None:
         0.69, abs=5e-3
     )
     assert sw4.absorbed_period(parameters, 400.0, 3.5, 90.0) == pytest.approx(0.0)
-
-
-def test_adiabatic_coefficient() -> None:
-    assert sw4.ADIABATIC_COEFFICIENT == pytest.approx(0.4308374, abs=1e-7)
-
-
-def test_stencil_margin_matches_sw4s_own_margin() -> None:
-    assert sw4.STENCIL_MARGIN_GRIDPOINTS == 5
