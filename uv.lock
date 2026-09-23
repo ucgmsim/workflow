@@ -1090,6 +1090,29 @@ wheels = [
 ]
 
 [[package]]
+name = "hf-simulation"
+version = "2026.9.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e9/ec/203903eb8fe34736b222e4db58e933e2082b859b1c7568b65642e79380f4/hf_simulation-2026.9.1.tar.gz", hash = "sha256:10275ebb59757de29a191c71867ee540406881bc1bc641ba01b6f6ed81d979bb", size = 878495, upload-time = "2026-09-23T01:22:46.436Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/77/82/3b6c662109d879dec2c920ee2ae0b2e0d8c9bc24d6e86a33d8b9d9637a15/hf_simulation-2026.9.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:ff024cb6f585d23dfc0ef5824fa72f6fffc5d0b0dd2ca8e1c424e7c5a3237e24", size = 474371, upload-time = "2026-09-23T01:22:28.011Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/c0/fcbd3924da9eee17770680101d2a947cc7e1c9d0bf7e0e88d48c0be974ac/hf_simulation-2026.9.1-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:e8e47b5c88b5c62e6263131c391d9b24848f7bb0274c9c420dd78091a3170c72", size = 669653, upload-time = "2026-09-23T01:22:29.696Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/57/9efd827a89093eb18b4260999a5cf68fb0e9e9daa187e805b24a670e7202/hf_simulation-2026.9.1-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:6b72806ab828dd5b83d774c4fb0dc51e2b4a59f6f9b95f3eb4405e652ac68753", size = 6361075, upload-time = "2026-09-23T01:22:31.167Z" },
+    { url = "https://files.pythonhosted.org/packages/17/1b/f69d0eba3005841678d7117d57907661e3da363d5074405db65ccb43664e/hf_simulation-2026.9.1-cp313-cp313-win_amd64.whl", hash = "sha256:4069d69d60d0bf30af043b22e41a2ee746fe347afc3b124830b8af56f00e544e", size = 661086, upload-time = "2026-09-23T01:22:33.027Z" },
+    { url = "https://files.pythonhosted.org/packages/65/62/67e821e9108e0b7b595ccc4c2da6936894909f8cfbb248a600f78e2642f7/hf_simulation-2026.9.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:33f042f98745589990c505f8a7fa47542cb59715a90db6906add254c628a3801", size = 475175, upload-time = "2026-09-23T01:22:34.424Z" },
+    { url = "https://files.pythonhosted.org/packages/fc/34/75421f21f9ed47bd1bfea17df1c606880a2d4846c8c103e4ee1e18262976/hf_simulation-2026.9.1-cp314-cp314-macosx_11_0_x86_64.whl", hash = "sha256:c6954986b321bb7550b0a96e6a63f322a9aecd3563da8da023ea944f62d3e5eb", size = 670469, upload-time = "2026-09-23T01:22:35.835Z" },
+    { url = "https://files.pythonhosted.org/packages/f0/e8/e0ee7811dd3111fc9a48f1f2ee93b21629328e1a635985632f13118c6571/hf_simulation-2026.9.1-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:c9f3cdf8373d63997c0e635687f4d373e9d1454ef2f2b937539895d672bbebd9", size = 6366809, upload-time = "2026-09-23T01:22:37.478Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/3a/25ff9178965db395cd1542fbc560cb0f8015f32a997021e037149b51b0f5/hf_simulation-2026.9.1-cp314-cp314-win_amd64.whl", hash = "sha256:215251a77055727e5cb7af825ece6ef569a5f399ca106820af6ff6c1b3bbd1d0", size = 677391, upload-time = "2026-09-23T01:22:39.327Z" },
+    { url = "https://files.pythonhosted.org/packages/da/41/8fe61b06aa1c166fec14c139c74c61dbdf01af9e3b807ff72a86da9b3bda/hf_simulation-2026.9.1-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:76baa838f4156a0ac71d4616100bf7e84aa0984cde3b6f72a9ce7030fa0d95bf", size = 469189, upload-time = "2026-09-23T01:22:40.625Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/2a/115ee1d56de492160f251fb1cc2894c98c34b86361b55342301f44e9fd27/hf_simulation-2026.9.1-cp314-cp314t-macosx_11_0_x86_64.whl", hash = "sha256:a66ab9c56e94eb20223d64a698d4e3786ea211998d75defb275f84fed3c3f8a7", size = 665025, upload-time = "2026-09-23T01:22:41.925Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/95/03bf8b4faa3d739aefd6b54ec95a90d2472623307753de77d16b6fe66fdc/hf_simulation-2026.9.1-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:1f03b2dd54366a6c1440a4647d0b7d5f7374278fe034e7c4bcc467ef68c4ce88", size = 6364040, upload-time = "2026-09-23T01:22:43.228Z" },
+    { url = "https://files.pythonhosted.org/packages/3c/42/149cf0f4f2b605cbd6e8259285d1dff8cb77b22b9678c7072b8bc8dbfb7b/hf_simulation-2026.9.1-cp314-cp314t-win_amd64.whl", hash = "sha256:b970b4e89516ebd5ea5f69086282cd2279b9aa0b15a59a3320c358caec48d913", size = 673096, upload-time = "2026-09-23T01:22:45.063Z" },
+]
+
+[[package]]
 name = "hpack"
 version = "4.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3491,6 +3514,7 @@ dependencies = [
     { name = "fiona" },
     { name = "geopandas" },
     { name = "h5py" },
+    { name = "hf-simulation" },
     { name = "im-calculation" },
     { name = "netcdf4" },
     { name = "nshmdb" },
@@ -3546,6 +3570,7 @@ requires-dist = [
     { name = "fiona" },
     { name = "geopandas" },
     { name = "h5py", specifier = ">=3.15.1" },
+    { name = "hf-simulation" },
     { name = "hypothesis", extras = ["numpy"], marker = "extra == 'test'", specifier = ">=6.0.0" },
     { name = "im-calculation", specifier = ">=2026.9.2" },
     { name = "netcdf4" },
