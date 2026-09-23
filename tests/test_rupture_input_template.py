@@ -10,6 +10,7 @@ from rupture_generator.config.rupture import (
     RampConfig,
 )
 from source_modelling import sources
+from source_modelling.magnitude_scaling import BoldM
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import (
     Magnitudes,
@@ -153,7 +154,7 @@ def test_rupture_injects_what_the_srf_section_omits(
         source_config,
         srf_config,
         rupture_propagation,
-        Magnitudes(magnitudes={"a": 6.0, "b": 5.5}),
+        Magnitudes(magnitudes={"a": BoldM(6.0), "b": BoldM(5.5)}),
         Rakes(rakes={"a": 110.0, "b": 90.0}),
         velocity_model_1d,
         rupture_velocity,
@@ -229,7 +230,7 @@ def test_single_segment_leaves_propagation_alone(
             jump_points={},
             hypocentre=np.array([0.5, 0.5]),
         ),
-        Magnitudes(magnitudes={"a": 6.0}),
+        Magnitudes(magnitudes={"a": BoldM(6.0)}),
         Rakes(rakes={"a": 110.0}),
         velocity_model_1d,
         rupture_velocity,
@@ -272,7 +273,7 @@ def test_lone_point_source_takes_a_point_rupture(
             jump_points={},
             hypocentre=np.array([0.5, 0.5]),
         ),
-        Magnitudes(magnitudes={"a": 5.1}),
+        Magnitudes(magnitudes={"a": BoldM(5.1)}),
         Rakes(rakes={"a": 131.0}),
         velocity_model_1d,
         rupture_velocity,

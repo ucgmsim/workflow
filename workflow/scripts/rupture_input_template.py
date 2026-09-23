@@ -44,6 +44,7 @@ See the output of `create-rupture-input --help`.
 """
 
 from pathlib import Path
+from typing import Any, Literal
 
 import numpy as np
 import pyproj
@@ -190,7 +191,20 @@ def _simplify_trace(trace: np.ndarray, reach_km: float) -> tuple[np.ndarray, flo
     """
 
     def deviation_km(points: np.ndarray, index: int) -> float:
-        """How far `index` sits from the line that would replace it."""
+        """How far `index` sits from the line that would replace it.
+
+        Parameters
+        ----------
+        points : np.ndarray
+            The trace points, in metres.
+        index : int
+            The interior point to measure.
+
+        Returns
+        -------
+        float
+            The point's distance from the line joining its neighbours, in kilometres.
+        """
         span = points[index + 1] - points[index - 1]
         length = float(np.linalg.norm(span))
         if length < np.finfo(float).eps:
@@ -201,7 +215,18 @@ def _simplify_trace(trace: np.ndarray, reach_km: float) -> tuple[np.ndarray, flo
         return float(abs(area) / length) / 1000.0
 
     def unsupported(points: np.ndarray) -> list[int]:
-        """Which interior points leave a plane too short for its own depth."""
+        """Which interior points leave a plane too short for its own depth.
+
+        Parameters
+        ----------
+        points : np.ndarray
+            The trace points, in metres.
+
+        Returns
+        -------
+        list of int
+            The indices of the offending interior points.
+        """
         offenders = []
         for index in range(1, len(points) - 1):
             before = points[index] - points[index - 1]
@@ -239,7 +264,7 @@ def _simplify_trace(trace: np.ndarray, reach_km: float) -> tuple[np.ndarray, flo
     return kept, worst_km
 
 
-def _dip_direction(plane: sources.Plane) -> str:
+def _dip_direction(plane: sources.Plane) -> Literal["right", "left"]:
     """Which side of its trace a plane hangs on, as the generator names it.
 
     `right` means the fault dips away to the right of the walk along the trace, so the
@@ -252,8 +277,8 @@ def _dip_direction(plane: sources.Plane) -> str:
 
     Returns
     -------
-    str
-        Either `"right"` or `"left"`.
+    {"right", "left"}
+        The side the plane hangs on.
     """
     if abs(plane.dip - 90.0) < VERTICAL_DIP_TOLERANCE_DEG:
         return "right"
@@ -465,7 +490,7 @@ def build_rupture(
         }
     )
 
-    common = {
+    common: dict[str, Any] = {
         "hypocentre": hypocentre,
         "velocity_model": velocity_model,
         "timing": timing,

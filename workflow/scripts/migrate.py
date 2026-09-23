@@ -425,7 +425,11 @@ def migrate(
         # keys the schema no longer knows, so it goes on to the read below.
         default_config_dict = default_config.to_dict() if default_config else None
         current_config = json_data.get(config._config_key, {})
-        if default_config_dict is not None and current_config != default_config_dict:
+        if (
+            default_config is not None
+            and default_config_dict is not None
+            and current_config != default_config_dict
+        ):
             print_diff(current_config, default_config_dict)
             print()
             response = auto_response.get((config, Action.UPDATE)) or should_update(
