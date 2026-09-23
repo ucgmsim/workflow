@@ -25,29 +25,7 @@ def write_sw4_station_file(
     dt: float = 0.05,
     widths: dict[str, float] | None = None,
 ) -> Path:
-    """Write a synthetic SW4 HDF5 station recording.
-
-    Parameters
-    ----------
-    path : Path
-        Where to write the file.
-    stations : dict
-        Map from station name to either `None` (an old-style station, with no
-        supergrid datasets at all) or a dict which may hold `SGDEPTH` and
-        `SGDEPTHGP`. A dict holding only one of the two produces a
-        deliberately corrupt station.
-    npts : int
-        Number of samples per component.
-    dt : float
-        Sample spacing, written to the root `DELTA`.
-    widths : dict, optional
-        File-level scalars (`SGWIDTH`, `SGWIDTHGP`) written beside `DELTA`.
-
-    Returns
-    -------
-    Path
-        The path written, for convenience.
-    """
+    """Write a synthetic SW4 HDF5 station recording."""
     with h5py.File(path, "w") as handle:
         handle.create_dataset("DELTA", data=np.array([dt]))
         for name, value in (widths or {}).items():
@@ -79,16 +57,7 @@ def convert(sw4_ffp: Path) -> xr.Dataset:
 
 
 def test_supergrid_penetration_arrives_as_float32_coordinates(tmp_path: Path) -> None:
-    """The flag must be a *coordinate*, and it must be floating point.
-
-    Both halves are load bearing. A station-dimension coordinate rides
-    through `bb-sim` and `im-calc` untouched, whereas a data variable is
-    silently dropped by `bb_sim._process_bb_chunk`, so a data variable here
-    would mean the flag never reaches the intensity measures. And the
-    downstream consumer opens IM files with `mask_and_scale=False`, so an
-    integer with a `_FillValue` would read back raw and become a plausible
-    penetration depth; only a real float NaN survives that.
-    """
+    """The flag must be a *coordinate*, and it must be floating point."""
     ffp = write_sw4_station_file(
         tmp_path / "stations.h5",
         {
@@ -113,13 +82,7 @@ def test_supergrid_penetration_arrives_as_float32_coordinates(tmp_path: Path) ->
 
 
 def test_an_old_station_file_converts_with_an_all_nan_flag(tmp_path: Path) -> None:
-    """A file written before SW4 reported the supergrid must not raise.
-
-    This is the common case for every recording made so far, so it has to be
-    a no-op rather than an error. The value must be NaN and never `0.0`: `0.0`
-    is the positive claim "this station was checked and is in the interior",
-    which nobody checked here.
-    """
+    """A file written before SW4 reported the supergrid must not raise."""
     ffp = write_sw4_station_file(
         tmp_path / "old.h5", {"AAAA": None, "BBBB": None, "CCCC": None}
     )
@@ -154,12 +117,7 @@ def test_stations_missing_the_flag_are_nan_not_zero(tmp_path: Path) -> None:
 
 
 def test_one_dataset_without_the_other_is_a_corrupt_file(tmp_path: Path) -> None:
-    """`SGDEPTHGP` missing while `SGDEPTH` is present is corruption, not age.
-
-    The back-compatibility guard is deliberately on `SGDEPTH` alone, so this
-    raises rather than quietly reporting a metre depth with no grid-point
-    depth beside it.
-    """
+    """`SGDEPTHGP` missing while `SGDEPTH` is present is corruption, not age."""
     ffp = write_sw4_station_file(tmp_path / "corrupt.h5", {"AAAA": {"SGDEPTH": 900.0}})
 
     with pytest.raises(KeyError):
@@ -169,12 +127,7 @@ def test_one_dataset_without_the_other_is_a_corrupt_file(tmp_path: Path) -> None
 def test_the_sponge_width_is_lifted_into_the_dataset_attributes(
     tmp_path: Path,
 ) -> None:
-    """`SGWIDTH`/`SGWIDTHGP` make the file self-describing.
-
-    They are what turns the penetration into a severity fraction downstream,
-    and taking them from the file rather than from the realisation
-    configuration is the point: the configuration can be edited after the run.
-    """
+    """`SGWIDTH`/`SGWIDTHGP` make the file self-describing."""
     ffp = write_sw4_station_file(
         tmp_path / "width.h5",
         {"AAAA": {"SGDEPTH": 0.0, "SGDEPTHGP": 0.0}},
