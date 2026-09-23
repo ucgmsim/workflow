@@ -450,24 +450,12 @@ def calculate_source_parameters(
     )
     avg_dip = np.degrees(np.arctan2(avg_dip_vector[1], avg_dip_vector[0]))
 
-    if all(
-        hasattr(f, "top_m") and hasattr(f, "bottom_m")
-        for f in source_config.source_geometries.values()
-    ):
-        avg_ztor = magnitudes.moment_averaged(
-            {k: f.top_m / 1000.0 for k, f in source_config.source_geometries.items()}
-        )
-        avg_zbot = magnitudes.moment_averaged(
-            {k: f.bottom_m / 1000.0 for k, f in source_config.source_geometries.items()}
-        )
-    else:
-        avg_ztor = magnitudes.moment_averaged(
-            {
-                k: f.centroid[-1] / 1000.0
-                for k, f in source_config.source_geometries.items()
-            }
-        )
-        avg_zbot = avg_ztor
+    avg_ztor = magnitudes.moment_averaged(
+        {k: f.top_m / 1000.0 for k, f in source_config.source_geometries.items()}
+    )
+    avg_zbot = magnitudes.moment_averaged(
+        {k: f.bottom_m / 1000.0 for k, f in source_config.source_geometries.items()}
+    )
 
     return SourceParameters(
         mag=mag,
