@@ -141,9 +141,9 @@ def test_generate_domain_gates_the_fault_buffer(
         dip_dir=180.0,
     )
     arguments = (
-        SourceConfig(dict(source=source)),
-        Magnitudes(dict(source=magnitude_scaling.BoldM(6.0))),
-        Rakes(dict(source=180.0)),
+        SourceConfig({"source": source}),
+        Magnitudes({"source": magnitude_scaling.BoldM(6.0)}),
+        Rakes({"source": 180.0}),
         VelocityModelParameters(
             min_vs=500.0,
             version="2.09",
