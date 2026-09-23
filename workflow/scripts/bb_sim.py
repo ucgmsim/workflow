@@ -38,7 +38,7 @@ See the output of `bb-sim --help`.
 import dataclasses
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import numpy as np
 import pandas as pd
@@ -50,6 +50,7 @@ import xarray as xr
 from qcore import cli, timeseries
 from site_calculation import amplification
 from workflow import log_utils, realisations
+from workflow.defaults import DefaultsVersion
 from workflow.realisations import (
     BroadbandParameters,
     EMOD3DParameters,
@@ -159,8 +160,36 @@ class SourceLowpass:
     """Corner frequency in Hz."""
 
 
+def _numeric_parameter(
+    parameters: dict[str, str | int | float | bool | None], key: str
+) -> float:
+    """Read a numeric SW4 command parameter.
+
+    Parameters
+    ----------
+    parameters : dict
+        The command's parameters.
+    key : str
+        The parameter to read.
+
+    Returns
+    -------
+    float
+        The parameter's value.
+
+    Raises
+    ------
+    TypeError
+        If the parameter is not a number.
+    """
+    value = parameters[key]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError(f"SW4 prefilter {key}={value!r} is not a number")
+    return float(value)
+
+
 def solver_source_lowpass(
-    solver: Solver, realisation_ffp: Path, defaults_version: str
+    solver: Solver, realisation_ffp: Path, defaults_version: DefaultsVersion
 ) -> SourceLowpass | None:
     """The low-pass `solver` applied to its sources, read from the realisation.
 
@@ -170,7 +199,7 @@ def solver_source_lowpass(
         The solver that produced the low-frequency waveforms.
     realisation_ffp : Path
         Path to the realisation file.
-    defaults_version : str
+    defaults_version : DefaultsVersion
         The realisation's defaults version.
 
     Returns
@@ -198,9 +227,9 @@ def solver_source_lowpass(
                 "can be corrected for here"
             )
         return SourceLowpass(
-            order=int(parameters["order"]),
-            passes=int(parameters["passes"]),
-            corner=float(parameters["fc2"]),
+            order=int(_numeric_parameter(parameters, "order")),
+            passes=int(_numeric_parameter(parameters, "passes")),
+            corner=_numeric_parameter(parameters, "fc2"),
         )
 
     emod3d_config = EMOD3DParameters.read_from_realisation_or_defaults(
@@ -236,7 +265,7 @@ def butterworth_gain(
     corner: float,
     passes: int,
     dt: float,
-    band: str = "lowpass",
+    band: Literal["lowpass", "highpass"] = "lowpass",
 ) -> np.ndarray:
     """Magnitude response of a Butterworth filter applied `passes` times.
 
@@ -252,8 +281,8 @@ def butterworth_gain(
         Number of times the filter is applied. Two passes square the magnitude.
     dt : float
         Sample interval in seconds.
-    band : str
-        Either 'lowpass' or 'highpass'.
+    band : {'lowpass', 'highpass'}
+        The filter band.
 
     Returns
     -------

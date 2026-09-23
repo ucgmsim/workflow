@@ -10,6 +10,7 @@ being read wrongly out of a realisation.
 
 import json
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 import pytest
@@ -65,7 +66,7 @@ def measured_response(band: timeseries.Band, frequencies: np.ndarray) -> np.ndar
     ],
 )
 def test_analytic_gain_matches_qcore(
-    band: timeseries.Band, shift: float, btype: str
+    band: timeseries.Band, shift: float, btype: Literal["lowpass", "highpass"]
 ) -> None:
     """`butterworth_gain` must reproduce what `bwfilter` actually does.
 
