@@ -222,5 +222,8 @@ def generate_template(
     )
 
     output_path.write_text(
-        config.to_json(encoder=functools.partial(json.dumps, indent=4))
+        # This should be be a string but `to_json` is not smart enough to
+        # realise that. The `str` is a free no-op that convinces the type
+        # checker that the input is, in fact, a string.
+        str(config.to_json(encoder=functools.partial(json.dumps, indent=4)))
     )
