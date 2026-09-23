@@ -64,68 +64,24 @@ ${rechdf5}
 """)
 
 
-def azimuth_from_velocity_model(velocity_model: h5py.File) -> float:
-    """
-    Extract the azimuth value from a velocity model HDF5 file.
-
-    Parameters
-    ----------
-    velocity_model : h5py.File
-        HDF5 file object containing velocity model attributes.
-
-    Returns
-    -------
-    float
-        The azimuth value stored in the file's attribute.
-    """
+def _azimuth_from_velocity_model(velocity_model: h5py.File) -> float:
+    """Extract the azimuth value from a velocity model HDF5 file."""
     _, _, azimuth = velocity_model.attrs[sfile.ORIGIN_AZIM_ATTR]
     return float(azimuth)
 
 
-def topography_height_from_velocity_model(
+def _topography_height_from_velocity_model(
     velocity_model: h5py.File,
 ) -> tuple[float, float]:
-    """
-    Extract the minimum topography height from a velocity model HDF5 file.
-
-    Parameters
-    ----------
-    velocity_model : h5py.File
-        HDF5 file object containing velocity model attributes.
-
-    Returns
-    -------
-    float
-        The minimum depth (topography height) stored in the file's attribute.
-    """
+    """Extract the minimum topography height from a velocity model HDF5 file."""
     global_min, zmax = velocity_model.attrs[sfile.MIN_MAX_DEPTH_ATTR]
     return -float(global_min), float(zmax)
 
 
-def lateral_footprint_from_velocity_model(
+def _lateral_footprint_from_velocity_model(
     velocity_model: h5py.File,
 ) -> tuple[float, float]:
-    """Measure the lateral footprint of a velocity model sfile, in metres.
-
-    An sfile does not record its own lateral extent, so it is recovered from the
-    shape of a material grid and that grid's horizontal spacing. Every grid in an
-    sfile covers the same footprint, so any of them would do; the coarsest is
-    used because it is the smallest array to describe.
-
-    The sfile format requires the outermost axis to be due north, which is SW4's
-    `x`, so the returned pair is in SW4's axis convention and not the workflow's.
-
-    Parameters
-    ----------
-    velocity_model : h5py.File
-        HDF5 file object containing a velocity model sfile.
-
-    Returns
-    -------
-    tuple[float, float]
-        The extents of the model along SW4's `x` (north) and `y` (east) axes, in
-        metres.
-    """
+    """Measure the lateral footprint of a velocity model sfile, in metres."""
     material = velocity_model[sfile.MATERIAL_GROUP]
     grid_name = max(
         material, key=lambda name: material[name].attrs[sfile.HORIZONTAL_ATTR]
@@ -138,7 +94,8 @@ def lateral_footprint_from_velocity_model(
     return (nx - 1) * resolution, (ny - 1) * resolution
 
 
-def build_sw4_commands(
+# NOTE: despite being private, this function has a complete numpy docstring to help explain the outputs.
+def _build_sw4_commands(
     sw4_params: SW4Parameters,
     x: float,
     y: float,
@@ -214,35 +171,22 @@ def build_sw4_commands(
     return grid_command, other_commands
 
 
-def adjust_for_topography(
+def _adjust_for_topography(
     refinements: list[Refinement], topography_zmax: float, nzmin: int = 12
 ) -> tuple[list[Refinement], float]:
-    """Deepen refinement layers so each holds at least `nzmin` cells.
+    """Deepen refinement layers so each holds at least `nzmin` cells."""
 
-    Topography raises the top of the grid above z=0, which eats into the
-    first refinement layer. SW4 needs every grid in the stack to be at
-    least `nzmin` cells deep, so any layer left too thin is pushed down
-    until it is. The topography surface is inserted as a boundary for the
-    purpose of that count, but is not returned as a refinement.
+    # Topography raises the top of the grid above z=0, which eats into the
+    # first refinement layer. SW4 needs every grid in the stack to be at
+    # least `nzmin` cells deep, so any layer left too thin is pushed down
+    # until it is. The topography surface is inserted as a boundary for the
+    # purpose of that count, but is not returned as a refinement.
 
-    Parameters
-    ----------
-    refinements : list of Refinement
-        The refinement layers, resolved for the domain depth.
-    topography_zmax : float
-        Depth of the lowest point of the topography (metres, positive
-        down).
-    nzmin : int, optional
-        Minimum number of cells in any layer.
-
-    Returns
-    -------
-    tuple
-        The adjusted refinements, and the topography depth used.
-    """
     # Ensure no side effects
     refinements = copy.deepcopy(refinements)
-    # By shallow copying the refinements before modifying them this view into the refinements will only have the updated refinements, and not the topography and bottom.
+    # By shallow copying the refinements before modifying them this view into
+    # the refinements will only have the updated refinements, and not the
+    # topography and bottom.
     real_refinements = refinements.copy()
     try:
         topography_resolution = min(
