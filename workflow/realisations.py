@@ -992,6 +992,8 @@ class Refinements(RealisationConfiguration):
 
 @dataclasses.dataclass
 class NZCVMSettings(RealisationConfiguration):
+    """Settings for generating a velocity model with NZCVM."""
+
     _config_key: ClassVar[str] = "nzcvm"
     _schema: ClassVar[Schema] = schemas.NZCVM_SCHEMA
 
