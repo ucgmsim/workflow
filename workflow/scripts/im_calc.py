@@ -392,6 +392,8 @@ def calculate_distances(
     longitude = broadband.longitude.values
     station_locations = np.stack((latitude, longitude), axis=-1)
 
+    # TODO: Cannot use the vectorised form of rjb and rrup just yet because
+    # source modelling lacks the vectorised calculations on the Point class.
     rrup = xr.DataArray(
         np.array(
             [
@@ -577,6 +579,7 @@ def calculate_site_parameters(vs30: xr.DataArray) -> SiteParameters:
         The site parameters, with basin depths estimated using the Chiou
         and Youngs (2008) relations.
     """
+    # TODO: Update these to pull in actual z1p0 values when the site database changes propagate through here.
     z1pt0 = chiou_young_08_calc_z1p0(vs30)  # ty: ignore[invalid-argument-type]
     z2pt5 = chiou_young_08_calc_z2p5(z1pt0)
     return SiteParameters(vs30=vs30, z1pt0=z1pt0, z2pt5=z2pt5)
