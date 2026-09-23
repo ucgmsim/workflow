@@ -199,8 +199,9 @@ def _adjust_for_topography(
         ).resolution
     except ValueError as e:
         e.add_note(
-            "This can happen if the simulation domain is too shallow for topography, or refinements are not deep enough to capture topographic extent."
-            "Raise the simulation depth, or increase the depth of refinements."
+            "This can happen if the simulation domain is too shallow for topography,"
+            " or refinements are not deep enough to capture topographic extent."
+            " Raise the simulation depth, or increase the depth of refinements."
         )
         raise
     topography = Refinement(bottom=topography_zmax, resolution=topography_resolution)
