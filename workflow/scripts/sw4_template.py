@@ -1,3 +1,24 @@
+"""SW4 Input Generation.
+
+Description
+-----------
+Render the SW4 input file for a realisation: the grid, the refinement stack,
+the source, the stations, and the commands in the realisation's `sw4` section.
+The requested domain becomes the grid's interior, padded laterally by one
+supergrid width on each side.
+
+Inputs
+------
+1. A realisation file containing domain parameters,
+2. A station file,
+3. An SRF file,
+4. An SW4 sfile velocity model.
+
+Outputs
+-------
+An SW4 input file.
+"""
+
 import copy
 import itertools
 import string
@@ -170,14 +191,12 @@ def build_sw4_commands(
         raise ValueError("SW4 configuration is missing a required 'grid' command")
     topography = find_command(commands, "topography")
 
-    grid_command = None
+    grid_command = grid.merged(x=x, y=y, z=z, h=dx, az=azimuth, lon=lon, lat=lat)
     other_commands = []
     for command in commands:
         if command is grid:
-            grid_command = command.merged(
-                x=x, y=y, z=z, h=dx, az=azimuth, lon=lon, lat=lat
-            )
-        elif topography is not None and command is topography:
+            continue
+        if topography is not None and command is topography:
             other_commands.append(
                 command.merged(
                     input="sfile",
@@ -417,28 +436,28 @@ def generate_sw4_input(
             fileio=SW4Command(
                 "fileio",
                 {
-                    "path": work_directory,
+                    "path": str(work_directory),
                     "verbose": sw4_params.verbose,
                     "printcycle": sw4_params.printcycle,
                 },
             ).render(),
             grid=grid_command.render(),
             time=SW4Command("time", {"t": time}).render(),
-            rupturehdf5=SW4Command("rupturehdf5", {"file": srf_path}).render(),
+            rupturehdf5=SW4Command("rupturehdf5", {"file": str(srf_path)}).render(),
             refinements=refinements_str,
             other_commands="\n".join(command.render() for command in other_commands),
             sfile=SW4Command(
                 "sfile",
                 {
                     "filename": velocity_model_name,
-                    "directory": velocity_model_directory,
+                    "directory": str(velocity_model_directory),
                 },
             ).render(),
             rechdf5=SW4Command(
                 "rechdf5",
                 {
-                    "infile": station_path,
-                    "outfile": low_frequency_output.relative_to(work_directory),
+                    "infile": str(station_path),
+                    "outfile": str(low_frequency_output.relative_to(work_directory)),
                 },
             ).render(),
         )
