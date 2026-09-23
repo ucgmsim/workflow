@@ -181,7 +181,7 @@ def add_station_parameters(
         data.
     """
 
-    def parameterise(dataset: xr.Dataset) -> xr.Dataset:  # numpydoc ignore=GL08
+    def parameterise(dataset: xr.Dataset) -> xr.Dataset:
         if not dataset.data_vars:
             return dataset
 
@@ -197,10 +197,6 @@ def add_station_parameters(
 def add_units(dtree: xr.DataTree) -> xr.DataTree:
     """Annotate coordinates and intensity measures with units and descriptions.
 
-    Empirical datasets are left alone, because they are annotated as they
-    are calculated (their values are in log-space, so they do not share the
-    units of the simulated intensity measures).
-
     Parameters
     ----------
     dtree : xr.DataTree
@@ -212,7 +208,7 @@ def add_units(dtree: xr.DataTree) -> xr.DataTree:
         The tree, with unit and description metadata attached.
     """
 
-    def unitify(dataset: xr.Dataset) -> xr.Dataset:  # numpydoc ignore=GL08
+    def unitify(dataset: xr.Dataset) -> xr.Dataset:
         if not dataset.data_vars:
             return dataset
 
@@ -350,6 +346,8 @@ def calculate_distances(
     longitude = broadband.longitude.values
     station_locations = np.stack((latitude, longitude), axis=-1)
 
+    # TODO: Cannot use the vectorised form of rjb and rrup just yet because
+    # source modelling lacks the vectorised calculations on the Point class.
     rrup = xr.DataArray(
         np.array(
             [
@@ -535,6 +533,7 @@ def calculate_site_parameters(vs30: xr.DataArray) -> SiteParameters:
         The site parameters, with basin depths estimated using the Chiou
         and Youngs (2008) relations.
     """
+    # TODO: Update these to pull in actual z1p0 values when the site database changes propagate through here.
     z1pt0 = chiou_young_08_calc_z1p0(vs30)  # ty: ignore[invalid-argument-type]
     z2pt5 = chiou_young_08_calc_z2p5(z1pt0)
     return SiteParameters(vs30=vs30, z1pt0=z1pt0, z2pt5=z2pt5)
@@ -655,9 +654,7 @@ def calculate_empirical(
     -------
     dict
         A map from data tree path (`{im}/empirical/{model}`) to the log-mean
-        and log-standard deviation of that intensity measure. The paths are
-        chosen so this map can be merged with the simulated intensity
-        measures before building the output data tree.
+        and log-standard deviation of that intensity measure.
     """
     inputs = empirical_inputs(source_parameters, site_parameters, distances)
     tect_type = oqw.constants.TectType(empirical_config.tect_type)
@@ -813,10 +810,6 @@ def calculate_intensity_measures(
         source_geometries, magnitudes, rakes, hypocentre
     )
 
-    # Each IM function is dask-native: it accepts the lazy `waveform` DataArray
-    # and returns a lazy Dataset with the same `station` chunking, one data
-    # variable per component. Nothing is computed until `dtree.to_netcdf`
-    # below, which streams the result chunk by chunk.
     im_results: dict[str, xr.Dataset] = {
         im_name: im_function_map[im_name](broadband.waveform)
         for im_name in intensity_measures
@@ -870,9 +863,6 @@ def calculate_intensity_measures(
         dtree,
         distances.as_dict()
         | ((site_parameters).as_dict() if site_parameters else {})
-        # Belt and braces: these already ride along as coordinates on every
-        # leaf, so re-attaching them is idempotent -- but it makes the
-        # guarantee independent of xarray's coordinate propagation.
         | {"latitude": broadband["latitude"], "longitude": broadband["longitude"]},
     )
     dtree = add_units(dtree)
