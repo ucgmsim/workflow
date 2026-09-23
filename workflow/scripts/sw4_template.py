@@ -330,30 +330,19 @@ def generate_sw4_input(
         refinements, topography_zmax, nzmin=sw4_params.nz_min
     )
     refinements = sorted(refinements, key=lambda r: r.bottom)
-    # The sponge width is a single scalar in SW4, measured on the coarsest grid,
-    # and it applies to every face of every grid.
     coarsest_resolution = refinements[-1].resolution
     supergrid_width = sw4.supergrid_width(sw4_params, coarsest_resolution)
 
-    # Gate B: the last gate before an SW4 run. This catches hand-edited
-    # realisations and those produced by `copy-domain-parameters` or
-    # `import-realisation`, which never go through `generate-domain`.
     sw4.check_fault_buffer(
         velocity_model_parameters.fault_buffer, sw4_params, coarsest_resolution
     )
 
-    # Per the SW4 User Guide, the supergrid sponge (30 gridpoints by default) at the bottom of the domain
-    # must be contained in the bottom refinement.
+    # Per the SW4 User Guide, the supergrid sponge (30 gridpoints by default) at
+    # the bottom of the domain must be contained in the bottom refinement.
     refinements[-1].bottom += supergrid_width
     depth += supergrid_width / 1000.0
 
-    # The sponge is carved out of the grid, not out of the requested domain, so
-    # the SW4 grid is the requested domain padded by one sponge width per lateral
-    # face. Without this the lateral sponges eat into the region the domain was
-    # sized to cover and a source can end up inside the absorbing layer.
-    # `BoundingBox.pad` works in kilometres and pads along the box's own rotated
-    # axes, so no trigonometry is needed here. The velocity model is padded by at
-    # least as much in `create-nzvm-input`, so SW4 never queries outside the sfile.
+    # Pad the sw4 domain so that the supergrid is accounted for.
     supergrid_width_km = supergrid_width / 1000.0
     padded_domain = domain_parameters.domain.pad(
         pad_x=(supergrid_width_km, supergrid_width_km),
@@ -371,9 +360,7 @@ def generate_sw4_input(
     if refinements[-1].bottom > sfile_zmax:
         raise ValueError("Bottom of domain exceeds velocity model bounds")
 
-    # The sfile and the SW4 grid are padded symmetrically about the same
-    # centroid with the same azimuth, so comparing extents is a containment
-    # check.
+    # Double check that the sfile domain is large enough for the domain we are simulating.
     if y > sfile_x or x > sfile_y:
         raise ValueError(
             f"The SW4 grid ({y / 1000.0:.3f} x {x / 1000.0:.3f} km, "
@@ -396,7 +383,6 @@ def generate_sw4_input(
         absorbed_period_60_degrees_s=sw4.absorbed_period(
             sw4_params,
             coarsest_resolution,
-            # NOTE: `s_wave_velocity` is in m/s, `absorbed_period` wants km/s.
             velocity_model_parameters.s_wave_velocity / 1000.0,
             incidence_degrees=60.0,
         ),
