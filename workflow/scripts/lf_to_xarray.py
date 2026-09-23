@@ -41,10 +41,16 @@ from workflow import log_utils
 app = typer.Typer()
 
 CMS = 100.0
-# Unit to convert m/s to cm/s
+"""Unit to convert m/s to cm/s"""
 
 TARGET_CHUNK_BYTES = 128 * 2**20
-# Target size of a dask chunk (all components for a batch of stations).
+"""Target size of a dask chunk (all components for a batch of stations)."""
+
+SUPERGRID_WIDTH_ATTRIBUTES = {
+    "SGWIDTH": "absorbing_layer_width_m",
+    "SGWIDTHGP": "absorbing_layer_width_gp",
+}
+"""Map from SW4's supergrid-width datasets to the attribute names `im-calc` uses."""
 
 
 def _read_station_batch(
@@ -90,9 +96,9 @@ def _read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
         dt = np.float32(handle["DELTA"][:].squeeze())
 
         attrs: dict[str, np.float32 | float] = {"dt": dt}
-        for width_name in ("SGWIDTH", "SGWIDTHGP"):
-            if width_name in handle:
-                attrs[width_name] = float(handle[width_name][:].squeeze())
+        for sw4_name, attribute_name in SUPERGRID_WIDTH_ATTRIBUTES.items():
+            if sw4_name in handle:
+                attrs[attribute_name] = float(handle[sw4_name][:].squeeze())
         for station_name, group in handle.items():
             if "NPTS" not in group:
                 continue

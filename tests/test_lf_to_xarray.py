@@ -94,8 +94,8 @@ def test_an_old_station_file_converts_with_an_all_nan_flag(tmp_path: Path) -> No
         assert name in dset.coords
         assert dset.coords[name].dtype == np.float32
         assert np.isnan(dset.coords[name].values).all()
-    assert "SGWIDTH" not in dset.attrs
-    assert "SGWIDTHGP" not in dset.attrs
+    assert "absorbing_layer_width_m" not in dset.attrs
+    assert "absorbing_layer_width_gp" not in dset.attrs
 
 
 def test_stations_missing_the_flag_are_nan_not_zero(tmp_path: Path) -> None:
@@ -127,7 +127,7 @@ def test_one_dataset_without_the_other_is_a_corrupt_file(tmp_path: Path) -> None
 def test_the_sponge_width_is_lifted_into_the_dataset_attributes(
     tmp_path: Path,
 ) -> None:
-    """`SGWIDTH`/`SGWIDTHGP` make the file self-describing."""
+    """SW4's `SGWIDTH`/`SGWIDTHGP` are written under the names `im-calc` uses."""
     ffp = write_sw4_station_file(
         tmp_path / "width.h5",
         {"AAAA": {"SGDEPTH": 0.0, "SGDEPTHGP": 0.0}},
@@ -136,8 +136,10 @@ def test_the_sponge_width_is_lifted_into_the_dataset_attributes(
 
     dset = convert(ffp)
 
-    assert dset.attrs["SGWIDTH"] == pytest.approx(12000.0)
-    assert dset.attrs["SGWIDTHGP"] == pytest.approx(30.0)
+    assert dset.attrs["absorbing_layer_width_m"] == pytest.approx(12000.0)
+    assert dset.attrs["absorbing_layer_width_gp"] == pytest.approx(30.0)
+    assert "SGWIDTH" not in dset.attrs
+    assert "SGWIDTHGP" not in dset.attrs
     # The pre-existing attributes must survive alongside them.
     assert dset.attrs["nt"] == 8
     assert dset.attrs["dt"] == pytest.approx(0.05)

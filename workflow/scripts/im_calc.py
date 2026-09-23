@@ -162,13 +162,10 @@ EMPIRICAL_STATISTIC_METADATA = {
 
 
 SUPERGRID_COORDINATES = ("supergrid_depth", "supergrid_depth_gp")
-"""Records the SW4 depth inside the supergrid (in km and gridpoints)."""
+"""Records the SW4 depth inside the supergrid (in metres and gridpoints)."""
 
-SUPERGRID_WIDTH_ATTRIBUTES = {
-    "SGWIDTH": "absorbing_layer_width_m",
-    "SGWIDTHGP": "absorbing_layer_width_gp",
-}
-"""Map from the LF file's own supergrid-width attributes to the IM root attrs."""
+SUPERGRID_WIDTH_ATTRIBUTES = ("absorbing_layer_width_m", "absorbing_layer_width_gp")
+"""Supergrid-width attributes `lf-to-xarray` writes, copied to the IM root attrs."""
 
 
 def _supergrid_coordinates(dataset: xr.Dataset) -> dict[str, xr.DataArray]:
@@ -201,9 +198,9 @@ def _supergrid_attributes(
         return {}
 
     attributes: dict[str, str | float] = {"absorbing_layer": "sw4_supergrid"}
-    for source_name, attribute_name in SUPERGRID_WIDTH_ATTRIBUTES.items():
-        if source_name in dataset.attrs:
-            attributes[attribute_name] = float(dataset.attrs[source_name])
+    for attribute_name in SUPERGRID_WIDTH_ATTRIBUTES:
+        if attribute_name in dataset.attrs:
+            attributes[attribute_name] = float(dataset.attrs[attribute_name])
     return attributes
 
 
