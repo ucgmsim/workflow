@@ -227,7 +227,7 @@ def add_station_parameters(
         data.
     """
 
-    def parameterise(dataset: xr.Dataset) -> xr.Dataset:  # numpydoc ignore=GL08
+    def parameterise(dataset: xr.Dataset) -> xr.Dataset:
         if not dataset.data_vars:
             return dataset
 
@@ -243,10 +243,6 @@ def add_station_parameters(
 def add_units(dtree: xr.DataTree) -> xr.DataTree:
     """Annotate coordinates and intensity measures with units and descriptions.
 
-    Empirical datasets are left alone, because they are annotated as they
-    are calculated (their values are in log-space, so they do not share the
-    units of the simulated intensity measures).
-
     Parameters
     ----------
     dtree : xr.DataTree
@@ -258,7 +254,7 @@ def add_units(dtree: xr.DataTree) -> xr.DataTree:
         The tree, with unit and description metadata attached.
     """
 
-    def unitify(dataset: xr.Dataset) -> xr.Dataset:  # numpydoc ignore=GL08
+    def unitify(dataset: xr.Dataset) -> xr.Dataset:
         if not dataset.data_vars:
             return dataset
 
@@ -864,10 +860,6 @@ def calculate_intensity_measures(
         source_geometries, magnitudes, rakes, hypocentre
     )
 
-    # Each IM function is dask-native: it accepts the lazy `waveform` DataArray
-    # and returns a lazy Dataset with the same `station` chunking, one data
-    # variable per component. Nothing is computed until `dtree.to_netcdf`
-    # below, which streams the result chunk by chunk.
     im_results: dict[str, xr.Dataset] = {
         im_name: im_function_map[im_name](broadband.waveform)
         for im_name in intensity_measures
