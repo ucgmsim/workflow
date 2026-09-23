@@ -946,7 +946,7 @@ class Refinements(RealisationConfiguration):
     def __post_init__(self) -> None:
         """Coerce refinements read from JSON into `Refinement` instances."""
         if self.refinements and not isinstance(self.refinements[0], Refinement):
-            self.refinements = [Refinement(**item) for item in self.refinements]  # type: ignore
+            self.refinements = [Refinement(**item) for item in self.refinements]
 
     def refinements_for_depth(self, depth: float) -> list[Refinement]:
         """Truncate or extend the refinements to cover a domain of a given depth.
@@ -1439,7 +1439,7 @@ class SW4Parameters(RealisationConfiguration):
     def __post_init__(self) -> None:
         """Coerce commands read from JSON into `SW4Command` instances."""
         if self.commands and not isinstance(self.commands[0], SW4Command):
-            self.commands = [SW4Command(**item) for item in self.commands]  # type: ignore
+            self.commands = [SW4Command(**item) for item in self.commands]
 
 
 @dataclasses.dataclass
