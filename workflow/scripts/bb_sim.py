@@ -150,14 +150,14 @@ def resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
         output_core_dims=[["time"]],
         # This tells xarray that the time coordinates from the dset dataset are no
         # longer any good. They will be dropped from the output array.
-        exclude_dims=set(["time"]),
+        exclude_dims={"time"},
         # Array passed to resample will have time in the inner-most axis and the
         # default axis for resample is 0.
-        kwargs=dict(num=nt, axis=-1),
+        kwargs={"num": nt, "axis": -1},
         dask="parallelized",
         # The size of the resampled time dimension cannot be inferred by
         # dask, so it must be given explicitly.
-        dask_gufunc_kwargs=dict(output_sizes={"time": nt}),
+        dask_gufunc_kwargs={"output_sizes": {"time": nt}},
     ).chunk({"time": -1, "component": -1, "station": dset.chunksizes["station"]})
 
     resampled_waveform = resampled_waveform.assign_coords(time=new_time)
@@ -429,27 +429,27 @@ def combine_hf_and_lf(
     bb = xr.map_blocks(
         _process_bb_chunk,
         combined,
-        kwargs=dict(
-            dt=bb_dt,
-            flo=broadband_config.flo,
-            fmin=broadband_config.fmin,
-            fmidbot=broadband_config.fmidbot,
-            fhightop=broadband_config.fhightop,
-            fmax=broadband_config.fmax,
-            site_amp_model=broadband_config.site_amp_version,
-        ),
+        kwargs={
+            "dt": bb_dt,
+            "flo": broadband_config.flo,
+            "fmin": broadband_config.fmin,
+            "fmidbot": broadband_config.fmidbot,
+            "fhightop": broadband_config.fhightop,
+            "fmax": broadband_config.fmax,
+            "site_amp_model": broadband_config.site_amp_version,
+        },
         template=template,
     )
     bb["vs30"] = combined["vs30"]
-    attributes = dict(
-        dt=bb_dt,
-        flo=broadband_config.flo,
-        fmin=broadband_config.fmin,
-        fmidbot=broadband_config.fmidbot,
-        fhightop=broadband_config.fhightop,
-        fmax=broadband_config.fmax,
-        site_amp_model=str(broadband_config.site_amp_version),
-    )
+    attributes = {
+        "dt": bb_dt,
+        "flo": broadband_config.flo,
+        "fmin": broadband_config.fmin,
+        "fmidbot": broadband_config.fmidbot,
+        "fhightop": broadband_config.fhightop,
+        "fmax": broadband_config.fmax,
+        "site_amp_model": str(broadband_config.site_amp_version),
+    }
     # Attributes, unlike station coordinates, are *not* carried through
     # map_blocks: `template` above only has `combined`'s. The LF file's
     # supergrid width describes the run that produced the waveforms, and
