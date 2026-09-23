@@ -564,20 +564,20 @@ def empirical_inputs(
         scalars.
     """
     return xr.Dataset(
-        dict(
-            mag=source_parameters.mag,
-            dip=source_parameters.avg_dip,
-            rake=source_parameters.avg_rake,
-            ztor=source_parameters.avg_ztor,
-            zbot=source_parameters.avg_zbot,
-            hypo_depth=source_parameters.hypo_depth,
-            vs30=site_parameters.vs30,
-            z1pt0=site_parameters.z1pt0,
-            z2pt5=site_parameters.z2pt5,
-            vs30measured=False,
+        {
+            "mag": source_parameters.mag,
+            "dip": source_parameters.avg_dip,
+            "rake": source_parameters.avg_rake,
+            "ztor": source_parameters.avg_ztor,
+            "zbot": source_parameters.avg_zbot,
+            "hypo_depth": source_parameters.hypo_depth,
+            "vs30": site_parameters.vs30,
+            "z1pt0": site_parameters.z1pt0,
+            "z2pt5": site_parameters.z2pt5,
+            "vs30measured": False,
             # TODO: Calculate backarc!
-            backarc=False,
-        )
+            "backarc": False,
+        }
         | distances.as_dict()
     )
 
