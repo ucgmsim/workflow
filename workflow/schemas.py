@@ -1278,7 +1278,7 @@ SW4_PARAMETERS_SCHEMA = Schema(
         ): int,
         Literal(
             "commands",
-            description="List of SW4 input file commands (grid, attenuation, supergrid, developer, prefilter, topography, imagehdf5, or any other non-testing SW4 command).",
+            description="SW4 input file commands (grid, supergrid, attenuation, etc.).",
         ): [SW4_COMMAND_SCHEMA],
     }
 )

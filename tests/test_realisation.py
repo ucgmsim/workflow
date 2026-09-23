@@ -1062,9 +1062,7 @@ def test_sources(tmp_path: Path) -> None:
 
 
 SKIP_PAIRS = {
-    # `refinements` and `sw4` describe an SW4 grid; the EMOD3D-only versions
-    # have neither. `resolution` is the uniform EMOD3D grid spacing, which an
-    # SW4 run has no single value for.
+    # EMOD3D-only versions lack SW4 config, and SW4 versions lack `resolution`.
     (defaults.DefaultsVersion.v24_2_2_1, realisations.Refinements),
     (defaults.DefaultsVersion.v24_2_2_2, realisations.Refinements),
     (defaults.DefaultsVersion.v24_2_2_4, realisations.Refinements),

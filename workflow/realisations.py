@@ -934,13 +934,7 @@ class Refinement:
 
 @dataclasses.dataclass
 class Refinements(RealisationConfiguration):
-    """The vertical mesh refinements, from the surface down.
-
-    SW4 solves on a stack of grids that coarsen with depth. This describes
-    that stack in the abstract -- the layers a domain of *any* depth would
-    be given -- and `refinements_for_depth` resolves it against a
-    particular domain.
-    """
+    """The vertical mesh refinements, from the surface down."""
 
     _config_key: ClassVar[str] = "refinements"
     _schema: ClassVar[Schema] = schemas.REFINEMENTS_SCHEMA
@@ -953,13 +947,9 @@ class Refinements(RealisationConfiguration):
             self.refinements = [Refinement(**item) for item in self.refinements]  # type: ignore
 
     def refinements_for_depth(self, depth: float) -> list[Refinement]:
-        """Resolve the refinement stack against a domain of a given depth.
+        """Truncate or extend the refinements to cover a domain of a given depth.
 
-        Layers below `depth` are dropped and the last one is truncated to
-        it. If the stack does not reach `depth`, a final layer at
-        `unbounded_refinement_resolution` extends to the bottom. The last
-        layer is always given at least two cells, so a domain that ends
-        just past a refinement boundary does not produce a degenerate grid.
+        The last layer is at least two cells thick.
 
         Parameters
         ----------
@@ -980,8 +970,7 @@ class Refinements(RealisationConfiguration):
             if refinement.bottom > depth_m:
                 break
         else:
-            # This block only runs when we finish the loop without breaking, i.e. we
-            # exhaust the refinement list.
+            # Refinements end above `depth`.
             refinements.append(
                 Refinement(
                     resolution=self.unbounded_refinement_resolution, bottom=depth_m
@@ -990,7 +979,6 @@ class Refinements(RealisationConfiguration):
 
         match refinements:
             case [*_, previous_layer, last_layer]:
-                # Ensure a minimum amount in the last layer.
                 last_layer.bottom = max(
                     previous_layer.bottom + last_layer.resolution * 2, last_layer.bottom
                 )
@@ -1376,7 +1364,7 @@ class SW4Command:
     parameters: dict[str, str | int | float | bool | None] = dataclasses.field(
         default_factory=dict
     )
-    """The command's key=value parameters. None values are omitted when rendered."""
+    """The command's key=value parameters. None values are omitted."""
 
     def render(self) -> str:
         """Render this command as a single SW4 input file line.
@@ -1384,9 +1372,8 @@ class SW4Command:
         Returns
         -------
         str
-            The command name followed by its non-None `key=value` parameters.
-            Booleans render as `0`/`1`, SW4's expected format, rather than
-            Python's `False`/`True`.
+            The command name followed by its `key=value` parameters, with
+            booleans as `0`/`1`.
         """
         parts = [self.name]
         for key, value in self.parameters.items():
@@ -1445,9 +1432,7 @@ class SW4Parameters(RealisationConfiguration):
     nz_min: int
     """Minimum vertical cells in each refinement layer."""
     commands: list[SW4Command]
-    """All other SW4 input file commands (grid projection, attenuation, supergrid,
-    developer, prefilter, topography, imagehdf5 outputs, and any other non-testing
-    SW4 command). Add any SW4 command here as `{"name": ..., "parameters": {...}}`."""
+    """Other SW4 input file commands (grid, supergrid, attenuation, etc.)."""
 
     def __post_init__(self) -> None:
         """Coerce commands read from JSON into `SW4Command` instances."""
