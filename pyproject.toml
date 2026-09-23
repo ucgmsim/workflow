@@ -29,6 +29,7 @@ dependencies = [
   # Numerics
   "dask",
   "numpy",
+  "pyfftw",
   "pyproj",
   "scipy",
   "shapely",
