@@ -55,7 +55,7 @@ def _read_station_batch(
 ) -> xr.DataArray:
     """Read velocity waveforms (m/s, EW/NS/UP) for a batch of stations."""
     # SW4 labels these as displacement, but for SRF sources it is given the slip
-    # *rate*, so the output is really velocity (SW4 User's Guide, rupture).
+    # *rate*, so the output is really velocity (SW4 User Guide, Section 11.2.2).
     waveforms = np.empty((len(component), len(stations), len(time)), dtype=np.float32)
     with h5py.File(sw4_ffp, "r") as handle:
         for i, station_name in enumerate(stations):
@@ -64,8 +64,7 @@ def _read_station_batch(
                 raise RuntimeError(
                     f"Station {station_name.item()} has no EW/NS/UP datasets."
                     " The SW4 rechdf5 command must output geographic (NSEW)"
-                    " displacement-mode components (grid X/Y output is not"
-                    " supported: it would need de-rotation by the grid azimuth)."
+                    " displacement-mode components."
                 )
             waveforms[0, i] = group["EW"][:]
             waveforms[1, i] = group["NS"][:]
