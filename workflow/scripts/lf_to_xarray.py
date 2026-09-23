@@ -88,7 +88,7 @@ def _read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
 
     with h5py.File(sw4_ffp, "r") as handle:
         dt = np.float32(handle["DELTA"][:].squeeze())
-        # Station files from before SW4 reported the supergrid lack these.
+
         attrs: dict[str, np.float32 | float] = {"dt": dt}
         for width_name in ("SGWIDTH", "SGWIDTHGP"):
             if width_name in handle:
@@ -108,12 +108,13 @@ def _read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
             latitudes.append(latitude)
             longitudes.append(longitude)
 
+            # SW4 *may* record the SGDEPTH (master will not, we have a fork that
+            # does). So we conservatively check for this.
             if "SGDEPTH" in group:
                 supergrid_depths.append(float(group["SGDEPTH"][:].squeeze()))
                 # SGDEPTH without SGDEPTHGP is a corrupt file, so let it raise.
                 supergrid_depths_gp.append(float(group["SGDEPTHGP"][:].squeeze()))
             else:
-                # Unknown, not 0.0: 0.0 claims the station is in the interior.
                 supergrid_depths.append(np.nan)
                 supergrid_depths_gp.append(np.nan)
 
@@ -132,9 +133,6 @@ def _read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
             "station": stations,
             "component": ["x", "y", "z"],
             "time": time,
-            # Coordinates, not data variables, so they survive `bb-sim`. NaN
-            # float32 rather than a fill value, as readers use
-            # `mask_and_scale=False`.
             "supergrid_depth": (
                 "station",
                 np.array(supergrid_depths, dtype=np.float32),
