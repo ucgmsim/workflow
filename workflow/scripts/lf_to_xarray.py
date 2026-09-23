@@ -103,7 +103,7 @@ def _read_station_batch(
     return xr.DataArray(
         waveforms,
         dims=["component", "station", "time"],
-        coords=dict(time=time, component=component, station=stations.values),
+        coords={"time": time, "component": component, "station": stations.values},
     )
 
 
@@ -112,7 +112,7 @@ def read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
 
     Parameters
     ----------
-    sw4_ffp: Path
+    sw4_ffp : Path
         Path to SW4 recording file.
 
     Returns
@@ -146,7 +146,7 @@ def read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
         # SW4 writes the supergrid (absorbing layer) width once per file,
         # beside DELTA. Guarded the same way as SGDEPTH below: station files
         # written before SW4 reported the supergrid have neither.
-        attrs = dict(dt=dt)
+        attrs: dict[str, np.float32 | float] = {"dt": dt}
         for width_name in ("SGWIDTH", "SGWIDTHGP"):
             if width_name in handle:
                 attrs[width_name] = float(handle[width_name][:].squeeze())
@@ -185,28 +185,28 @@ def read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
 
     time = np.arange(global_npts) * dt
     return xr.Dataset(
-        dict(
-            lat=("station", latitudes),
-            lon=("station", longitudes),
-        ),
-        coords=dict(
-            station=stations,
-            component=["x", "y", "z"],
-            time=time,
+        {
+            "lat": ("station", latitudes),
+            "lon": ("station", longitudes),
+        },
+        coords={
+            "station": stations,
+            "component": ["x", "y", "z"],
+            "time": time,
             # float32 with NaN for "unknown", never an integer with a
             # _FillValue: downstream readers open these files with
             # `mask_and_scale=False`, so a sentinel would read back raw and
             # become a plausible penetration depth.
-            supergrid_depth=(
+            "supergrid_depth": (
                 "station",
                 np.array(supergrid_depths, dtype=np.float32),
             ),
-            supergrid_depth_gp=(
+            "supergrid_depth_gp": (
                 "station",
                 np.array(supergrid_depths_gp, dtype=np.float32),
             ),
-        ),
-        attrs=attrs | dict(nt=global_npts),
+        },
+        attrs=attrs | {"nt": global_npts},
     )
 
 
@@ -269,7 +269,11 @@ def convert_sw4_station_recording(sw4_ffp: Path) -> xr.Dataset:
     waveform = xr.map_blocks(
         _read_station_batch,
         chunked_stations,
-        kwargs=dict(time=dset["time"], component=dset["component"], sw4_ffp=sw4_ffp),
+        kwargs={
+            "time": dset["time"],
+            "component": dset["component"],
+            "sw4_ffp": sw4_ffp,
+        },
         template=_template_waveform(dset, batch_size),
     )
 
