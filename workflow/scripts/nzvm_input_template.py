@@ -5,17 +5,13 @@ Description
 -----------
 Generate an NZCVM velocity model configuration from a realisation. The
 configuration describes both the *grid* the model is sampled onto and the
-*layers* that are queried to fill it, so one realisation can produce several
-distinct velocity models:
+*layers* that are queried to fill it. The layers are taken from the
+realisation's `nzcvm` section, and the grid is chosen with ``--format``:
 
 - ``--format sw4`` writes an :class:`~nzcvm.config.grids.sw4.SW4GridConfig`,
   a mesh-refined grid written out as an sfile.
 - ``--format emod3d`` writes an :class:`~nzcvm.config.grids.emod3d.EMOD3DGrid`,
   a uniform grid written out as EMOD3D binary files.
-- ``--layers full`` keeps the realisation's whole layer stack (basins,
-  coastline, offshore, Ely GTL taper, ...).
-- ``--layers tomography`` keeps only the background tomography query and the
-  numerical clamps, which is the reference "no bells and whistles" model.
 
 Inputs
 ------
@@ -40,7 +36,6 @@ For More Help
 See the output of `create-nzvm-input --help`.
 """
 
-import dataclasses
 import functools
 import json
 from enum import StrEnum, auto
@@ -53,8 +48,6 @@ from nzcvm.config import VelocityModelConfig
 from nzcvm.config.grids.emod3d import EMOD3DGrid, TopographyType
 from nzcvm.config.grids.model import Model
 from nzcvm.config.grids.sw4 import MeshRefinement, SW4GridConfig
-from nzcvm.config.layers.core import LayerConfig
-from nzcvm.config.layers.query import QueryLayerConfig
 from nzcvm.coordinates import Coordinate
 
 from qcore import cli
