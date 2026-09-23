@@ -33,7 +33,7 @@ See the output of `hf-sim --help`.
 """
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import dask
 import dask.array as da
@@ -106,27 +106,21 @@ def build_config(
     # splatted straight in. The two things it does NOT carry are injected here: the record
     # duration, which the domain computes, and the rupture-velocity multipliers, which live
     # in their own section because SRF generation reads the same values.
+    source: dict[str, Any] = hf_config.source | {
+        "rupture_velocity": RuptureVelocityTaper(
+            fraction=rupture_velocity.rvfrac,
+            shallow=rupture_velocity.rvfrac_shal,
+            deep=rupture_velocity.rvfrac_deep,
+            **hf_config.source["rupture_velocity"],
+        )
+    }
+    path: dict[str, Any] = hf_config.path | {
+        "rayset": tuple(Ray(ray) for ray in hf_config.path["rayset"]),
+        "path_duration_model": PathDurationModel(hf_config.path["path_duration_model"]),
+    }
     return HfConfig(
-        source=SourceParameters(
-            **hf_config.source
-            | {
-                "rupture_velocity": RuptureVelocityTaper(
-                    fraction=rupture_velocity.rvfrac,
-                    shallow=rupture_velocity.rvfrac_shal,
-                    deep=rupture_velocity.rvfrac_deep,
-                    **hf_config.source["rupture_velocity"],
-                )
-            }
-        ),
-        path=PathParameters(
-            **hf_config.path
-            | {
-                "rayset": tuple(Ray(ray) for ray in hf_config.path["rayset"]),
-                "path_duration_model": PathDurationModel(
-                    hf_config.path["path_duration_model"]
-                ),
-            }
-        ),
+        source=SourceParameters(**source),
+        path=PathParameters(**path),
         site=SiteParameters(**hf_config.site),
         record=RecordParameters(
             duration_s=domain_parameters.duration, **hf_config.record
@@ -289,7 +283,7 @@ def run_hf(
 
     # Name-derived and order-invariant, so adding a station leaves every other station's
     # waveform untouched and re-running a subset reproduces it exactly.
-    stations["seed"] = station_seeds(seeds.hf_seed, stations.index)
+    stations["seed"] = station_seeds(seeds.hf_seed, stations.index.to_list())
     # That invariance makes station order free to choose, and it is worth
     # choosing. Runtime scales with subfault-to-station distance, and station
     # files are spatially sorted, so the far stations all land in the last

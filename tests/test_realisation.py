@@ -572,7 +572,7 @@ def test_hf_config(tmp_path: Path) -> None:
     hf_config.write_to_realisation(test_realisation)
     assert realisations.HFConfig.read_from_realisation(test_realisation) == hf_config
     # Test that realisation parameters override defaults.
-    hf_config.czero = 2.0
+    hf_config.source["stress_drop_bars"] = 75.0
     hf_config.write_to_realisation(test_realisation)
     assert (
         realisations.HFConfig.read_from_realisation_or_defaults(
