@@ -11,14 +11,15 @@ requires-python = ">=3.12"
 dynamic = ["version"]
 dependencies = [
   # UCGMSim Dependencies
-  "im-calculation>=2025.12.5, <2026.09.1",
+  "im-calculation>=2026.09.2",
   "velocity-modelling>=2026.2.1",
   "nshmdb>=2026.09.1",
-  "oq_wrapper>=2025.12.3",
+  "oq_wrapper>=2026.05.2",
   "qcore-utils>=2025.12.2",
   "source_modelling>=2026.08.1",
   # Data Formats
   "geopandas",
+  "netCDF4",               # Required for openquake shenanigans
   "pandas[parquet, hdf5]",
   "pyyaml",
   "xarray[io]",
@@ -175,7 +176,14 @@ exclude-object-patterns = [ # don't report on objects that match any of these re
 ]
 property-form = "type-line"
 
-# Private functions and methods are not part of the public API.
+[[tool.npdlint.scope]]
+match = { nested = true }
+extend-ignore = ["GL08"]
+
+[[tool.npdlint.scope]]
+match = { overload = true }
+extend-ignore = ["GL08"]
+
 [[tool.npdlint.scope]]
 match = { private = true }
 skip = true

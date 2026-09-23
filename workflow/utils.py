@@ -110,13 +110,13 @@ def get_available_cores() -> int:
 @overload
 def dict_zip[K, V1](
     d1: Mapping[K, V1], /, *, strict: bool = ...
-) -> dict[K, tuple[V1]]: ...  # numpydoc ignore=GL08
+) -> dict[K, tuple[V1]]: ...
 
 
 @overload
 def dict_zip[K, V1, V2](
     d1: Mapping[K, V1], d2: Mapping[K, V2], /, *, strict: bool = ...
-) -> dict[K, tuple[V1, V2]]: ...  # numpydoc ignore=GL08
+) -> dict[K, tuple[V1, V2]]: ...
 
 
 @overload
@@ -127,13 +127,13 @@ def dict_zip[K, V1, V2, V3](
     /,
     *,
     strict: bool = ...,
-) -> dict[K, tuple[V1, V2, V3]]: ...  # numpydoc ignore=GL08
+) -> dict[K, tuple[V1, V2, V3]]: ...
 
 
 @overload
 def dict_zip[K](
     *dicts: Mapping[K, Any], strict: bool = ...
-) -> dict[K, tuple[Any, ...]]: ...  # numpydoc ignore=GL08
+) -> dict[K, tuple[Any, ...]]: ...
 
 
 def dict_zip[K](

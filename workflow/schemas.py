@@ -106,43 +106,43 @@ class PointSourceParams:
 # Accordingly, the most trivial of these functions lack docstrings.
 
 
-def _is_positive(x: float) -> bool:  # numpydoc ignore=GL08
+def _is_positive(x: float) -> bool:
     return x > 0
 
 
-def _is_non_negative(x: float) -> bool:  # numpydoc ignore=GL08
+def _is_non_negative(x: float) -> bool:
     return x >= 0
 
 
-def _is_valid_latitude(latitude: float) -> bool:  # numpydoc ignore=GL08
+def _is_valid_latitude(latitude: float) -> bool:
     return -90 <= latitude <= 90
 
 
-def _is_valid_longitude(longitude: float) -> bool:  # numpydoc ignore=GL08
+def _is_valid_longitude(longitude: float) -> bool:
     return -180 <= longitude <= 180
 
 
 def _is_plausible_magnitude(
     magnitude: float,
-) -> bool:  # numpydoc ignore=GL08
+) -> bool:
     return magnitude < 11
 
 
-def _is_valid_degrees(degrees: float) -> bool:  # numpydoc ignore=GL08
+def _is_valid_degrees(degrees: float) -> bool:
     return -360 <= degrees <= 360
 
 
 def _is_valid_local_coordinate(
     coordinate: float,
-) -> bool:  # numpydoc ignore=GL08
+) -> bool:
     return 0 <= coordinate <= 1
 
 
-def _is_valid_bearing(bearing: float) -> bool:  # numpydoc ignore=GL08
+def _is_valid_bearing(bearing: float) -> bool:
     return 0 <= bearing <= 360
 
 
-def _is_proportion(x: float) -> bool:  # numpydoc ignore=GL08
+def _is_proportion(x: float) -> bool:
     return 0 <= x <= 1
 
 
@@ -1176,6 +1176,28 @@ INTENSITY_MEASURE_CALCUATION_PARAMETERS = Schema(
         ),
     }
 )
+
+
+EMPIRICAL_PARAMETERS = Schema(
+    {
+        Literal(
+            "tect_type",
+            description="Tectonic type of the source (one of oq_wrapper.constants.TectType)",
+        ): str,
+        Literal(
+            "models",
+            description=(
+                "Ground motion models or ground motion model logic trees to "
+                "evaluate (members of oq_wrapper.constants.GMM or "
+                "oq_wrapper.constants.GMMLogicTree)"
+            ),
+        ): [str],
+    }
+)
+# NOTE: The values of this schema are validated as plain strings rather than
+# `oq_wrapper.constants` enum members. Importing `oq_wrapper.constants` pulls in
+# OpenQuake, which is expensive (and must be precompiled), so the strings are
+# only resolved to enum members inside the IM calculation stage.
 
 
 LOG_ENTRY_SCHEMA = Schema(
