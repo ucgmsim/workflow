@@ -176,17 +176,67 @@ def _adjust_for_topography(
 ) -> tuple[list[Refinement], float]:
     """Deepen refinement layers so each holds at least `nzmin` cells."""
 
-    # Topography raises the top of the grid above z=0, which eats into the
-    # first refinement layer. SW4 needs every grid in the stack to be at
-    # least `nzmin` cells deep, so any layer left too thin is pushed down
-    # until it is. The topography surface is inserted as a boundary for the
-    # purpose of that count, but is not returned as a refinement.
+    # GOAL: We want to ensure every refinement has at least `nzmin` layers. We
+    # do this because SW4 requires a minimum number of gridpoints in each
+    # refinement. On a free surface this is achieved simply by ensure each input
+    # refinement is at least 12 `nzmin` gridpoints from the one above it.
+    # Topography complicates the picture. SW4 requires that the topography is
+    # backed by curvilinear layers down to a certain depth (see the HACK below).
+    # These layers we will call topographic layers. Usually these layers subsume
+    # the refinements listed in the realisation, so that the bookkeeping is
+    # roughly the same. The last topographic can cut between input refinements
+    # to introduce an additional *implicit* curvilinear layer. So even if each
+    # refinement is well separated, the implicit layer might be too thin. We
+    # illustrate all of this diagramatically here.
+    #
+    # Example: refinements of 100 m down to 5000 m and 200 m down to 25000 m,
+    # with topography_zmax = 5400 m and nzmin = 12 (depths not to scale).
+    #
+    #         BEFORE                                 AFTER
+    #
+    #   ~~~~~~~~~~~~~~~~~~~ topography        ~~~~~~~~~~~~~~~~~~~ topography
+    #   | curvilinear     |                   | curvilinear     |
+    #   | h = 100 m       |                   | h = 100 m       |
+    #   +-----------------+ z = 5000          +-----------------+ z = 5000
+    #   | implicit, 200 m | 2 cells (< 12)    | implicit        |
+    #   +=================+ z = 5400          | curvilinear     |
+    #   | cartesian       |   topo zmax       | h = 200 m       | 12 cells
+    #   | h = 200 m       |                   |                 |
+    #   |                 |                   +=================+ z = 7400
+    #   |                 |                   | cartesian       |   topo zmax
+    #   |                 |                   | h = 200 m       |
+    #   +-----------------+ z = 25000         +-----------------+ z = 25000
+    #
+    #   ---  input refinement boundary      ===  topographic boundary (zmax)
+    #
+    # The input refinements are untouched here; only topography_zmax moves. Had
+    # topography_zmax instead landed just *above* an input boundary (e.g. 4800
+    # m), the thin layer would be the one below it, and it is the input
+    # refinement (5000 m -> 6000 m) that gets pushed down instead.
+
+    # The solution is to ensure that the input refinement intersecting the
+    # topographic boundary is wide enough so that above and below the
+    # topographic boundary we still have `nzmin` points. This seems challenging,
+    # but the algorithm actually ends up being simple:
+    #
+    # 1. Introduce the topography bottom as an additional refinement with the
+    # same resolution as the bottom of the topography, this accounts for the
+    # implicit layer that SW4 inserts in its models.
+    # 2. Walk over each refinement and ensure that each refinement is separated
+    # by `nzmin` from the one above.
+    # 3. Delete the implicit layer but record its bottom.
+
+    # This bottom is where we should tell SW4 to terminate the topographic
+    # layers to close the loop and ensure the model we build here matches what
+    # SW4 constructs in its code.
 
     # Ensure no side effects
     refinements = copy.deepcopy(refinements)
-    # By shallow copying the refinements before modifying them this view into
-    # the refinements will only have the updated refinements, and not the
-    # topography and bottom.
+    # By shallow copying the refinements again, we can record all the
+    # refinements the user specified, but they depths will be automatically
+    # updated by the loop below which mutates the refinements list above. It
+    # also means that the topography layer (which is added to the `refinements`
+    # list but not `real_refinements`) is not returned at the end.
     real_refinements = refinements.copy()
     try:
         topography_resolution = min(
