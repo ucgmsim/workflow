@@ -313,9 +313,9 @@ def generate_sw4_input(
 
     with h5py.File(velocity_model, "r") as f:
         # Azimuth must be the same as the velocity model inside SW4
-        azimuth = azimuth_from_velocity_model(f)
-        topography_height, sfile_zmax = topography_height_from_velocity_model(f)
-        sfile_x, sfile_y = lateral_footprint_from_velocity_model(f)
+        azimuth = _azimuth_from_velocity_model(f)
+        topography_height, sfile_zmax = _topography_height_from_velocity_model(f)
+        sfile_x, sfile_y = _lateral_footprint_from_velocity_model(f)
 
     # HACK: SW4 User Guide (Chapter 5) suggests
     # z_max >= -e_min + 3 (e_max - e_min) where e_min, e_max are the minimum
@@ -328,7 +328,7 @@ def generate_sw4_input(
     time = domain_parameters.duration
     refinements = theoretical_refinements.refinements_for_depth(depth)
 
-    refinements, topography_zmax = adjust_for_topography(
+    refinements, topography_zmax = _adjust_for_topography(
         refinements, topography_zmax, nzmin=sw4_params.nz_min
     )
     refinements = sorted(refinements, key=lambda r: r.bottom)
@@ -403,11 +403,11 @@ def generate_sw4_input(
     velocity_model_name = velocity_model.name
     # Via either the adjustments for the minimum number of gridpoints in a layer
     # (`refinements_for_depth`), or the topography following adjustments in
-    # `adjust_for_topography`, the bottom layer of the refinement can end up
+    # `_adjust_for_topography`, the bottom layer of the refinement can end up
     # increasing the total depth of the model. Here we account for that by
     # updating depth to reflect this change.
     depth = max(depth, refinements[-1].bottom)
-    grid_command, other_commands = build_sw4_commands(
+    grid_command, other_commands = _build_sw4_commands(
         sw4_params,
         # NOTE: In SW4 x = north, but in the workflow y = north.
         x=y,
