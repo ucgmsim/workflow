@@ -244,14 +244,21 @@ def adjust_for_topography(
     refinements = copy.deepcopy(refinements)
     # By shallow copying the refinements before modifying them this view into the refinements will only have the updated refinements, and not the topography and bottom.
     real_refinements = refinements.copy()
-    topography_resolution = min(
-        (
-            refinement
-            for refinement in refinements
-            if refinement.bottom > topography_zmax
-        ),
-        key=lambda r: r.bottom,
-    ).resolution
+    try:
+        topography_resolution = min(
+            (
+                refinement
+                for refinement in refinements
+                if refinement.bottom > topography_zmax
+            ),
+            key=lambda r: r.bottom,
+        ).resolution
+    except ValueError as e:
+        e.add_note(
+            "This can happen if the simulation domain is too shallow for topography, or refinements are not deep enough to capture topographic extent."
+            "Raise the simulation depth, or increase the depth of refinements."
+        )
+        raise
     topography = Refinement(bottom=topography_zmax, resolution=topography_resolution)
     refinements.append(topography)
     refinements.sort(key=lambda r: r.bottom)
