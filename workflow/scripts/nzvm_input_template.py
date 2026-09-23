@@ -72,43 +72,15 @@ from workflow.realisations import (
 app = typer.Typer()
 
 NZTM_EPSG = 2193
-"""The CRS every NZCVM grid is built in."""
 
 SW4_DEPTH_OFFSET_KM = 10.0
 """Extra depth (km) modelled below the domain so SW4 refinement adjustment has room."""
 
 SW4_MODEL_SLACK_GRIDPOINTS = 4
-"""Gridpoints of velocity model kept beyond the padded SW4 grid, per face.
-
-`create-sw4-input` pads the SW4 grid by one supergrid sponge width on every
-lateral face and on the bottom, so the requested domain is the grid's *interior*
-rather than being eaten into by the absorbing layer. The velocity model has to
-cover that padded grid or SW4 queries outside the sfile, so this module pads the
-model by the same sponge width plus this slack. The slack absorbs the rounding
-that turns an extent into a gridpoint count in NZCVM and in SW4, which need not
-agree exactly.
-"""
+"""Gridpoints of velocity model kept beyond the padded SW4 grid, per face."""
 
 EMOD3D_FREE_SURFACE_PADDING = 1
-"""Extra gridpoints in z for EMOD3D's free surface shift.
-
-EMOD3D shifts the model down one gridpoint for the free surface and so never
-reads the deepest layer (see `genmodel.c`), which means the model must carry
-one row more than the domain has. `create-e3d-par` assumes the same padding
-when it checks the velocity model's size, so the two must agree.
-"""
-
-TOMOGRAPHY_LAYER_TYPES = frozenset({"clamp", "query"})
-"""Layer types kept by `--layers tomography`.
-
-The tomography-only model is the background 3D tomography and nothing else:
-no basins, no offshore model, no Ely near-surface taper. The clamps stay
-because they are numerical guards on the simulation (minimum Vs, Vp/Vs
-ratio bounds), not a feature of the geology.
-"""
-
-DEFAULT_TOMOGRAPHY_GLOB = "ep2020.zarr"
-"""Model glob matching only the tomography mesh in the NZCVM model directory."""
+"""Extra gridpoints in z for EMOD3D's free surface shift."""
 
 
 class GridFormat(StrEnum):
@@ -118,63 +90,7 @@ class GridFormat(StrEnum):
     EMOD3D = auto()
 
 
-class LayerSelection(StrEnum):
-    """How much of the realisation's NZCVM layer stack to keep."""
-
-    FULL = auto()
-    """Every layer the realisation configures."""
-    TOMOGRAPHY = auto()
-    """Background tomography and numerical clamps only."""
-
-
-def select_layers(
-    layers: list[LayerConfig],
-    selection: LayerSelection,
-    tomography_glob: str,
-) -> list[LayerConfig]:
-    """Filter a realisation's layer stack down to `selection`.
-
-    Parameters
-    ----------
-    layers : list[LayerConfig]
-        The realisation's configured layers, in pipeline order.
-    selection : LayerSelection
-        Which layers to keep.
-    tomography_glob : str
-        Glob matching the tomography mesh, used to narrow the query layer when
-        `selection` is `LayerSelection.TOMOGRAPHY`.
-
-    Returns
-    -------
-    list[LayerConfig]
-        The kept layers, in their original order.
-
-    Raises
-    ------
-    ValueError
-        If the selection leaves no query layer, since a velocity model with
-        nothing to query is always empty.
-    """
-    if selection == LayerSelection.FULL:
-        return layers
-
-    selected = []
-    for layer in layers:
-        if getattr(layer, "type", None) not in TOMOGRAPHY_LAYER_TYPES:
-            continue
-        if isinstance(layer, QueryLayerConfig):
-            layer = dataclasses.replace(layer, model_globs=[tomography_glob])
-        selected.append(layer)
-
-    if not any(isinstance(layer, QueryLayerConfig) for layer in selected):
-        raise ValueError(
-            "Layer selection left no query layer: the realisation's nzcvm "
-            "section must configure one for a velocity model to be generated."
-        )
-    return selected
-
-
-def sw4_grid(
+def _sw4_grid(
     domain_parameters: DomainParameters,
     refinements: Refinements,
     sw4_params: SW4Parameters,
@@ -184,25 +100,7 @@ def sw4_grid(
 
     The model is deliberately larger than the domain. `create-sw4-input` pads the
     SW4 grid by one supergrid sponge width on every face, so the model has to be
-    padded by at least as much or SW4 queries outside the sfile.
-
-    Parameters
-    ----------
-    domain_parameters : DomainParameters
-        The domain to model.
-    refinements : Refinements
-        The theoretical mesh refinements, resolved against the domain depth.
-    sw4_params : SW4Parameters
-        The SW4 parameters, which fix the supergrid sponge width the model has
-        to cover.
-    nzcvm_settings : NZCVMSettings
-        Supplies the topographic surface and chunking.
-
-    Returns
-    -------
-    SW4GridConfig
-        The grid configuration.
-    """
+    padded by at least as much or SW4 queries outside the sfile."""
     domain = domain_parameters.domain
     domain_refinements = refinements.refinements_for_depth(
         domain_parameters.depth + SW4_DEPTH_OFFSET_KM
@@ -221,10 +119,6 @@ def sw4_grid(
     domain_refinements[-1].bottom += model_padding
 
     padding_km = model_padding / 1000.0
-    # `BoundingBox.pad` takes kilometres and pads along the box's own rotated
-    # axes, keeping the centroid and the azimuth. Padding symmetrically keeps the
-    # model concentric with the padded SW4 grid, which is what makes
-    # `create-sw4-input`'s extent-versus-footprint check a containment check.
     domain = domain.pad(pad_x=(padding_km, padding_km), pad_y=(padding_km, padding_km))
 
     origin_lat, origin_lon = domain.origin
@@ -248,30 +142,13 @@ def sw4_grid(
     )
 
 
-def emod3d_grid(
+def _emod3d_grid(
     domain_parameters: DomainParameters,
     resolution: Resolution,
     velocity_model_parameters: VelocityModelParameters,
     nzcvm_settings: NZCVMSettings,
 ) -> EMOD3DGrid:
-    """Build the EMOD3D uniform grid configuration.
-
-    Parameters
-    ----------
-    domain_parameters : DomainParameters
-        The domain to model.
-    resolution : Resolution
-        The uniform grid spacing, in kilometres.
-    velocity_model_parameters : VelocityModelParameters
-        Supplies the topography type.
-    nzcvm_settings : NZCVMSettings
-        Supplies the topographic surface and chunking.
-
-    Returns
-    -------
-    EMOD3DGrid
-        The grid configuration, sized to match what `create-e3d-par` expects.
-    """
+    """Build the EMOD3D uniform grid configuration."""
     domain = domain_parameters.domain
     origin_lat, origin_lon = domain.origin
     return EMOD3DGrid(
@@ -303,8 +180,6 @@ def generate_template(
     realisation_ffp: Path,
     output_path: Path,
     format: Annotated[GridFormat, typer.Option()] = GridFormat.SW4,
-    layers: Annotated[LayerSelection, typer.Option()] = LayerSelection.FULL,
-    tomography_glob: Annotated[str, typer.Option()] = DEFAULT_TOMOGRAPHY_GLOB,
 ) -> None:
     """Generate an NZCVM velocity model configuration from a realisation file.
 
@@ -316,11 +191,6 @@ def generate_template(
         Path where the generated configuration will be written.
     format : GridFormat
         The simulator whose grid to sample the velocity model onto.
-    layers : LayerSelection
-        How much of the realisation's layer stack to keep. `tomography` drops
-        the basins, offshore model and near-surface taper.
-    tomography_glob : str
-        Glob matching the tomography mesh, used when `layers` is `tomography`.
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
@@ -331,7 +201,7 @@ def generate_template(
 
     match format:
         case GridFormat.SW4:
-            grid = sw4_grid(
+            grid = _sw4_grid(
                 domain_parameters,
                 Refinements.read_from_realisation_or_defaults(
                     realisation_ffp, metadata.defaults_version
@@ -342,7 +212,7 @@ def generate_template(
                 nzcvm_settings,
             )
         case GridFormat.EMOD3D:
-            grid = emod3d_grid(
+            grid = _emod3d_grid(
                 domain_parameters,
                 Resolution.read_from_realisation_or_defaults(
                     realisation_ffp, metadata.defaults_version
@@ -355,9 +225,9 @@ def generate_template(
 
     config = VelocityModelConfig(
         grid=grid,
-        layers=select_layers(nzcvm_settings.layers, layers, tomography_glob),
+        layers=nzcvm_settings.layers,
     )
 
     output_path.write_text(
-        config.to_json(encoder=functools.partial(json.dumps, indent=4))  # ty: ignore
+        config.to_json(encoder=functools.partial(json.dumps, indent=4))
     )
