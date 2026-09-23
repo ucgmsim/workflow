@@ -399,7 +399,12 @@ def generate_sw4_input(
 
     velocity_model_directory = velocity_model.parent
     velocity_model_name = velocity_model.name
-
+    # Via either the adjustments for the minimum number of gridpoints in a layer
+    # (`refinements_for_depth`), or the topography following adjustments in
+    # `adjust_for_topography`, the bottom layer of the refinement can end up
+    # increasing the total depth of the model. Here we account for that by
+    # updating depth to reflect this change.
+    depth = max(depth, refinements[-1].bottom)
     grid_command, other_commands = build_sw4_commands(
         sw4_params,
         # NOTE: In SW4 x = north, but in the workflow y = north.
