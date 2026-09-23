@@ -406,7 +406,7 @@ def generate_sw4_input(
     # `_adjust_for_topography`, the bottom layer of the refinement can end up
     # increasing the total depth of the model. Here we account for that by
     # updating depth to reflect this change.
-    depth = max(depth, refinements[-1].bottom)
+    depth = max(depth, refinements[-1].bottom / 1000.0)
     grid_command, other_commands = _build_sw4_commands(
         sw4_params,
         # NOTE: In SW4 x = north, but in the workflow y = north.
