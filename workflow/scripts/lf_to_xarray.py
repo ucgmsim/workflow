@@ -53,38 +53,9 @@ def _read_station_batch(
     time: xr.DataArray,
     component: xr.DataArray,
 ) -> xr.DataArray:
-    """Read waveforms for a batch of stations from an SW4 recording file.
-
-    Parameters
-    ----------
-    stations : xr.DataArray
-        Names of the station groups to read.
-    sw4_ffp : Path
-        Path to the SW4 HDF5 station recording file.
-    time : xr.DataArray
-        Time coordinates of the recording.
-    component : xr.DataArray
-        Component coordinates of the recording.
-
-    Returns
-    -------
-    xr.DataArray
-        Velocity waveforms in m/s with shape (3, len(stations), npts).
-        Components are ordered to match the EMOD3D LF convention:
-        x = east-west, y = north-south, z = down.
-
-    Notes
-    -----
-    The datasets carry SW4's displacement-mode names (EW/NS/UP), but for
-    SRF rupture sources the time function SW4 receives is the slip *rate*,
-    so the nominal displacement output is physically velocity (see the
-    note under the rupture command in the SW4 User's Guide).
-
-    Raises
-    ------
-    RuntimeError
-        If a station group lacks the EW/NS/UP datasets.
-    """
+    """Read velocity waveforms (m/s, EW/NS/UP) for a batch of stations."""
+    # SW4 labels these as displacement, but for SRF sources it is given the slip
+    # *rate*, so the output is really velocity (SW4 User's Guide, rupture).
     waveforms = np.empty((len(component), len(stations), len(time)), dtype=np.float32)
     with h5py.File(sw4_ffp, "r") as handle:
         for i, station_name in enumerate(stations):
@@ -107,33 +78,8 @@ def _read_station_batch(
     )
 
 
-def read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
-    """Initialise an xarray dataset using metadata read from the station recording file.
-
-    Parameters
-    ----------
-    sw4_ffp : Path
-        Path to SW4 recording file.
-
-    Returns
-    -------
-    xr.Dataset
-        Xarray dataset with initialised coordinate arrays and attributes.
-
-        The supergrid penetration SW4 reports per station is returned as the
-        station-dimension *coordinates* `supergrid_depth` (metres) and
-        `supergrid_depth_gp` (grid points), not as data variables. That is
-        load-bearing: station-dimension coordinates ride through `bb-sim` and
-        `im-calc` untouched, whereas data variables are dropped by
-        `bb_sim._process_bb_chunk`. See the note at `bb_sim.py`'s `combined`
-        dataset.
-
-    Raises
-    ------
-    RuntimeError
-        If the HDF5 file is not in the format expected for an SW4 recording file
-        (see Section 12.9 of the SW4 User Guide).
-    """
+def _read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
+    """Build the dataset's coordinates and attributes from an SW4 station file."""
     global_npts = None
     stations = []
     latitudes = []
@@ -143,9 +89,7 @@ def read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
 
     with h5py.File(sw4_ffp, "r") as handle:
         dt = np.float32(handle["DELTA"][:].squeeze())
-        # SW4 writes the supergrid (absorbing layer) width once per file,
-        # beside DELTA. Guarded the same way as SGDEPTH below: station files
-        # written before SW4 reported the supergrid have neither.
+        # Station files from before SW4 reported the supergrid lack these.
         attrs: dict[str, np.float32 | float] = {"dt": dt}
         for width_name in ("SGWIDTH", "SGWIDTHGP"):
             if width_name in handle:
@@ -167,14 +111,10 @@ def read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
 
             if "SGDEPTH" in group:
                 supergrid_depths.append(float(group["SGDEPTH"][:].squeeze()))
-                # Deliberately read under the SGDEPTH guard rather than its
-                # own: one present without the other is a corrupt file, not an
-                # old one, and a KeyError is then the right outcome.
+                # SGDEPTH without SGDEPTHGP is a corrupt file, so let it raise.
                 supergrid_depths_gp.append(float(group["SGDEPTHGP"][:].squeeze()))
             else:
-                # An old station file, or a solver with no absorbing layer:
-                # unknown, *not* clean. Never 0.0 here -- that would assert
-                # this station was checked and found in the interior.
+                # Unknown, not 0.0: 0.0 claims the station is in the interior.
                 supergrid_depths.append(np.nan)
                 supergrid_depths_gp.append(np.nan)
 
@@ -193,10 +133,9 @@ def read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
             "station": stations,
             "component": ["x", "y", "z"],
             "time": time,
-            # float32 with NaN for "unknown", never an integer with a
-            # _FillValue: downstream readers open these files with
-            # `mask_and_scale=False`, so a sentinel would read back raw and
-            # become a plausible penetration depth.
+            # Coordinates, not data variables, so they survive `bb-sim`. NaN
+            # float32 rather than a fill value, as readers use
+            # `mask_and_scale=False`.
             "supergrid_depth": (
                 "station",
                 np.array(supergrid_depths, dtype=np.float32),
@@ -215,42 +154,22 @@ def _template_waveform(dset: xr.Dataset, batch_size: int) -> xr.DataArray:
     nstation = len(dset.coords["station"])
     ntime = len(dset.coords["time"])
     return xr.DataArray(
-        # Chunks must match what _read_station_batch returns (all components
-        # and timesteps for one batch of stations). If dask is left to pick
-        # chunks itself it splits the station and time axes, and map_blocks
-        # then advertises output keys it never produces.
+        # Chunks must match the batches `_read_station_batch` returns.
         da.empty(
             (ncomponent, nstation, ntime),
             dtype=np.float32,
             chunks=(ncomponent, batch_size, ntime),
         ),
         dims=["component", "station", "time"],
-        # Dimension coordinates only. `map_blocks` cross-checks the user
-        # function's output against the template and raises if the template
-        # advertises a coordinate the function does not return, and
-        # `_read_station_batch` returns only the three dimension coordinates.
-        # The station-dimension coordinates the dataset also carries (such as
-        # `supergrid_depth`) are re-attached when the result is assigned back
-        # onto `dset`.
+        # Dimension coordinates only, to match `_read_station_batch`. The
+        # others (e.g. `supergrid_depth`) come back when assigned onto `dset`.
         coords={dim: dset.coords[dim] for dim in ("component", "station", "time")},
     )
 
 
-def convert_sw4_station_recording(sw4_ffp: Path) -> xr.Dataset:
-    """Convert SW4 station recording to an xarray dataset.
-
-    Parameters
-    ----------
-    sw4_ffp : Path
-        Path to the SW4 HDF5 station recording file.
-
-    Returns
-    -------
-    xr.Dataset
-        An xarray dataset lazily constructed from the HDF5 file. Waveform data
-        is read in batches of stations when the dataset is computed or written.
-    """
-    dset = read_station_metadata(sw4_ffp)
+def _convert_sw4_station_recording(sw4_ffp: Path) -> xr.Dataset:
+    """Lazily convert an SW4 station recording to an xarray dataset."""
+    dset = _read_station_metadata(sw4_ffp)
     batch_size = max(
         1,
         TARGET_CHUNK_BYTES
@@ -260,9 +179,8 @@ def convert_sw4_station_recording(sw4_ffp: Path) -> xr.Dataset:
             * np.float32().itemsize
         ),
     )
-    # The dimension must be named "station" so map_blocks can line the input
-    # batches up with the station axis of the template. It is deliberately left
-    # without a station coordinate, as an index coordinate cannot be chunked.
+    # Named "station" to line up with the template, but with no coordinate, as
+    # an index coordinate cannot be chunked.
     chunked_stations = xr.DataArray(dset["station"].values, dims=["station"]).chunk(
         {"station": batch_size}
     )
@@ -324,7 +242,7 @@ def convert_lf_to_xarray_dataset(
         case Format.EMOD3D:
             raise ValueError("EMOD3D format requires directory containing LFSeis files")
         case Format.SW4 if low_frequency_path.is_file():
-            lf_dataset = convert_sw4_station_recording(low_frequency_path)
+            lf_dataset = _convert_sw4_station_recording(low_frequency_path)
             lf_dataset.to_netcdf(output_ffp, engine="h5netcdf")
         case Format.SW4:
             raise ValueError("SW4 format requires station recording file.")

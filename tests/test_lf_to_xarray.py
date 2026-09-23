@@ -68,6 +68,16 @@ def write_sw4_station_file(
     return path
 
 
+def convert(sw4_ffp: Path) -> xr.Dataset:
+    """Run `lf-to-xarray` on an SW4 station file and read the result back."""
+    output = sw4_ffp.with_suffix(".nc")
+    lf_to_xarray.convert_lf_to_xarray_dataset(
+        sw4_ffp, output, format=lf_to_xarray.Format.SW4
+    )
+    with xr.open_dataset(output, mask_and_scale=False) as dataset:
+        return dataset.load()
+
+
 def test_supergrid_penetration_arrives_as_float32_coordinates(tmp_path: Path) -> None:
     """The flag must be a *coordinate*, and it must be floating point.
 
@@ -87,7 +97,7 @@ def test_supergrid_penetration_arrives_as_float32_coordinates(tmp_path: Path) ->
         },
     )
 
-    dset = lf_to_xarray.read_station_metadata(ffp)
+    dset = convert(ffp)
 
     for name in ("supergrid_depth", "supergrid_depth_gp"):
         assert name in dset.coords
@@ -114,7 +124,7 @@ def test_an_old_station_file_converts_with_an_all_nan_flag(tmp_path: Path) -> No
         tmp_path / "old.h5", {"AAAA": None, "BBBB": None, "CCCC": None}
     )
 
-    dset = lf_to_xarray.read_station_metadata(ffp)
+    dset = convert(ffp)
 
     assert dset.sizes["station"] == 3
     for name in ("supergrid_depth", "supergrid_depth_gp"):
@@ -136,7 +146,7 @@ def test_stations_missing_the_flag_are_nan_not_zero(tmp_path: Path) -> None:
         },
     )
 
-    depth = lf_to_xarray.read_station_metadata(ffp).sortby("station")["supergrid_depth"]
+    depth = convert(ffp).sortby("station")["supergrid_depth"]
 
     assert depth.values[0] == 0.0
     assert np.isnan(depth.values[1])
@@ -153,7 +163,7 @@ def test_one_dataset_without_the_other_is_a_corrupt_file(tmp_path: Path) -> None
     ffp = write_sw4_station_file(tmp_path / "corrupt.h5", {"AAAA": {"SGDEPTH": 900.0}})
 
     with pytest.raises(KeyError):
-        lf_to_xarray.read_station_metadata(ffp)
+        convert(ffp)
 
 
 def test_the_sponge_width_is_lifted_into_the_dataset_attributes(
@@ -171,42 +181,10 @@ def test_the_sponge_width_is_lifted_into_the_dataset_attributes(
         widths={"SGWIDTH": 12000.0, "SGWIDTHGP": 30.0},
     )
 
-    dset = lf_to_xarray.read_station_metadata(ffp)
+    dset = convert(ffp)
 
     assert dset.attrs["SGWIDTH"] == pytest.approx(12000.0)
     assert dset.attrs["SGWIDTHGP"] == pytest.approx(30.0)
     # The pre-existing attributes must survive alongside them.
     assert dset.attrs["nt"] == 8
     assert dset.attrs["dt"] == pytest.approx(0.05)
-
-
-def test_the_flag_survives_a_netcdf_round_trip(tmp_path: Path) -> None:
-    """As a coordinate, and as NaN -- checked the way a consumer reads it.
-
-    `mask_and_scale=False` is what `eqvis`'s `open_ims` passes, so this is the
-    exact read path the flag has to survive: no fill-value decoding, NaN read
-    straight off disk.
-    """
-    ffp = write_sw4_station_file(
-        tmp_path / "roundtrip.h5",
-        {
-            "AAAA": {"SGDEPTH": 0.0, "SGDEPTHGP": 0.0},
-            "BBBB": None,
-            "CCCC": {"SGDEPTH": 5750.0, "SGDEPTHGP": 14.0},
-        },
-        widths={"SGWIDTH": 12000.0, "SGWIDTHGP": 30.0},
-    )
-    dset = lf_to_xarray.convert_sw4_station_recording(ffp)
-    output = tmp_path / "lf.nc"
-    # The same engine `lf-to-xarray` itself writes with.
-    dset.to_netcdf(output, engine="h5netcdf")
-
-    with xr.open_dataset(output, mask_and_scale=False) as reopened:
-        assert "supergrid_depth" in reopened.coords
-        assert "supergrid_depth" not in reopened.data_vars
-        assert reopened["supergrid_depth"].dtype == np.float32
-        depth = reopened.sortby("station")["supergrid_depth"].values
-        assert depth[0] == 0.0
-        assert np.isnan(depth[1])
-        assert depth[2] == 5750.0
-        assert reopened.attrs["SGWIDTH"] == pytest.approx(12000.0)
