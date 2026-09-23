@@ -939,7 +939,9 @@ class Refinements(RealisationConfiguration):
     _config_key: ClassVar[str] = "refinements"
     _schema: ClassVar[Schema] = schemas.REFINEMENTS_SCHEMA
     refinements: list[Refinement]
+    """The refinement layers, from the surface down."""
     unbounded_refinement_resolution: float
+    """Grid spacing below the last refinement layer (metres)."""
 
     def __post_init__(self) -> None:
         """Coerce refinements read from JSON into `Refinement` instances."""
@@ -1384,12 +1386,12 @@ class SW4Command:
             parts.append(f"{key}={value}")
         return " ".join(parts)
 
-    def merged(self, **overrides: str | int | float | bool | None) -> "SW4Command":
+    def merged(self, **overrides: str | float | bool | None) -> "SW4Command":
         """Return a copy of this command with `overrides` merged into its parameters.
 
         Parameters
         ----------
-        **overrides : str | int | float | bool | None
+        **overrides : str | float | bool | None
             Parameter values to overlay on top of the existing parameters.
 
         Returns
