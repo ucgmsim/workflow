@@ -1372,8 +1372,12 @@ class BroadbandParameters(RealisationConfiguration):
     """fmidbot for site amplification"""
     fmin: float
     """fmin for site amplification."""
-    site_amp_version: str
-    """Version of the site amplification model (e.g. "2014")."""
+    fhightop: float
+    """fhightop for site amplification."""
+    fmax: float
+    """fmax for site amplification."""
+    site_amp_version: schemas.SiteAmpModel
+    """The site amplification model."""
 
 
 @dataclasses.dataclass
