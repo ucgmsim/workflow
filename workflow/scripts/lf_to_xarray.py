@@ -100,7 +100,7 @@ def _read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
             if sw4_name in handle:
                 attrs[attribute_name] = float(handle[sw4_name][:].squeeze())
         for station_name, group in handle.items():
-            if "NPTS" not in group:
+            if not isinstance(group, h5py.Group) or "NPTS" not in group:
                 continue
             npts = int(group["NPTS"][:].squeeze())
             if global_npts is not None and npts != global_npts:
