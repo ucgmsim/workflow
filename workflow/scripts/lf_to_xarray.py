@@ -222,7 +222,7 @@ def convert_lf_to_xarray_dataset(
     Parameters
     ----------
     low_frequency_path : Path
-        Directory containing station seismogram outputs.
+        Station seismogram outputs.
     output_ffp : Path
         Path to write the xarray dataset
     format : Format, optional
