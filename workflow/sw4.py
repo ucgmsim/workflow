@@ -27,6 +27,20 @@ source check.
 ADIABATIC_COEFFICIENT = (2772.0 / 1024.0) / (2.0 * math.pi)
 """`max|Psi0'| / (2 pi)` for SW4's supergrid stretching function."""
 
+SUPERGRID_WIDTH_ATTRIBUTES = {
+    "SGWIDTH": "supergrid_width",
+    "SGWIDTHGP": "supergrid_width_gp",
+}
+"""Map from SW4's supergrid-width datasets to the attribute names `lf-to-xarray`
+writes and `im-calc` copies to the IM root attrs."""
+
+SUPERGRID_DEPTH_COORDINATES = {
+    "SGDEPTH": "supergrid_depth",
+    "SGDEPTHGP": "supergrid_depth_gp",
+}
+"""Map from SW4's per-station supergrid-depth datasets (metres and grid points)
+to the station coordinates `lf-to-xarray` writes and `im-calc` reads."""
+
 
 def supergrid_width(sw4_params: SW4Parameters, coarsest_resolution: float) -> float:
     """Compute the supergrid sponge width SW4 will use, in metres.

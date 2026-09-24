@@ -52,7 +52,7 @@ from IM.ims import IM
 from qcore import cli, coordinates
 from source_modelling import sources
 from source_modelling.sources import IsSource
-from workflow import realisations
+from workflow import realisations, sw4
 from workflow.realisations import (
     DomainParameters,
     EmpiricalParameters,
@@ -159,6 +159,30 @@ EMPIRICAL_STATISTIC_METADATA = {
     "std_Inter": "Between-event standard deviation of the natural logarithm of {description}",
     "std_Intra": "Within-event standard deviation of the natural logarithm of {description}",
 }
+
+
+def _supergrid_coordinates(dataset: xr.Dataset) -> dict[str, xr.DataArray]:
+    """Extract the absorbing-layer penetration coordinates from a waveform file."""
+
+    return {
+        name: (dataset.coords[name].astype(np.float32).compute())
+        for name in sw4.SUPERGRID_DEPTH_COORDINATES.values()
+        if name in dataset.coords
+    }
+
+
+def _supergrid_attributes(
+    dataset: xr.Dataset, supergrid: dict[str, xr.DataArray]
+) -> dict[str, str | float]:
+    """Describe the absorbing layer at the root of the IM file."""
+    if not bool(np.isfinite(supergrid["supergrid_depth"]).any()):
+        return {}
+
+    attributes: dict[str, str | float] = {"absorbing_layer": "sw4_supergrid"}
+    for attribute_name in sw4.SUPERGRID_WIDTH_ATTRIBUTES.values():
+        if attribute_name in dataset.attrs:
+            attributes[attribute_name] = float(dataset.attrs[attribute_name])
+    return attributes
 
 
 def add_station_parameters(
@@ -764,6 +788,8 @@ def calculate_intensity_measures(
             station=broadband.station.str.match(r"^(\w{4})$").values
         )
 
+    supergrid = _supergrid_coordinates(broadband)
+
     intensity_measures = override_ims or intensity_measure_parameters.ims
 
     psa_periods = np.array(intensity_measure_parameters.valid_periods, dtype=np.float64)
@@ -833,7 +859,7 @@ def calculate_intensity_measures(
         "ztor": source_parameters.avg_ztor,
         "zbot": source_parameters.avg_zbot,
         "hypo_depth": source_parameters.hypo_depth,
-    }
+    } | _supergrid_attributes(broadband, supergrid)
     site_parameters = None
     if empirical:
         # vs30 is one float per station; load it eagerly rather than letting it
@@ -863,7 +889,8 @@ def calculate_intensity_measures(
         dtree,
         distances.as_dict()
         | ((site_parameters).as_dict() if site_parameters else {})
-        | {"latitude": broadband["latitude"], "longitude": broadband["longitude"]},
+        | {"latitude": broadband["latitude"], "longitude": broadband["longitude"]}
+        | supergrid,
     )
     dtree = add_units(dtree)
 

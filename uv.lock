@@ -3462,6 +3462,7 @@ wheels = [
 name = "ucgmsim-workflow"
 source = { editable = "." }
 dependencies = [
+    { name = "dask" },
     { name = "fiona" },
     { name = "geopandas" },
     { name = "h5py" },
@@ -3513,6 +3514,7 @@ types = [
 [package.metadata]
 requires-dist = [
     { name = "coverage", extras = ["toml"], marker = "extra == 'test'" },
+    { name = "dask" },
     { name = "deptry", marker = "extra == 'dev'" },
     { name = "fiona" },
     { name = "geopandas" },
