@@ -75,7 +75,8 @@ def _read_station_batch(
             waveforms[0, i] = group["EW"][:]
             waveforms[1, i] = group["NS"][:]
             waveforms[2, i] = group["UP"][:]
-
+    # Doing in-place multiplication here saves one batch copy
+    waveforms *= CMS
     return xr.DataArray(
         waveforms,
         dims=["component", "station", "time"],
@@ -197,8 +198,11 @@ def _convert_sw4_station_recording(sw4_ffp: Path) -> xr.Dataset:
         },
         template=_template_waveform(dset, batch_size),
     )
-
-    waveform = (waveform * CMS).differentiate("time")
+    # Copying here is not easily avoidable given that the gradient is a central
+    # difference operator so overwriting values corrupts the derivative. Could
+    # do some complicated ufunc shenanigans and masks but I have not noticed
+    # issues with this portion of the code OOM'ing.
+    waveform = waveform.differentiate("time")
     dset["waveform"] = waveform
     dset.attrs["units"] = "cm/s^2"
     # SW4 station recordings begin at simulation time zero.
