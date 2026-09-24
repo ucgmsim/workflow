@@ -72,8 +72,8 @@ def _read_station_batch(
                     " The SW4 rechdf5 command must output geographic (NSEW)"
                     " displacement-mode components."
                 )
-            waveforms[0, i] = group["EW"][:]
-            waveforms[1, i] = group["NS"][:]
+            waveforms[0, i] = group["NS"][:]
+            waveforms[1, i] = group["EW"][:]
             waveforms[2, i] = group["UP"][:]
 
     return xr.DataArray(
