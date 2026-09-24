@@ -999,7 +999,7 @@ class NZCVMSettings(RealisationConfiguration):
     _config_key: ClassVar[str] = "nzcvm"
     _schema: ClassVar[Schema] = schemas.NZCVM_SCHEMA
 
-    layers: list[LayerConfig]
+    layers: list["LayerConfig"]
     """nzcvm layer config"""
     chunks: dict[Coordinate, int]
     """nzcvm chunk configuration"""

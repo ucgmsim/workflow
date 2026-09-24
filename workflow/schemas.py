@@ -967,7 +967,7 @@ VELOCITY_MODEL_SCHEMA = Schema(
 )
 
 
-def _build_layer(config: dict) -> LayerConfig:
+def _build_layer(config: dict) -> "LayerConfig":
     """Build a layer from a config dictionary"""
 
     # NOTE: This method exists because the LayerConfig import is relatively
