@@ -1,3 +1,6 @@
+import contextlib
+import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -11,12 +14,98 @@ from workflow import defaults
 from workflow.realisations import (
     Magnitudes,
     Rakes,
-    Refinements,
+    RealisationMetadata,
+    RealisationParseError,
     SourceConfig,
-    SW4Parameters,
     VelocityModelParameters,
 )
 from workflow.scripts import generate_domain
+from workflow.scripts.generate_domain import Solver
+
+
+@pytest.fixture
+def source() -> sources.Point:
+    """A small point source, clear of the NZ outline's edges.
+
+    Returns
+    -------
+    sources.Point
+        The source.
+    """
+    return sources.Point(
+        np.array([-43.0, -172.0, 10000.0]),
+        length_m=1000,
+        width_m=1000,
+        strike=90.0,
+        dip=45.0,
+        dip_dir=180.0,
+    )
+
+
+@pytest.fixture
+def source_config(source: sources.Point) -> SourceConfig:
+    """The source configuration for `source`.
+
+    Parameters
+    ----------
+    source : sources.Point
+        The source.
+
+    Returns
+    -------
+    SourceConfig
+        The source configuration.
+    """
+    return SourceConfig({"source": source})
+
+
+@pytest.fixture
+def magnitudes() -> Magnitudes:
+    """A Mw 6.0 magnitude for `source`.
+
+    Returns
+    -------
+    Magnitudes
+        The magnitudes.
+    """
+    return Magnitudes({"source": magnitude_scaling.BoldM(6.0)})
+
+
+@pytest.fixture
+def rakes() -> Rakes:
+    """A strike-slip rake for `source`.
+
+    Returns
+    -------
+    Rakes
+        The rakes.
+    """
+    return Rakes({"source": 180.0})
+
+
+def velocity_model_parameters(fault_buffer: float = 14.0) -> VelocityModelParameters:
+    """Build velocity model parameters with a given fault buffer.
+
+    Parameters
+    ----------
+    fault_buffer : float
+        The fault buffer, in kilometres.
+
+    Returns
+    -------
+    VelocityModelParameters
+        The velocity model parameters.
+    """
+    return VelocityModelParameters(
+        min_vs=500.0,
+        version="2.09",
+        topo_type="BULLDOZED",
+        ds_multiplier=1.2,
+        vs30=500.0,
+        fault_buffer=fault_buffer,
+        s_wave_velocity=3500,
+        rrup_interpolants=np.array([[5.0, 8.0], [50.0, 50.0]]),
+    )
 
 
 # Slow because of openquake import
@@ -82,35 +171,15 @@ def test_estimate_domain_contains_fault_geometry() -> None:
 
 # Slow because of openquake import
 @pytest.mark.slow
-def test_generate_domain() -> None:
+def test_generate_domain(
+    source: sources.Point,
+    source_config: SourceConfig,
+    magnitudes: Magnitudes,
+    rakes: Rakes,
+) -> None:
     """Basic E2E test to check that domain generation works without crashing or producing a silly domain."""
-    source = sources.Point(
-        np.array([-43.0, -172.0, 10000.0]),
-        length_m=1000,
-        width_m=1000,
-        strike=90.0,
-        dip=45.0,
-        dip_dir=180.0,
-    )
-    source_config = SourceConfig({"source": source})
-    magnitudes = Magnitudes({"source": magnitude_scaling.BoldM(6.0)})
-    rakes = Rakes({"source": 180.0})
-
-    velocity_model_parameters = VelocityModelParameters(
-        min_vs=500.0,
-        version="2.09",
-        topo_type="BULLDOZED",
-        ds_multiplier=1.2,
-        vs30=500.0,
-        fault_buffer=14.0,
-        s_wave_velocity=3500,
-        rrup_interpolants=np.array([[5.0, 8.0], [50.0, 50.0]]),
-    )
     domain_parameters = generate_domain.generate_domain(
-        source_config,
-        magnitudes,
-        rakes,
-        velocity_model_parameters,
+        source_config, magnitudes, rakes, velocity_model_parameters()
     )
     assert shapely.contains(domain_parameters.domain.polygon, source.geometry)
 
@@ -118,54 +187,41 @@ def test_generate_domain() -> None:
 # Slow because of openquake import
 @pytest.mark.slow
 @pytest.mark.parametrize(
-    ("fault_buffer", "raises"), [(14.0, False), (13.9, True), (2.0, True)]
+    ("solver", "defaults_version", "fault_buffer", "error"),
+    [
+        # The fault buffer boundary itself is tested in `test_sw4.py`.
+        (Solver.SW4, defaults.DefaultsVersion.v26_7_1Hz, 2.0, ValueError),
+        (Solver.SW4, defaults.DefaultsVersion.v26_7_1Hz, 14.0, None),
+        # EMOD3D has no supergrid sponge, so any buffer is accepted.
+        (Solver.EMOD3D, defaults.DefaultsVersion.v26_7_1Hz, 2.0, None),
+        # An EMOD3D-only defaults version has no SW4 configuration to check.
+        (Solver.SW4, defaults.DefaultsVersion.v24_2_2_4, 14.0, RealisationParseError),
+    ],
 )
-def test_generate_domain_gates_the_fault_buffer(
-    fault_buffer: float, raises: bool
+def test_sw4_domains_keep_sources_out_of_the_sponge(
+    tmp_path: Path,
+    source_config: SourceConfig,
+    magnitudes: Magnitudes,
+    rakes: Rakes,
+    solver: Solver,
+    defaults_version: defaults.DefaultsVersion,
+    fault_buffer: float,
+    error: type[Exception] | None,
 ) -> None:
-    """Gate A: refuse to write a domain whose buffer sits inside the SW4 sponge.
+    """A domain with sources inside the SW4 supergrid sponge is never written."""
+    realisation = tmp_path / "realisation.json"
+    RealisationMetadata(
+        name="test", version="1", defaults_version=defaults_version
+    ).write_to_realisation(realisation)
+    for config in (
+        source_config,
+        magnitudes,
+        rakes,
+        velocity_model_parameters(fault_buffer),
+    ):
+        config.write_to_realisation(realisation)
 
-    The check is passed the SW4 parameters and refinements explicitly and both
-    default to None, because the EMOD3D-only defaults versions have neither.
-    """
-    version = defaults.DefaultsVersion.v26_7_1Hz
-    sw4_params = SW4Parameters.read_from_defaults(version)
-    refinements = Refinements.read_from_defaults(version)
+    with pytest.raises(error) if error else contextlib.nullcontext():
+        generate_domain.generate_domain_from_realisation(realisation, solver)
 
-    source = sources.Point(
-        np.array([-43.0, -172.0, 10000.0]),
-        length_m=1000,
-        width_m=1000,
-        strike=90.0,
-        dip=45.0,
-        dip_dir=180.0,
-    )
-    arguments = (
-        SourceConfig({"source": source}),
-        Magnitudes({"source": magnitude_scaling.BoldM(6.0)}),
-        Rakes({"source": 180.0}),
-        VelocityModelParameters(
-            min_vs=500.0,
-            version="2.09",
-            topo_type="BULLDOZED",
-            ds_multiplier=1.2,
-            vs30=500.0,
-            fault_buffer=fault_buffer,
-            s_wave_velocity=3500,
-            rrup_interpolants=np.array([[5.0, 8.0], [50.0, 50.0]]),
-        ),
-    )
-
-    if raises:
-        with pytest.raises(ValueError, match="supergrid absorbing layer"):
-            generate_domain.generate_domain(
-                *arguments, sw4_params=sw4_params, refinements=refinements
-            )
-    else:
-        generate_domain.generate_domain(
-            *arguments, sw4_params=sw4_params, refinements=refinements
-        )
-
-    # Without the SW4 parameters there is nothing to check against, so even a
-    # 2 km buffer is accepted: that is the EMOD3D path, and it is unchanged.
-    generate_domain.generate_domain(*arguments)
+    assert ("domain" in json.loads(realisation.read_text())) is (error is None)
