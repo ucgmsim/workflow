@@ -455,7 +455,9 @@ def combine_hf_and_lf(
     # supergrid width describes the run that produced the waveforms, and
     # `im-calc` writes it into the IM file's root attributes, so pass it on.
     attributes |= {
-        name: lf.attrs[name] for name in ("SGWIDTH", "SGWIDTHGP") if name in lf.attrs
+        name: lf.attrs[name]
+        for name in ("supergrid_width", "supergrid_width_gp")
+        if name in lf.attrs
     }
     bb.attrs.update(attributes)
 
