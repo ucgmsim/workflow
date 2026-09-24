@@ -7,7 +7,7 @@ name = "ucgmsim-workflow"
 authors = [{ name = "QuakeCoRE" }]
 description = "Next generation workflow powered by cylc."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dynamic = ["version"]
 dependencies = [
   # UCGMSim Dependencies
@@ -16,9 +16,11 @@ dependencies = [
   "nshmdb>=2026.09.1",
   "oq_wrapper>=2026.05.2",
   "qcore-utils>=2025.12.2",
-  "source_modelling>=2026.08.1",
+  "source_modelling>=2026.09.1",
+  "nzcvm>=2026.9.1",
   # Data Formats
   "geopandas",
+  "fiona",                 # Imported, undeclared, by openquake's GMMs
   "netCDF4",               # Required for openquake shenanigans
   "pandas[parquet, hdf5]",
   "pyyaml",
@@ -56,6 +58,7 @@ exclude = ["workflow/schemas.py"]
 
 [tool.deptry]
 optional_dependencies_dev_groups = ["test", "dev", "types"]
+per_rule_ignores = { DEP002 = ["fiona"] }
 
 [project.scripts]
 nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:app"
