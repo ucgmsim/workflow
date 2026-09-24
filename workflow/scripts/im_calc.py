@@ -171,22 +171,10 @@ SUPERGRID_WIDTH_ATTRIBUTES = ("supergrid_width", "supergrid_width_gp")
 def _supergrid_coordinates(dataset: xr.Dataset) -> dict[str, xr.DataArray]:
     """Extract the absorbing-layer penetration coordinates from a waveform file."""
 
-    # This is not a variable so that the calculation of the array is delayed to
-    # not create extra memory.
-    def absent() -> xr.DataArray:
-        return xr.DataArray(
-            np.full(dataset.sizes["station"], np.nan, dtype=np.float32),
-            dims="station",
-            coords={"station": dataset.station},
-        )
-
     return {
-        name: (
-            dataset.coords[name].astype(np.float32).compute()
-            if name in dataset.coords
-            else absent()
-        )
+        name: (dataset.coords[name].astype(np.float32).compute())
         for name in SUPERGRID_COORDINATES
+        if name in dataset.coords
     }
 
 
