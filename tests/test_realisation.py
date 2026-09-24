@@ -1069,6 +1069,7 @@ UNSUPPORTED_PAIRS = {
         realisations.RuptureVelocity,
         realisations.Refinements,
         realisations.SW4Parameters,
+        realisations.NZCVMSettings,
     ],
 )
 @pytest.mark.parametrize("defaults_version", list(defaults.DefaultsVersion))

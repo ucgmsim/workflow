@@ -8,15 +8,21 @@ for a description of realisations and the schemas.
 
 import dataclasses
 from enum import IntEnum, StrEnum
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
+from nzcvm.coordinates import Coordinate
 from schema import And, Literal, Optional, Or, Schema, Use
 
 from IM import im_calculation
 from source_modelling import rupture_propagation, sources
 from velocity_modelling.bounding_box import BoundingBox
 from workflow.defaults import DefaultsVersion
+
+if TYPE_CHECKING:
+    from nzcvm.config.layers import LayerConfig
 
 
 class Stype(StrEnum):
@@ -960,6 +966,27 @@ VELOCITY_MODEL_SCHEMA = Schema(
     }
 )
 
+
+def _build_layer(config: dict) -> "LayerConfig":
+    """Build a layer from a config dictionary"""
+
+    # NOTE: This method exists because the LayerConfig import is relatively
+    # expensive. This is because of the plugin based system nzcvm uses for layer
+    # configs and mashumaro compiling all the serialisation logic. We import
+    # lazily here to only pay for the cost of the import when we actually need
+    # it. Review this once Python 3.15 drops with lazy imports.
+    from nzcvm.config.layers import LayerConfig
+
+    return LayerConfig.from_dict(config)
+
+
+NZCVM_SCHEMA = Schema(
+    {
+        Literal("layers"): [Use(_build_layer)],
+        Literal("chunks"): Or({}, {Use(Coordinate): int}),
+        Literal("surface"): Use(Path),
+    }
+)
 SEED_SCHEMA = Schema(
     {
         Literal("genslip_seed", description="The random seed passed to genslip."): int,
