@@ -27,6 +27,7 @@ See the output of `generate-domain --help` or `workflow.scripts.generate_domain`
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from enum import StrEnum, auto
 from pathlib import Path
 from typing import Annotated
 
@@ -40,17 +41,26 @@ from qcore import cli, geo
 from source_modelling import magnitude_scaling, moment, sources
 from velocity_modelling import bounding_box
 from velocity_modelling.bounding_box import BoundingBox
-from workflow import log_utils, realisations, utils
+from workflow import log_utils, realisations, sw4, utils
 from workflow.realisations import (
     DomainParameters,
     Magnitudes,
     Rakes,
     RealisationMetadata,
+    Refinements,
     SourceConfig,
+    SW4Parameters,
     VelocityModelParameters,
 )
 
 app = typer.Typer()
+
+
+class Solver(StrEnum):
+    """The solver the domain is generated for."""
+
+    EMOD3D = auto()
+    SW4 = auto()
 
 
 def get_significant_duration(
@@ -569,6 +579,7 @@ def generate_domain(
 @log_utils.log_call()
 def generate_domain_from_realisation(
     realisation_ffp: Annotated[Path, typer.Argument()],
+    solver: Solver = Solver.EMOD3D,
 ) -> None:
     """Generate domain parameters for a given realisation file.
 
@@ -579,12 +590,16 @@ def generate_domain_from_realisation(
     2. The simulation duration.
 
     Both of these values are written to the realisation using `DomainParameters`.
+    For SW4, a domain whose fault buffer would put sources inside the
+    supergrid sponge is refused rather than written.
 
     Parameters
     ----------
     realisation_ffp : Path
         The path to the realisation file from which to read configurations and to which
         the generated domain parameters will be written.
+    solver : Solver, optional
+        The solver the domain is generated for. Defaults to EMOD3D.
 
     Returns
     -------
@@ -605,5 +620,19 @@ def generate_domain_from_realisation(
     domain_parameters = generate_domain(
         source_config, magnitudes, rakes, velocity_model_parameters
     )
+
+    if solver == Solver.SW4:
+        sw4_params = SW4Parameters.read_from_realisation_or_defaults(
+            realisation_ffp, metadata.defaults_version
+        )
+        refinements = Refinements.read_from_realisation_or_defaults(
+            realisation_ffp, metadata.defaults_version
+        )
+        sw4.check_fault_buffer(
+            velocity_model_parameters.fault_buffer,
+            sw4_params,
+            sw4.coarsest_resolution(refinements, domain_parameters.depth),
+        )
+
     domain_parameters.write_to_realisation(realisation_ffp)
     realisations.append_log_entry(realisation_ffp)
