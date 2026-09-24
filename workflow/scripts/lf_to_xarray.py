@@ -36,7 +36,7 @@ import typer
 import xarray as xr
 
 from qcore import cli, timeseries
-from workflow import log_utils
+from workflow import log_utils, sw4
 
 app = typer.Typer()
 
@@ -45,12 +45,6 @@ CMS = 100.0
 
 TARGET_CHUNK_BYTES = 128 * 2**20
 """Target size of a dask chunk (all components for a batch of stations)."""
-
-SUPERGRID_WIDTH_ATTRIBUTES = {
-    "SGWIDTH": "supergrid_width",
-    "SGWIDTHGP": "supergrid_width_gp",
-}
-"""Map from SW4's supergrid-width datasets to the attribute names `im-calc` uses."""
 
 
 def _read_station_batch(
@@ -90,14 +84,15 @@ def _read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
     stations = []
     latitudes = []
     longitudes = []
-    supergrid_depths = []
-    supergrid_depths_gp = []
+    supergrid_depths: dict[str, list[float]] = {
+        name: [] for name in sw4.SUPERGRID_DEPTH_COORDINATES.values()
+    }
 
     with h5py.File(sw4_ffp, "r") as handle:
         dt = np.float32(handle["DELTA"][:].squeeze())
 
         attrs: dict[str, np.float32 | float] = {"dt": dt}
-        for sw4_name, attribute_name in SUPERGRID_WIDTH_ATTRIBUTES.items():
+        for sw4_name, attribute_name in sw4.SUPERGRID_WIDTH_ATTRIBUTES.items():
             if sw4_name in handle:
                 attrs[attribute_name] = float(handle[sw4_name][:].squeeze())
         for station_name, group in handle.items():
@@ -117,13 +112,12 @@ def _read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
 
             # SW4 *may* record the SGDEPTH (master will not, we have a fork that
             # does). So we conservatively check for this.
-            if "SGDEPTH" in group:
-                supergrid_depths.append(float(group["SGDEPTH"][:].squeeze()))
-                # SGDEPTH without SGDEPTHGP is a corrupt file, so let it raise.
-                supergrid_depths_gp.append(float(group["SGDEPTHGP"][:].squeeze()))
-            else:
-                supergrid_depths.append(np.nan)
-                supergrid_depths_gp.append(np.nan)
+            # SGDEPTH without SGDEPTHGP is a corrupt file, so let it raise.
+            has_depth = "SGDEPTH" in group
+            for sw4_name, coordinate_name in sw4.SUPERGRID_DEPTH_COORDINATES.items():
+                supergrid_depths[coordinate_name].append(
+                    float(group[sw4_name][:].squeeze()) if has_depth else np.nan
+                )
 
     if global_npts is None:
         raise RuntimeError(
@@ -140,14 +134,10 @@ def _read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
             "station": stations,
             "component": ["x", "y", "z"],
             "time": time,
-            "supergrid_depth": (
-                "station",
-                np.array(supergrid_depths, dtype=np.float32),
-            ),
-            "supergrid_depth_gp": (
-                "station",
-                np.array(supergrid_depths_gp, dtype=np.float32),
-            ),
+            **{
+                name: ("station", np.array(depths, dtype=np.float32))
+                for name, depths in supergrid_depths.items()
+            },
         },
         attrs=attrs | {"nt": global_npts},
     )

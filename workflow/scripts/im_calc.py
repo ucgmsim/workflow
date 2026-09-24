@@ -52,7 +52,7 @@ from IM.ims import IM
 from qcore import cli, coordinates
 from source_modelling import sources
 from source_modelling.sources import IsSource
-from workflow import realisations
+from workflow import realisations, sw4
 from workflow.realisations import (
     DomainParameters,
     EmpiricalParameters,
@@ -161,19 +161,12 @@ EMPIRICAL_STATISTIC_METADATA = {
 }
 
 
-SUPERGRID_COORDINATES = ("supergrid_depth", "supergrid_depth_gp")
-"""Records the SW4 depth inside the supergrid (in metres and gridpoints)."""
-
-SUPERGRID_WIDTH_ATTRIBUTES = ("supergrid_width", "supergrid_width_gp")
-"""Supergrid-width attributes `lf-to-xarray` writes, copied to the IM root attrs."""
-
-
 def _supergrid_coordinates(dataset: xr.Dataset) -> dict[str, xr.DataArray]:
     """Extract the absorbing-layer penetration coordinates from a waveform file."""
 
     return {
         name: (dataset.coords[name].astype(np.float32).compute())
-        for name in SUPERGRID_COORDINATES
+        for name in sw4.SUPERGRID_DEPTH_COORDINATES.values()
         if name in dataset.coords
     }
 
@@ -186,7 +179,7 @@ def _supergrid_attributes(
         return {}
 
     attributes: dict[str, str | float] = {"absorbing_layer": "sw4_supergrid"}
-    for attribute_name in SUPERGRID_WIDTH_ATTRIBUTES:
+    for attribute_name in sw4.SUPERGRID_WIDTH_ATTRIBUTES.values():
         if attribute_name in dataset.attrs:
             attributes[attribute_name] = float(dataset.attrs[attribute_name])
     return attributes
