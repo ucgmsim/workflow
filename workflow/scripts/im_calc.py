@@ -697,9 +697,7 @@ def calculate_empirical(
     -------
     dict
         A map from data tree path (`{im}/empirical/{model}`) to the log-mean
-        and log-standard deviation of that intensity measure. The paths are
-        chosen so this map can be merged with the simulated intensity
-        measures before building the output data tree.
+        and log-standard deviation of that intensity measure.
     """
     inputs = empirical_inputs(source_parameters, site_parameters, distances)
     tect_type = oqw.constants.TectType(empirical_config.tect_type)
@@ -809,9 +807,6 @@ def calculate_intensity_measures(
             station=broadband.station.str.match(r"^(\w{4})$").values
         )
 
-    # Read once the station set is final. `im-calc` runs on a raw SW4 LF file
-    # as well as on `realisation.bb`, and the coordinates ride through `bb-sim`
-    # untouched, so both paths carry the flag; every other solver gets NaN.
     supergrid = _supergrid_coordinates(broadband)
 
     intensity_measures = override_ims or intensity_measure_parameters.ims
