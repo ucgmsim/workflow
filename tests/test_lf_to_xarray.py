@@ -94,8 +94,8 @@ def test_an_old_station_file_converts_with_an_all_nan_flag(tmp_path: Path) -> No
         assert name in dset.coords
         assert dset.coords[name].dtype == np.float32
         assert np.isnan(dset.coords[name].values).all()
-    assert "absorbing_layer_width_m" not in dset.attrs
-    assert "absorbing_layer_width_gp" not in dset.attrs
+    assert "supergrid_width" not in dset.attrs
+    assert "supergrid_width_gp" not in dset.attrs
 
 
 def test_stations_missing_the_flag_are_nan_not_zero(tmp_path: Path) -> None:
@@ -136,8 +136,8 @@ def test_the_sponge_width_is_lifted_into_the_dataset_attributes(
 
     dset = convert(ffp)
 
-    assert dset.attrs["absorbing_layer_width_m"] == pytest.approx(12000.0)
-    assert dset.attrs["absorbing_layer_width_gp"] == pytest.approx(30.0)
+    assert dset.attrs["supergrid_width"] == pytest.approx(12000.0)
+    assert dset.attrs["supergrid_width_gp"] == pytest.approx(30.0)
     assert "SGWIDTH" not in dset.attrs
     assert "SGWIDTHGP" not in dset.attrs
     # The pre-existing attributes must survive alongside them.

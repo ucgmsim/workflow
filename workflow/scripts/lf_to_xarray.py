@@ -47,8 +47,8 @@ TARGET_CHUNK_BYTES = 128 * 2**20
 """Target size of a dask chunk (all components for a batch of stations)."""
 
 SUPERGRID_WIDTH_ATTRIBUTES = {
-    "SGWIDTH": "absorbing_layer_width_m",
-    "SGWIDTHGP": "absorbing_layer_width_gp",
+    "SGWIDTH": "supergrid_width",
+    "SGWIDTHGP": "supergrid_width_gp",
 }
 """Map from SW4's supergrid-width datasets to the attribute names `im-calc` uses."""
 

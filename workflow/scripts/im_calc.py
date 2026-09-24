@@ -164,7 +164,7 @@ EMPIRICAL_STATISTIC_METADATA = {
 SUPERGRID_COORDINATES = ("supergrid_depth", "supergrid_depth_gp")
 """Records the SW4 depth inside the supergrid (in metres and gridpoints)."""
 
-SUPERGRID_WIDTH_ATTRIBUTES = ("absorbing_layer_width_m", "absorbing_layer_width_gp")
+SUPERGRID_WIDTH_ATTRIBUTES = ("supergrid_width", "supergrid_width_gp")
 """Supergrid-width attributes `lf-to-xarray` writes, copied to the IM root attrs."""
 
 
