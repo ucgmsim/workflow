@@ -86,6 +86,7 @@ import-realisation = "workflow.scripts.import_realisation:app"
 lf-to-xarray = "workflow.scripts.lf_to_xarray:app"
 migrate = "workflow.scripts.migrate:app"
 validate-sfile = "workflow.scripts.validate_sfile:app"
+create-nzvm-input = "workflow.scripts.nzvm_input_template:app"
 
 [tool.setuptools.package-dir]
 workflow = "workflow"

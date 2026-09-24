@@ -187,7 +187,9 @@ def generate_template(
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
-    nzcvm_settings = NZCVMSettings.read_from_realisation(realisation_ffp)
+    nzcvm_settings = NZCVMSettings.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
 
     if not nzcvm_settings.layers:
         raise ValueError("NZCVM requires at least one defined layer.")

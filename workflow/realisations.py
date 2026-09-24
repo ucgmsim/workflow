@@ -18,12 +18,11 @@ from abc import ABC
 from collections.abc import Sequence
 from importlib import metadata
 from pathlib import Path
-from typing import Any, ClassVar, Literal, Self
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-from nzcvm.config.layers import LayerConfig
 from nzcvm.coordinates import Coordinate
 from schema import Schema
 
@@ -35,6 +34,9 @@ from source_modelling.sources import IsSource
 from velocity_modelling.bounding_box import BoundingBox
 from workflow import defaults, schemas
 from workflow.defaults import DefaultsVersion
+
+if TYPE_CHECKING:
+    from nzcvm.config.layers import LayerConfig
 
 
 def to_name_coordinate_dictionary(
