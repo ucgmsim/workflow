@@ -923,6 +923,72 @@ class DomainParameters(RealisationConfiguration):
 
 
 @dataclasses.dataclass
+class Refinement:
+    """One vertical mesh refinement layer."""
+
+    resolution: float
+    """Grid spacing within this layer (metres)."""
+    bottom: float
+    """Depth of the bottom of this layer (metres)."""
+
+
+@dataclasses.dataclass
+class Refinements(RealisationConfiguration):
+    """The vertical mesh refinements, from the surface down."""
+
+    _config_key: ClassVar[str] = "refinements"
+    _schema: ClassVar[Schema] = schemas.REFINEMENTS_SCHEMA
+    refinements: list[Refinement]
+    """The refinement layers, from the surface down."""
+    unbounded_refinement_resolution: float
+    """Grid spacing below the last refinement layer (metres)."""
+
+    def __post_init__(self) -> None:
+        """Coerce refinements read from JSON into `Refinement` instances."""
+        if self.refinements and not isinstance(self.refinements[0], Refinement):
+            self.refinements = [Refinement(**item) for item in self.refinements]
+
+    def refinements_for_depth(self, depth: float) -> list[Refinement]:
+        """Truncate or extend the refinements to cover a domain of a given depth.
+
+        The last layer is at least two cells thick.
+
+        Parameters
+        ----------
+        depth : float
+            The domain depth, in kilometres.
+
+        Returns
+        -------
+        list of Refinement
+            The layers covering `depth`, from the surface down.
+        """
+        depth_m = depth * 1000.0
+        refinements = []
+        for refinement in self.refinements:
+            refinements.append(
+                dataclasses.replace(refinement, bottom=min(refinement.bottom, depth_m))
+            )
+            if refinement.bottom >= depth_m:
+                break
+        else:
+            # Refinements end above `depth`.
+            refinements.append(
+                Refinement(
+                    resolution=self.unbounded_refinement_resolution, bottom=depth_m
+                )
+            )
+
+        match refinements:
+            case [*_, previous_layer, last_layer]:
+                last_layer.bottom = max(
+                    previous_layer.bottom + last_layer.resolution * 2, last_layer.bottom
+                )
+
+        return refinements
+
+
+@dataclasses.dataclass
 class VelocityModelParameters(RealisationConfiguration):
     """Parameters defining the velocity model."""
 
@@ -1289,6 +1355,91 @@ class BroadbandParameters(RealisationConfiguration):
     """fmin for site amplification."""
     site_amp_version: str
     """Version of the site amplification model (e.g. "2014")."""
+
+
+@dataclasses.dataclass
+class SW4Command:
+    """A single SW4 input file command, e.g. `attenuation maxfreq=10 nmech=3`."""
+
+    name: str
+    """The SW4 command name (e.g. `attenuation`, `supergrid`, `imagehdf5`)."""
+    parameters: dict[str, str | int | float | bool | None] = dataclasses.field(
+        default_factory=dict
+    )
+    """The command's key=value parameters. None values are omitted."""
+
+    def render(self) -> str:
+        """Render this command as a single SW4 input file line.
+
+        Returns
+        -------
+        str
+            The command name followed by its `key=value` parameters, with
+            booleans as `0`/`1`.
+        """
+        parts = [self.name]
+        for key, value in self.parameters.items():
+            if value is None:
+                continue
+            if isinstance(value, bool):
+                value = int(value)
+            parts.append(f"{key}={value}")
+        return " ".join(parts)
+
+    def merged(self, **overrides: str | float | bool | None) -> "SW4Command":
+        """Return a copy of this command with `overrides` merged into its parameters.
+
+        Parameters
+        ----------
+        **overrides : str | float | bool | None
+            Parameter values to overlay on top of the existing parameters.
+
+        Returns
+        -------
+        SW4Command
+            A new command with the merged parameters.
+        """
+        return dataclasses.replace(self, parameters={**self.parameters, **overrides})
+
+
+def find_command(commands: list[SW4Command], name: str) -> SW4Command | None:
+    """Find the first command with the given name.
+
+    Parameters
+    ----------
+    commands : list[SW4Command]
+        The commands to search.
+    name : str
+        The command name to look for.
+
+    Returns
+    -------
+    SW4Command | None
+        The first matching command, or None if no command has this name.
+    """
+    return next((command for command in commands if command.name == name), None)
+
+
+@dataclasses.dataclass
+class SW4Parameters(RealisationConfiguration):
+    """Parameters for SW4 simulation."""
+
+    _config_key: ClassVar[str] = "sw4"
+    _schema: ClassVar[Schema] = schemas.SW4_PARAMETERS_SCHEMA
+
+    verbose: int
+    """Fileio verbosity level."""
+    printcycle: int
+    """Output fileio print cycle."""
+    nz_min: int
+    """Minimum vertical cells in each refinement layer."""
+    commands: list[SW4Command]
+    """Other SW4 input file commands (grid, supergrid, attenuation, etc.)."""
+
+    def __post_init__(self) -> None:
+        """Coerce commands read from JSON into `SW4Command` instances."""
+        if self.commands and not isinstance(self.commands[0], SW4Command):
+            self.commands = [SW4Command(**item) for item in self.commands]
 
 
 @dataclasses.dataclass

@@ -1,0 +1,90 @@
+---
+bb:
+  flo: 1.0
+  fmidbot: 0.5
+  fmin: 0.2
+  site_amp_version: "ba2018"
+velocity_model:
+  # Minimum that clears the SW4 sponge on a 400 m grid; see
+  # `workflow.sw4.minimum_fault_buffer_m`.
+  fault_buffer: 14.0
+refinements:
+  refinements:
+    [
+      { resolution: 100.0, bottom: 5000.0 },
+      { resolution: 200.0, bottom: 25000.0 },
+    ]
+  unbounded_refinement_resolution: 400.0
+sw4:
+  verbose: 2
+  printcycle: 10
+  nz_min: 12
+  commands:
+    - name: "grid"
+      parameters:
+        {
+          proj: "tmerc",
+          ellps: "GRS80",
+          lon_p: 173.0,
+          lat_p: 0.0,
+          scale: 0.9996,
+        }
+    # In metres, so the sponge does not vary with the coarsest grid spacing.
+    - name: "supergrid"
+      parameters: { width: 12000.0 }
+    - name: "attenuation"
+      parameters: { maxfreq: 10.0, phasefreq: 0.5, nmech: 3 }
+    - name: "developer"
+      parameters: { cfl: 0.9, reporttiming: true, failonnan: true }
+    - name: "prefilter"
+      parameters: { order: 2, passes: 2, fc1: null, fc2: 1.0, type: "lowpass" }
+    - name: "topography"
+      parameters: { order: 3 }
+    - name: "imagehdf5"
+      parameters:
+        { mode: "topo", z: 0.0, file: "topo", cycle: 0, precision: "float" }
+    - name: "imagehdf5"
+      parameters:
+        { mode: "grid", z: 0.0, file: "grid", cycle: 0, precision: "float" }
+    - name: "imagehdf5"
+      parameters:
+        { mode: "p", z: 0.0, file: "surf_vp", cycle: 0, precision: "float" }
+    - name: "imagehdf5"
+      parameters:
+        { mode: "s", z: 0.0, file: "surf_vs", cycle: 0, precision: "float" }
+    - name: "imagehdf5"
+      parameters:
+        { mode: "rho", z: 0.0, file: "surf_rho", cycle: 0, precision: "float" }
+    - name: "imagehdf5"
+      parameters:
+        {
+          mode: "mag",
+          z: 0.0,
+          file: "surf_mag",
+          timeInterval: 0.5,
+          precision: "float",
+        }
+    - name: "imagehdf5"
+      parameters:
+        {
+          mode: "velmag",
+          z: 0.0,
+          file: "surf_velmag",
+          timeInterval: 0.5,
+          precision: "float",
+        }
+    - name: "imagehdf5"
+      parameters:
+        {
+          mode: "uz",
+          z: 0.0,
+          file: "surf_uz",
+          timeInterval: 0.5,
+          precision: "float",
+        }
+    - name: "imagehdf5"
+      parameters:
+        { mode: "hmax", z: 0.0, file: "surf_hmax", precision: "float" }
+    - name: "imagehdf5"
+      parameters:
+        { mode: "vmax", z: 0.0, file: "surf_vmax", precision: "float" }

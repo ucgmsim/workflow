@@ -232,6 +232,7 @@ velocity_model:
   topo_type: "SQUASHED_TAPERED"
   vs30: 500.0
   s_wave_velocity: 3500.0
+  # EMOD3D value, too small for SW4 (overridden in v26.7.1Hz).
   fault_buffer: 2.0
   rrup_interpolants:
     [
