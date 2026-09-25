@@ -34,7 +34,7 @@ For More Help
 See the output of `bb-sim --help`.
 """
 
-from enum import StrEnum
+from enum import StrEnum, auto
 from pathlib import Path
 from typing import Annotated
 
@@ -72,7 +72,7 @@ TAIL_TAPER_FRACTION = 0.05
 VS30_SIM = 500.0
 
 
-def align_datasets(
+def _align_datasets(
     lf: xr.Dataset, hf: xr.Dataset, dt: float
 ) -> tuple[xr.DataArray, xr.DataArray]:
     """Lazily align LF and HF waveforms onto a common time axis.
@@ -80,22 +80,6 @@ def align_datasets(
     Both waveforms are zero-padded to span the same time domain,
     running from the earliest start to the latest end of the two
     simulations, and each keeps the whole time axis in one chunk.
-
-    Parameters
-    ----------
-    lf : xr.Dataset
-        The low-frequency dataset, with a 'start_sec' attribute.
-    hf : xr.Dataset
-        The high-frequency dataset, with a 'start_sec' attribute.
-    dt : float
-        The shared timestep of both datasets.
-
-    Returns
-    -------
-    xr.DataArray
-        The aligned low-frequency waveform.
-    xr.DataArray
-        The aligned high-frequency waveform.
     """
     lf_start = lf.attrs["start_sec"]
     hf_start = hf.attrs["start_sec"]
@@ -120,30 +104,29 @@ def align_datasets(
     )
 
 
-def resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
-    """Resample waveform dataset to a new time step.
+def _taper_tail(waveform: xr.DataArray) -> xr.DataArray:
+    """Lazily taper the last `TAIL_TAPER_FRACTION` of `waveform` to zero."""
+    window = np.ones((1, waveform.sizes["time"]), dtype=waveform.dtype)
+    amplification.taper(window, TAIL_TAPER_FRACTION)
+    return waveform * xr.DataArray(window[0], dims="time")
 
-    Parameters
-    ----------
-    dset : xr.Dataset
-        Input dataset with dimensions (component, station, time) and
-        attributes 'dt'.
-    dt : float
-        Desired time step in seconds.
 
-    Returns
-    -------
-    xr.Dataset
-        Resampled dataset with updated time coordinates and dt attribute.
-    """
-    duration = dset["waveform"].sizes["time"] * dset.attrs["dt"]
-    nt = round(duration / dt)
+def _resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
+    """Resample waveform dataset to a new time step."""
+    old_dt = dset.attrs["dt"]
+    n_time = dset["waveform"].sizes["time"]
+    # The resampled period is the n_time * old_dt of the input, so resampling
+    # to this many samples spaces them exactly dt apart.
+    n_period = round(n_time * old_dt / dt)
+    # Keep only the samples up to the last input sample at (n_time - 1) * old_dt;
+    # the rest of the period is the wrap back to the start.
+    nt = round((n_time - 1) * old_dt / dt) + 1
 
     new_time = np.arange(nt) * dt + dset.attrs["start_sec"]
 
     resampled_waveform = xr.apply_ufunc(
         sp.signal.resample,
-        dset["waveform"],
+        _taper_tail(dset["waveform"]),
         # This tells xarray that resample expects an array with all of the time component intact.
         # So it will be passed arrays of shape (n_component, n_stations, n_time) = (i, j, nt)
         input_core_dims=[["time"]],
@@ -151,11 +134,11 @@ def resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
         # The old time coordinates no longer apply to the resampled axis.
         exclude_dims={"time"},
         # xarray moves the core dimension to the last axis.
-        kwargs={"num": nt, "axis": -1},
+        kwargs={"num": n_period, "axis": -1},
         dask="parallelized",
         # dask cannot infer the resampled length.
-        dask_gufunc_kwargs={"output_sizes": {"time": nt}},
-    )
+        dask_gufunc_kwargs={"output_sizes": {"time": n_period}},
+    ).isel(time=slice(nt))
 
     resampled_waveform = resampled_waveform.assign_coords(time=new_time)
     # Must drop both waveform variable and time dimension to avoid xarray
@@ -168,10 +151,10 @@ def resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
 class FilterLeg(StrEnum):
     """Which legs the matched Butterworth pair is applied to."""
 
-    BOTH = "both"
-    LF = "lf"
-    HF = "hf"
-    NONE = "none"
+    BOTH = auto()
+    LF = auto()
+    HF = auto()
+    NONE = auto()
 
 
 def _process_bb_chunk(
@@ -183,37 +166,7 @@ def _process_bb_chunk(
     config: BroadbandParameters,
     filter_legs: FilterLeg,
 ) -> xr.DataArray:
-    """Compute broadband waveforms for a chunk of stations.
-
-    Applies the selected site amplification model to the high-frequency
-    waveforms, then merges them with the low-frequency waveforms using a
-    matched pair of high-pass and low-pass Butterworth filters, applied to the
-    legs selected by `filter_legs`.
-
-    Parameters
-    ----------
-    lf_waveform : xr.DataArray
-        Low-frequency waveforms (dims component, station, time).
-    hf_waveform : xr.DataArray
-        High-frequency waveforms on the same axes as `lf_waveform`.
-    vs30 : xr.DataArray
-        Target Vs30 of each station (dims station).
-    hf_pga : xr.DataArray
-        Peak absolute HF acceleration (cm/s^2) of each component and station,
-        which the site amplification depends on.
-    dt : float
-        Broadband timestep.
-    config : BroadbandParameters
-        The merge frequency, amplification band and site amplification
-        model to apply.
-    filter_legs : FilterLeg
-        Which legs to filter at the merge frequency.
-
-    Returns
-    -------
-    xr.DataArray
-        The broadband waveforms in units of g, on the axes of `lf_waveform`.
-    """
+    """Compute broadband waveforms for a chunk of stations."""
     lf = lf_waveform.values
     hf = hf_waveform.values
     nt = lf.shape[-1]
@@ -319,20 +272,20 @@ def combine_hf_and_lf(
 
     bb_dt = min(lf.attrs["dt"], hf.attrs["dt"])
 
-    if not np.isclose(lf.attrs["dt"], bb_dt):
-        lf = resample_signal(lf, bb_dt)
-    if not np.isclose(hf.attrs["dt"], bb_dt):
-        hf = resample_signal(hf, bb_dt)
-
     # Site amplification depends on the untapered HF PGA.
     hf_pga = abs(hf["waveform"]).max("time")
-    # Taper the tail of the HF signal itself (before it is zero-padded onto
-    # the common time axis) to limit spectral leakage in the amplification.
-    tail_taper = np.ones((1, hf.sizes["time"]), dtype=np.float32)
-    amplification.taper(tail_taper, TAIL_TAPER_FRACTION)
-    hf["waveform"] = hf["waveform"] * xr.DataArray(tail_taper[0], dims="time")
 
-    lf_waveform, hf_waveform = align_datasets(lf, hf, bb_dt)
+    if not np.isclose(lf.attrs["dt"], bb_dt):
+        lf = _resample_signal(lf, bb_dt)
+    # The HF tail is tapered once, either for resampling or on its own, before
+    # it is zero-padded onto the common time axis, to limit spectral leakage in
+    # the amplification.
+    if not np.isclose(hf.attrs["dt"], bb_dt):
+        hf = _resample_signal(hf, bb_dt)
+    else:
+        hf["waveform"] = _taper_tail(hf["waveform"])
+
+    lf_waveform, hf_waveform = _align_datasets(lf, hf, bb_dt)
 
     vs30_df = pd.read_csv(
         station_vs30_ffp,
@@ -348,7 +301,7 @@ def combine_hf_and_lf(
 
     # map_blocks hands each block the matching station slice of every
     # argument. The HF lat/lon coordinates stay on `hf_waveform`, so the
-    # output carries only the LF-derived coordinates.
+    # output has only the LF-derived coordinates.
     bb_waveform = xr.map_blocks(
         _process_bb_chunk,
         lf_waveform,
