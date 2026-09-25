@@ -67,9 +67,6 @@ app = typer.Typer()
 G = 1 / 981.0
 TARGET_CHUNK_BYTES = 256 * 2**20
 TAIL_TAPER_FRACTION = 0.05
-# Reference Vs30 (m/s) of the high-frequency simulation, i.e. the Vs30
-# the waveforms are amplified *from* towards each station's target Vs30.
-VS30_SIM = 500.0
 
 
 def _align_datasets(
@@ -161,6 +158,7 @@ def _process_bb_chunk(
     lf_waveform: xr.DataArray,
     hf_waveform: xr.DataArray,
     vs30: xr.DataArray,
+    vs30_sim: xr.DataArray,
     hf_pga: xr.DataArray,
     dt: float,
     config: BroadbandParameters,
@@ -181,7 +179,7 @@ def _process_bb_chunk(
 
     # The amplification models require float64 inputs.
     vs30_target = vs30.values.astype(np.float64)
-    vs30_sim = np.full_like(vs30_target, VS30_SIM)
+    _vs30_sim = vs30_sim.values
     pga = hf_pga.values.astype(np.float64) * G
     filter_lf = filter_legs in (FilterLeg.LF, FilterLeg.BOTH)
     filter_hf = filter_legs in (FilterLeg.HF, FilterLeg.BOTH)
@@ -190,7 +188,7 @@ def _process_bb_chunk(
     # intermediates held in memory.
     bb = np.empty_like(lf)
     for i in range(lf.shape[0]):
-        amp = amp_model_fn(vs30_target, vs30_sim, pga[i])
+        amp = amp_model_fn(vs30_target, _vs30_sim, pga[i])
         amp = amplification.interpolate_frequencies(amp_model_freqs, fft_freqs, amp)
         # Constrain the amplification to the [fmin, fmax] band, tapering
         # logarithmically at either end.
@@ -298,14 +296,14 @@ def combine_hf_and_lf(
         dims="station",
         coords={"station": common_stations},
     ).chunk(station=n_stations)
-
+    vs30_sim = hf["vref"]
     # map_blocks hands each block the matching station slice of every
     # argument. The HF lat/lon coordinates stay on `hf_waveform`, so the
     # output has only the LF-derived coordinates.
     bb_waveform = xr.map_blocks(
         _process_bb_chunk,
         lf_waveform,
-        args=(hf_waveform, vs30, hf_pga),
+        args=(hf_waveform, vs30, vs30_sim, hf_pga),
         kwargs={"dt": bb_dt, "config": broadband_config, "filter_legs": filter_legs},
         template=lf_waveform.astype(np.float32),
     )
