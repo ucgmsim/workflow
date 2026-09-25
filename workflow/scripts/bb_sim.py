@@ -34,6 +34,7 @@ For More Help
 See the output of `bb-sim --help`.
 """
 
+from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
 
@@ -164,6 +165,15 @@ def resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
     return new_dset
 
 
+class FilterLeg(StrEnum):
+    """Which legs the matched Butterworth pair is applied to."""
+
+    BOTH = "both"
+    LF = "lf"
+    HF = "hf"
+    NONE = "none"
+
+
 def _process_bb_chunk(
     lf_waveform: xr.DataArray,
     hf_waveform: xr.DataArray,
@@ -171,12 +181,14 @@ def _process_bb_chunk(
     hf_pga: xr.DataArray,
     dt: float,
     config: BroadbandParameters,
+    filter_legs: FilterLeg,
 ) -> xr.DataArray:
     """Compute broadband waveforms for a chunk of stations.
 
     Applies the selected site amplification model to the high-frequency
     waveforms, then merges them with the low-frequency waveforms using a
-    matched pair of high-pass and low-pass Butterworth filters.
+    matched pair of high-pass and low-pass Butterworth filters, applied to the
+    legs selected by `filter_legs`.
 
     Parameters
     ----------
@@ -194,6 +206,8 @@ def _process_bb_chunk(
     config : BroadbandParameters
         The merge frequency, amplification band and site amplification
         model to apply.
+    filter_legs : FilterLeg
+        Which legs to filter at the merge frequency.
 
     Returns
     -------
@@ -216,6 +230,8 @@ def _process_bb_chunk(
     vs30_target = vs30.values.astype(np.float64)
     vs30_sim = np.full_like(vs30_target, VS30_SIM)
     pga = hf_pga.values.astype(np.float64) * G
+    filter_lf = filter_legs in (FilterLeg.LF, FilterLeg.BOTH)
+    filter_hf = filter_legs in (FilterLeg.HF, FilterLeg.BOTH)
 
     # Amplify and filter one component at a time to bound the float64
     # intermediates held in memory.
@@ -227,15 +243,18 @@ def _process_bb_chunk(
         # logarithmically at either end.
         amplification.amp_lowpass(fft_freqs, amp, config.fmin, config.fmidbot)
         amplification.amp_highpass(fft_freqs, amp, config.fhightop, config.fmax)
-        hf_amped = amplification.amplify_waveform(hf[i], amp, n_fft)
+        hf_leg = amplification.amplify_waveform(hf[i], amp, n_fft)
+        lf_leg = lf[i]
 
-        hf_filtered = timeseries.bwfilter(
-            hf_amped, dt, config.flo, timeseries.Band.HIGHPASS
-        )
-        lf_filtered = timeseries.bwfilter(
-            lf[i], dt, config.flo, timeseries.Band.LOWPASS
-        )
-        bb[i] = (hf_filtered + lf_filtered) * G
+        if filter_hf:
+            hf_leg = timeseries.bwfilter(
+                hf_leg, dt, config.flo, timeseries.Band.HIGHPASS
+            )
+        if filter_lf:
+            lf_leg = timeseries.bwfilter(
+                lf_leg, dt, config.flo, timeseries.Band.LOWPASS
+            )
+        bb[i] = (hf_leg + lf_leg) * G
     return lf_waveform.copy(data=bb.astype(np.float32, copy=False))
 
 
@@ -251,6 +270,7 @@ def combine_hf_and_lf(
         Path, typer.Argument(exists=True, dir_okay=False)
     ],
     output_ffp: Annotated[Path, typer.Argument(dir_okay=False, writable=True)],
+    filter_legs: Annotated[FilterLeg, typer.Option("--filter")] = FilterLeg.BOTH,
 ) -> None:
     """Combine low-frequency and high-frequency seismic waveforms.
 
@@ -266,6 +286,10 @@ def combine_hf_and_lf(
         File containing high-frequency waveform data.
     output_ffp : Path
         Path to the output file where the combined broadband waveforms will be saved.
+    filter_legs : FilterLeg
+        Which legs to filter at the merge frequency: both (the default), only
+        the LF or HF leg, or neither. Skip the LF filter when the solver has
+        already low-passed the LF, so it is not filtered twice.
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     broadband_config = BroadbandParameters.read_from_realisation_or_defaults(
@@ -329,7 +353,7 @@ def combine_hf_and_lf(
         _process_bb_chunk,
         lf_waveform,
         args=(hf_waveform, vs30, hf_pga),
-        kwargs={"dt": bb_dt, "config": broadband_config},
+        kwargs={"dt": bb_dt, "config": broadband_config, "filter_legs": filter_legs},
         template=lf_waveform.astype(np.float32),
     )
     attributes = {
@@ -341,6 +365,7 @@ def combine_hf_and_lf(
         "fhightop": broadband_config.fhightop,
         "fmax": broadband_config.fmax,
         "site_amp_model": str(broadband_config.site_amp_version),
+        "filter": str(filter_legs),
     }
     # The LF file's supergrid width describes the run that produced the
     # waveforms, and `im-calc` writes it into the IM file's root attributes,
