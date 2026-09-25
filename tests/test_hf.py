@@ -12,6 +12,7 @@ from workflow.realisations import (
     RuptureVelocity,
 )
 from workflow.scripts import hf_sim
+from workflow.waveforms import Component
 
 
 def test_build_hf_input_serialisation() -> None:
@@ -156,7 +157,7 @@ def test_create_hf_dataset_structure() -> None:
     assert ds.sizes == {"component": 3, "station": 2, "time": 100}
 
     np.testing.assert_array_equal(ds.station.values, names)
-    np.testing.assert_array_equal(ds.component.values, ["x", "y", "z"])
+    np.testing.assert_array_equal(ds.component.values, list(Component))
     assert ds.time.values[1] == pytest.approx(0.02)
     assert ds.latitude.dims == ("station",)
     assert ds.longitude.dims == ("station",)
