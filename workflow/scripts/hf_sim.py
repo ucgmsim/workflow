@@ -20,9 +20,6 @@ Environment
 Can be run in the cybershake container. Can also be run from your own computer using the
 `hf-sim` command after `pip install workflow@git+https://github.com/ucgmsim/workflow`.
 
-Unlike previous versions this needs no `hb_high_binmod` binary and no writable work
-directory: the simulation is the `hf-simulation` package, called in-process.
-
 Usage
 -----
 `hf-sim [OPTIONS] REALISATION_FFP STOCH_FFP STATION_FILE OUT_FILE`
@@ -82,31 +79,12 @@ TARGET_CHUNK_BYTES = 128 * 2**20
 """Target size of a dask chunk (all components for a batch of stations)."""
 
 
-def build_config(
+def _build_config(
     hf_config: HFConfigDefaults,
     rupture_velocity: RuptureVelocity,
     domain_parameters: DomainParameters,
 ) -> HfConfig:
-    """Translate the realisation's configuration into the simulation's.
-
-    Parameters
-    ----------
-    hf_config : HFConfigDefaults
-        The realisation's high-frequency configuration.
-    rupture_velocity : RuptureVelocity
-        The realisation's rupture velocity settings.
-    domain_parameters : DomainParameters
-        Supplies the record duration.
-
-    Returns
-    -------
-    HfConfig
-        The simulation configuration.
-    """
-    # The realisation's `hf` section mirrors `HfConfig` group for group, so each group is
-    # splatted straight in. The two things it does NOT carry are injected here: the record
-    # duration, which the domain computes, and the rupture-velocity multipliers, which live
-    # in their own section because SRF generation reads the same values.
+    """Translate the realisation's configuration into the simulation's."""
     source: dict[str, Any] = hf_config.source | {
         "rupture_velocity": RuptureVelocityTaper(
             fraction=rupture_velocity.rvfrac,
@@ -129,19 +107,8 @@ def build_config(
     )
 
 
-def build_slip_model(stoch_ffp: Path) -> SlipModel:
-    """Read a stoch file into a simulation slip model.
-
-    Parameters
-    ----------
-    stoch_ffp : Path
-        Path to the stoch file.
-
-    Returns
-    -------
-    SlipModel
-        The slip model, one segment per stoch plane.
-    """
+def _build_slip_model(stoch_ffp: Path) -> SlipModel:
+    """Read a stoch file into a simulation slip model."""
     stoch = StochFile.from_file(stoch_ffp)
     return SlipModel(
         [
@@ -166,19 +133,8 @@ def build_slip_model(stoch_ffp: Path) -> SlipModel:
     )
 
 
-def build_velocity_model(velocity_model: HFVelocityModel1D) -> VelocityModel1D:
-    """Convert the realisation's 1D velocity model into the simulation's.
-
-    Parameters
-    ----------
-    velocity_model : HFVelocityModel1D
-        The realisation's layered model, including the Moho truncation velocity.
-
-    Returns
-    -------
-    VelocityModel1D
-        The velocity model, already truncated at the Moho.
-    """
+def _build_velocity_model(velocity_model: HFVelocityModel1D) -> VelocityModel1D:
+    """Convert the realisation's 1D velocity model into the simulation's."""
     model = velocity_model.model
     return VelocityModel1D(
         thickness_km=model["thickness"].to_numpy(np.float32),
@@ -191,39 +147,12 @@ def build_velocity_model(velocity_model: HFVelocityModel1D) -> VelocityModel1D:
     )
 
 
-def simulate_chunk(
+def _simulate_chunk(
     station_chunk: xr.Dataset,
     time: np.ndarray,
     simulator: Simulator,
 ) -> xr.DataArray:
-    """Simulate one dask block's worth of stations in a single call.
-
-    Parameters
-    ----------
-    station_chunk : xr.Dataset
-        Stations in this block, with `latitude`, `longitude` and `seed`.
-    time : np.ndarray
-        The shared time axis.
-    simulator : Simulator
-        The prepared simulation, shared across every block.
-
-    Returns
-    -------
-    xr.DataArray
-        Waveforms over (component, station, time).
-
-    Notes
-    -----
-    The simulator is built once and shared rather than rebuilt per block, so the
-    station-independent work -- the air layer, the slip-model normalisation, the moment
-    scaling -- is done once for the whole run. It does not mutate, which is what makes
-    sharing it across dask's threads safe. **A process-based scheduler will not work**:
-    neither `Simulator` nor `SlipModel` is picklable, and that was already true of the
-    models this used to take.
-    """
-    # The block's own station order, not a sorted one: map_blocks requires the output to
-    # line up with the template block. Station order does not affect any waveform -- the
-    # simulation guarantees that and tests it -- but the LABELS still have to match.
+    """Simulate one dask block's worth of stations in a single call."""
     station_names = station_chunk["station"].values
     waveform = simulator.run_stations(
         latitude_deg=station_chunk["latitude"].values.astype(np.float32),
@@ -284,27 +213,20 @@ def run_hf(
         names=["longitude", "latitude", "station"],
     ).set_index("station")
 
-    # Name-derived and order-invariant, so adding a station leaves every other station's
-    # waveform untouched and re-running a subset reproduces it exactly.
     stations["seed"] = hf_simulation.station_seeds(
         seeds.hf_seed, stations.index.to_list()
     )
-    # That invariance makes station order free to choose, and it is worth
-    # choosing. Runtime scales with subfault-to-station distance, and station
-    # files are spatially sorted, so the far stations all land in the last
-    # chunks and the run ends on a straggler. Sorting by the seed is a
-    # deterministic pseudorandom permutation.
     stations = stations.sort_values("seed")
 
     simulator = Simulator(
-        build_slip_model(stoch_ffp),
-        build_velocity_model(velocity_model_1d),
-        build_config(hf_config, rupture_velocity, domain_parameters),
+        _build_slip_model(stoch_ffp),
+        _build_velocity_model(velocity_model_1d),
+        _build_config(hf_config, rupture_velocity, domain_parameters),
     )
 
     # float32 throughout: this mirrors how the simulation truncates duration/dt to a
     # sample count, so the dask template matches what comes back.
-    nt = int(np.float32(domain_parameters.duration) / np.float32(hf_config.dt))
+    nt = round(domain_parameters.duration / hf_config.dt)
     # The record starts at the origin time. This was a configurable `t_sec` that every
     # realisation set to zero.
     time = np.arange(nt) * hf_config.dt
@@ -342,7 +264,7 @@ def run_hf(
 
         station_inputs = stations.to_xarray().chunk({"station": chunk_size})
         waveform = station_inputs.map_blocks(
-            simulate_chunk,
+            _simulate_chunk,
             template=template,
             kwargs={"time": time, "simulator": simulator},
         ).rename("waveform")

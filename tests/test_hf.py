@@ -45,7 +45,7 @@ def test_build_config_mirrors_the_realisation() -> None:
     # A bounding box is not needed to read one field off it.
     domain = SimpleNamespace(duration=100.0)
 
-    config = hf_sim.build_config(hf_config, rupture_velocity, domain)  # ty: ignore[invalid-argument-type]
+    config = hf_sim._build_config(hf_config, rupture_velocity, domain)  # ty: ignore[invalid-argument-type]
 
     # Splatted through unchanged.
     assert config.source.stress_drop_bars == 50.0
