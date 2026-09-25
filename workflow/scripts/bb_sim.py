@@ -9,10 +9,9 @@ Inputs
 1. A realisation file containing:
    - Realisation metadata,
    - Domain parameters.
-2. Station list (latitude, longitude, name),
-3. Stations VS30 reference values,
-4. Low frequency waveform directory,
-5. High frequency output file,
+2. Stations VS30 reference values,
+3. Low frequency waveform file,
+4. High frequency waveform file.
 
 Outputs
 -------
@@ -28,7 +27,7 @@ running on your own computer, you need to configure a work directory
 
 Usage
 -----
-`bb-sim REALISATION_FFP STATION_FFP STATION_VS30_FFP LOW_FREQUENCY_WAVEFORM_DIRECTORY HIGH_FREQUENCY_WAVEFORM_FILE OUTPUT_FFP`
+`bb-sim REALISATION_FFP STATION_VS30_FFP LOW_FREQUENCY_WAVEFORM_FILE HIGH_FREQUENCY_WAVEFORM_FILE OUTPUT_FFP`
 
 For More Help
 -------------
@@ -47,12 +46,10 @@ import xarray as xr
 
 from qcore import cli, timeseries
 from site_calculation import amplification
-from workflow import log_utils, realisations
+from workflow import log_utils, realisations, sw4
 from workflow.realisations import BroadbandParameters, RealisationMetadata
 from workflow.schemas import SiteAmpModel
 
-# Site amplification model -> (amplification function, model frequencies).
-# Both models share the same (vs30, vs30_sim, pga) calling convention.
 SITE_AMP_MODELS = {
     SiteAmpModel.CB2014: (
         amplification.campbell_bozorgnia_2014,
@@ -68,6 +65,10 @@ app = typer.Typer()
 
 G = 1 / 981.0
 TARGET_CHUNK_BYTES = 256 * 2**20
+TAIL_TAPER_FRACTION = 0.05
+# Reference Vs30 (m/s) of the high-frequency simulation, i.e. the Vs30
+# the waveforms are amplified *from* towards each station's target Vs30.
+VS30_SIM = 500.0
 
 
 def align_datasets(
@@ -77,7 +78,7 @@ def align_datasets(
 
     Both waveforms are zero-padded to span the same time domain,
     running from the earliest start to the latest end of the two
-    simulations.
+    simulations, and each keeps the whole time axis in one chunk.
 
     Parameters
     ----------
@@ -108,7 +109,9 @@ def align_datasets(
             time=(offset, common_nt - offset - waveform.sizes["time"]),
             constant_values=0.0,
         )
-        return padded.assign_coords(time=common_time)
+        # Padding adds a chunk at either end of the time axis, but the
+        # broadband FFTs need the whole axis in each block.
+        return padded.assign_coords(time=common_time).chunk(time=-1)
 
     return (
         pad_waveform(lf["waveform"], lf_offset),
@@ -135,8 +138,6 @@ def resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
     duration = dset["waveform"].sizes["time"] * dset.attrs["dt"]
     nt = round(duration / dt)
 
-    # NOTE: I am not providing a default start second because we consider it an
-    # error not to provide one (no implicit magic behaviour).
     new_time = np.arange(nt) * dt + dset.attrs["start_sec"]
 
     resampled_waveform = xr.apply_ufunc(
@@ -145,20 +146,15 @@ def resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
         # This tells xarray that resample expects an array with all of the time component intact.
         # So it will be passed arrays of shape (n_component, n_stations, n_time) = (i, j, nt)
         input_core_dims=[["time"]],
-        # This tells xarray that the time dimension is going to be returned in
-        # its entirety by scipy resample.
         output_core_dims=[["time"]],
-        # This tells xarray that the time coordinates from the dset dataset are no
-        # longer any good. They will be dropped from the output array.
+        # The old time coordinates no longer apply to the resampled axis.
         exclude_dims={"time"},
-        # Array passed to resample will have time in the inner-most axis and the
-        # default axis for resample is 0.
+        # xarray moves the core dimension to the last axis.
         kwargs={"num": nt, "axis": -1},
         dask="parallelized",
-        # The size of the resampled time dimension cannot be inferred by
-        # dask, so it must be given explicitly.
+        # dask cannot infer the resampled length.
         dask_gufunc_kwargs={"output_sizes": {"time": nt}},
-    ).chunk({"time": -1, "component": -1, "station": dset.chunksizes["station"]})
+    )
 
     resampled_waveform = resampled_waveform.assign_coords(time=new_time)
     # Must drop both waveform variable and time dimension to avoid xarray
@@ -168,21 +164,14 @@ def resample_signal(dset: xr.Dataset, dt: float) -> xr.Dataset:
     return new_dset
 
 
-# Reference Vs30 (m/s) of the high-frequency simulation, i.e. the Vs30
-# the waveforms are amplified *from* towards each station's target Vs30.
-VS30_SIM = 500.0
-
-
 def _process_bb_chunk(
-    dset: xr.Dataset,
+    lf_waveform: xr.DataArray,
+    hf_waveform: xr.DataArray,
+    vs30: xr.DataArray,
+    hf_pga: xr.DataArray,
     dt: float,
-    flo: float,
-    fmin: float,
-    fmidbot: float,
-    fhightop: float,
-    fmax: float,
-    site_amp_model: SiteAmpModel,
-) -> xr.Dataset:
+    config: BroadbandParameters,
+) -> xr.DataArray:
     """Compute broadband waveforms for a chunk of stations.
 
     Applies the selected site amplification model to the high-frequency
@@ -191,41 +180,31 @@ def _process_bb_chunk(
 
     Parameters
     ----------
-    dset : xr.Dataset
-        Dataset with variables ``lf_waveform`` and ``hf_waveform``
-        (dims component, station, time) on a common time axis, and
-        ``vs30`` (dims station).
+    lf_waveform : xr.DataArray
+        Low-frequency waveforms (dims component, station, time).
+    hf_waveform : xr.DataArray
+        High-frequency waveforms on the same axes as `lf_waveform`.
+    vs30 : xr.DataArray
+        Target Vs30 of each station (dims station).
+    hf_pga : xr.DataArray
+        Peak absolute HF acceleration (cm/s^2) of each component and station,
+        which the site amplification depends on.
     dt : float
         Broadband timestep.
-    flo : float
-        The frequency (Hz) at which the low-frequency and
-        high-frequency waveforms are merged.
-    fmin : float
-        Frequency (Hz) below which the site amplification is tapered
-        out (lowpass end of the amplification band).
-    fmidbot : float
-        Frequency (Hz) above which the site amplification is applied in
-        full at the lowpass end.
-    fhightop : float
-        Frequency (Hz) below which the site amplification is applied in
-        full at the highpass end.
-    fmax : float
-        Frequency (Hz) above which the site amplification is tapered out
-        (highpass end of the amplification band).
-    site_amp_model : SiteAmpModel
-        The site amplification model to apply.
+    config : BroadbandParameters
+        The merge frequency, amplification band and site amplification
+        model to apply.
 
     Returns
     -------
-    xr.Dataset
-        Dataset with a single ``waveform`` variable containing the
-        broadband waveforms in units of g.
+    xr.DataArray
+        The broadband waveforms in units of g, on the axes of `lf_waveform`.
     """
-    lf_waveform = dset["lf_waveform"].values
-    hf_waveform = dset["hf_waveform"].values
-    nt = lf_waveform.shape[-1]
+    lf = lf_waveform.values
+    hf = hf_waveform.values
+    nt = lf.shape[-1]
 
-    amp_model_fn, amp_model_freqs = SITE_AMP_MODELS[site_amp_model]
+    amp_model_fn, amp_model_freqs = SITE_AMP_MODELS[config.site_amp_version]
 
     # Zero-pad to a length pyfftw can transform efficiently, and
     # pre-compute the FFT output frequencies the amplification is
@@ -234,37 +213,30 @@ def _process_bb_chunk(
     fft_freqs = np.fft.rfftfreq(n_fft, dt)
 
     # The amplification models require float64 inputs.
-    vs30 = dset["vs30"].values.astype(np.float64)
-    vs30_sim = np.full_like(vs30, VS30_SIM)
+    vs30_target = vs30.values.astype(np.float64)
+    vs30_sim = np.full_like(vs30_target, VS30_SIM)
+    pga = hf_pga.values.astype(np.float64) * G
 
-    bb_waveform = np.empty(lf_waveform.shape, dtype=np.float32)
-    # Site amplification depends on each component's PGA, so amplify
-    # component-by-component (vectorised over stations).
-    for i in range(bb_waveform.shape[0]):
-        pga = np.abs(hf_waveform[i]).max(axis=-1).astype(np.float64) * G
-
-        amp = amp_model_fn(vs30, vs30_sim, pga)
+    # Amplify and filter one component at a time to bound the float64
+    # intermediates held in memory.
+    bb = np.empty_like(lf)
+    for i in range(lf.shape[0]):
+        amp = amp_model_fn(vs30_target, vs30_sim, pga[i])
         amp = amplification.interpolate_frequencies(amp_model_freqs, fft_freqs, amp)
         # Constrain the amplification to the [fmin, fmax] band, tapering
         # logarithmically at either end.
-        amplification.amp_lowpass(fft_freqs, amp, fmin, fmidbot)
-        amplification.amp_highpass(fft_freqs, amp, fhightop, fmax)
+        amplification.amp_lowpass(fft_freqs, amp, config.fmin, config.fmidbot)
+        amplification.amp_highpass(fft_freqs, amp, config.fhightop, config.fmax)
+        hf_amped = amplification.amplify_waveform(hf[i], amp, n_fft)
 
-        # Taper the tail of the HF waveform (5%) to limit spectral
-        # leakage before amplification.
-        hf_component = hf_waveform[i].copy()
-        amplification.taper(hf_component, 0.05)
-        hf_amped = amplification.amplify_waveform(hf_component, amp, n_fft)
-
-        hf_filtered = timeseries.bwfilter(hf_amped, dt, flo, timeseries.Band.HIGHPASS)
-        lf_filtered = timeseries.bwfilter(
-            lf_waveform[i], dt, flo, timeseries.Band.LOWPASS
+        hf_filtered = timeseries.bwfilter(
+            hf_amped, dt, config.flo, timeseries.Band.HIGHPASS
         )
-        bb_waveform[i] = (hf_filtered + lf_filtered) * G
-
-    return dset.drop_vars(["lf_waveform", "hf_waveform", "vs30"]).assign(
-        waveform=(("component", "station", "time"), bb_waveform)
-    )
+        lf_filtered = timeseries.bwfilter(
+            lf[i], dt, config.flo, timeseries.Band.LOWPASS
+        )
+        bb[i] = (hf_filtered + lf_filtered) * G
+    return lf_waveform.copy(data=bb.astype(np.float32, copy=False))
 
 
 @cli.from_docstring(app)
@@ -316,7 +288,7 @@ def combine_hf_and_lf(
     # Chunk over stations only, so every chunk holds complete time
     # series for resampling, alignment and filtering.
     nt = max(len(lf["time"]), len(hf["time"]))
-    n_stations = round(TARGET_CHUNK_BYTES / (3 * nt * np.float64().itemsize))
+    n_stations = max(1, TARGET_CHUNK_BYTES // (3 * nt * np.float64().itemsize))
     chunking = {"component": -1, "station": n_stations, "time": -1}
     lf = lf.sel(station=common_stations).chunk(chunking)
     hf = hf.sel(station=common_stations).chunk(chunking)
@@ -327,62 +299,41 @@ def combine_hf_and_lf(
         lf = resample_signal(lf, bb_dt)
     if not np.isclose(hf.attrs["dt"], bb_dt):
         hf = resample_signal(hf, bb_dt)
-    common_stations = sorted(
-        set(map(str, hf.station.values)) & set(map(str, lf.station.values))
-    )
-    hf = hf.sel(station=common_stations)
-    lf = lf.sel(station=common_stations)
+
+    # Site amplification depends on the untapered HF PGA.
+    hf_pga = abs(hf["waveform"]).max("time")
+    # Taper the tail of the HF signal itself (before it is zero-padded onto
+    # the common time axis) to limit spectral leakage in the amplification.
+    tail_taper = np.ones((1, hf.sizes["time"]), dtype=np.float32)
+    amplification.taper(tail_taper, TAIL_TAPER_FRACTION)
+    hf["waveform"] = hf["waveform"] * xr.DataArray(tail_taper[0], dims="time")
+
+    lf_waveform, hf_waveform = align_datasets(lf, hf, bb_dt)
+
     vs30_df = pd.read_csv(
         station_vs30_ffp,
         sep=r"\s+",
         header=None,
         names=["station", "vsite"],
     ).set_index("station")
-    vs30_df["vsite"] = vs30_df["vsite"].astype(np.float32)
-    vs30_df = vs30_df.loc[common_stations]
+    vs30 = xr.DataArray(
+        vs30_df.loc[common_stations, "vsite"].to_numpy(np.float32),
+        dims="station",
+        coords={"station": common_stations},
+    ).chunk(station=n_stations)
 
-    lf_aligned, hf_aligned = align_datasets(lf, hf, bb_dt)
-
-    combined = xr.Dataset(
-        {
-            "lf_waveform": lf_aligned,
-            # reset_coords drops the HF lat/lon coordinates, which would
-            # otherwise conflict with the LF-derived latitude/longitude.
-            "hf_waveform": hf_aligned.reset_coords(drop=True),
-            "vs30": vs30_df["vsite"].to_xarray(),
-        },
-        coords={
-            "component": ("component", ["x", "y", "z"]),
-            "station": ("station", common_stations),
-            "time": lf_aligned.time,
-            "latitude": ("station", lf.lat.values),
-            "longitude": ("station", lf.lon.values),
-        },
-        attrs={"units": "g"},
-    ).chunk(chunking)
-
-    combined = combined.unify_chunks()
-    template = (
-        combined["lf_waveform"].astype(np.float32).rename("waveform").to_dataset()
-    )
-    template.attrs = combined.attrs
-
-    bb = xr.map_blocks(
+    # map_blocks hands each block the matching station slice of every
+    # argument. The HF lat/lon coordinates stay on `hf_waveform`, so the
+    # output carries only the LF-derived coordinates.
+    bb_waveform = xr.map_blocks(
         _process_bb_chunk,
-        combined,
-        kwargs={
-            "dt": bb_dt,
-            "flo": broadband_config.flo,
-            "fmin": broadband_config.fmin,
-            "fmidbot": broadband_config.fmidbot,
-            "fhightop": broadband_config.fhightop,
-            "fmax": broadband_config.fmax,
-            "site_amp_model": broadband_config.site_amp_version,
-        },
-        template=template,
+        lf_waveform,
+        args=(hf_waveform, vs30, hf_pga),
+        kwargs={"dt": bb_dt, "config": broadband_config},
+        template=lf_waveform.astype(np.float32),
     )
-    bb["vs30"] = combined["vs30"]
     attributes = {
+        "units": "g",
         "dt": bb_dt,
         "flo": broadband_config.flo,
         "fmin": broadband_config.fmin,
@@ -391,16 +342,22 @@ def combine_hf_and_lf(
         "fmax": broadband_config.fmax,
         "site_amp_model": str(broadband_config.site_amp_version),
     }
-    # Attributes, unlike station coordinates, are *not* carried through
-    # map_blocks: `template` above only has `combined`'s. The LF file's
-    # supergrid width describes the run that produced the waveforms, and
-    # `im-calc` writes it into the IM file's root attributes, so pass it on.
+    # The LF file's supergrid width describes the run that produced the
+    # waveforms, and `im-calc` writes it into the IM file's root attributes,
+    # so pass it on.
     attributes |= {
         name: lf.attrs[name]
-        for name in ("supergrid_width", "supergrid_width_gp")
+        for name in sw4.SUPERGRID_WIDTH_ATTRIBUTES.values()
         if name in lf.attrs
     }
-    bb.attrs.update(attributes)
+    bb = xr.Dataset(
+        {"waveform": bb_waveform, "vs30": vs30},
+        coords={
+            "latitude": ("station", lf.lat.values),
+            "longitude": ("station", lf.lon.values),
+        },
+        attrs=attributes,
+    )
 
     bb.to_netcdf(
         output_ffp,
