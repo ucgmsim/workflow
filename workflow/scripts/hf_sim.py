@@ -74,17 +74,12 @@ from workflow.realisations import (
 from workflow.realisations import (
     HFConfig as HFConfigDefaults,
 )
+from workflow.waveforms import Component
+
+app = typer.Typer()
 
 TARGET_CHUNK_BYTES = 128 * 2**20
 """Target size of a dask chunk (all components for a batch of stations)."""
-
-COMPONENT_LABELS = [{"090": "x", "000": "y", "ver": "z"}[c] for c in COMPONENTS]
-"""The workflow's labels for `hf_simulation`'s components, in its order.
-
-`hf_simulation` names components by azimuth -- 090 for east, 000 for north and
-`ver` for the vertical. The rest of the workflow, including the LF waveforms
-bb-sim merges these with, names the same components x, y and z.
-"""
 
 
 def build_config(
@@ -235,15 +230,17 @@ def simulate_chunk(
         longitude_deg=station_chunk["longitude"].values.astype(np.float32),
         station_seed=station_chunk["seed"].values.astype(np.uint64),
     )
+    # `hf_simulation` already uses the workflow's component labels, but orders them
+    # 090, 000, ver; waveform files store them in `Component` order.
     return xr.DataArray(
         waveform,
         dims=["component", "station", "time"],
         coords={
-            "component": COMPONENT_LABELS,
+            "component": list(COMPONENTS),
             "station": station_names,
             "time": time,
         },
-    )
+    ).sel(component=list(Component))
 
 
 @cli.from_docstring(app)
@@ -331,13 +328,13 @@ def run_hf(
     ):
         template = xr.DataArray(
             da.empty(
-                (len(COMPONENTS), len(stations), nt),
+                (len(Component), len(stations), nt),
                 dtype=np.float32,
-                chunks=(len(COMPONENTS), chunk_size, nt),
+                chunks=(len(Component), chunk_size, nt),
             ),
             dims=["component", "station", "time"],
             coords={
-                "component": COMPONENT_LABELS,
+                "component": list(Component),
                 "station": stations.index,
                 "time": time,
             },

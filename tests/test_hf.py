@@ -1,10 +1,11 @@
 from types import SimpleNamespace
 
 import numpy as np
-from hf_simulation import PathDurationModel, Ray
 from hypothesis import given
 from hypothesis import strategies as st
 
+import hf_simulation
+from hf_simulation import PathDurationModel, Ray
 from workflow.realisations import (
     HFConfig,
     RuptureVelocity,
@@ -69,11 +70,11 @@ STATION_STRATEGY = st.text(
 
 
 def test_station_seeds() -> None:
-    seed = hf_sim.station_seeds(0, ["station"])
+    seed = hf_simulation.station_seeds(0, ["station"])
     assert seed.dtype == np.uint64
     assert seed.shape == (1,)
     # Seeds should be referentially transparent: i.e. depend only on the seed and station name
-    seed_1 = hf_sim.station_seeds(0, ["station"])
+    seed_1 = hf_simulation.station_seeds(0, ["station"])
     assert seed.item() == seed_1.item()
 
 
@@ -83,10 +84,10 @@ def test_station_seeds() -> None:
     stations=st.lists(STATION_STRATEGY, min_size=1, unique=True),
 )
 def test_station_seeds_on_name_only(seed: int, stations: list[str]) -> None:
-    station_seeds = hf_sim.station_seeds(seed, stations)
+    station_seeds = hf_simulation.station_seeds(seed, stations)
 
     # check that station hashes depend on name only and not the order that the stations are supplied in
-    reordered_station_seeds = hf_sim.station_seeds(seed, stations[::-1])
+    reordered_station_seeds = hf_simulation.station_seeds(seed, stations[::-1])
     assert (reordered_station_seeds[::-1] == station_seeds).all()
 
     # Check the subset property: If we hash the station seed on its own, the station seed remains the same.
@@ -94,4 +95,4 @@ def test_station_seeds_on_name_only(seed: int, stations: list[str]) -> None:
     # sorted list of stations would pass the first test, but not this
     # one.
     for station, expected_seed in zip(stations, station_seeds):
-        assert hf_sim.station_seeds(seed, [station]).item() == expected_seed
+        assert hf_simulation.station_seeds(seed, [station]).item() == expected_seed
