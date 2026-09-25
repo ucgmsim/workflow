@@ -1008,7 +1008,7 @@ SEED_SCHEMA = Schema(
         Literal(
             "rupture_propagation_seed", description="Seed for rupture propagation"
         ): int,
-        Literal("hf_seed", description="HF seed."): int,
+        Literal("hf_seed", description="HF seed."): And(int, _is_non_negative),
     }
 )
 
