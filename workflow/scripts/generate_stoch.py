@@ -163,21 +163,8 @@ def _weighted_box_mean(
     )
 
 
-def circular_mean(angles: np.ndarray, weights: np.ndarray) -> float:
-    """Take the circular mean of `angles` with respect to `weights`.
-
-    Parameters
-    ----------
-    angles : array of floats
-        The angles to average, in degrees.
-    weights : array of floats
-        The weights to apply to the average.
-
-    Returns
-    -------
-    float
-        The weighted circular mean of angles.
-    """
+def _circular_mean(angles: np.ndarray, weights: np.ndarray) -> float:
+    """Take the circular mean of `angles` with respect to `weights`."""
 
     mean = np.average(
         np.exp(1j * np.radians(np.ravel(angles))),
