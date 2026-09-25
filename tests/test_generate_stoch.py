@@ -26,8 +26,10 @@ PLANE_SHAPES = [(13, 7, 6.5, 3.5), (9, 5, 2.7, 1.5)]
 DT = 0.1
 
 
-def make_srf(seed: int = 1) -> SrfFile:
+@pytest.fixture
+def synthetic_srf() -> SrfFile:
     """Build a small synthetic (version 1.0) SRF with random slip."""
+    seed = 1
     rng = np.random.default_rng(seed)
     header = pd.DataFrame(
         [
@@ -76,11 +78,6 @@ def make_srf(seed: int = 1) -> SrfFile:
         (data, indices, indptr), shape=(n_points, int(nt.max())), dtype=np.float32
     )
     return SrfFile("1.0", header, points, slipt1)
-
-
-@pytest.fixture
-def synthetic_srf() -> SrfFile:
-    return make_srf()
 
 
 @pytest.fixture
