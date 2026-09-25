@@ -179,7 +179,7 @@ def _process_bb_chunk(
 
     # The amplification models require float64 inputs.
     vs30_target = vs30.values.astype(np.float64)
-    _vs30_sim = vs30_sim.values
+    vs30_reference = vs30_sim.values.astype(np.float64)
     pga = hf_pga.values.astype(np.float64) * G
     filter_lf = filter_legs in (FilterLeg.LF, FilterLeg.BOTH)
     filter_hf = filter_legs in (FilterLeg.HF, FilterLeg.BOTH)
@@ -188,7 +188,7 @@ def _process_bb_chunk(
     # intermediates held in memory.
     bb = np.empty_like(lf)
     for i in range(lf.shape[0]):
-        amp = amp_model_fn(vs30_target, _vs30_sim, pga[i])
+        amp = amp_model_fn(vs30_target, vs30_reference, pga[i])
         amp = amplification.interpolate_frequencies(amp_model_freqs, fft_freqs, amp)
         # Constrain the amplification to the [fmin, fmax] band, tapering
         # logarithmically at either end.
@@ -296,7 +296,9 @@ def combine_hf_and_lf(
         dims="station",
         coords={"station": common_stations},
     ).chunk(station=n_stations)
+    # The Vs30 the HF waveforms are amplified from, as recorded by hf-sim.
     vs30_sim = hf["vref"]
+
     # map_blocks hands each block the matching station slice of every
     # argument. The HF lat/lon coordinates stay on `hf_waveform`, so the
     # output has only the LF-derived coordinates.
