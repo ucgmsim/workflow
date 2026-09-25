@@ -44,7 +44,7 @@ app = typer.Typer()
 
 def _box_average_matrix(
     n_fine: int, n_coarse: int, fine_dx: float, coarse_dx: float, *, centred: bool
-) -> sp.csr_matrix:
+) -> sp.csr_array:
     """Build an area-pooling kernel for averaging high-resolution data into lower-resolution data.
 
     Assuming we have `n_fine` fine gridpoints, and `n_coarse` coarse gridpoints,
@@ -52,12 +52,11 @@ def _box_average_matrix(
     to 1) between coarse bin j and the fine cells it spans. This is equivalent
     to the ``adaptive_avg_pool2d`` kernel in pytorch with padding.
 
-    If the coarse grid is longer than the fine grid, the excess is either split
-    between both ends (``centred=True``) or placed entirely past the end of the
-    fine grid (``centred=False``). The bins that hang off the fine grid have
-    weights summing to the covered fraction rather than to 1. This is what makes
-    the kernel conserve the total (slip * area) rather than the cell value. See
-    ``convert_srf_to_stoch`` for how we handle trise where this is not what we want.
+    If the coarse grid is longer than the fine grid, the bins that hang off it
+    have weights summing to the covered fraction rather than to 1. This is what
+    makes the kernel conserve the total (slip * area) rather than the cell
+    value. See ``convert_srf_to_stoch`` for how we handle rise and rupture time,
+    where this is not what we want.
 
     Parameters
     ----------
@@ -75,8 +74,8 @@ def _box_average_matrix(
 
     Returns
     -------
-    scipy.sparse.csr_matrix
-        A sparse matrix of shape (n_coarse, n_fine) containing the area-weighted
+    scipy.sparse.csr_array
+        A float32 sparse array of shape (n_coarse, n_fine) containing the area-weighted
         fractional overlap coefficients.
 
     Notes
@@ -90,11 +89,7 @@ def _box_average_matrix(
     does not have to materialise all the empty cell overlaps in memory. A
     secondary advantage is that we handle the padded case, which lets us set a
     uniform dx/dy for all SRF segments as the HF code demands without changing
-    total moment. Where the padding goes has to match how the HF code
-    reconstructs the plane from the stoch header, or the slip distribution
-    would sit in the wrong place on it: along strike the grid is centred on
-    the reference point, while down-dip it hangs from the top edge at
-    ``dtop``.
+    total moment.
 
     For example, downsampling 5 fine cells to 3 coarse cells implies an LCM of
     15 base units. The 5 fine cells (A-E) take up 3 units each, while the 3
@@ -129,9 +124,6 @@ def _box_average_matrix(
 
     """
     bin_width = coarse_dx / fine_dx
-    # The coarse grid may be longer than the fine grid it covers. Either split
-    # the excess evenly between the two ends, or put all of it past the far
-    # end (see the Notes above).
     overhang = (n_coarse * bin_width - n_fine) / 2 if centred else 0.0
     edges = np.arange(n_coarse + 1) * bin_width - overhang
     rows, cols, weights = [], [], []
@@ -141,9 +133,31 @@ def _box_average_matrix(
         weights.append((np.minimum(idx + 1, hi) - np.maximum(idx, lo)) / bin_width)
         rows.append(np.full(len(idx), j))
         cols.append(idx)
-    return sp.csr_matrix(
+    return sp.csr_array(
         (np.concatenate(weights), (np.concatenate(rows), np.concatenate(cols))),
         shape=(n_coarse, n_fine),
+        dtype=np.float32,
+    )
+
+
+def _weighted_box_mean(
+    values: np.ndarray,
+    weights: np.ndarray,
+    wy: sp.csr_array,
+    wx: sp.csr_array,
+    empty: float = np.nan,
+) -> np.ndarray:
+    """Box-average `values` in proportion to `weights`, rather than by area.
+
+    Dividing by the box-averaged weights cancels the covered fraction that the
+    kernels carry at the edge of the plane. Cells with no weight get `empty`.
+    """
+    total = wy @ weights @ wx.T
+    return np.divide(
+        wy @ (values * weights) @ wx.T,
+        total,
+        out=np.full_like(total, empty),
+        where=total > 0,
     )
 
 
@@ -163,16 +177,11 @@ def circular_mean(angles: np.ndarray, weights: np.ndarray) -> float:
         The weighted circular mean of angles.
     """
 
-    rad = np.radians(np.ravel(angles))
-    x = np.cos(rad)
-    y = np.sin(rad)
-    weights = np.ravel(weights)
-    if not weights.any():
-        # A plane with no slip anywhere has no slip-weighted mean, so
-        # fall back to an unweighted average of the angles.
-        weights = np.ones_like(weights)
-    avg_vector = np.average(np.c_[x, y], weights=weights, axis=0)
-    return np.degrees(np.arctan2(avg_vector[1], avg_vector[0])).item() % 360.0
+    mean = np.average(
+        np.exp(1j * np.radians(np.ravel(angles))),
+        weights=np.ravel(weights) if np.any(weights) else None,
+    )
+    return float(np.angle(mean, deg=True) % 360.0)
 
 
 def convert_srf_to_stoch(srf_file: SrfFile, dx: float, dy: float) -> StochFile:
@@ -197,51 +206,31 @@ def convert_srf_to_stoch(srf_file: SrfFile, dx: float, dy: float) -> StochFile:
         header = srf_file.header.iloc[i].astype(np.float32)
         nstk, ndip = int(header["nstk"]), int(header["ndip"])
 
-        slip = segment["slip"].to_numpy(dtype=np.float32).reshape(ndip, nstk)
-        rake = segment["rake"].to_numpy(dtype=np.float32).reshape(ndip, nstk)
-        rise = segment["rise"].to_numpy(dtype=np.float32).reshape(ndip, nstk)
-        tinit = segment["tinit"].to_numpy(dtype=np.float32).reshape(ndip, nstk)
+        slip, rake, rise, tinit = (
+            segment[column].to_numpy(dtype=np.float32).reshape(ndip, nstk)
+            for column in ("slip", "rake", "rise", "tinit")
+        )
 
-        dstk = float(header["len"]) / nstk
-        ddip = float(header["wid"]) / ndip
-
-        nx = int(np.ceil(float(header["len"]) / dx))
-        ny = int(np.ceil(float(header["wid"]) / dy))
+        length, width = float(header["len"]), float(header["wid"])
+        nx = int(np.ceil(length / dx))
+        ny = int(np.ceil(width / dy))
         # The HF code centres the stoch grid along strike on (elon, elat), the
         # top-centre of the plane, but hangs it down-dip from the top edge at
         # dtop (with dhypo measured from that edge). So along strike the
         # padding is split between both ends, but down-dip it all goes at the
         # bottom.
-        wx = _box_average_matrix(nstk, nx, dstk, dx, centred=True).astype(np.float32)
-        wy = _box_average_matrix(ndip, ny, ddip, dy, centred=False).astype(np.float32)
+        wx = _box_average_matrix(nstk, nx, length / nstk, dx, centred=True)
+        wy = _box_average_matrix(ndip, ny, width / ndip, dy, centred=False)
 
+        # Slip is spread over the cell, so partially covered edge cells keep
+        # their lower area average to conserve moment. Rupture time and rise
+        # time are not, so they are averaged over the covered part only: by
+        # area for rupture time, by slip for rise time. Every cell is at least
+        # partially covered (nx and ny round up), so only cells without slip
+        # fall back to srf2stoch's nominal rise time.
         slip_grid = wy @ slip @ wx.T
-
-        # Cells at the edge of the plane are only partially covered by the SRF,
-        # so their weights sum to less than one. That is what conserves the
-        # moment for slip, but rupture time is a time rather than a quantity
-        # spread over the cell, so it has to be divided by the covered
-        # fraction. Every cell is partially covered because nx and ny are
-        # rounded up, so this never divides by zero.
-        #
-        # NOTE: This does materialise an array of order (ny, nx) but it is the
-        # *coarse* ny, nx. Unless we have ruptures larger than Hikurangi this is
-        # unlikely to ever be an issue.
-        coverage = np.outer(
-            np.asarray(wy.sum(axis=1)).ravel(), np.asarray(wx.sum(axis=1)).ravel()
-        )
-        trup_grid = (wy @ tinit @ wx.T) / coverage
-
-        # The rise grid is a slip-averaged rise in each cell. Note that because
-        # we are dividing rise by slip the coverage factor conveniently cancels
-        # out and we do not have to (should not) similarly divide for the rise
-        # sum.
-        rise_sum = wy @ (rise * slip) @ wx.T
-        rise_grid = np.where(
-            slip_grid > 0,
-            rise_sum / np.where(slip_grid > 0, slip_grid, 1),
-            np.float32(1e-5),
-        )
+        trup_grid = _weighted_box_mean(tinit, np.ones_like(tinit), wy, wx)
+        rise_grid = _weighted_box_mean(rise, slip, wy, wx, empty=1e-5)
 
         stoch_header = StochHeader(
             longitude=header["elon"],
@@ -284,11 +273,9 @@ def generate_stoch(
         realisation_ffp, metadata.defaults_version
     )
 
-    srf_file = srf.read_srf(srf_ffp)
-    dx = stoch_config.stoch_dx
-    dy = stoch_config.stoch_dy
-
-    stoch_file = convert_srf_to_stoch(srf_file, dx, dy)
+    stoch_file = convert_srf_to_stoch(
+        srf.read_srf(srf_ffp), stoch_config.stoch_dx, stoch_config.stoch_dy
+    )
     with open(stoch_ffp, "w") as f:
         stoch_file.dump(f)
 

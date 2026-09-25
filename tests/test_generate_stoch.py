@@ -7,7 +7,7 @@ import pytest
 import scipy.sparse as sp
 from typer.testing import CliRunner
 
-from source_modelling import sources, srf
+from source_modelling import srf
 from source_modelling.srf import SrfFile
 from source_modelling.stoch import StochFile
 from workflow import defaults, realisations
@@ -59,7 +59,8 @@ def make_srf(seed: int = 1) -> SrfFile:
             for i, (nstk, ndip, length, width) in enumerate(PLANE_SHAPES)
         ]
     )
-    n_points = int((header["nstk"] * header["ndip"]).sum())
+    points_per_plane = (header["nstk"] * header["ndip"]).to_numpy()
+    n_points = int(points_per_plane.sum())
     # The rise time of each point is a whole number of timesteps so that
     # the SRF round-trips through disk exactly (on reading, rise = nt * dt).
     nt = rng.integers(1, 6, n_points)
@@ -68,9 +69,7 @@ def make_srf(seed: int = 1) -> SrfFile:
             "lon": rng.uniform(171, 173, n_points),
             "lat": rng.uniform(-44, -43, n_points),
             "dep": rng.uniform(1, 10, n_points),
-            "stk": np.repeat(
-                header["stk"].to_numpy(), (header["nstk"] * header["ndip"]).to_numpy()
-            ),
+            "stk": np.repeat(header["stk"].to_numpy(), points_per_plane),
             "dip": 60.0,
             "area": 1e6,
             "tinit": rng.uniform(0, 10, n_points),
@@ -96,6 +95,15 @@ def synthetic_srf() -> SrfFile:
     return make_srf()
 
 
+@pytest.fixture
+def two_patch_srf(synthetic_srf: SrfFile) -> SrfFile:
+    """One 1km x 0.5km plane of two patches, which fits in a single 2km cell."""
+    synthetic_srf.header = synthetic_srf.header.iloc[:1].copy()
+    synthetic_srf.header.loc[0, ["nstk", "ndip", "len", "wid"]] = [2, 1, 1.0, 0.5]
+    synthetic_srf.points = synthetic_srf.points.iloc[:2].copy()
+    return synthetic_srf
+
+
 def covered_fraction(
     n_coarse: int, coarse_dx: float, extent: float, *, centred: bool
 ) -> np.ndarray:
@@ -114,6 +122,16 @@ def fine_moment(srf_file: SrfFile, i: int) -> float:
     plane = srf_file.header.iloc[i]
     patch_area = (plane["len"] / plane["nstk"]) * (plane["wid"] / plane["ndip"])
     return float(srf_file.segments[i]["slip"].sum() * patch_area)
+
+
+def assert_moment_preserved(
+    srf_file: SrfFile, stoch_file: StochFile, rel: float = 1e-5
+) -> None:
+    """Each stoch plane has the same slip x area as its SRF plane."""
+    assert len(stoch_file.data) == len(srf_file.header)
+    for i, plane in enumerate(stoch_file.data):
+        coarse_moment = float(plane.slip.sum()) * plane.header.dx * plane.header.dy
+        assert coarse_moment == pytest.approx(fine_moment(srf_file, i), rel=rel)
 
 
 # --- _box_average_matrix -----------------------------------------------------
@@ -139,6 +157,7 @@ def test_box_average_matrix_is_identity_when_grids_agree(centred: bool) -> None:
     assert matrix == pytest.approx(np.eye(7))
 
 
+# (n_fine, fine_dx, coarse_dx), covered by the smallest coarse grid that fits.
 GRID_CASES = [
     (100, 0.1, 2.0),
     (13, 0.5, 2.0),
@@ -146,6 +165,10 @@ GRID_CASES = [
     (37, 0.2, 1.7),
     (5, 3.0, 5.0),
 ]
+
+
+def n_coarse_for(n_fine: int, fine_dx: float, coarse_dx: float) -> int:
+    return int(np.ceil(n_fine * fine_dx / coarse_dx))
 
 
 @pytest.mark.parametrize("centred", [True, False])
@@ -158,7 +181,7 @@ def test_box_average_matrix_rows_are_weighted_averages(
     The weights of a bin sum to one, except for bins that hang off the end of
     the fine grid, which sum to the covered fraction of the bin.
     """
-    n_coarse = int(np.ceil(n_fine * fine_dx / coarse_dx))
+    n_coarse = n_coarse_for(n_fine, fine_dx, coarse_dx)
     matrix = _box_average_matrix(
         n_fine, n_coarse, fine_dx, coarse_dx, centred=centred
     ).toarray()
@@ -174,7 +197,7 @@ def test_box_average_matrix_is_centred(
     n_fine: int, fine_dx: float, coarse_dx: float
 ) -> None:
     """A centred coarse grid overhangs both ends of the fine grid equally."""
-    n_coarse = int(np.ceil(n_fine * fine_dx / coarse_dx))
+    n_coarse = n_coarse_for(n_fine, fine_dx, coarse_dx)
     matrix = _box_average_matrix(
         n_fine, n_coarse, fine_dx, coarse_dx, centred=True
     ).toarray()
@@ -207,7 +230,7 @@ def test_box_average_matrix_conserves_mass(
     n_fine: int, fine_dx: float, coarse_dx: float, centred: bool
 ) -> None:
     """Averaging then re-integrating over the coarse cells preserves the integral."""
-    n_coarse = int(np.ceil(n_fine * fine_dx / coarse_dx))
+    n_coarse = n_coarse_for(n_fine, fine_dx, coarse_dx)
     matrix = _box_average_matrix(n_fine, n_coarse, fine_dx, coarse_dx, centred=centred)
     values = np.random.default_rng(2).uniform(0, 10, n_fine)
     coarse = matrix @ values
@@ -216,8 +239,10 @@ def test_box_average_matrix_conserves_mass(
 
 # --- Moment preservation -----------------------------------------------------
 
+STOCH_RESOLUTIONS = [(2.0, 2.0), (1.0, 1.0), (0.7, 1.3), (0.5, 0.5)]
 
-@pytest.mark.parametrize(("dx", "dy"), [(2.0, 2.0), (1.0, 1.0), (0.7, 1.3), (0.5, 0.5)])
+
+@pytest.mark.parametrize(("dx", "dy"), STOCH_RESOLUTIONS)
 def test_convert_srf_to_stoch_preserves_moment(
     synthetic_srf: SrfFile, dx: float, dy: float
 ) -> None:
@@ -227,11 +252,7 @@ def test_convert_srf_to_stoch_preserves_moment(
     box average must be weighted by the overlap between the two grids for
     the sum of slip x area to be unchanged.
     """
-    stoch_file = convert_srf_to_stoch(synthetic_srf, dx, dy)
-    assert len(stoch_file.data) == len(PLANE_SHAPES)
-    for i, plane in enumerate(stoch_file.data):
-        coarse_moment = float(plane.slip.sum()) * dx * dy
-        assert coarse_moment == pytest.approx(fine_moment(synthetic_srf, i), rel=1e-5)
+    assert_moment_preserved(synthetic_srf, convert_srf_to_stoch(synthetic_srf, dx, dy))
 
 
 @pytest.mark.slow
@@ -241,10 +262,7 @@ def test_convert_srf_to_stoch_preserves_moment(
 def test_convert_srf_to_stoch_preserves_moment_real_srf() -> None:
     """Moment is preserved for a real multi-segment rupture."""
     srf_file = srf.read_srf(REAL_SRF_FFP)
-    stoch_file = convert_srf_to_stoch(srf_file, 2.0, 2.0)
-    for i, plane in enumerate(stoch_file.data):
-        coarse_moment = float(plane.slip.sum()) * plane.header.dx * plane.header.dy
-        assert coarse_moment == pytest.approx(fine_moment(srf_file, i), rel=1e-5)
+    assert_moment_preserved(srf_file, convert_srf_to_stoch(srf_file, 2.0, 2.0))
 
 
 def test_convert_srf_to_stoch_preserves_uniform_slip(synthetic_srf: SrfFile) -> None:
@@ -256,10 +274,9 @@ def test_convert_srf_to_stoch_preserves_uniform_slip(synthetic_srf: SrfFile) -> 
         header = synthetic_srf.header.iloc[i]
         # Cells the plane only partially covers are scaled down by the
         # covered fraction of the cell, which is what keeps the moment
-        # (rather than the slip value) constant.
-        # Along strike the grid is centred on the plane, so the partial cells
-        # are at both ends. Down-dip it hangs from the top edge, so the only
-        # partial cells are in the bottom row.
+        # (rather than the slip value) constant. Along strike the grid is
+        # centred on the plane, so the partial cells are at both ends.
+        # Down-dip it hangs from the top edge, so they are the bottom row.
         covered_x = covered_fraction(plane.header.nx, dx, header["len"], centred=True)
         covered_y = covered_fraction(plane.header.ny, dy, header["wid"], centred=False)
         assert plane.slip == pytest.approx(
@@ -280,23 +297,19 @@ def test_convert_srf_to_stoch_grid_covers_the_plane(synthetic_srf: SrfFile) -> N
         assert plane.trup.shape == plane.slip.shape
 
 
-def test_convert_srf_to_stoch_rise_is_slip_weighted(synthetic_srf: SrfFile) -> None:
+def test_convert_srf_to_stoch_rise_is_slip_weighted(two_patch_srf: SrfFile) -> None:
     """Rise time is averaged in proportion to slip, not by area."""
-    # One plane, one stoch cell, two patches: all of the slip is on the
-    # patch with a rise time of 3s, so the cell rise time must be 3s.
-    srf_file = synthetic_srf
-    srf_file.header = srf_file.header.iloc[:1].copy()
-    srf_file.header.loc[0, ["nstk", "ndip", "len", "wid"]] = [2, 1, 1.0, 0.5]
-    srf_file.points = srf_file.points.iloc[:2].copy()
-    srf_file.points["slip"] = [0.0, 10.0]
-    srf_file.points["rise"] = [7.0, 3.0]
+    # All of the slip is on the patch with a rise time of 3s, so the cell
+    # rise time must be 3s.
+    two_patch_srf.points["slip"] = [0.0, 10.0]
+    two_patch_srf.points["rise"] = [7.0, 3.0]
 
-    (plane,) = convert_srf_to_stoch(srf_file, 2.0, 2.0).data
+    (plane,) = convert_srf_to_stoch(two_patch_srf, 2.0, 2.0).data
     assert plane.slip.shape == (1, 1)
     assert plane.rise.item() == pytest.approx(3.0)
 
 
-@pytest.mark.parametrize(("dx", "dy"), [(2.0, 2.0), (1.0, 1.0), (0.7, 1.3), (0.5, 0.5)])
+@pytest.mark.parametrize(("dx", "dy"), STOCH_RESOLUTIONS)
 def test_convert_srf_to_stoch_trup_is_not_scaled_by_coverage(
     synthetic_srf: SrfFile, dx: float, dy: float
 ) -> None:
@@ -309,20 +322,16 @@ def test_convert_srf_to_stoch_trup_is_not_scaled_by_coverage(
     synthetic_srf.points["tinit"] = 5.0
     stoch_file = convert_srf_to_stoch(synthetic_srf, dx, dy)
     for plane in stoch_file.data:
-        assert plane.trup == pytest.approx(np.full(plane.trup.shape, 5.0), rel=1e-5)
+        assert plane.trup == pytest.approx(5.0, rel=1e-5)
 
 
 def test_convert_srf_to_stoch_trup_matches_a_uniform_average(
-    synthetic_srf: SrfFile,
+    two_patch_srf: SrfFile,
 ) -> None:
     """A cell covering the whole plane gets the mean rupture time of the plane."""
-    srf_file = synthetic_srf
-    srf_file.header = srf_file.header.iloc[:1].copy()
-    srf_file.header.loc[0, ["nstk", "ndip", "len", "wid"]] = [2, 1, 1.0, 0.5]
-    srf_file.points = srf_file.points.iloc[:2].copy()
-    srf_file.points["tinit"] = [4.0, 6.0]
+    two_patch_srf.points["tinit"] = [4.0, 6.0]
 
-    (plane,) = convert_srf_to_stoch(srf_file, 2.0, 2.0).data
+    (plane,) = convert_srf_to_stoch(two_patch_srf, 2.0, 2.0).data
     assert plane.trup.item() == pytest.approx(5.0)
 
 
@@ -332,7 +341,7 @@ def test_convert_srf_to_stoch_zero_slip_rise(synthetic_srf: SrfFile) -> None:
     stoch_file = convert_srf_to_stoch(synthetic_srf, 2.0, 2.0)
     for plane in stoch_file.data:
         assert (plane.slip == 0).all()
-        assert plane.rise == pytest.approx(np.full(plane.rise.shape, 1e-5))
+        assert plane.rise == pytest.approx(1e-5)
 
 
 # --- circular_mean -----------------------------------------------------------
@@ -364,8 +373,8 @@ def test_average_rake_is_in_degrees(synthetic_srf: SrfFile) -> None:
 
 
 @pytest.fixture
-def realisation_ffp(tmp_path: Path, synthetic_srf: SrfFile) -> Path:
-    """A realisation whose sources match the planes of the synthetic SRF."""
+def realisation_ffp(tmp_path: Path) -> Path:
+    """A realisation using the default stoch configuration."""
     realisation_ffp = tmp_path / "realisation.json"
     realisations.RealisationMetadata(
         name="generate stoch test",
@@ -387,7 +396,6 @@ def test_generate_stoch_smoke(
         app, [str(realisation_ffp), str(srf_ffp), str(stoch_ffp)]
     )
     assert result.exit_code == 0, result.output
-    assert stoch_ffp.exists()
 
     stoch_file = StochFile.from_file(stoch_ffp)
     assert len(stoch_file.data) == len(PLANE_SHAPES)
@@ -406,7 +414,6 @@ def test_generate_stoch_smoke(
         assert plane.header.strike == pytest.approx(header["stk"] % 360)
         assert (plane.slip >= 0).all()
         assert (plane.rise > 0).all()
-        # The written file preserves the moment to the precision of the
-        # %e formatting used by the stoch format.
-        coarse_moment = float(plane.slip.sum()) * plane.header.dx * plane.header.dy
-        assert coarse_moment == pytest.approx(fine_moment(srf_file, i), rel=1e-4)
+    # The written file preserves the moment to the precision of the %e
+    # formatting used by the stoch format.
+    assert_moment_preserved(srf_file, stoch_file, rel=1e-4)
