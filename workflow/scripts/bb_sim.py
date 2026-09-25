@@ -272,10 +272,6 @@ def combine_hf_and_lf(
     common_stations = sorted(
         set(map(str, hf.station.values)) & set(map(str, lf.station.values))
     )
-    # Chunk over stations only, so every chunk holds complete time
-    # series for resampling, alignment and filtering.
-    nt = max(len(lf["time"]), len(hf["time"]))
-    n_stations = max(1, TARGET_CHUNK_BYTES // (3 * nt * np.float64().itemsize))
     chunking = {"component": -1, "station": n_stations, "time": -1}
     lf = lf.sel(station=common_stations).chunk(chunking)
     hf = hf.sel(station=common_stations).chunk(chunking)
@@ -303,6 +299,11 @@ def combine_hf_and_lf(
         header=None,
         names=["station", "vsite"],
     ).set_index("station")
+    # Chunk over stations only, so every chunk holds complete time
+    # series for resampling, alignment and filtering.
+    nt = max(len(lf_waveform["time"]), len(hf_waveform["time"]))
+    n_stations = max(1, TARGET_CHUNK_BYTES // (3 * nt * np.float64().itemsize))
+
     vs30 = xr.DataArray(
         vs30_df.loc[common_stations, "vsite"].to_numpy(np.float32),
         dims="station",
