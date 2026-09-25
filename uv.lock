@@ -3570,7 +3570,7 @@ requires-dist = [
     { name = "fiona" },
     { name = "geopandas" },
     { name = "h5py", specifier = ">=3.15.1" },
-    { name = "hf-simulation" },
+    { name = "hf-simulation", specifier = ">=2026.9.1" },
     { name = "hypothesis", extras = ["numpy"], marker = "extra == 'test'", specifier = ">=6.0.0" },
     { name = "im-calculation", specifier = ">=2026.9.2" },
     { name = "netcdf4" },

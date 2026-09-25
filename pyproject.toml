@@ -139,6 +139,7 @@ convention = "numpy"
 [tool.ruff.lint.isort]
 known-first-party = [
   "source_modelling",
+  "hf_simulation",
   "workflow",
   "pygmt_helper",
   "qcore",

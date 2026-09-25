@@ -41,6 +41,9 @@ import numpy as np
 import pandas as pd
 import typer
 import xarray as xr
+from tqdm.dask import TqdmCallback
+
+import hf_simulation
 from hf_simulation import (
     COMPONENTS,
     FaultSegment,
@@ -54,13 +57,10 @@ from hf_simulation import (
     SlipModel,
     SourceParameters,
     VelocityModel1D,
-    station_seeds,
 )
 from hf_simulation import (
     RuptureVelocity as RuptureVelocityTaper,
 )
-from tqdm.dask import TqdmCallback
-
 from qcore import cli
 from source_modelling.stoch import StochFile
 from workflow import log_utils, realisations, utils
@@ -74,8 +74,6 @@ from workflow.realisations import (
 from workflow.realisations import (
     HFConfig as HFConfigDefaults,
 )
-
-app = typer.Typer()
 
 TARGET_CHUNK_BYTES = 128 * 2**20
 """Target size of a dask chunk (all components for a batch of stations)."""
@@ -291,7 +289,9 @@ def run_hf(
 
     # Name-derived and order-invariant, so adding a station leaves every other station's
     # waveform untouched and re-running a subset reproduces it exactly.
-    stations["seed"] = station_seeds(seeds.hf_seed, stations.index.to_list())
+    stations["seed"] = hf_simulation.station_seeds(
+        seeds.hf_seed, stations.index.to_list()
+    )
     # That invariance makes station order free to choose, and it is worth
     # choosing. Runtime scales with subfault-to-station distance, and station
     # files are spatially sorted, so the far stations all land in the last
