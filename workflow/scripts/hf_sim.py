@@ -17,10 +17,8 @@ Outputs
 
 Environment
 -----------
-Can be run in the cybershake container. Can also be run from your own computer using the `hf-sim` command which is installed after running `pip install ucgmsim-workflow@git+https://github.com/ucgmsim/workflow`. If you do run this on your own computer, you need a version of `hb_high_binmod` installed.
-
-> [!NOTE]
-> The high-frequency code is very brittle. It is recommended you have both versions 6.0.3 and 5.4.5 built to run with. Sometimes it is necessary to switch between versions if one does not work.
+Can be run in the cybershake container. Can also be run from your own computer using the
+`hf-sim` command after `pip install workflow@git+https://github.com/ucgmsim/workflow`.
 
 Usage
 -----
@@ -31,360 +29,158 @@ For More Help
 See the output of `hf-sim --help`.
 """
 
-import concurrent.futures
-import subprocess
-import tempfile
-from collections.abc import Iterable
-from concurrent.futures.thread import ThreadPoolExecutor
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
+import dask
+import dask.array as da
 import numpy as np
-import numpy.typing as npt
 import pandas as pd
 import typer
 import xarray as xr
+from tqdm.dask import TqdmCallback
 
+import hf_simulation
+from hf_simulation import (
+    COMPONENTS,
+    FaultSegment,
+    HfConfig,
+    PathDurationModel,
+    PathParameters,
+    Ray,
+    RecordParameters,
+    Simulator,
+    SiteParameters,
+    SlipModel,
+    SourceParameters,
+    VelocityModel1D,
+)
+from hf_simulation import (
+    RuptureVelocity as RuptureVelocityTaper,
+)
 from qcore import cli
+from source_modelling.stoch import StochFile
 from workflow import log_utils, realisations, utils
 from workflow.realisations import (
     DomainParameters,
-    HFConfig,
     HFVelocityModel1D,
     RealisationMetadata,
-    Resolution,
     RuptureVelocity,
     Seeds,
+)
+from workflow.realisations import (
+    HFConfig as HFConfigDefaults,
 )
 from workflow.waveforms import Component
 
 app = typer.Typer()
 
-HF_BINARY_COLUMNS = {Component.EAST: 0, Component.NORTH: 1, Component.UP: 2}
-"""Column of each workflow component in `hb_high`'s output, which writes 090, 000, ver."""
+TARGET_CHUNK_BYTES = 128 * 2**20
+"""Target size of a dask chunk (all components for a batch of stations)."""
 
 
-def rupture_velocity_hf_transition_bands(
-    rupture_velocity: RuptureVelocity,
-) -> tuple[float, float, float, float]:
-    """Produce transition bands for rupture velocity parameters.
-
-    Converts median-centred description into bounds description.
-
-    Parameters
-    ----------
-    rupture_velocity : RuptureVelocity
-        Rupture velocity configuration
-
-
-    Returns
-    -------
-    tuple[float, float, float, float]
-        The shallow min/max, deep min/max transition depths.
-    """
-    deep = rupture_velocity.deep_depth
-    deep_range = rupture_velocity.deep_transition_range
-    shallow = rupture_velocity.shallow_depth
-    shallow_range = rupture_velocity.shallow_transition_range
-    deep_min = deep - deep_range
-    deep_max = deep + deep_range
-    shallow_min = shallow - shallow_range
-    shallow_max = shallow + shallow_range
-    return shallow_min, shallow_max, deep_min, deep_max
-
-
-def build_hf_input(
-    stoch_ffp: Path,
-    velocity_model: Path,
-    resolution: Resolution,
-    hf_config: HFConfig,
+def _build_config(
+    hf_config: HFConfigDefaults,
     rupture_velocity: RuptureVelocity,
     domain_parameters: DomainParameters,
-) -> str:
-    """Build a high-frequency input template string.
-
-    Parameters
-    ----------
-    stoch_ffp : Path
-        The path to the stoch file.
-    velocity_model : Path
-        The path to the velocity model.
-    resolution : Resolution
-        HF simulation resolution.
-    hf_config : HFConfig
-        The high-frequency config.
-    rupture_velocity : RuptureVelocity
-        The rupture velocity settings.
-    domain_parameters : DomainParameters
-        The simulation domain parameters.
-
-    Returns
-    -------
-    str
-        A template HF input, this template has two format placeholders
-        `station_input_file` and `output_file` which can be
-        substituted to yield a high-frequency input in for each
-        station.
-    """
-    # Underscore-prefixed because the line consuming them is commented out
-    # below, pending the EMOD3D PR noted there.
-    _shallow_min, _shallow_max, _deep_min, _deep_max = (
-        rupture_velocity_hf_transition_bands(rupture_velocity)
-    )
-    hf_sim_input = [
-        "",
-        hf_config.sdrop,
-        "{station_input_file}",
-        "{output_file}",
-        f"{len(hf_config.rayset)} {' '.join(str(ray) for ray in hf_config.rayset)}",
-        int(not hf_config.no_siteamp),
-        f"{hf_config.nbu} {hf_config.ift} {hf_config.flo} {hf_config.fhi}",
-        "{seed}",
-        1,  # one station in the input
-        f"{domain_parameters.duration} {resolution.dt} {hf_config.fmax} {hf_config.kappa} {hf_config.qfexp}",
-        f"{rupture_velocity.rvfrac} {rupture_velocity.rvfrac_shal} {rupture_velocity.rvfrac_deep} {hf_config.czero} {hf_config.calpha}",
-        # TODO: This requires PR from EMOD3D to merge before we can do this!
-        # f"{_shallow_min} {_shallow_max} {_deep_min} {_deep_max}",
-        f"{hf_config.mom or -1} {hf_config.rupv or -1}",
-        stoch_ffp,
-        velocity_model,
-        hf_config.vs_moho,
-        f"{hf_config.nl_skip} {hf_config.vp_sig} {hf_config.vsh_sig} {hf_config.rho_sig} {hf_config.qs_sig} {int(hf_config.ic_flag)}",
-        hf_config.velocity_name,
-        f"{hf_config.fa_sig1} {hf_config.fa_sig2} {hf_config.rv_sig1}",
-        hf_config.path_dur,
-        0,  # maybe don't need this?
-        # If running v5.4.5 it stops reading input here and so
-        # these parameters are unused. It is harmless to add them
-        # regardless of version
-        (
-            f"{hf_config.stress_parameter_adjustment_fault_area or -1} "
-            f"{hf_config.stress_parameter_adjustment_target_magnitude or -1} "
-            f"{hf_config.stress_parameter_adjustment_tect_type or -1}"
+) -> HfConfig:
+    """Translate the realisation's configuration into the simulation's."""
+    source: dict[str, Any] = hf_config.source | {
+        "rupture_velocity": RuptureVelocityTaper(
+            fraction=rupture_velocity.rvfrac,
+            shallow=rupture_velocity.rvfrac_shal,
+            deep=rupture_velocity.rvfrac_deep,
+            **hf_config.source["rupture_velocity"],
+        )
+    }
+    path: dict[str, Any] = hf_config.path | {
+        "rayset": tuple(Ray(ray) for ray in hf_config.path["rayset"]),
+        "path_duration_model": PathDurationModel(hf_config.path["path_duration_model"]),
+    }
+    return HfConfig(
+        source=SourceParameters(**source),
+        path=PathParameters(**path),
+        site=SiteParameters(**hf_config.site),
+        record=RecordParameters(
+            duration_s=domain_parameters.duration, **hf_config.record
         ),
-        0,  # seek bytes to 0 (no binary offset for this output)
-        "",
-    ]
-    return "\n".join(str(line) for line in hf_sim_input)
-
-
-def hf_simulate_station(
-    hf_sim_path: Path,
-    hf_stdin_template: str,
-    station_latitude: float,
-    station_longitude: float,
-    station_name: str,
-    seed: int,
-) -> tuple[str, float, np.ndarray]:
-    """Simulate a seismic station using the HF (High-Frequency) simulation tool.
-
-    Parameters
-    ----------
-    hf_sim_path : Path
-        The path to the HF simulation binary.
-    hf_stdin_template : str
-        The stdin input template for the HF simulation binary.
-    station_latitude : float
-        The station latitude.
-    station_longitude : float
-        The station longitude.
-    station_name : str
-        The station name.
-    seed : int
-        The seed for this HF simulation.
-
-    Returns
-    -------
-    str
-        The completed station name.
-    float
-        The epicentre distance obtained from the simulation output.
-    array of floats
-        The simulation waveform.
-
-    Raises
-    ------
-    ValueError
-        If the output does not contain exactly one epicentre distance value.
-    CalledProcessError
-        If the HF binary throws an error. A note to the exception is
-        added with the stderr.
-    """
-    with (
-        tempfile.NamedTemporaryFile(mode="w") as input_file,
-        tempfile.NamedTemporaryFile() as output_file,
-    ):
-        input_file.write(f"{station_longitude} {station_latitude} {station_name}\n")
-        input_file.flush()
-
-        hf_sim_input_str = hf_stdin_template.format(
-            station_input_file=input_file.name, output_file=output_file.name, seed=seed
-        )
-
-        logger = log_utils.get_logger(__name__)
-        logger.info("running hf", station=station_name, input=hf_sim_input_str)
-
-        try:
-            output = subprocess.run(
-                str(hf_sim_path),
-                input=hf_sim_input_str,
-                check=True,
-                text=True,
-                stderr=subprocess.PIPE,
-            )
-        except subprocess.CalledProcessError as e:
-            logger.error(
-                "hf failed", station=station_name, stdout=e.stdout, stderr=e.stderr
-            )
-            e.add_note(e.stderr)
-            raise
-
-        epicentre_distance = float(output.stderr.strip())
-
-        logger.info(
-            "hf succeeded",
-            station=station_name,
-            epicentre_distance=epicentre_distance,
-            stderr=output.stderr,
-        )
-
-        station_waveform = np.fromfile(output_file, dtype=np.float32).reshape((-1, 3))
-
-        return station_name, epicentre_distance, station_waveform
-
-
-def station_seeds(seed: int, stations: Iterable[str]) -> npt.NDArray[np.int32]:
-    """Create a list of per-station seeds in an order-invariant fashion with a root seed.
-
-    Parameters
-    ----------
-    seed : int
-        The root seed.
-    stations : Iterable[str]
-        The stations to seed. The order and number of stations should
-        not matter. The station seeds are based on their name only.
-
-    Returns
-    -------
-    npt.NDArray[np.int32]
-        A list of station seeds.
-    """
-    station_hashes = np.array(
-        [utils.stable_hash(name) for name in stations], dtype=np.int32
     )
-    # Rather than add (which could overflow and cause annoying numpy
-    # warnings), we just xor the hf seed with the station hashes.
-    # Since this is invertible, we ensure that the same hf seed gives
-    # the same station seeds.
-    return np.int32(seed) ^ station_hashes
 
 
-def create_hf_dataset(
-    # array-like used here to reduce the number of times we have to
-    # change the types if the downstream function inputs change.
-    waveform: npt.ArrayLike,
-    latitude: npt.ArrayLike,
-    longitude: npt.ArrayLike,
-    names: npt.ArrayLike,
-    epicentre_distance: npt.ArrayLike,
-    seed: npt.ArrayLike,
-    vref: npt.ArrayLike,
-    dt: float,
-    start_sec: float,
-) -> xr.Dataset:
-    """
-    Create a structured xarray Dataset for HF simulation data.
+def _build_slip_model(stoch_ffp: Path) -> SlipModel:
+    """Read a stoch file into a simulation slip model."""
+    stoch = StochFile.from_file(stoch_ffp)
+    return SlipModel(
+        [
+            FaultSegment(
+                longitude_deg=plane.header.longitude,
+                latitude_deg=plane.header.latitude,
+                strike_deg=plane.header.strike,
+                dip_deg=plane.header.dip,
+                rake_deg=plane.header.average_rake,
+                top_depth_km=plane.header.dtop,
+                subfault_length_km=plane.header.dx,
+                subfault_width_km=plane.header.dy,
+                hypocentre_along_strike_km=plane.header.shypo,
+                hypocentre_down_dip_km=plane.header.dhypo,
+                # (down-dip, along-strike), which is how the stoch format stores them.
+                slip=plane.slip.astype(np.float32),
+                rise_time_s=plane.rise.astype(np.float32),
+                rupture_time_s=plane.trup.astype(np.float32),
+            )
+            for plane in stoch.data
+        ]
+    )
 
-    Parameters
-    ----------
-    waveform : ArrayLike
-        The waveform data. Expected shape is (3, n_stations, nt),
-        with components in `Component` order.
-    latitude : ArrayLike
-        Latitude coordinates for each station. Shape (n_stations,).
-    longitude : ArrayLike
-        Longitude coordinates for each station. Shape (n_stations,).
-    names : ArrayLike
-        Names/IDs for each station. Shape (n_stations,). Used as the
-        primary index for the 'station' dimension.
-    epicentre_distance : ArrayLike
-        Distance from the station to the epicentre. Shape (n_stations,).
-    seed : ArrayLike
-        Random seed values associated with each station. Shape (n_stations,).
-    vref : ArrayLike
-        Reference velocity (Vs30 or similar) for each station. Shape (n_stations,).
-    dt : float
-        Time step increment in seconds.
-    start_sec : float
-        The start time of the simulation in seconds.
 
-    Returns
-    -------
-    xr.Dataset
-        A dataset containing the waveforms and associated station metadata,
-        indexed by station, component, and time.
+def _build_velocity_model(velocity_model: HFVelocityModel1D) -> VelocityModel1D:
+    """Convert the realisation's 1D velocity model into the simulation's."""
+    model = velocity_model.model
+    return VelocityModel1D(
+        thickness_km=model["thickness"].to_numpy(np.float32),
+        vp_km_s=model["Vp"].to_numpy(np.float64),
+        vsh_km_s=model["Vs"].to_numpy(np.float64),
+        density_g_cm3=model["rho"].to_numpy(np.float64),
+        quality_factor_p=model["Qp"].to_numpy(np.float32),
+        quality_factor_s=model["Qs"].to_numpy(np.float32),
+        vs_moho_km_s=velocity_model.vs_moho,
+    )
 
-    Notes
-    -----
-    The dataset follows specific dimensional mapping:
-    * **waveform**: mapped to (component, station, time).
-    * **coordinates**: 'latitude' and 'longitude' are non-index coordinates tied to
-      the 'station' dimension.
-    * **attributes**: global metadata includes 'units' (fixed to cm/s^2),
-      'nt', and 'dt'.
-    """
-    waveform = np.asarray(waveform)
-    nt = waveform.shape[-1]
-    time = np.arange(nt) * dt
-    return xr.Dataset(
-        {
-            "waveform": (["component", "station", "time"], waveform),
-            "epicentre_distance": (["station"], epicentre_distance),
-            "seed": (["station"], seed),
-            "vref": (["station"], vref),
-        },
+
+def _simulate_chunk(
+    station_chunk: xr.Dataset,
+    time: np.ndarray,
+    simulator: Simulator,
+) -> xr.DataArray:
+    """Simulate one dask block's worth of stations in a single call."""
+    station_names = station_chunk["station"].values
+    waveform = simulator.run_stations(
+        latitude_deg=station_chunk["latitude"].values.astype(np.float32),
+        longitude_deg=station_chunk["longitude"].values.astype(np.float32),
+        station_seed=station_chunk["seed"].values.astype(np.uint64),
+    )
+    # `hf_simulation` already uses the workflow's component labels, but orders them
+    # 090, 000, ver; waveform files store them in `Component` order.
+    return xr.DataArray(
+        waveform,
+        dims=["component", "station", "time"],
         coords={
-            "station": ("station", names),
-            "component": ("component", list(Component)),
-            "time": ("time", time),
-            "latitude": (["station"], latitude),
-            "longitude": (["station"], longitude),
+            "component": list(COMPONENTS),
+            "station": station_names,
+            "time": time,
         },
-        attrs={
-            "start_sec": start_sec,
-            "nt": nt,
-            "dt": dt,
-            "units": "cm/s^2",
-        },
-    )
+    ).sel(component=list(Component))
 
 
 @cli.from_docstring(app)
 @log_utils.log_call()
 def run_hf(
     realisation_ffp: Annotated[Path, typer.Argument()],
-    stoch_ffp: Annotated[
-        Path,
-        typer.Argument(exists=True),
-    ],
+    stoch_ffp: Annotated[Path, typer.Argument(exists=True)],
     station_file: Annotated[Path, typer.Argument(exists=True)],
     out_file: Annotated[Path, typer.Argument()],
-    hf_sim_path: Annotated[Path, typer.Option()] = Path(
-        "/EMOD3D/tools/hb_high_binmod_v6.0.3"
-    ),
-    work_directory: Annotated[
-        Path,
-        typer.Option(exists=True, writable=True, file_okay=False),
-    ] = Path("/out"),
 ) -> None:
-    """Run the HF (High-Frequency) simulation and generate the HF output file.
-
-    This function performs the following steps:
-    1. Reads configuration and domain parameters from the realisation file.
-    2. Filters stations based on their location relative to the domain.
-    3. Uses multiprocessing to simulate each station and calculate epicentre distances.
-    4. Reads the velocity model and calculates the `vs` value.
-    5. Writes the HF output file, including header and station-specific data.
+    """Run the HF simulation and write the HF output file.
 
     Parameters
     ----------
@@ -396,30 +192,17 @@ def run_hf(
         Path to the file containing station locations and names.
     out_file : Path
         Filepath where the HF output will be saved.
-    hf_sim_path : Path, optional
-        Path to the HF simulation binary.
-    work_directory : Path, optional
-        Directory for intermediate files. Must be writable.
-
-    Returns
-    -------
-    None
-        The function does not return any value. It writes the HF output directly to `out_file`.
     """
-    seeds = Seeds.read_from_realisation_or_random(realisation_ffp)
-
-    domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
-    velocity_model = HFVelocityModel1D.read_from_realisation_or_defaults(
-        realisation_ffp, metadata.defaults_version
-    )
-    hf_config = HFConfig.read_from_realisation_or_defaults(
+    seeds = Seeds.read_from_realisation_or_random(realisation_ffp)
+    domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
+    hf_config = HFConfigDefaults.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
     rupture_velocity = RuptureVelocity.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
-    resolution = Resolution.read_from_realisation_or_defaults(
+    velocity_model_1d = HFVelocityModel1D.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
 
@@ -427,61 +210,72 @@ def run_hf(
         station_file,
         delimiter=r"\s+",
         header=None,
-        names=["longitude", "latitude", "name"],
-    ).set_index("name")
-    stations["seed"] = station_seeds(seeds.hf_seed, stations.index)
-    velocity_model_path = work_directory / "velocity_model"
-    velocity_model.write_velocity_model(velocity_model_path)
-    nt = int(
-        np.float32(domain_parameters.duration) / np.float32(resolution.dt)
-    )  # Match Fortran's single-precision for consistent nt calculation
-    waveform = np.empty((3, len(stations), nt), dtype=np.float32)
+        names=["longitude", "latitude", "station"],
+    ).set_index("station")
 
-    hf_input_template = build_hf_input(
-        stoch_ffp,
-        velocity_model_path,
-        resolution,
-        hf_config,
-        rupture_velocity,
-        domain_parameters,
+    stations["seed"] = hf_simulation.station_seeds(
+        seeds.hf_seed, stations.index.to_list()
     )
-    stations["epicentre_distance"] = np.nan
+    stations = stations.sort_values("seed")
 
-    with ThreadPoolExecutor(max_workers=utils.get_available_cores()) as executor:
-        station_index = {station: i for i, station in enumerate(stations.index)}
-        futures = [
-            executor.submit(
-                hf_simulate_station,
-                hf_sim_path,
-                hf_input_template,
-                station["latitude"],
-                station["longitude"],
-                str(name),
-                int(station["seed"]),
-            )
-            for name, station in stations.iterrows()
-        ]
-        for future in concurrent.futures.as_completed(futures):
-            station, epicentre, station_waveform = future.result()
-            stations.loc[station, "epicentre_distance"] = epicentre
-            i = station_index[station]
-
-            for j, label in enumerate(Component):
-                waveform[j, i] = station_waveform[:, HF_BINARY_COLUMNS[label]]
-
-    vs = velocity_model.model["Vs"].iloc[0] * 1000
-    stations["vs"] = vs
-
-    ds = create_hf_dataset(
-        waveform=waveform,
-        latitude=stations["latitude"],
-        longitude=stations["longitude"],
-        names=stations.index,
-        epicentre_distance=stations["epicentre_distance"],
-        seed=stations["seed"],
-        vref=stations["vs"],
-        dt=resolution.dt,
-        start_sec=hf_config.t_sec,
+    simulator = Simulator(
+        _build_slip_model(stoch_ffp),
+        _build_velocity_model(velocity_model_1d),
+        _build_config(hf_config, rupture_velocity, domain_parameters),
     )
-    ds.to_netcdf(out_file, engine="h5netcdf")
+
+    # float32 throughout: this mirrors how the simulation truncates duration/dt to a
+    # sample count, so the dask template matches what comes back.
+    nt = round(domain_parameters.duration / hf_config.dt)
+    # The record starts at the origin time. This was a configurable `t_sec` that every
+    # realisation set to zero.
+    time = np.arange(nt) * hf_config.dt
+
+    num_workers = utils.get_available_cores()
+    memory_chunk = TARGET_CHUNK_BYTES // (len(COMPONENTS) * nt * np.float32().itemsize)
+    chunk_size = max(1, min(memory_chunk, -(-len(stations) // (4 * num_workers))))
+    logger = log_utils.get_logger(__name__)
+    logger.info(
+        "concurrency settings",
+        num_workers=num_workers,
+        memory_bound_stations=memory_chunk,
+        chunk_size=chunk_size,
+    )
+    with (
+        dask.config.set(scheduler="threads", num_workers=num_workers),
+        TqdmCallback(desc="Station chunks"),
+    ):
+        template = xr.DataArray(
+            da.empty(
+                (len(Component), len(stations), nt),
+                dtype=np.float32,
+                chunks=(len(Component), chunk_size, nt),
+            ),
+            dims=["component", "station", "time"],
+            coords={
+                "component": list(Component),
+                "station": stations.index,
+                "time": time,
+            },
+        )
+
+        station_inputs = stations.to_xarray().chunk({"station": chunk_size})
+        waveform = station_inputs.map_blocks(
+            _simulate_chunk,
+            template=template,
+            kwargs={"time": time, "simulator": simulator},
+        ).rename("waveform")
+
+        # The Vs30 the HF waveforms are simulated at, which bb-sim amplifies from.
+        station_inputs["vref"] = xr.full_like(
+            station_inputs["latitude"], velocity_model_1d.model["Vs"].iloc[0] * 1000
+        )
+        dataset = xr.merge([waveform, station_inputs])
+        dataset.attrs = {
+            "start_sec": 0.0,
+            "dt": hf_config.dt,
+            "nt": nt,
+            "units": "cm/s^2",
+        }
+        dataset.to_netcdf(out_file, engine="h5netcdf")
     realisations.append_log_entry(realisation_ffp)
