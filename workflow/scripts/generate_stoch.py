@@ -44,7 +44,7 @@ app = typer.Typer()
 
 def _box_average_matrix(
     n_fine: int, n_coarse: int, fine_dx: float, coarse_dx: float, *, centred: bool
-) -> sp.csr_array:
+) -> sp.csr_array[np.float32, tuple[int, int]]:
     """Build an area-pooling kernel for averaging high-resolution data into lower-resolution data.
 
     Assuming we have `n_fine` fine gridpoints, and `n_coarse` coarse gridpoints,
