@@ -127,8 +127,8 @@ def _read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
     time = np.arange(global_npts) * dt
     return xr.Dataset(
         {
-            "lat": ("station", latitudes),
-            "lon": ("station", longitudes),
+            "latitude": ("station", latitudes),
+            "longitude": ("station", longitudes),
         },
         coords={
             "station": stations,
@@ -234,7 +234,11 @@ def convert_lf_to_xarray_dataset(
     """
     match format:
         case Format.EMOD3D if low_frequency_path.is_dir():
-            lf_dataset = timeseries.read_lfseis_directory(low_frequency_path)
+            # qcore names the station coordinates lat/lon; the workflow's
+            # waveform files all use latitude/longitude.
+            lf_dataset = timeseries.read_lfseis_directory(low_frequency_path).rename(
+                {"lat": "latitude", "lon": "longitude"}
+            )
             lf_dataset.to_netcdf(output_ffp, engine="h5netcdf")
         case Format.EMOD3D:
             raise ValueError("EMOD3D format requires directory containing LFSeis files")

@@ -203,13 +203,16 @@ def _process_bb_chunk(
     filter_legs: FilterLeg,
 ) -> xr.DataArray:
     """Compute broadband waveforms for a chunk of stations."""
+    # Only the index coordinates: the LF and HF files each carry their own
+    # station latitude/longitude (at different precisions), which would
+    # conflict when merged.
     chunk = xr.Dataset(
         {
-            "lf": lf_waveform,
-            "hf": hf_waveform,
-            "pga": hf_pga,
-            "vs30": vs30,
-            "vs30_sim": vs30_sim,
+            "lf": lf_waveform.reset_coords(drop=True),
+            "hf": hf_waveform.reset_coords(drop=True),
+            "pga": hf_pga.reset_coords(drop=True),
+            "vs30": vs30.reset_coords(drop=True),
+            "vs30_sim": vs30_sim.reset_coords(drop=True),
         }
     )
     # Site amplification depends on each component's PGA, and one component at
@@ -217,7 +220,6 @@ def _process_bb_chunk(
     bb = chunk.groupby("component").map(
         _broadband_component, dt=dt, config=config, filter_legs=filter_legs
     )
-    # Only the values: the merged chunk also carries the HF-derived coordinates.
     return lf_waveform.copy(data=bb["waveform"].transpose(*lf_waveform.dims).values)
 
 
@@ -280,7 +282,7 @@ def combine_hf_and_lf(
     lf = lf.sel(station=common_stations).chunk(chunking)
     hf = hf.sel(station=common_stations).chunk(chunking)
 
-    bb_dt = min(lf.attrs["dt"], hf.attrs["dt"])
+    bb_dt = min(float(lf.attrs["dt"]), float(hf.attrs["dt"]))
 
     # Site amplification depends on the untapered HF PGA.
     hf_pga = abs(hf["waveform"]).max("time")
@@ -312,8 +314,7 @@ def combine_hf_and_lf(
     vs30_sim = hf["vref"]
 
     # map_blocks hands each block the matching station slice of every
-    # argument. The HF lat/lon coordinates stay on `hf_waveform`, so the
-    # output has only the LF-derived coordinates.
+    # argument. The output takes its coordinates from the LF waveform.
     bb_waveform = xr.map_blocks(
         _process_bb_chunk,
         lf_waveform,
@@ -343,8 +344,8 @@ def combine_hf_and_lf(
     bb = xr.Dataset(
         {"waveform": bb_waveform, "vs30": vs30},
         coords={
-            "latitude": ("station", lf.lat.values),
-            "longitude": ("station", lf.lon.values),
+            "latitude": ("station", lf["latitude"].values),
+            "longitude": ("station", lf["longitude"].values),
         },
         attrs=attributes,
     )

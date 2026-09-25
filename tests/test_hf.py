@@ -158,8 +158,8 @@ def test_create_hf_dataset_structure() -> None:
     np.testing.assert_array_equal(ds.station.values, names)
     np.testing.assert_array_equal(ds.component.values, ["x", "y", "z"])
     assert ds.time.values[1] == pytest.approx(0.02)
-    assert ds.lat.dims == ("station",)
-    assert ds.lon.dims == ("station",)
+    assert ds.latitude.dims == ("station",)
+    assert ds.longitude.dims == ("station",)
 
     assert "waveform" in ds.data_vars
     assert ds.waveform.dims == ("component", "station", "time")

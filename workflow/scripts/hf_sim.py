@@ -324,7 +324,7 @@ def create_hf_dataset(
     -----
     The dataset follows specific dimensional mapping:
     * **waveform**: mapped to (component, station, time).
-    * **coordinates**: 'lat' and 'lon' are non-index coordinates tied to
+    * **coordinates**: 'latitude' and 'longitude' are non-index coordinates tied to
       the 'station' dimension.
     * **attributes**: global metadata includes 'units' (fixed to cm/s^2),
       'nt', and 'dt'.
@@ -343,8 +343,8 @@ def create_hf_dataset(
             "station": ("station", names),
             "component": ("component", ["x", "y", "z"]),
             "time": ("time", time),
-            "lat": (["station"], latitude),
-            "lon": (["station"], longitude),
+            "latitude": (["station"], latitude),
+            "longitude": (["station"], longitude),
         },
         attrs={
             "start_sec": start_sec,
