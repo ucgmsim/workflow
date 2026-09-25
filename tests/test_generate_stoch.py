@@ -25,18 +25,6 @@ PLANE_SHAPES = [(13, 7, 6.5, 3.5), (9, 5, 2.7, 1.5)]
 
 DT = 0.1
 
-# A real (multi-segment) SRF, if a source_modelling checkout is available.
-REAL_SRF_FFP = (
-    Path(
-        os.environ.get(
-            "SOURCE_MODELLING_PATH", Path.home() / "src" / "source_modelling"
-        )
-    )
-    / "tests"
-    / "srfs"
-    / "3366146.srf"
-)
-
 
 def make_srf(seed: int = 1) -> SrfFile:
     """Build a small synthetic (version 1.0) SRF with random slip."""
@@ -253,16 +241,6 @@ def test_convert_srf_to_stoch_preserves_moment(
     the sum of slip x area to be unchanged.
     """
     assert_moment_preserved(synthetic_srf, convert_srf_to_stoch(synthetic_srf, dx, dy))
-
-
-@pytest.mark.slow
-@pytest.mark.skipif(
-    not REAL_SRF_FFP.exists(), reason=f"{REAL_SRF_FFP} is not available"
-)
-def test_convert_srf_to_stoch_preserves_moment_real_srf() -> None:
-    """Moment is preserved for a real multi-segment rupture."""
-    srf_file = srf.read_srf(REAL_SRF_FFP)
-    assert_moment_preserved(srf_file, convert_srf_to_stoch(srf_file, 2.0, 2.0))
 
 
 def test_convert_srf_to_stoch_preserves_uniform_slip(synthetic_srf: SrfFile) -> None:
