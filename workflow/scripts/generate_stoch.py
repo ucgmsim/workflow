@@ -134,9 +134,11 @@ def _box_average_matrix(
         rows.append(np.full(len(idx), j))
         cols.append(idx)
     return sp.csr_array(
-        (np.concatenate(weights), (np.concatenate(rows), np.concatenate(cols))),
+        (
+            np.concatenate(weights).astype(np.float32),
+            (np.concatenate(rows), np.concatenate(cols)),
+        ),
         shape=(n_coarse, n_fine),
-        dtype=np.float32,
     )
 
 
