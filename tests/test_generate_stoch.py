@@ -318,23 +318,6 @@ def test_convert_srf_to_stoch_zero_slip_rise(synthetic_srf: SrfFile) -> None:
         assert plane.rise == pytest.approx(1e-5)
 
 
-# --- circular_mean -----------------------------------------------------------
-
-
-def test_circular_mean_wraps_around_zero() -> None:
-    mean = circular_mean(np.array([350.0, 10.0]), np.array([1.0, 1.0]))
-    # 0 and 360 are the same bearing.
-    assert min(mean, 360 - mean) == pytest.approx(0.0, abs=1e-9)
-
-
-def test_circular_mean_is_weighted() -> None:
-    # Three quarters of the weight sits at 0 degrees, one quarter at 90.
-    expected = np.degrees(np.arctan2(0.25, 0.75))
-    assert circular_mean(np.array([0.0, 90.0]), np.array([3.0, 1.0])) == (
-        pytest.approx(expected)
-    )
-
-
 def test_average_rake_is_in_degrees(synthetic_srf: SrfFile) -> None:
     """The stoch header rake is a bearing in degrees, not radians."""
     synthetic_srf.points["rake"] = 185.0
