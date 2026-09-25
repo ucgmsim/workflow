@@ -231,9 +231,6 @@ def run_hf(
     # realisation set to zero.
     time = np.arange(nt) * hf_config.dt
 
-    # Also bound by parallelism: chunk size set from memory alone gives 3 tasks for a
-    # 900-station run, so most of the allocation idles. Peak memory is
-    # num_workers * chunk_bytes, which this only ever lowers.
     num_workers = utils.get_available_cores()
     memory_chunk = TARGET_CHUNK_BYTES // (len(COMPONENTS) * nt * np.float32().itemsize)
     chunk_size = max(1, min(memory_chunk, -(-len(stations) // (4 * num_workers))))
