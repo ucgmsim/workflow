@@ -230,7 +230,7 @@ def convert_srf_to_stoch(srf_file: SrfFile, dx: float, dy: float) -> StochFile:
             dy=dy,
             strike=round(header["stk"]) % 360,
             dip=round(header["dip"]),
-            average_rake=round(circular_mean(rake, slip)),
+            average_rake=round(_circular_mean(rake, slip)),
             dtop=header["dtop"],
             shypo=header["shyp"],
             dhypo=header["dhyp"],
