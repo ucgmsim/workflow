@@ -96,13 +96,15 @@ def synthetic_srf() -> SrfFile:
     return make_srf()
 
 
-def covered_fraction(n_coarse: int, coarse_dx: float, extent: float) -> np.ndarray:
+def covered_fraction(
+    n_coarse: int, coarse_dx: float, extent: float, *, centred: bool
+) -> np.ndarray:
     """Fraction of each coarse cell that lies over a plane of length `extent`.
 
-    The coarse grid is centred on the plane, so the overhang is split
-    evenly between the first and last cells.
+    A centred coarse grid splits the overhang evenly between the first and
+    last cells, otherwise it all falls in the last cell.
     """
-    overhang = (n_coarse * coarse_dx - extent) / 2
+    overhang = (n_coarse * coarse_dx - extent) / 2 if centred else 0.0
     edges = np.arange(n_coarse + 1) * coarse_dx - overhang
     return (np.minimum(edges[1:], extent) - np.maximum(edges[:-1], 0)) / coarse_dx
 
@@ -119,7 +121,7 @@ def fine_moment(srf_file: SrfFile, i: int) -> float:
 
 def test_box_average_matrix_matches_docstring_example() -> None:
     """Five fine cells of width 3 pooled into three coarse cells of width 5."""
-    matrix = _box_average_matrix(5, 3, 3.0, 5.0).toarray()
+    matrix = _box_average_matrix(5, 3, 3.0, 5.0, centred=True).toarray()
     assert matrix == pytest.approx(
         np.array(
             [
@@ -131,68 +133,82 @@ def test_box_average_matrix_matches_docstring_example() -> None:
     )
 
 
-def test_box_average_matrix_is_identity_when_grids_agree() -> None:
-    matrix = _box_average_matrix(7, 7, 0.5, 0.5).toarray()
+@pytest.mark.parametrize("centred", [True, False])
+def test_box_average_matrix_is_identity_when_grids_agree(centred: bool) -> None:
+    matrix = _box_average_matrix(7, 7, 0.5, 0.5, centred=centred).toarray()
     assert matrix == pytest.approx(np.eye(7))
 
 
-@pytest.mark.parametrize(
-    ("n_fine", "fine_dx", "coarse_dx"),
-    [(100, 0.1, 2.0), (13, 0.5, 2.0), (9, 0.3, 2.0), (37, 0.2, 1.7), (5, 3.0, 5.0)],
-)
+GRID_CASES = [
+    (100, 0.1, 2.0),
+    (13, 0.5, 2.0),
+    (9, 0.3, 2.0),
+    (37, 0.2, 1.7),
+    (5, 3.0, 5.0),
+]
+
+
+@pytest.mark.parametrize("centred", [True, False])
+@pytest.mark.parametrize(("n_fine", "fine_dx", "coarse_dx"), GRID_CASES)
 def test_box_average_matrix_rows_are_weighted_averages(
-    n_fine: int, fine_dx: float, coarse_dx: float
+    n_fine: int, fine_dx: float, coarse_dx: float, centred: bool
 ) -> None:
     """Every coarse bin is an average of the fine cells it covers.
 
-    The weights of a bin sum to one, except for the first and last bins,
-    which hang off either end of the fine grid by half the overhang each
-    and sum to the covered fraction of the bin.
+    The weights of a bin sum to one, except for bins that hang off the end of
+    the fine grid, which sum to the covered fraction of the bin.
     """
     n_coarse = int(np.ceil(n_fine * fine_dx / coarse_dx))
-    assert n_coarse >= 2, "the covered fraction below assumes two distinct end bins"
-    matrix = _box_average_matrix(n_fine, n_coarse, fine_dx, coarse_dx).toarray()
+    matrix = _box_average_matrix(
+        n_fine, n_coarse, fine_dx, coarse_dx, centred=centred
+    ).toarray()
     assert matrix.shape == (n_coarse, n_fine)
     assert (matrix >= 0).all()
-
-    row_sums = matrix.sum(axis=1)
-    overhang = (n_coarse * coarse_dx - n_fine * fine_dx) / 2
-    covered = (coarse_dx - overhang) / coarse_dx
-    assert row_sums[1:-1] == pytest.approx(np.ones(n_coarse - 2))
-    assert row_sums[0] == pytest.approx(covered)
-    assert row_sums[-1] == pytest.approx(covered)
+    assert matrix.sum(axis=1) == pytest.approx(
+        covered_fraction(n_coarse, coarse_dx, n_fine * fine_dx, centred=centred)
+    )
 
 
-@pytest.mark.parametrize(
-    ("n_fine", "fine_dx", "coarse_dx"),
-    [(100, 0.1, 2.0), (13, 0.5, 2.0), (9, 0.3, 2.0), (37, 0.2, 1.7), (5, 3.0, 5.0)],
-)
+@pytest.mark.parametrize(("n_fine", "fine_dx", "coarse_dx"), GRID_CASES)
 def test_box_average_matrix_is_centred(
     n_fine: int, fine_dx: float, coarse_dx: float
 ) -> None:
-    """The coarse grid is centred on the fine grid, not aligned to its start.
-
-    The stoch format records a centre point and an ``nx * dx`` extent, so a
-    coarse grid longer than the plane has to overhang both ends equally.
-    Otherwise the slip would sit off-centre on the plane the HF code
-    reconstructs from the header.
-    """
+    """A centred coarse grid overhangs both ends of the fine grid equally."""
     n_coarse = int(np.ceil(n_fine * fine_dx / coarse_dx))
-    matrix = _box_average_matrix(n_fine, n_coarse, fine_dx, coarse_dx).toarray()
+    matrix = _box_average_matrix(
+        n_fine, n_coarse, fine_dx, coarse_dx, centred=True
+    ).toarray()
     # Reversing both the bins and the cells they cover is the same grid.
     assert matrix == pytest.approx(matrix[::-1, ::-1])
 
 
-@pytest.mark.parametrize(
-    ("n_fine", "fine_dx", "coarse_dx"),
-    [(100, 0.1, 2.0), (13, 0.5, 2.0), (9, 0.3, 2.0), (37, 0.2, 1.7), (5, 3.0, 5.0)],
-)
+def test_box_average_matrix_uncentred_starts_with_the_fine_grid() -> None:
+    """An uncentred coarse grid starts where the fine grid does.
+
+    This is the down-dip case: the HF code hangs the stoch grid from the top
+    edge of the plane, so for a 3.5km wide plane on a 2km grid the first row
+    must cover [0, 2]km and the second [2, 3.5]km, with the 0.5km of padding
+    below the bottom of the plane.
+    """
+    matrix = _box_average_matrix(7, 2, 0.5, 2.0, centred=False).toarray()
+    assert matrix == pytest.approx(
+        np.array(
+            [
+                [1 / 4, 1 / 4, 1 / 4, 1 / 4, 0, 0, 0],
+                [0, 0, 0, 0, 1 / 4, 1 / 4, 1 / 4],
+            ]
+        )
+    )
+
+
+@pytest.mark.parametrize("centred", [True, False])
+@pytest.mark.parametrize(("n_fine", "fine_dx", "coarse_dx"), GRID_CASES)
 def test_box_average_matrix_conserves_mass(
-    n_fine: int, fine_dx: float, coarse_dx: float
+    n_fine: int, fine_dx: float, coarse_dx: float, centred: bool
 ) -> None:
     """Averaging then re-integrating over the coarse cells preserves the integral."""
     n_coarse = int(np.ceil(n_fine * fine_dx / coarse_dx))
-    matrix = _box_average_matrix(n_fine, n_coarse, fine_dx, coarse_dx)
+    matrix = _box_average_matrix(n_fine, n_coarse, fine_dx, coarse_dx, centred=centred)
     values = np.random.default_rng(2).uniform(0, 10, n_fine)
     coarse = matrix @ values
     assert (coarse.sum() * coarse_dx) == pytest.approx(values.sum() * fine_dx)
@@ -241,13 +257,14 @@ def test_convert_srf_to_stoch_preserves_uniform_slip(synthetic_srf: SrfFile) -> 
         # Cells the plane only partially covers are scaled down by the
         # covered fraction of the cell, which is what keeps the moment
         # (rather than the slip value) constant.
-        covered_x = covered_fraction(plane.header.nx, dx, header["len"])
-        covered_y = covered_fraction(plane.header.ny, dy, header["wid"])
+        # Along strike the grid is centred on the plane, so the partial cells
+        # are at both ends. Down-dip it hangs from the top edge, so the only
+        # partial cells are in the bottom row.
+        covered_x = covered_fraction(plane.header.nx, dx, header["len"], centred=True)
+        covered_y = covered_fraction(plane.header.ny, dy, header["wid"], centred=False)
         assert plane.slip == pytest.approx(
             42.0 * np.outer(covered_y, covered_x), rel=1e-5
         )
-        # The partial cells are the two ends, not just the far end.
-        assert plane.slip == pytest.approx(plane.slip[::-1, ::-1], rel=1e-5)
 
 
 def test_convert_srf_to_stoch_grid_covers_the_plane(synthetic_srf: SrfFile) -> None:
@@ -354,19 +371,6 @@ def realisation_ffp(tmp_path: Path, synthetic_srf: SrfFile) -> Path:
         name="generate stoch test",
         version="1",
         defaults_version=defaults.DefaultsVersion.v24_2_2_1,
-    ).write_to_realisation(realisation_ffp)
-    realisations.SourceConfig(
-        source_geometries={
-            f"plane_{i}": sources.Plane.from_centroid_strike_dip(
-                np.array([plane["elat"], plane["elon"]]),
-                plane["dip"],
-                plane["len"],
-                plane["wid"],
-                dtop=plane["dtop"],
-                strike=plane["stk"],
-            )
-            for i, plane in synthetic_srf.header.iterrows()
-        }
     ).write_to_realisation(realisation_ffp)
     return realisation_ffp
 

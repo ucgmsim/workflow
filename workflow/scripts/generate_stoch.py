@@ -43,7 +43,7 @@ app = typer.Typer()
 
 
 def _box_average_matrix(
-    n_fine: int, n_coarse: int, fine_dx: float, coarse_dx: float
+    n_fine: int, n_coarse: int, fine_dx: float, coarse_dx: float, *, centred: bool
 ) -> sp.csr_matrix:
     """Build an area-pooling kernel for averaging high-resolution data into lower-resolution data.
 
@@ -52,9 +52,10 @@ def _box_average_matrix(
     to 1) between coarse bin j and the fine cells it spans. This is equivalent
     to the ``adaptive_avg_pool2d`` kernel in pytorch with padding.
 
-    The two grids are centred on each other. If the coarse grid is longer than
-    the fine grid, the bins at either end hang off the fine grid and their
-    weights sum to the covered fraction rather than to 1. This is what makes
+    If the coarse grid is longer than the fine grid, the excess is either split
+    between both ends (``centred=True``) or placed entirely past the end of the
+    fine grid (``centred=False``). The bins that hang off the fine grid have
+    weights summing to the covered fraction rather than to 1. This is what makes
     the kernel conserve the total (slip * area) rather than the cell value. See
     ``convert_srf_to_stoch`` for how we handle trise where this is not what we want.
 
@@ -68,6 +69,9 @@ def _box_average_matrix(
         The physical resolution of the fine cells.
     coarse_dx : float
         The physical resolution of the coarse cells.
+    centred : bool
+        If True, the coarse grid is centred on the fine grid. Otherwise both
+        grids start at the same point and any excess hangs off the far end.
 
     Returns
     -------
@@ -86,9 +90,11 @@ def _box_average_matrix(
     does not have to materialise all the empty cell overlaps in memory. A
     secondary advantage is that we handle the padded case, which lets us set a
     uniform dx/dy for all SRF segments as the HF code demands without changing
-    total moment. Because the stoch format records only a centre point and an
-    ``nx * dx`` extent, the padding has to be centred too, or the slip
-    distribution would sit off-centre on the plane the HF code reconstructs.
+    total moment. Where the padding goes has to match how the HF code
+    reconstructs the plane from the stoch header, or the slip distribution
+    would sit in the wrong place on it: along strike the grid is centred on
+    the reference point, while down-dip it hangs from the top edge at
+    ``dtop``.
 
     For example, downsampling 5 fine cells to 3 coarse cells implies an LCM of
     15 base units. The 5 fine cells (A-E) take up 3 units each, while the 3
@@ -123,10 +129,10 @@ def _box_average_matrix(
 
     """
     bin_width = coarse_dx / fine_dx
-    # The coarse grid may be longer than the fine grid it covers. Split the
-    # excess evenly between the two ends so that both grids stay centred on
-    # the same point (see the Notes above).
-    overhang = (n_coarse * bin_width - n_fine) / 2
+    # The coarse grid may be longer than the fine grid it covers. Either split
+    # the excess evenly between the two ends, or put all of it past the far
+    # end (see the Notes above).
+    overhang = (n_coarse * bin_width - n_fine) / 2 if centred else 0.0
     edges = np.arange(n_coarse + 1) * bin_width - overhang
     rows, cols, weights = [], [], []
     for j in range(n_coarse):
@@ -192,9 +198,7 @@ def convert_srf_to_stoch(srf_file: SrfFile, dx: float, dy: float) -> StochFile:
         nstk, ndip = int(header["nstk"]), int(header["ndip"])
 
         slip = segment["slip"].to_numpy(dtype=np.float32).reshape(ndip, nstk)
-        rake = segment["rake"].to_numpy(dtype=np.float32).reshape(
-            ndip, nstk
-        ) % np.float32(360.0)
+        rake = segment["rake"].to_numpy(dtype=np.float32).reshape(ndip, nstk)
         rise = segment["rise"].to_numpy(dtype=np.float32).reshape(ndip, nstk)
         tinit = segment["tinit"].to_numpy(dtype=np.float32).reshape(ndip, nstk)
 
@@ -203,17 +207,16 @@ def convert_srf_to_stoch(srf_file: SrfFile, dx: float, dy: float) -> StochFile:
 
         nx = int(np.ceil(float(header["len"]) / dx))
         ny = int(np.ceil(float(header["wid"]) / dy))
-        wx = _box_average_matrix(nstk, nx, dstk, dx).astype(np.float32)
-        wy = _box_average_matrix(ndip, ny, ddip, dy).astype(np.float32)
+        # The HF code centres the stoch grid along strike on (elon, elat), the
+        # top-centre of the plane, but hangs it down-dip from the top edge at
+        # dtop (with dhypo measured from that edge). So along strike the
+        # padding is split between both ends, but down-dip it all goes at the
+        # bottom.
+        wx = _box_average_matrix(nstk, nx, dstk, dx, centred=True).astype(np.float32)
+        wy = _box_average_matrix(ndip, ny, ddip, dy, centred=False).astype(np.float32)
 
-        def box_average(
-            values: np.ndarray,
-            wy: sp.csr_matrix = wy,
-            wx: sp.csr_matrix = wx,
-        ) -> np.ndarray:
-            return wy @ values @ wx.T
+        slip_grid = wy @ slip @ wx.T
 
-        slip_grid = box_average(slip)
         # Cells at the edge of the plane are only partially covered by the SRF,
         # so their weights sum to less than one. That is what conserves the
         # moment for slip, but rupture time is a time rather than a quantity
@@ -227,13 +230,13 @@ def convert_srf_to_stoch(srf_file: SrfFile, dx: float, dy: float) -> StochFile:
         coverage = np.outer(
             np.asarray(wy.sum(axis=1)).ravel(), np.asarray(wx.sum(axis=1)).ravel()
         )
-        trup_grid = box_average(tinit) / coverage
+        trup_grid = (wy @ tinit @ wx.T) / coverage
 
         # The rise grid is a slip-averaged rise in each cell. Note that because
         # we are dividing rise by slip the coverage factor conveniently cancels
         # out and we do not have to (should not) similarly divide for the rise
         # sum.
-        rise_sum = box_average(rise * slip)
+        rise_sum = wy @ (rise * slip) @ wx.T
         rise_grid = np.where(
             slip_grid > 0,
             rise_sum / np.where(slip_grid > 0, slip_grid, 1),
@@ -247,8 +250,7 @@ def convert_srf_to_stoch(srf_file: SrfFile, dx: float, dy: float) -> StochFile:
             ny=ny,
             dx=dx,
             dy=dy,
-            # The stoch format stores whole degrees.
-            strike=round(header["stk"] % np.float32(360.0)),
+            strike=round(header["stk"]) % 360,
             dip=round(header["dip"]),
             average_rake=round(circular_mean(rake, slip)),
             dtop=header["dtop"],
