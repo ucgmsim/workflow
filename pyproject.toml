@@ -20,12 +20,15 @@ dependencies = [
   "site-calculation>=2026.7.1",
   "source_modelling>=2026.09.1",
   "nzcvm>=2026.9.1",
+  "rupture-generator @ git+https://github.com/ucgmsim/rupture_generator@master",
   # Data Formats
   "geopandas",
   "fiona",                 # Imported, undeclared, by openquake's GMMs
   "netCDF4",               # Required for openquake shenanigans
   "pandas[parquet, hdf5]",
+  "pyproj",
   "pyyaml",
+  "tomli-w",         # Writing the rupture generator's input files
   "xarray[io]",
   # Numerics
   "dask",
@@ -68,7 +71,7 @@ per_rule_ignores = { DEP002 = ["fiona"] }
 [project.scripts]
 nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:app"
 gcmt-to-realisation = "workflow.scripts.gcmt_to_realisation:app"
-realisation-to-srf = "workflow.scripts.realisation_to_srf:app"
+create-rupture-input = "workflow.scripts.rupture_input_template:app"
 generate-domain = "workflow.scripts.generate_domain:app"
 generate-velocity-model = "workflow.scripts.generate_velocity_model:app"
 convert-vm-hdf5-to-emod3d = "workflow.scripts.convert_vm_hdf5_to_emod3d:app"
@@ -140,6 +143,7 @@ convention = "numpy"
 known-first-party = [
   "source_modelling",
   "hf_simulation",
+  "rupture_generator",
   "workflow",
   "pygmt_helper",
   "qcore",

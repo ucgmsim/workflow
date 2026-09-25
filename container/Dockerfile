@@ -76,6 +76,9 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 # Setup Virtual Environment and Install via pip
 # openquake.engine 3.26+ requires gdal~=3.13.1, which is sdist-only and refuses to
 # build against the libgdal 3.12.2 that Ubuntu ships. Cap it until libgdal catches up.
+# rupture-generator builds two Rust extensions through setuptools-rust; the toolchain
+# installed above is what they compile with, and `debug = false` in its pyproject keeps
+# that a release build.
 ARG WORKFLOW_VERSION
 RUN test -n "${WORKFLOW_VERSION}" || { echo "WORKFLOW_VERSION build arg is required" >&2; exit 1; } && \
     python3 -m venv $VIRTUAL_ENV && \
