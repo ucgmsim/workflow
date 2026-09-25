@@ -154,6 +154,44 @@ class FilterLeg(StrEnum):
     NONE = auto()
 
 
+def _broadband_component(
+    component: xr.Dataset,
+    dt: float,
+    config: BroadbandParameters,
+    filter_legs: FilterLeg,
+) -> xr.Dataset:
+    """Amplify the HF and merge it with the LF for one component of a chunk."""
+    component = component.squeeze("component")
+    amp_model_fn, amp_model_freqs = SITE_AMP_MODELS[config.site_amp_version]
+
+    # Zero-pad to a length pyfftw can transform efficiently, and
+    # pre-compute the FFT output frequencies the amplification is
+    # sampled at.
+    n_fft = pyfftw.next_fast_len(component.sizes["time"])
+    fft_freqs = np.fft.rfftfreq(n_fft, dt)
+
+    # The amplification models require float64 inputs.
+    amp = amp_model_fn(
+        component["vs30"].values.astype(np.float64),
+        component["vs30_sim"].values.astype(np.float64),
+        component["pga"].values.astype(np.float64) * G,
+    )
+    amp = amplification.interpolate_frequencies(amp_model_freqs, fft_freqs, amp)
+    # Constrain the amplification to the [fmin, fmax] band, tapering
+    # logarithmically at either end.
+    amplification.amp_lowpass(fft_freqs, amp, config.fmin, config.fmidbot)
+    amplification.amp_highpass(fft_freqs, amp, config.fhightop, config.fmax)
+
+    hf = amplification.amplify_waveform(component["hf"].values, amp, n_fft)
+    lf = component["lf"].values
+    if filter_legs in (FilterLeg.HF, FilterLeg.BOTH):
+        hf = timeseries.bwfilter(hf, dt, config.flo, timeseries.Band.HIGHPASS)
+    if filter_legs in (FilterLeg.LF, FilterLeg.BOTH):
+        lf = timeseries.bwfilter(lf, dt, config.flo, timeseries.Band.LOWPASS)
+    bb = component["lf"].copy(data=((hf + lf) * G).astype(np.float32))
+    return bb.to_dataset(name="waveform")
+
+
 def _process_bb_chunk(
     lf_waveform: xr.DataArray,
     hf_waveform: xr.DataArray,
@@ -165,48 +203,22 @@ def _process_bb_chunk(
     filter_legs: FilterLeg,
 ) -> xr.DataArray:
     """Compute broadband waveforms for a chunk of stations."""
-    lf = lf_waveform.values
-    hf = hf_waveform.values
-    nt = lf.shape[-1]
-
-    amp_model_fn, amp_model_freqs = SITE_AMP_MODELS[config.site_amp_version]
-
-    # Zero-pad to a length pyfftw can transform efficiently, and
-    # pre-compute the FFT output frequencies the amplification is
-    # sampled at.
-    n_fft = pyfftw.next_fast_len(nt)
-    fft_freqs = np.fft.rfftfreq(n_fft, dt)
-
-    # The amplification models require float64 inputs.
-    vs30_target = vs30.values.astype(np.float64)
-    vs30_reference = vs30_sim.values.astype(np.float64)
-    pga = hf_pga.values.astype(np.float64) * G
-    filter_lf = filter_legs in (FilterLeg.LF, FilterLeg.BOTH)
-    filter_hf = filter_legs in (FilterLeg.HF, FilterLeg.BOTH)
-
-    # Amplify and filter one component at a time to bound the float64
-    # intermediates held in memory.
-    bb = np.empty_like(lf)
-    for i in range(lf.shape[0]):
-        amp = amp_model_fn(vs30_target, vs30_reference, pga[i])
-        amp = amplification.interpolate_frequencies(amp_model_freqs, fft_freqs, amp)
-        # Constrain the amplification to the [fmin, fmax] band, tapering
-        # logarithmically at either end.
-        amplification.amp_lowpass(fft_freqs, amp, config.fmin, config.fmidbot)
-        amplification.amp_highpass(fft_freqs, amp, config.fhightop, config.fmax)
-        hf_leg = amplification.amplify_waveform(hf[i], amp, n_fft)
-        lf_leg = lf[i]
-
-        if filter_hf:
-            hf_leg = timeseries.bwfilter(
-                hf_leg, dt, config.flo, timeseries.Band.HIGHPASS
-            )
-        if filter_lf:
-            lf_leg = timeseries.bwfilter(
-                lf_leg, dt, config.flo, timeseries.Band.LOWPASS
-            )
-        bb[i] = (hf_leg + lf_leg) * G
-    return lf_waveform.copy(data=bb.astype(np.float32, copy=False))
+    chunk = xr.Dataset(
+        {
+            "lf": lf_waveform,
+            "hf": hf_waveform,
+            "pga": hf_pga,
+            "vs30": vs30,
+            "vs30_sim": vs30_sim,
+        }
+    )
+    # Site amplification depends on each component's PGA, and one component at
+    # a time also bounds the float64 intermediates held in memory.
+    bb = chunk.groupby("component").map(
+        _broadband_component, dt=dt, config=config, filter_legs=filter_legs
+    )
+    # Only the values: the merged chunk also carries the HF-derived coordinates.
+    return lf_waveform.copy(data=bb["waveform"].transpose(*lf_waveform.dims).values)
 
 
 @cli.from_docstring(app)
