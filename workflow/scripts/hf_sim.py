@@ -80,6 +80,14 @@ app = typer.Typer()
 TARGET_CHUNK_BYTES = 128 * 2**20
 """Target size of a dask chunk (all components for a batch of stations)."""
 
+COMPONENT_LABELS = [{"090": "x", "000": "y", "ver": "z"}[c] for c in COMPONENTS]
+"""The workflow's labels for `hf_simulation`'s components, in its order.
+
+`hf_simulation` names components by azimuth -- 090 for east, 000 for north and
+`ver` for the vertical. The rest of the workflow, including the LF waveforms
+bb-sim merges these with, names the same components x, y and z.
+"""
+
 
 def build_config(
     hf_config: HFConfigDefaults,
@@ -233,7 +241,7 @@ def simulate_chunk(
         waveform,
         dims=["component", "station", "time"],
         coords={
-            "component": list(COMPONENTS),
+            "component": COMPONENT_LABELS,
             "station": station_names,
             "time": time,
         },
@@ -329,7 +337,7 @@ def run_hf(
             ),
             dims=["component", "station", "time"],
             coords={
-                "component": list(COMPONENTS),
+                "component": COMPONENT_LABELS,
                 "station": stations.index,
                 "time": time,
             },
@@ -342,7 +350,8 @@ def run_hf(
             kwargs={"time": time, "simulator": simulator},
         ).rename("waveform")
 
-        station_inputs["vs"] = xr.full_like(
+        # The Vs30 the HF waveforms are simulated at, which bb-sim amplifies from.
+        station_inputs["vref"] = xr.full_like(
             station_inputs["latitude"], velocity_model_1d.model["Vs"].iloc[0] * 1000
         )
         dataset = xr.merge([waveform, station_inputs])
