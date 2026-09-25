@@ -56,8 +56,12 @@ from workflow.realisations import (
     RuptureVelocity,
     Seeds,
 )
+from workflow.waveforms import Component
 
 app = typer.Typer()
+
+HF_BINARY_COLUMNS = {Component.EAST: 0, Component.NORTH: 1, Component.UP: 2}
+"""Column of each workflow component in `hb_high`'s output, which writes 090, 000, ver."""
 
 
 def rupture_velocity_hf_transition_bands(
@@ -295,7 +299,7 @@ def create_hf_dataset(
     ----------
     waveform : ArrayLike
         The waveform data. Expected shape is (3, n_stations, nt),
-        representing the three components (x, y, z).
+        with components in `Component` order.
     latitude : ArrayLike
         Latitude coordinates for each station. Shape (n_stations,).
     longitude : ArrayLike
@@ -324,7 +328,7 @@ def create_hf_dataset(
     -----
     The dataset follows specific dimensional mapping:
     * **waveform**: mapped to (component, station, time).
-    * **coordinates**: 'lat' and 'lon' are non-index coordinates tied to
+    * **coordinates**: 'latitude' and 'longitude' are non-index coordinates tied to
       the 'station' dimension.
     * **attributes**: global metadata includes 'units' (fixed to cm/s^2),
       'nt', and 'dt'.
@@ -341,10 +345,10 @@ def create_hf_dataset(
         },
         coords={
             "station": ("station", names),
-            "component": ("component", ["x", "y", "z"]),
+            "component": ("component", list(Component)),
             "time": ("time", time),
-            "lat": (["station"], latitude),
-            "lon": (["station"], longitude),
+            "latitude": (["station"], latitude),
+            "longitude": (["station"], longitude),
         },
         attrs={
             "start_sec": start_sec,
@@ -462,8 +466,8 @@ def run_hf(
             stations.loc[station, "epicentre_distance"] = epicentre
             i = station_index[station]
 
-            for component in range(3):
-                waveform[component, i] = station_waveform[:, component]
+            for j, label in enumerate(Component):
+                waveform[j, i] = station_waveform[:, HF_BINARY_COLUMNS[label]]
 
     vs = velocity_model.model["Vs"].iloc[0] * 1000
     stations["vs"] = vs

@@ -37,11 +37,15 @@ import xarray as xr
 
 from qcore import cli, timeseries
 from workflow import log_utils, sw4
+from workflow.waveforms import Component
 
 app = typer.Typer()
 
 CMS = 100.0
 """Unit to convert m/s to cm/s"""
+
+SW4_COMPONENTS = {Component.NORTH: "NS", Component.EAST: "EW", Component.UP: "UP"}
+"""SW4's station-recording dataset for each workflow component."""
 
 TARGET_CHUNK_BYTES = 128 * 2**20
 """Target size of a dask chunk (all components for a batch of stations)."""
@@ -53,10 +57,10 @@ def _read_station_batch(
     time: xr.DataArray,
     component: xr.DataArray,
 ) -> xr.DataArray:
-    """Read velocity waveforms (m/s, EW/NS/UP) for a batch of stations."""
+    """Read velocity waveforms (m/s) for a batch of stations."""
     # SW4 labels these as displacement, but for SRF sources it is given the slip
     # *rate*, so the output is really velocity (SW4 User Guide, Section 11.2.2).
-    waveforms = np.empty((len(component), len(stations), len(time)), dtype=np.float32)
+    recordings = np.empty((len(component), len(stations), len(time)), dtype=np.float32)
     with h5py.File(sw4_ffp, "r") as handle:
         for i, station_name in enumerate(stations):
             group = handle[station_name.item()]
@@ -66,13 +70,12 @@ def _read_station_batch(
                     " The SW4 rechdf5 command must output geographic (NSEW)"
                     " displacement-mode components."
                 )
-            waveforms[0, i] = group["EW"][:]
-            waveforms[1, i] = group["NS"][:]
-            waveforms[2, i] = group["UP"][:]
+            for j, label in enumerate(component.values):
+                recordings[j, i] = group[SW4_COMPONENTS[label]][:]
     # Doing in-place multiplication here saves one batch copy
-    waveforms *= CMS
+    recordings *= CMS
     return xr.DataArray(
-        waveforms,
+        recordings,
         dims=["component", "station", "time"],
         coords={"time": time, "component": component, "station": stations.values},
     )
@@ -127,12 +130,12 @@ def _read_station_metadata(sw4_ffp: Path) -> xr.Dataset:
     time = np.arange(global_npts) * dt
     return xr.Dataset(
         {
-            "lat": ("station", latitudes),
-            "lon": ("station", longitudes),
+            "latitude": ("station", latitudes),
+            "longitude": ("station", longitudes),
         },
         coords={
             "station": stations,
-            "component": ["x", "y", "z"],
+            "component": list(Component),
             "time": time,
             **{
                 name: ("station", np.array(depths, dtype=np.float32))
@@ -234,7 +237,18 @@ def convert_lf_to_xarray_dataset(
     """
     match format:
         case Format.EMOD3D if low_frequency_path.is_dir():
-            lf_dataset = timeseries.read_lfseis_directory(low_frequency_path)
+            # qcore names the station coordinates lat/lon, and labels the
+            # components x (east), y (north) and z (up). Its docstring says x
+            # points north, but EMOD3D's y axis is rotated from south by
+            # `modelrot`, and qcore's rotation turns that into east/north/up.
+            lf_dataset = (
+                timeseries.read_lfseis_directory(low_frequency_path)
+                .rename({"lat": "latitude", "lon": "longitude"})
+                .assign_coords(
+                    component=[Component.EAST, Component.NORTH, Component.UP]
+                )
+                .sel(component=list(Component))
+            )
             lf_dataset.to_netcdf(output_ffp, engine="h5netcdf")
         case Format.EMOD3D:
             raise ValueError("EMOD3D format requires directory containing LFSeis files")

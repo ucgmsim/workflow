@@ -63,6 +63,7 @@ from workflow.realisations import (
     RupturePropagationConfig,
     SourceConfig,
 )
+from workflow.waveforms import Component
 
 app = typer.Typer()
 
@@ -774,11 +775,8 @@ def calculate_intensity_measures(
     broadband = xr.open_dataset(broadband_simulation_ffp).chunk(
         {"component": -1, "time": -1, "station": "auto"}
     )
-    # SW4 low-frequency files name these `lat`/`lon`; EMOD3D's name them
-    # `latitude`/`longitude`. Normalise once, here.
-    if "latitude" not in broadband and "lat" in broadband:
-        broadband = broadband.rename({"lat": "latitude", "lon": "longitude"})
-
+    # The IM kernels read components by position, so pin the stored order.
+    broadband = broadband.sel(component=list(Component))
     dt = broadband.attrs["dt"]
     if broadband.attrs["units"] == "cm/s^2":
         broadband["waveform"] = broadband["waveform"] / 981.0

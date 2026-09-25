@@ -16,6 +16,7 @@ import pytest
 import xarray as xr
 
 from workflow.scripts import lf_to_xarray
+from workflow.waveforms import Component
 
 
 def write_sw4_station_file(
@@ -37,9 +38,10 @@ def write_sw4_station_file(
                 "STLA,STLO,STDP",
                 data=np.array([-43.5 + index, 172.6 + index, 0.0]),
             )
-            for component in ("EW", "NS", "UP"):
+            for slope, component in enumerate(("EW", "NS", "UP"), start=1):
                 group.create_dataset(
-                    component, data=np.arange(npts, dtype=np.float32) + index
+                    component,
+                    data=slope * np.arange(npts, dtype=np.float32) + index,
                 )
             for key, value in (supergrid or {}).items():
                 group.create_dataset(key, data=np.array([value]))
@@ -143,3 +145,18 @@ def test_the_sponge_width_is_lifted_into_the_dataset_attributes(
     # The pre-existing attributes must survive alongside them.
     assert dset.attrs["nt"] == 8
     assert dset.attrs["dt"] == pytest.approx(0.05)
+
+
+def test_components_are_stored_north_east_up(tmp_path: Path) -> None:
+    """SW4's NS/EW/UP land under 000/090/ver, in the workflow's order."""
+    ffp = write_sw4_station_file(tmp_path / "stations.h5", {"AAAA": None})
+
+    dset = convert(ffp)
+
+    assert list(dset.component.values) == list(Component)
+    # The fixture ramps EW, NS and UP at slopes 1, 2 and 3, so the (constant)
+    # differentiated acceleration of each component is proportional to its slope.
+    first = dset.waveform.isel(station=0, time=0)
+    east = float(first.sel(component=Component.EAST))
+    assert float(first.sel(component=Component.NORTH)) == pytest.approx(2 * east)
+    assert float(first.sel(component=Component.UP)) == pytest.approx(3 * east)
