@@ -1519,7 +1519,7 @@ hf_velocity_model_1d:
       rho: 3.33
       Qp: 394.80
       Qs: 197.40
-  # Truncate the model where Vs reaches this. 999.9 means no layer does.
+
   vs_moho: 999.9
 bb:
   fmin: 0.2
