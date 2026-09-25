@@ -13,7 +13,6 @@ from workflow import defaults, realisations
 from workflow.scripts.generate_stoch import (
     _box_average_matrix,
     app,
-    circular_mean,
     convert_srf_to_stoch,
 )
 
