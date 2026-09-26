@@ -688,6 +688,42 @@ def test_logtrail_init_with_dicts_post_init() -> None:
     assert trail.log[1].args == ["b"]
 
 
+def test_logtrail_init_with_dict_missing_args() -> None:
+    """Test LogTrail post_init handles log entries without 'args' (schema-optional)."""
+    log_data = [
+        {
+            "utility": "util1",
+            "version": "1",
+            "timestamp": datetime.now(tz=UTC).isoformat(),
+        }
+    ]
+    trail = realisations.LogTrail(log=log_data)  # type: ignore
+    assert isinstance(trail.log[0], realisations.LogEntry)
+    assert trail.log[0].args == []
+
+
+def test_logtrail_read_from_realisation_missing_args(tmp_path: Path) -> None:
+    """Test reading a realisation with a log entry lacking 'args' does not crash."""
+    realisation_ffp = tmp_path / "realisation.json"
+    realisation_ffp.write_text(
+        json.dumps(
+            {
+                "log_trail": {
+                    "log": [
+                        {
+                            "utility": "x",
+                            "version": "1",
+                            "timestamp": "2024-01-01T00:00:00",
+                        }
+                    ]
+                }
+            }
+        )
+    )
+    trail = realisations.LogTrail.read_from_realisation(realisation_ffp)
+    assert trail.log[0].args == []
+
+
 def test_logtrail_log_entry_method() -> None:
     """Test adding an entry using the log_entry method."""
     trail = realisations.LogTrail([])

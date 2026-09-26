@@ -1479,7 +1479,7 @@ class LogEntry:
     """The version of the utility."""
     timestamp: datetime.datetime
     """The timestamp of when the utility was run."""
-    args: list[str]
+    args: list[str] = dataclasses.field(default_factory=list)
     """The arguments passed to the utility."""
 
     def __post_init__(self) -> None:
