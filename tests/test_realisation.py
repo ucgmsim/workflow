@@ -1095,7 +1095,7 @@ def test_defaults_are_loadable(
 def test_velocity_model_column_order(tmp_path: Path) -> None:
     velocity_model = realisations.VelocityModel1D(
         model=pd.DataFrame(
-            [{"thickness": 0.1, "Vp": 3.5, "Vs": 2.5, "rho": 1.8, "Qp": 50, "Qs": 25}]
+            [{"thickness": 0.1, "Vs": 2.5, "Vp": 3.5, "rho": 1.8, "Qp": 50, "Qs": 25}]
         )
     )
     output_path = tmp_path / "velocity_model"
