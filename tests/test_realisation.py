@@ -1090,3 +1090,14 @@ def test_defaults_are_loadable(
             realisation_config.read_from_defaults(defaults_version)
     else:
         realisation_config.read_from_defaults(defaults_version)
+
+
+def test_velocity_model_column_order(tmp_path: Path) -> None:
+    velocity_model = realisations.VelocityModel1D(
+        model=pd.DataFrame(
+            [{"thickness": 0.1, "Vp": 3.5, "Vs": 2.5, "rho": 1.8, "Qp": 50, "Qs": 25}]
+        )
+    )
+    output_path = tmp_path / "velocity_model"
+    velocity_model.write_velocity_model(output_path)
+    assert output_path.read_text() == "1\n0.1 3.5 2.5 1.8 50 25\n"

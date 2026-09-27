@@ -1051,6 +1051,7 @@ class VelocityModel1D(RealisationConfiguration):
 
     _config_key: ClassVar[str] = "velocity_model_1d"
     _schema: ClassVar[Schema] = schemas.VELOCITY_MODEL_1D_SCHEMA
+    _columns: ClassVar[tuple[str, ...]] = ("thickness", "Vp", "Vs", "rho", "Qp", "Qs")
 
     model: pd.DataFrame
     """The layers of the velocity model, one row per layer."""
@@ -1065,7 +1066,9 @@ class VelocityModel1D(RealisationConfiguration):
         """
         with open(velocity_model_path, "w") as velocity_model:
             velocity_model.write(f"{len(self.model)}\n")
-            self.model.to_csv(velocity_model, header=False, index=False, sep=" ")
+            self.model[list(self._columns)].to_csv(
+                velocity_model, header=False, index=False, sep=" "
+            )
 
     def to_dict(self) -> dict:
         """
