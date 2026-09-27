@@ -176,7 +176,8 @@ def _supergrid_attributes(
     dataset: xr.Dataset, supergrid: dict[str, xr.DataArray]
 ) -> dict[str, str | float]:
     """Describe the absorbing layer at the root of the IM file."""
-    if not bool(np.isfinite(supergrid["supergrid_depth"]).any()):
+    depth = supergrid.get("supergrid_depth")
+    if depth is None or not bool(np.isfinite(depth).any()):
         return {}
 
     attributes: dict[str, str | float] = {"absorbing_layer": "sw4_supergrid"}
