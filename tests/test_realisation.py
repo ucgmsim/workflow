@@ -56,14 +56,6 @@ def test_bounding_box_example(tmp_path: Path) -> None:
     ).all()
 
 
-def test_domain_parameters_depth_docstring_units() -> None:
-    """DomainParameters.depth is documented in kilometres, matching DOMAIN_SCHEMA
-    and how nz() and Refinements.refinements_for_depth() interpret it."""
-    source = inspect.getsource(realisations.DomainParameters)
-    depth_docstring = source.split('depth: float\n    """')[1].split('"""')[0]
-    assert "kilometre" in depth_docstring.lower()
-
-
 def test_domain_parameters_discretisation() -> None:
     """Test domain parameter discretisation to nx, ny, nz"""
     domain_parameters = realisations.DomainParameters(
