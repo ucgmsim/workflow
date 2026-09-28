@@ -858,7 +858,7 @@ class DomainParameters(RealisationConfiguration):
     domain: BoundingBox
     """The bounding box for the domain."""
     depth: float
-    """The depth of the domain (in metres)."""
+    """The depth of the domain (in kilometres)."""
     duration: float
     """The simulation duration (in seconds)."""
 

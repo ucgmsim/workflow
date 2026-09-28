@@ -1,6 +1,7 @@
 # NOTE: this fix contains tests that mirror the Realisations wiki. If
 # these tests fail, you should update the wiki if necesary to ensure
 # it stays consistent with the codebase.
+import inspect
 import json
 import struct
 from datetime import UTC, datetime
@@ -53,6 +54,14 @@ def test_bounding_box_example(tmp_path: Path) -> None:
     assert (
         domain_parameters_read.domain.corners == domain_parameters.domain.corners
     ).all()
+
+
+def test_domain_parameters_depth_docstring_units() -> None:
+    """DomainParameters.depth is documented in kilometres, matching DOMAIN_SCHEMA
+    and how nz() and Refinements.refinements_for_depth() interpret it."""
+    source = inspect.getsource(realisations.DomainParameters)
+    depth_docstring = source.split('depth: float\n    """')[1].split('"""')[0]
+    assert "kilometre" in depth_docstring.lower()
 
 
 def test_domain_parameters_discretisation() -> None:
