@@ -33,8 +33,13 @@ sw4:
       parameters: { maxfreq: 10.0, phasefreq: 0.5, nmech: 3 }
     - name: "developer"
       parameters: { cfl: 0.9, reporttiming: true, failonnan: true }
+    # Matches the order-4, two-pass Butterworth highpass `bb-sim` applies to
+    # the HF at `bb.flo`, so the two legs meet at half power:
+    # fc2 = flo / (sqrt(2) - 1) ** (1 / 8). Run `bb-sim --filter hf` so the
+    # LF is not filtered again.
     - name: "prefilter"
-      parameters: { order: 2, passes: 2, fc1: null, fc2: 1.0, type: "lowpass" }
+      parameters:
+        { order: 4, passes: 2, fc1: null, fc2: 1.11647, type: "lowpass" }
     - name: "topography"
       parameters: { order: 3 }
     - name: "imagehdf5"

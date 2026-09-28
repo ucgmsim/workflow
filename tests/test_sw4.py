@@ -1,13 +1,16 @@
 """Tests for `workflow.sw4`."""
 
+import numpy as np
 import pytest
 
 from workflow import defaults, sw4
 from workflow.realisations import (
+    BroadbandParameters,
     Refinements,
     SW4Command,
     SW4Parameters,
     VelocityModelParameters,
+    find_command,
 )
 
 DEEPEST_SUPPORTED_DOMAIN_KM = 350.0
@@ -86,6 +89,22 @@ def test_default_fault_buffer_is_the_derived_minimum() -> None:
 )
 def test_root_fault_buffer_is_left_alone(version: defaults.DefaultsVersion) -> None:
     assert VelocityModelParameters.read_from_defaults(version).fault_buffer == 2.0
+
+
+def test_default_prefilter_matches_hf_highpass() -> None:
+    """The LF prefilter and the HF highpass are a matched pair at `flo`."""
+    version = defaults.DefaultsVersion.v26_7_1Hz
+    prefilter = find_command(
+        SW4Parameters.read_from_defaults(version).commands, "prefilter"
+    )
+    assert prefilter is not None
+    flo = BroadbandParameters.read_from_defaults(version).flo
+
+    assert prefilter.parameters["order"] == 4
+    assert prefilter.parameters["passes"] == 2
+    assert prefilter.parameters["fc2"] == pytest.approx(
+        flo / (np.sqrt(2) - 1) ** (1 / 8), rel=1e-5
+    )
 
 
 def test_check_lateral_gridpoints() -> None:
