@@ -155,6 +155,10 @@ def _is_valid_bearing(bearing: float) -> bool:
     return 0 <= bearing <= 360
 
 
+def _is_valid_dip(dip: float) -> bool:
+    return 0 <= dip <= 90
+
+
 def _is_proportion(x: float) -> bool:
     return 0 <= x <= 1
 
@@ -310,7 +314,7 @@ POINT_SCHEMA = Schema(
                 "strike", description="The strike bearing of the point source"
             ): And(NUMBER, _is_valid_bearing),
             Literal("dip", description="The dip angle of the point source"): And(
-                NUMBER, _is_valid_bearing
+                NUMBER, _is_valid_dip
             ),
             Literal(
                 "dip_dir", description="The dip direction bearing of the point source"
