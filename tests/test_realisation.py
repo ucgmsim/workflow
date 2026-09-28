@@ -1,7 +1,6 @@
 # NOTE: this fix contains tests that mirror the Realisations wiki. If
 # these tests fail, you should update the wiki if necesary to ensure
 # it stays consistent with the codebase.
-import inspect
 import json
 import struct
 from datetime import UTC, datetime
