@@ -40,7 +40,6 @@ from typing import Annotated
 
 import numpy as np
 import pandas as pd
-import pyfftw
 import scipy as sp
 import typer
 import xarray as xr
@@ -164,10 +163,10 @@ def _broadband_component(
     component = component.squeeze("component")
     amp_model_fn, amp_model_freqs = SITE_AMP_MODELS[config.site_amp_version]
 
-    # Zero-pad to a length pyfftw can transform efficiently, and
+    # Zero-pad to a length a real FFT can transform efficiently, and
     # pre-compute the FFT output frequencies the amplification is
     # sampled at.
-    n_fft = pyfftw.next_fast_len(component.sizes["time"])
+    n_fft = sp.fft.next_fast_len(component.sizes["time"], real=True)
     fft_freqs = np.fft.rfftfreq(n_fft, dt)
 
     # The amplification models require float64 inputs.

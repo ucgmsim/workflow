@@ -7,8 +7,8 @@ import numpy as np
 import pytest
 from structlog.testing import capture_logs
 
-from velocity_modelling.bounding_box import BoundingBox
 from workflow import defaults
+from workflow.bounding_box import BoundingBox
 from workflow.realisations import (
     DomainParameters,
     EMOD3DParameters,
