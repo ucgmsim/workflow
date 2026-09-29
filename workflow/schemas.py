@@ -18,7 +18,7 @@ from schema import And, Literal, Optional, Or, Schema, Use
 
 from IM import im_calculation
 from source_modelling import rupture_propagation, sources
-from velocity_modelling.bounding_box import BoundingBox
+from workflow.bounding_box import BoundingBox
 from workflow.defaults import DefaultsVersion
 
 if TYPE_CHECKING:

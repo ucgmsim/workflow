@@ -14,8 +14,7 @@ import schema
 
 from IM import im_calculation
 from source_modelling import magnitude_scaling, rupture_propagation
-from velocity_modelling import bounding_box
-from workflow import defaults, realisations, schemas
+from workflow import bounding_box, defaults, realisations, schemas
 from workflow.realisations import SourceConfig, SW4Command
 
 
