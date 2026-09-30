@@ -121,6 +121,22 @@ class RealisationConfiguration(ABC):
         return dataclasses.asdict(self)
 
     @classmethod
+    def from_dict(cls, config: Any) -> Self:
+        """Load configuration from its dictionary form, validating it against the schema.
+
+        Parameters
+        ----------
+        config : Any
+            The configuration section, as stored in a realisation.
+
+        Returns
+        -------
+        RealisationConfiguration
+            The validated configuration.
+        """
+        return cls(**cls._schema.validate(config))
+
+    @classmethod
     def read_from_realisation(cls, realisation_ffp: Path | str) -> Self:
         """Read configuration from a realisation file.
 
@@ -150,7 +166,7 @@ class RealisationConfiguration(ABC):
                 raise RealisationParseError(
                     f"No {cls._config_key} in realisation configuration"
                 )
-        return cls(**cls._schema.validate(realisation_config[cls._config_key]))
+        return cls.from_dict(realisation_config[cls._config_key])
 
     @classmethod
     def read_from_defaults(cls, defaults_version: DefaultsVersion) -> Self:
@@ -179,7 +195,7 @@ class RealisationConfiguration(ABC):
             raise RealisationParseError(
                 f"No {cls._config_key} in defaults configuration"
             )
-        return cls(**cls._schema.validate(default_config[cls._config_key]))
+        return cls.from_dict(default_config[cls._config_key])
 
     @classmethod
     def read_from_realisation_or_defaults(
