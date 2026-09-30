@@ -28,6 +28,7 @@ import copy
 import itertools
 import math
 import string
+from collections.abc import Iterator
 from pathlib import Path
 
 import h5py
@@ -55,8 +56,12 @@ IMAGE_TIME_KEYS = frozenset({"time", "timeInterval", "cycle", "cycleInterval"})
 """Parameter keys that determine when an `imagehdf5` command fires. If none of
 these are set, SW4 never emits the image, so we default to the simulation end time."""
 
-PROFILE_BLOCK_ELEMENTS = 2**24
-"""Samples binned at once when profiling the velocity model, to bound memory."""
+PROFILE_READ_BYTES = 2**30
+"""Bytes of `Cs` and `Cp` read at once when profiling the velocity model."""
+
+PROFILE_BLOCK_ELEMENTS = 2**22
+"""Samples binned at once when profiling the velocity model. Binning holds
+about ten float64 temporaries per sample, so this is about 340 MB."""
 
 SW4_TEMPLATE = string.Template("""
 ${fileio}
@@ -89,25 +94,74 @@ def _topography_height_from_velocity_model(
     return -float(global_min), float(zmax)
 
 
+def _row_blocks(n_rows: int, rows_per_block: int) -> Iterator[slice]:
+    """Split `range(n_rows)` into consecutive slices of at most `rows_per_block`."""
+    for start in range(0, n_rows, rows_per_block):
+        yield slice(start, min(start + rows_per_block, n_rows))
+
+
 def _elevation_range_from_velocity_model(
     velocity_model: h5py.File,
 ) -> tuple[float, float]:
     """Find the lowest and highest elevations of a velocity model's top surface."""
-    surface = velocity_model[sfile.SURFACE_GROUP]["z_values_0"][()]
+    surface = velocity_model[sfile.SURFACE_GROUP]["z_values_0"]
+    rows_per_block = max(1, PROFILE_BLOCK_ELEMENTS // surface.shape[1])
     # The sfile stores depths, positive down.
-    return -float(surface.max()), -float(surface.min())
+    shallowest, deepest = math.inf, -math.inf
+    for rows in _row_blocks(surface.shape[0], rows_per_block):
+        block = surface[rows]
+        shallowest = min(shallowest, float(block.min()))
+        deepest = max(deepest, float(block.max()))
+    return -deepest, -shallowest
 
 
-def _decimate(array: npt.NDArray, shape: tuple[int, int]) -> npt.NDArray:
-    """Subsample a finer grid's surface onto a coarser grid sharing its corners."""
-    stride_i = (array.shape[0] - 1) // (shape[0] - 1)
-    stride_j = (array.shape[1] - 1) // (shape[1] - 1)
-    decimated = array[::stride_i, ::stride_j]
-    if decimated.shape != shape:
+def _decimated_rows(
+    surface: h5py.Dataset, shape: tuple[int, int], rows: slice
+) -> npt.NDArray[np.float64]:
+    """Read rows of a finer grid's surface, subsampled onto a coarser grid.
+
+    The two grids share their corners, as SW4 assumes of an sfile's interfaces
+    (`MaterialSfile.C`).
+    """
+    fine_i, fine_j = surface.shape
+    stride_i = (fine_i - 1) // max(shape[0] - 1, 1)
+    stride_j = (fine_j - 1) // max(shape[1] - 1, 1)
+    if (shape[0] - 1) * stride_i != fine_i - 1 or (
+        shape[1] - 1
+    ) * stride_j != fine_j - 1:
         raise ValueError(
-            f"A {array.shape} surface does not decimate onto a {shape} grid."
+            f"A {surface.shape} surface does not decimate onto a {shape} grid."
         )
-    return decimated
+    fine_rows = slice(rows.start * stride_i, (rows.stop - 1) * stride_i + 1, stride_i)
+    return np.asarray(surface[fine_rows, ::stride_j], dtype=np.float64)
+
+
+def _profile_read_rows(dataset: h5py.Dataset, budget_bytes: int) -> int:
+    """Choose how many rows of a material dataset to read at once.
+
+    `Cs` and `Cp` are read together, so each gets half of `budget_bytes`. A
+    chunked dataset is read in whole rows of chunks where they fit, so no chunk
+    is read twice. Where one row of chunks is already over budget, a read still
+    decompresses whole chunks, so memory is then bounded by the chunk size.
+
+    Parameters
+    ----------
+    dataset : h5py.Dataset
+        A material dataset, shaped `(ni, nj, nk)`.
+    budget_bytes : int
+        The bytes to read at once, across both components.
+
+    Returns
+    -------
+    int
+        The rows (along `ni`) to read at once, at least one.
+    """
+    ni, nj, nk = dataset.shape
+    row_bytes = 2 * nj * nk * dataset.dtype.itemsize
+    rows = max(1, budget_bytes // row_bytes)
+    if dataset.chunks is not None and dataset.chunks[0] <= rows:
+        rows -= rows % dataset.chunks[0]
+    return min(rows, ni)
 
 
 def _vs_profile_from_velocity_model(
@@ -115,35 +169,35 @@ def _vs_profile_from_velocity_model(
 ) -> sw4.VsProfile:
     """Profile the slowest and fastest material in an sfile by SW4 reference depth.
 
-    Each sfile grid spans the surfaces `z_values_{g}` and `z_values_{g + 1}`
-    with its vertical points spaced evenly between them, as SW4 reads it
-    (`MaterialSfile.C`).
+    This reads the sfile as SW4 does (`MaterialSfile.C`), so it works for any
+    sfile, not just NZCVM's: `ngrids` grids, each spanning the surfaces
+    `z_values_{g}` and `z_values_{g + 1}` with its vertical points spaced evenly
+    between them. Every dataset, including the surfaces, is read a block of rows
+    at a time, so the model can be larger than memory. Peak memory is about
+    `PROFILE_READ_BYTES` plus the binning of `PROFILE_BLOCK_ELEMENTS` samples.
     """
     material = velocity_model[sfile.MATERIAL_GROUP]
     interfaces = velocity_model[sfile.SURFACE_GROUP]
-    surface = interfaces["z_values_0"][()]
+    surface = interfaces["z_values_0"]
     _, model_bottom = velocity_model.attrs[sfile.MIN_MAX_DEPTH_ATTR]
     n_bins = math.ceil(float(model_bottom) / bin_size) + 1
 
     profile = None
-    for index in range(len(material)):
+    for index in range(int(velocity_model.attrs[sfile.NGRIDS_ATTR])):
         grid = material[f"grid_{index}"]
         vs, vp = grid["Cs"], grid["Cp"]
         ni, nj, nk = vs.shape
-        top = _decimate(interfaces[f"z_values_{index}"][()], (ni, nj))
-        bottom = interfaces[f"z_values_{index + 1}"][()]
-        tau = _decimate(surface, (ni, nj))
+        top_surface = interfaces[f"z_values_{index}"]
+        bottom_surface = interfaces[f"z_values_{index + 1}"]
         fraction = np.linspace(0.0, 1.0, nk)
 
-        # Read whole chunks, then bin them in pieces small enough to hold.
-        read_rows = vs.chunks[0] if vs.chunks else ni
         bin_rows = max(1, PROFILE_BLOCK_ELEMENTS // (nj * nk))
-        for read_start in range(0, ni, read_rows):
-            read = slice(read_start, min(read_start + read_rows, ni))
+        for read in _row_blocks(ni, _profile_read_rows(vs, PROFILE_READ_BYTES)):
             vs_block, vp_block = vs[read], vp[read]
-            for bin_start in range(read.start, read.stop, bin_rows):
-                rows = slice(bin_start, min(bin_start + bin_rows, read.stop))
-                local = slice(rows.start - read.start, rows.stop - read.start)
+            top = _decimated_rows(top_surface, (ni, nj), read)
+            bottom = np.asarray(bottom_surface[read], dtype=np.float64)
+            tau = _decimated_rows(surface, (ni, nj), read)
+            for rows in _row_blocks(read.stop - read.start, bin_rows):
                 z = (
                     top[rows, :, None]
                     + fraction * (bottom[rows] - top[rows])[..., None]
@@ -151,8 +205,8 @@ def _vs_profile_from_velocity_model(
                 partial = sw4.vs_profile(
                     z,
                     tau[rows, :, None],
-                    vs_block[local],
-                    vp_block[local],
+                    vs_block[rows],
+                    vp_block[rows],
                     topography_zmax,
                     bin_size,
                     n_bins,

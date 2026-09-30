@@ -62,6 +62,7 @@ def write_sfile(
     interface: float = 10_000.0,
     nk: int = 101,
     vs: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]] = layered_vs,
+    chunk_rows: int | None = 4,
 ) -> None:
     """Write a minimal sfile carrying only what `generate_sw4_input` reads.
 
@@ -84,6 +85,9 @@ def write_sfile(
         The vertical gridpoint count of each grid.
     vs : callable
         Vs (m/s) as a function of depth (m). Vp is `sqrt(3)` times it.
+    chunk_rows : int, optional
+        Chunk the material datasets in rows of this many, like NZCVM's (much
+        larger) chunks. None stores them contiguously.
     """
     fine_shape = ((shape[0] - 1) * 2 + 1, (shape[1] - 1) * 2 + 1)
     surface = -np.broadcast_to(
@@ -98,6 +102,7 @@ def write_sfile(
     with h5py.File(path, "w") as f:
         f.attrs[sfile.ORIGIN_AZIM_ATTR] = np.array([172.5, -43.5, 35.0])
         f.attrs[sfile.MIN_MAX_DEPTH_ATTR] = np.array([-topography_height, zmax])
+        f.attrs[sfile.NGRIDS_ATTR] = np.int32(len(grids))
         material = f.create_group(sfile.MATERIAL_GROUP)
         interfaces = f.create_group(sfile.SURFACE_GROUP)
         interfaces["z_values_0"] = surface
@@ -107,8 +112,11 @@ def write_sfile(
             grid.attrs[sfile.HORIZONTAL_ATTR] = resolution / factor
             grid.attrs[sfile.NUMBER_OF_COMPONENTS_ATTR] = np.int32(2)
             z = top[..., None] + np.linspace(0.0, 1.0, nk) * (bottom - top)[..., None]
-            # Chunked in rows of 4, like NZCVM's (much larger) chunks.
-            chunks = (4, *z.shape[1:])
+            chunks = (
+                None
+                if chunk_rows is None
+                else (min(chunk_rows, z.shape[0]), *z.shape[1:])
+            )
             grid.create_dataset("Cs", data=vs(z).astype(np.float32), chunks=chunks)
             grid.create_dataset(
                 "Cp", data=(np.sqrt(3) * vs(z)).astype(np.float32), chunks=chunks
@@ -366,10 +374,16 @@ def test_curvilinear_stretch_holds_back_coarsening(tmp_path: Path) -> None:
     assert refinements[0].bottom == 4600.0
 
 
-def test_profile_is_independent_of_how_the_model_is_read(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("chunk_rows", [None, 4, 16], ids=["contiguous", "4", "16"])
+def test_profile_reads_are_bounded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, chunk_rows: int | None
 ) -> None:
-    """Binning in pieces that straddle the HDF5 chunks gives the same profile."""
+    """However the model is stored, no read or bin exceeds its budget.
+
+    The budgets here are a few rows, so an unbounded read of a whole grid, or a
+    chunk row taller than the budget, would show up. The profile must be the
+    same as one read in a single piece.
+    """
     velocity_model = tmp_path / "model.sfile"
     write_sfile(
         velocity_model,
@@ -377,15 +391,57 @@ def test_profile_is_independent_of_how_the_model_is_read(
         400.0,
         topography_height=1500.0,
         zmax=60_000.0,
-        interface=10_000.0,
         nk=41,
-        vs=layered_vs,
+        chunk_rows=chunk_rows,
     )
     with h5py.File(velocity_model) as f:
         whole = sw4_template._vs_profile_from_velocity_model(f, 4500.0, 100.0)
-        # 3 rows at a time, which does not divide the 4-row chunks.
-        monkeypatch.setattr(sw4_template, "PROFILE_BLOCK_ELEMENTS", 3 * 21 * 41)
+
+    # The fine grid is 21 x 21 x 41 float32: 3 rows of Cs and Cp is 3 * 2 * 21 * 41
+    # * 4 bytes. 16-row chunks cannot fit, so they are read partially.
+    row_bytes = 2 * 21 * 41 * 4
+    monkeypatch.setattr(sw4_template, "PROFILE_READ_BYTES", 3 * row_bytes)
+    monkeypatch.setattr(sw4_template, "PROFILE_BLOCK_ELEMENTS", 2 * 21 * 41)
+    largest_read = 0
+    getitem = h5py.Dataset.__getitem__
+
+    def recording_getitem(self: h5py.Dataset, key: Any) -> Any:
+        nonlocal largest_read
+        result = getitem(self, key)
+        largest_read = max(largest_read, np.asarray(result).nbytes)
+        return result
+
+    monkeypatch.setattr(h5py.Dataset, "__getitem__", recording_getitem)
+    with h5py.File(velocity_model) as f:
         pieces = sw4_template._vs_profile_from_velocity_model(f, 4500.0, 100.0)
 
+    assert largest_read <= 3 * row_bytes // 2
     np.testing.assert_array_equal(whole.min_vs, pieces.min_vs)
     np.testing.assert_array_equal(whole.max_wave_speed, pieces.max_wave_speed)
+
+
+@pytest.mark.parametrize(
+    "chunk_rows, budget_rows, expected",
+    [
+        pytest.param(None, 7, 7, id="contiguous-reads-the-budget"),
+        pytest.param(4, 7, 4, id="whole-chunk-rows-that-fit"),
+        pytest.param(4, 9, 8, id="several-chunk-rows"),
+        pytest.param(16, 7, 7, id="partial-chunks-when-over-budget"),
+        pytest.param(None, 1000, 21, id="never-past-the-end"),
+        pytest.param(None, 0, 1, id="at-least-one-row"),
+    ],
+)
+def test_profile_read_rows(
+    tmp_path: Path, chunk_rows: int | None, budget_rows: int, expected: int
+) -> None:
+    with h5py.File(tmp_path / "rows.h5", "w") as f:
+        chunks = None if chunk_rows is None else (chunk_rows, 5, 3)
+        dataset = f.create_dataset(
+            "Cs", shape=(21, 5, 3), dtype=np.float32, chunks=chunks
+        )
+        row_bytes = 2 * 5 * 3 * 4
+
+        assert (
+            sw4_template._profile_read_rows(dataset, budget_rows * row_bytes)
+            == expected
+        )
