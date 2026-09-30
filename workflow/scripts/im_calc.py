@@ -30,6 +30,7 @@ See the output of `im-calc --help`.
 import dataclasses
 import functools
 import warnings
+from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated
 
@@ -120,7 +121,7 @@ IM_METADATA = {
     IM.PGV: "Peak ground velocity",
     IM.PGD: "Peak ground displacement",
     IM.CAV: "Cumulative absolute velocity",
-    IM.CAV5: "Cumulative absolute velocity (above 5 cm/s)",
+    IM.CAV5: "Cumulative absolute velocity (above 5 cm/s^2)",
     IM.AI: "Arias intensity",
     IM.Ds575: "Significant duration (5-75%)",
     IM.Ds595: "Significant duration (5-95%)",
@@ -721,6 +722,29 @@ def calculate_empirical(
     return empirical_results
 
 
+def _im_function_map(
+    dt: float, psa_periods: npt.NDArray[np.float64]
+) -> dict[IM, Callable[[xr.DataArray], xr.Dataset]]:
+    """Map intensity measures to their calculation functions."""
+    return {
+        IM.PGA: ims.peak_ground_acceleration,
+        IM.PGV: functools.partial(ims.peak_ground_velocity, dt=dt),
+        IM.PGD: functools.partial(ims.peak_ground_displacement, dt=dt),
+        IM.CAV: functools.partial(ims.cumulative_absolute_velocity, dt=dt),
+        IM.CAV5: functools.partial(
+            ims.cumulative_absolute_velocity, dt=dt, threshold=5.0
+        ),
+        IM.AI: functools.partial(ims.arias_intensity, dt=dt),
+        IM.Ds575: functools.partial(ims.ds575, dt=dt),
+        IM.Ds595: functools.partial(ims.ds595, dt=dt),
+        IM.pSA: functools.partial(
+            ims.pseudo_spectral_acceleration,
+            periods=psa_periods,
+            dt=dt,
+        ),
+    }
+
+
 @cli.from_docstring(app)
 def calculate_intensity_measures(
     realisation_ffp: Annotated[
@@ -795,22 +819,9 @@ def calculate_intensity_measures(
 
     nyquist_frequency = 1 / (2 * dt)
 
-    im_function_map = {
-        IM.PGA: ims.peak_ground_acceleration,
-        IM.PGV: functools.partial(ims.peak_ground_velocity, dt=dt),
-        IM.PGD: functools.partial(ims.peak_ground_displacement, dt=dt),
-        IM.CAV: functools.partial(ims.cumulative_absolute_velocity, dt=dt),
-        IM.AI: functools.partial(ims.arias_intensity, dt=dt),
-        IM.Ds575: functools.partial(ims.ds575, dt=dt),
-        IM.Ds595: functools.partial(ims.ds595, dt=dt),
-        IM.pSA: functools.partial(
-            ims.pseudo_spectral_acceleration,
-            periods=psa_periods,
-            dt=dt,
-        ),
-    }
+    im_function_map = _im_function_map(dt, psa_periods)
 
-    # Built separately from the literal above so the ko_directory check narrows
+    # Built separately from _im_function_map so the ko_directory check narrows
     # away None: FAS is the only measure that needs it.
     if IM.FAS in intensity_measures:
         if ko_directory is None:
