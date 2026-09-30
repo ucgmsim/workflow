@@ -240,3 +240,27 @@ def test_resolution_must_halve_to_the_coarsest() -> None:
             max_frequency=2.0,
         )
     assert RESOLUTION.resolutions == [50.0, 100.0, 200.0]
+
+
+def test_default_resolution_matches_the_velocity_model() -> None:
+    """SW4's ladder is the model's, at the frequency the broadband merges at."""
+    version = defaults.DefaultsVersion.v26_7_1Hz
+    resolution = SW4Resolution.read_from_defaults(version)
+    refinements = Refinements.read_from_defaults(version)
+
+    assert resolution.finest_resolution == refinements.refinements[0].resolution
+    assert resolution.coarsest_resolution == refinements.unbounded_refinement_resolution
+    assert (
+        resolution.max_frequency == BroadbandParameters.read_from_defaults(version).flo
+    )
+
+
+def test_empty_bins_take_the_material_above_them() -> None:
+    """A sparsely sampled slow layer still holds the finer grid down."""
+    nan = float("nan")
+    # One slow sample at 1000 m, then nothing until fast material at 2000 m.
+    profile = uniform_profile([nan] * 10 + [500.0] + [nan] * 9 + [4000.0] * 20)
+
+    refinements = sw4.size_refinements(profile, RESOLUTION, depth_m=30_000.0, nz_min=12)
+
+    assert refinements[0] == Refinement(resolution=50.0, bottom=2000.0)

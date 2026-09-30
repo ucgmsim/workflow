@@ -378,6 +378,28 @@ class VsProfile:
     """The fastest effective `sqrt(Vp^2 + 2 Vs^2)` in each bin (m/s), the speed
     SW4's time step is limited by (`EW::computeDT`), NaN where a bin is empty."""
 
+    def filled(self) -> "VsProfile":
+        """Fill each empty bin from the nearest non-empty bin above it.
+
+        SW4 interpolates linearly between the model's samples, and clamps below
+        its last one (`MaterialSfile.C`), so the material in an empty bin is
+        bounded by the samples either side of it. The one above is as
+        conservative as that bound, and costs at most one sample spacing.
+
+        Returns
+        -------
+        VsProfile
+            The profile with only its leading empty bins left empty.
+        """
+        present = np.isfinite(self.min_vs)
+        source = np.maximum.accumulate(np.where(present, np.arange(len(present)), 0))
+        leading = np.cumsum(present) == 0
+        return VsProfile(
+            bin_size=self.bin_size,
+            min_vs=np.where(leading, np.nan, self.min_vs[source]),
+            max_wave_speed=np.where(leading, np.nan, self.max_wave_speed[source]),
+        )
+
     def merge(self, other: "VsProfile") -> "VsProfile":
         """Combine two profiles of the same bins, keeping the extremes of each.
 
@@ -460,7 +482,9 @@ def size_refinements(
     Each layer is twice the spacing of the one above it, and starts at the
     shallowest reference depth below which no material is too slow for it to
     keep `resolution.minimum_ppw` at `resolution.max_frequency`. Interfaces are
-    rounded deeper onto the coarser grid, and every layer keeps `nz_min` cells.
+    rounded deeper onto the coarser grid, and every layer keeps `nz_min` cells,
+    so a layer that would be thinner than that above the domain bottom is left
+    out.
 
     Parameters
     ----------
@@ -478,9 +502,8 @@ def size_refinements(
     list of Refinement
         The layers from the surface down. The last layer's bottom is `depth_m`.
     """
-    # The slowest material at or below each bin. Empty bins, including every bin
-    # below the velocity model, never block coarsening.
-    floor = np.fmin.accumulate(profile.min_vs[::-1])[::-1]
+    # The slowest material at or below each bin.
+    floor = np.fmin.accumulate(profile.filled().min_vs[::-1])[::-1]
     floor = np.where(np.isnan(floor), np.inf, floor)
 
     refinements: list[Refinement] = []
@@ -501,7 +524,9 @@ def size_refinements(
             math.ceil(cleared[0] * profile.bin_size / coarser) * coarser,
             math.ceil((top + nz_min * finer) / coarser) * coarser,
         )
-        if bottom >= depth_m:
+        # A coarser layer too thin to hold `nz_min` cells above the domain
+        # bottom is not worth starting.
+        if bottom + nz_min * coarser > depth_m:
             refinements.append(Refinement(resolution=finer, bottom=depth_m))
             return refinements
         refinements.append(Refinement(resolution=finer, bottom=bottom))
@@ -547,6 +572,7 @@ def layer_ppw(
         Each layer's points per wavelength, NaN if the profile has no material
         in it.
     """
+    profile = profile.filled()
     return [
         float(np.nanmin(profile.min_vs[bins], initial=np.inf))
         / (refinement.resolution * frequency)
@@ -579,6 +605,7 @@ def layer_time_steps(
     list of float
         Each layer's time step, NaN if the profile has no material in it.
     """
+    profile = profile.filled()
     return [
         cfl * refinement.resolution / float(np.nanmax(profile.max_wave_speed[bins]))
         if np.any(np.isfinite(profile.max_wave_speed[bins]))

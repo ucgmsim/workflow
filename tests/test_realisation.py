@@ -1055,7 +1055,11 @@ UNSUPPORTED_PAIRS = {
     *(
         (version, config)
         for version in EMOD3D_VERSIONS
-        for config in (realisations.Refinements, realisations.SW4Parameters)
+        for config in (
+            realisations.Refinements,
+            realisations.SW4Parameters,
+            realisations.SW4Resolution,
+        )
     ),
     (defaults.DefaultsVersion.v26_7_1Hz, realisations.Resolution),
 }
@@ -1076,6 +1080,7 @@ UNSUPPORTED_PAIRS = {
         realisations.RuptureVelocity,
         realisations.Refinements,
         realisations.SW4Parameters,
+        realisations.SW4Resolution,
         realisations.NZCVMSettings,
     ],
 )

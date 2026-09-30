@@ -21,6 +21,7 @@ from workflow import defaults, sw4
 from workflow.realisations import (
     DomainParameters,
     RealisationMetadata,
+    Refinement,
     Refinements,
     SW4Resolution,
 )
@@ -47,9 +48,9 @@ def domain() -> BoundingBox:
     )
 
 
-def constant_vs(z: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
-    """A uniform 1000 m/s half-space."""
-    return np.full_like(z, 1000.0)
+def layered_vs(z: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+    """500 m/s to 1 km, 2000 m/s to 8 km, then 4000 m/s."""
+    return np.select([z < 1000.0, z < 8000.0], [500.0, 2000.0], 4000.0)
 
 
 def write_sfile(
@@ -58,9 +59,9 @@ def write_sfile(
     resolution: float,
     topography_height: float = 500.0,
     zmax: float = 1_000_000.0,
-    interface: float = 5000.0,
-    nk: int = 3,
-    vs: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]] = constant_vs,
+    interface: float = 10_000.0,
+    nk: int = 101,
+    vs: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]] = layered_vs,
 ) -> None:
     """Write a minimal sfile carrying only what `generate_sw4_input` reads.
 
@@ -206,25 +207,25 @@ def test_bottom_refinement_holds_the_sponge(
 
 
 @pytest.mark.parametrize("depth_km", [10.0, 30.0, 60.0, 120.0, 350.0])
-def test_grid_spacing_is_the_theoretical_coarsest(
+def test_grid_spacing_is_never_coarser_than_planned(
     tmp_path: Path, domain: BoundingBox, depth_km: float
 ) -> None:
-    """The grid spacing can be read from the theoretical refinements.
+    """The grid spacing is within what the model was padded for.
 
-    `generate_sw4_input` reads the sponge width from the adjusted refinements
-    while `create-nzvm-input` reads it from the theoretical ones. That only
-    agrees because topography adjustment moves bottoms, never resolutions.
+    `create-nzvm-input` pads the model, and `generate-domain` checks the fault
+    buffer, for the coarsest spacing SW4 may choose, before the model exists.
     """
     theoretical = Refinements.read_from_defaults(defaults.DefaultsVersion.v26_7_1Hz)
+    resolution = SW4Resolution.read_from_defaults(defaults.DefaultsVersion.v26_7_1Hz)
 
     (grid,) = render(tmp_path, domain, depth_km)["grid"]
 
-    assert float(grid["h"]) == sw4.coarsest_resolution(theoretical, depth_km)
+    assert float(grid["h"]) <= sw4.planned_coarsest_resolution(
+        theoretical, resolution, depth_km
+    )
 
 
-def test_topography_deepens_a_thin_implicit_layer(
-    tmp_path: Path, domain: BoundingBox
-) -> None:
+def test_topography_deepens_a_thin_implicit_layer() -> None:
     """The worked example in `_adjust_for_topography`.
 
     1800 m of topography puts the curvilinear bottom at 5400 m, 400 m (two
@@ -232,11 +233,36 @@ def test_topography_deepens_a_thin_implicit_layer(
     7400 m to give the implicit layer 12 cells, while the input refinements stay
     where they are.
     """
-    commands = render(tmp_path, domain, 30.0, topography_height=1800.0)
+    refinements = [
+        Refinement(resolution=100.0, bottom=5000.0),
+        Refinement(resolution=200.0, bottom=25000.0),
+        Refinement(resolution=400.0, bottom=30000.0),
+    ]
 
+    adjusted, topography_zmax = sw4_template._adjust_for_topography(
+        refinements, sw4.topography_zmax(0.0, 1800.0), nzmin=12
+    )
+
+    assert topography_zmax == pytest.approx(7400.0)
+    assert adjusted == refinements
+
+
+def test_default_refinements_follow_the_model(
+    tmp_path: Path, domain: BoundingBox
+) -> None:
+    """The defaults size SW4's refinements from the model, not its ladder.
+
+    500 m of topography puts `zmax` at 1500 m and stretches the tallest column
+    by 4 / 3 above it, which holds 200 m back to 1600 m. That leaves one 100 m
+    cell below the curvilinear grid, so `_adjust_for_topography` pushes the
+    interface to 2700 m for 12 of them. 400 m needs the 4000 m/s material from
+    8 km.
+    """
+    commands = render(tmp_path, domain, 30.0)
+
+    assert [float(r["zmax"]) for r in commands["refinement"]] == [2700.0, 8000.0]
     (topography,) = commands["topography"]
-    assert float(topography["zmax"]) == pytest.approx(7400.0)
-    assert [float(r["zmax"]) for r in commands["refinement"]] == [5000.0, 25000.0]
+    assert float(topography["zmax"]) == 1500.0
 
 
 def test_velocity_model_must_cover_the_padded_grid(
@@ -262,11 +288,6 @@ def test_grid_pads_the_domain_by_one_sponge_per_side(
     # NOTE: In SW4 x = north, but in the workflow y = north.
     assert float(grid["x"]) == pytest.approx((domain.extent_y + 2 * SPONGE_KM) * 1000)
     assert float(grid["y"]) == pytest.approx((domain.extent_x + 2 * SPONGE_KM) * 1000)
-
-
-def layered_vs(z: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
-    """500 m/s to 1 km, 2000 m/s to 8 km, then 4000 m/s."""
-    return np.select([z < 1000.0, z < 8000.0], [500.0, 2000.0], 4000.0)
 
 
 def test_refinements_are_sized_from_the_velocity_model(
