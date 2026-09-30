@@ -725,22 +725,7 @@ def calculate_empirical(
 def _im_function_map(
     dt: float, psa_periods: npt.NDArray[np.float64]
 ) -> dict[IM, Callable[[xr.DataArray], xr.Dataset]]:
-    """Map intensity measures to their calculation functions.
-
-    Parameters
-    ----------
-    dt : float
-        Timestep resolution (s).
-    psa_periods : npt.NDArray of float
-        Periods (s) to evaluate pseudo-spectral acceleration at.
-
-    Returns
-    -------
-    dict of IM to Callable
-        Mapping from intensity measure to a function computing it from a
-        waveform. Does not include `IM.FAS`, which additionally requires a KO
-        matrix directory and is added separately by the caller.
-    """
+    """Map intensity measures to their calculation functions."""
     return {
         IM.PGA: ims.peak_ground_acceleration,
         IM.PGV: functools.partial(ims.peak_ground_velocity, dt=dt),
