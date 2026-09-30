@@ -6,17 +6,13 @@ valid ground motion.
 """
 
 import dataclasses
-import itertools
 import math
 
 import numpy as np
 import numpy.typing as npt
-from scipy import ndimage
 
 from workflow.realisations import (
-    DomainParameters,
     Refinement,
-    Refinements,
     SW4Parameters,
     SW4Resolution,
     find_command,
@@ -89,35 +85,6 @@ def supergrid_width(sw4_params: SW4Parameters, coarsest_resolution: float) -> fl
         gridpoints = SW4_DEFAULT_SUPERGRID_GRIDPOINTS
 
     return float(gridpoints) * coarsest_resolution
-
-
-def gridpoints_from_domain(
-    domain_parameters: DomainParameters, refinements: Refinements
-) -> int:
-    """Estimate the number of grid points in a refined domain.
-
-    Parameters
-    ----------
-    domain_parameters : DomainParameters
-        The domain to estimate for.
-    refinements : Refinements
-        The mesh refinements.
-
-    Returns
-    -------
-    int
-        The approximate number of grid points.
-    """
-    depth = domain_parameters.depth
-    area = domain_parameters.domain.area * (1000**2)
-    domain_refinements = refinements.refinements_for_depth(depth)
-    top = 0.0
-    gridpoints = 0
-    for refinement in domain_refinements:
-        volume = (refinement.bottom - top) * area
-        gridpoints += int(volume // (refinement.resolution) ** 3)
-        top = refinement.bottom
-    return gridpoints
 
 
 def minimum_fault_buffer_m(coarsest_resolution: float) -> float:
@@ -298,26 +265,60 @@ class VsProfile:
     """The fastest effective `sqrt(Vp^2 + 2 Vs^2)` in each bin (m/s), the speed
     SW4's time step is limited by (`EW::computeDT`), NaN where a bin is empty."""
 
-    def filled(self) -> "VsProfile":
-        """Fill each empty bin from the nearest non-empty bin above it.
+    @classmethod
+    def empty(cls, bin_size: float, n_bins: int) -> "VsProfile":
+        """Build a profile with no material in any bin.
 
-        SW4 interpolates linearly between the model's samples, and clamps below
-        its last one (`MaterialSfile.C`), so the material in an empty bin is
-        bounded by the samples either side of it. The one above is as
-        conservative as that bound, and costs at most one sample spacing.
+        Parameters
+        ----------
+        bin_size : float
+            The height of each depth bin, in metres.
+        n_bins : int
+            The number of bins.
 
         Returns
         -------
         VsProfile
-            The profile with only its leading empty bins left empty.
+            The empty profile, which `merge` leaves any other profile unchanged
+            by.
+        """
+        return cls(
+            bin_size=bin_size,
+            min_vs=np.full(n_bins, np.nan),
+            max_wave_speed=np.full(n_bins, np.nan),
+        )
+
+    def filled(self) -> "VsProfile":
+        """Fill each empty bin from the nearest non-empty bins either side of it.
+
+        SW4 interpolates linearly between the model's samples, and clamps below
+        its last one (`MaterialSfile.C`), so the material in an empty bin lies
+        between the samples above and below it. Each empty bin takes the
+        extremes of the two.
+
+        Returns
+        -------
+        VsProfile
+            The profile with every bin filled, unless it is entirely empty.
         """
         present = np.isfinite(self.min_vs)
-        source = np.maximum.accumulate(np.where(present, np.arange(len(present)), 0))
-        leading = np.cumsum(present) == 0
+        index = np.arange(1, len(present) + 1)
+        # Indices into the values padded with NaN at both ends, which `fmin`
+        # and `fmax` ignore where there is no sample on one side.
+        above = np.maximum.accumulate(np.where(present, index, 0))
+        below = np.minimum.accumulate(np.where(present, index, len(present) + 1)[::-1])[
+            ::-1
+        ]
+
+        def padded(values: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+            return np.concatenate(([np.nan], values, [np.nan]))
+
+        min_vs = padded(self.min_vs)
+        max_wave_speed = padded(self.max_wave_speed)
         return VsProfile(
             bin_size=self.bin_size,
-            min_vs=np.where(leading, np.nan, self.min_vs[source]),
-            max_wave_speed=np.where(leading, np.nan, self.max_wave_speed[source]),
+            min_vs=np.fmin(min_vs[above], min_vs[below]),
+            max_wave_speed=np.fmax(max_wave_speed[above], max_wave_speed[below]),
         )
 
     def merge(self, other: "VsProfile") -> "VsProfile":
@@ -372,25 +373,36 @@ def vs_profile(
     VsProfile
         The profile of these samples.
     """
-    z, tau, vs, vp = np.broadcast_arrays(
-        *(np.asarray(array, dtype=np.float64) for array in (z, tau, vs, vp))
-    )
-    curvilinear = z < topography_zmax
-    with np.errstate(divide="ignore", invalid="ignore"):
-        stretch = np.where(curvilinear, (topography_zmax - tau) / topography_zmax, 1.0)
-        reference = np.where(curvilinear, (z - tau) / stretch, z)
+    z = np.asarray(z, dtype=np.float64)
+    tau = np.asarray(tau, dtype=np.float64)
+    vs = np.asarray(vs, dtype=np.float32)
+    vp = np.asarray(vp, dtype=np.float32)
 
-    labels = np.clip(reference // bin_size, 0, n_bins - 1).astype(np.int64).ravel()
-    index = np.arange(n_bins)
-    empty = np.bincount(labels, minlength=n_bins) == 0
-    min_vs = ndimage.minimum((vs / np.maximum(stretch, 1.0)).ravel(), labels, index)
-    max_wave_speed = ndimage.maximum(
-        (np.sqrt(vp**2 + 2 * vs**2) / np.minimum(stretch, 1.0)).ravel(), labels, index
+    # The stretch is a property of the column, so compute it before it is
+    # broadcast against depth.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        column_stretch = (topography_zmax - tau) / topography_zmax
+        curvilinear = z < topography_zmax
+        reference = np.where(curvilinear, (z - tau) / column_stretch, z)
+    labels = np.clip(reference // bin_size, 0, n_bins - 1).astype(np.intp).ravel()
+    slowest = np.where(curvilinear, np.maximum(column_stretch, 1.0), 1.0)
+    fastest = np.where(curvilinear, np.minimum(column_stretch, 1.0), 1.0)
+
+    min_vs = np.full(n_bins, np.inf)
+    np.minimum.at(min_vs, labels, (vs / slowest.astype(np.float32)).ravel())
+    # Squared, so the square root is only taken of each bin's maximum.
+    max_squared_speed = np.full(n_bins, -np.inf)
+    np.maximum.at(
+        max_squared_speed,
+        labels,
+        ((vp**2 + 2 * vs**2) / fastest.astype(np.float32) ** 2).ravel(),
     )
+
+    empty = np.isinf(min_vs)
     return VsProfile(
         bin_size=bin_size,
         min_vs=np.where(empty, np.nan, min_vs),
-        max_wave_speed=np.where(empty, np.nan, max_wave_speed),
+        max_wave_speed=np.sqrt(np.where(empty, np.nan, max_squared_speed)),
     )
 
 
@@ -428,46 +440,54 @@ def size_refinements(
 
     refinements: list[Refinement] = []
     top = 0.0
-    resolutions = resolution.resolutions
-    for finer, coarser in itertools.pairwise(resolutions):
+    current, *coarser_resolutions = resolution.resolutions
+    for coarser in coarser_resolutions:
         needed = resolution.minimum_ppw * resolution.max_frequency * coarser
         # `floor` never decreases with depth, so the bins it clears are a suffix.
         (cleared,) = np.nonzero(floor >= needed)
         if not cleared.size:
-            # Nothing is fast enough for the coarser grid, so the finer one
-            # carries on to the bottom.
-            refinements.append(Refinement(resolution=finer, bottom=depth_m))
-            return refinements
+            # Nothing is fast enough for the coarser grid.
+            break
         # Rounding up onto the coarser grid keeps every uncleared bin in the
         # finer layer.
         bottom = max(
             math.ceil(cleared[0] * profile.bin_size / coarser) * coarser,
-            math.ceil((top + nz_min * finer) / coarser) * coarser,
+            math.ceil((top + nz_min * current) / coarser) * coarser,
         )
         # A coarser layer too thin to hold `nz_min` cells above the domain
         # bottom is not worth starting.
         if bottom + nz_min * coarser > depth_m:
-            refinements.append(Refinement(resolution=finer, bottom=depth_m))
-            return refinements
-        refinements.append(Refinement(resolution=finer, bottom=bottom))
-        top = bottom
+            break
+        refinements.append(Refinement(resolution=current, bottom=bottom))
+        top, current = bottom, coarser
 
-    refinements.append(Refinement(resolution=resolutions[-1], bottom=depth_m))
+    refinements.append(Refinement(resolution=current, bottom=depth_m))
     return refinements
 
 
-# Pair each layer with the profile bins whose tops lie inside it.
-def _layer_bins(
+# Each layer's slowest effective Vs and fastest effective wave speed over the
+# bins whose tops lie inside it, NaN where the profile has no material there.
+def _layer_extremes(
     profile: VsProfile, refinements: list[Refinement]
-) -> list[tuple[Refinement, slice]]:
-    layers = []
+) -> list[tuple[Refinement, float, float]]:
+    profile = profile.filled()
+    extremes = []
     top = 0.0
     for refinement in refinements:
-        start = math.ceil(top / profile.bin_size)
-        stop = math.ceil(refinement.bottom / profile.bin_size)
-        layers.append((refinement, slice(start, stop)))
+        bins = slice(
+            math.ceil(top / profile.bin_size),
+            math.ceil(refinement.bottom / profile.bin_size),
+        )
+        min_vs = profile.min_vs[bins]
+        present = np.isfinite(min_vs)
+        if present.any():
+            slowest = float(min_vs[present].min())
+            fastest = float(profile.max_wave_speed[bins][present].max())
+        else:
+            slowest = fastest = math.nan
+        extremes.append((refinement, slowest, fastest))
         top = refinement.bottom
-    return layers
+    return extremes
 
 
 def layer_ppw(
@@ -492,13 +512,9 @@ def layer_ppw(
         Each layer's points per wavelength, NaN if the profile has no material
         in it.
     """
-    profile = profile.filled()
     return [
-        float(np.nanmin(profile.min_vs[bins], initial=np.inf))
-        / (refinement.resolution * frequency)
-        if np.any(np.isfinite(profile.min_vs[bins]))
-        else math.nan
-        for refinement, bins in _layer_bins(profile, refinements)
+        min_vs / (refinement.resolution * frequency)
+        for refinement, min_vs, _ in _layer_extremes(profile, refinements)
     ]
 
 
@@ -525,10 +541,7 @@ def layer_time_steps(
     list of float
         Each layer's time step, NaN if the profile has no material in it.
     """
-    profile = profile.filled()
     return [
-        cfl * refinement.resolution / float(np.nanmax(profile.max_wave_speed[bins]))
-        if np.any(np.isfinite(profile.max_wave_speed[bins]))
-        else math.nan
-        for refinement, bins in _layer_bins(profile, refinements)
+        cfl * refinement.resolution / fastest
+        for refinement, _, fastest in _layer_extremes(profile, refinements)
     ]

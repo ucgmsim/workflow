@@ -254,3 +254,16 @@ def test_empty_bins_take_the_material_above_them() -> None:
     refinements = sw4.size_refinements(profile, RESOLUTION, depth_m=30_000.0, nz_min=12)
 
     assert refinements[0] == Refinement(resolution=50.0, bottom=2000.0)
+
+
+def test_filled_bounds_empty_bins_by_both_neighbours() -> None:
+    """Under a velocity inversion, the slower sample below bounds the gap."""
+    nan = float("nan")
+    profile = sw4.VsProfile(
+        bin_size=100.0,
+        min_vs=np.array([2000.0, nan, 500.0, nan]),
+        max_wave_speed=np.array([4000.0, nan, 1000.0, nan]),
+    ).filled()
+
+    assert profile.min_vs.tolist() == [2000.0, 500.0, 500.0, 500.0]
+    assert profile.max_wave_speed.tolist() == [4000.0, 4000.0, 1000.0, 1000.0]

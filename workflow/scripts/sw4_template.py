@@ -85,12 +85,10 @@ def _azimuth_from_velocity_model(velocity_model: h5py.File) -> float:
     return float(azimuth)
 
 
-def _topography_height_from_velocity_model(
-    velocity_model: h5py.File,
-) -> tuple[float, float]:
-    """Extract the minimum topography height from a velocity model HDF5 file."""
-    global_min, zmax = velocity_model.attrs[sfile.MIN_MAX_DEPTH_ATTR]
-    return -float(global_min), float(zmax)
+# The depth of the bottom of the velocity model, in metres.
+def _model_bottom_from_velocity_model(velocity_model: h5py.File) -> float:
+    _, bottom = velocity_model.attrs[sfile.MIN_MAX_DEPTH_ATTR]
+    return float(bottom)
 
 
 # Split `range(n_rows)` into consecutive slices of at most `rows_per_block`.
@@ -156,10 +154,9 @@ def _vs_profile_from_velocity_model(
     material = velocity_model[sfile.MATERIAL_GROUP]
     interfaces = velocity_model[sfile.SURFACE_GROUP]
     surface = interfaces["z_values_0"]
-    _, model_bottom = velocity_model.attrs[sfile.MIN_MAX_DEPTH_ATTR]
-    n_bins = math.ceil(float(model_bottom) / bin_size) + 1
+    n_bins = math.ceil(_model_bottom_from_velocity_model(velocity_model) / bin_size) + 1
 
-    profile = None
+    profile = sw4.VsProfile.empty(bin_size, n_bins)
     for index in range(int(velocity_model.attrs[sfile.NGRIDS_ATTR])):
         grid = material[f"grid_{index}"]
         vs, vp = grid["Cs"], grid["Cp"]
@@ -188,10 +185,8 @@ def _vs_profile_from_velocity_model(
                     bin_size,
                     n_bins,
                 )
-                profile = partial if profile is None else profile.merge(partial)
+                profile = profile.merge(partial)
 
-    if profile is None:
-        raise ValueError("The velocity model has no material grids.")
     return profile
 
 
@@ -435,7 +430,7 @@ def generate_sw4_input(
     with h5py.File(velocity_model, "r") as f:
         # The grid azimuth must match the velocity model's azimuth inside SW4.
         azimuth = _azimuth_from_velocity_model(f)
-        _, sfile_zmax = _topography_height_from_velocity_model(f)
+        sfile_zmax = _model_bottom_from_velocity_model(f)
         sfile_x, sfile_y = _lateral_footprint_from_velocity_model(f)
         elevation_min, elevation_max = _elevation_range_from_velocity_model(f)
         topography_zmax = sw4.topography_zmax(elevation_min, elevation_max)
@@ -454,7 +449,6 @@ def generate_sw4_input(
     refinements, topography_zmax = _adjust_for_topography(
         refinements, topography_zmax, nzmin=sw4_params.nz_min
     )
-    refinements = sorted(refinements, key=lambda r: r.bottom)
     coarsest_resolution = refinements[-1].resolution
 
     developer = find_command(sw4_params.commands, "developer")

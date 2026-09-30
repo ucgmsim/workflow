@@ -318,7 +318,6 @@ def test_refinements_are_sized_from_the_velocity_model(
         zmax=60_000.0,
         interface=10_000.0,
         nk=201,
-        vs=layered_vs,
     )
 
     assert [float(r["zmax"]) for r in commands["refinement"]] == [1200.0, 8000.0]
@@ -343,7 +342,6 @@ def test_curvilinear_stretch_holds_back_coarsening(tmp_path: Path) -> None:
         zmax=60_000.0,
         interface=10_000.0,
         nk=401,
-        vs=layered_vs,
     )
     with h5py.File(velocity_model) as f:
         elevation_min, elevation_max = (
