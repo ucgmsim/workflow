@@ -10,7 +10,7 @@ from typer.testing import CliRunner, Result
 
 from workflow.defaults import DefaultsVersion
 from workflow.scripts import migrate
-from workflow.scripts.migrate import _Action as Action
+from workflow.scripts.migrate import Action
 
 OLD = DefaultsVersion.v24_2_2_4
 NEW = DefaultsVersion.v26_7_1Hz

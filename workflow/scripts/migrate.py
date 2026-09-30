@@ -152,7 +152,7 @@ class _Response(Enum):
     SELECT = auto()  # Choose which keys (s)
 
 
-class _Action(Enum):
+class Action(Enum):
     """Migration actions that can be taken on realisation configuration."""
 
     FILL = auto()
@@ -290,7 +290,7 @@ class _Prompter:
     ----------
     assume_yes : bool
         If True, answer every question without prompting. Every action
-        is accepted except `_Action.UPDATE`, which is accepted only if
+        is accepted except `Action.UPDATE`, which is accepted only if
         ``overwrite`` is set, so existing values are kept by default.
     overwrite : bool
         With ``assume_yes``, update values that differ from the new
@@ -300,23 +300,23 @@ class _Prompter:
     def __init__(self, assume_yes: bool = False, overwrite: bool = False) -> None:
         self.assume_yes = assume_yes
         self.overwrite = overwrite
-        self.remembered: dict[tuple[str | None, _Action], _Response] = {}
-        self.selections: dict[tuple[str, _Action], dict[_KeyPath, bool]] = {}
+        self.remembered: dict[tuple[str | None, Action], _Response] = {}
+        self.selections: dict[tuple[str, Action], dict[_KeyPath, bool]] = {}
         """Remembered selections: whether to change each key."""
 
-    def _preset(self, key: str | None, action: _Action) -> _Response | None:
+    def _preset(self, key: str | None, action: Action) -> _Response | None:
         response = self.remembered.get((key, action))
         if response is None and self.assume_yes:
-            keep = action is _Action.UPDATE and not self.overwrite
+            keep = action is Action.UPDATE and not self.overwrite
             response = _Response.NEVER if keep else _Response.AUTO
         return response
 
-    def _settle(self, key: str | None, action: _Action, response: _Response) -> bool:
+    def _settle(self, key: str | None, action: Action, response: _Response) -> bool:
         if response in (_Response.AUTO, _Response.NEVER):
             self.remembered[(key, action)] = response
         return response in (_Response.YES, _Response.AUTO)
 
-    def _explain(self, key: str | None, action: _Action, details: list[str]) -> None:
+    def _explain(self, key: str | None, action: Action, details: list[str]) -> None:
         if (key, action) not in self.remembered:
             for line in details:
                 _console.print(line)
@@ -324,7 +324,7 @@ class _Prompter:
     def ask(
         self,
         question: str,
-        action: _Action,
+        action: Action,
         key: str | None = None,
         details: list[str] | None = None,
     ) -> bool:
@@ -334,8 +334,8 @@ class _Prompter:
         ----------
         question : str
             Question to ask.
-        action : _Action
-            _Action the question asks about.
+        action : Action
+            Action the question asks about.
         key : str | None
             Configuration key the question is about. Remembered
             answers apply to the same action on the same key.
@@ -354,7 +354,7 @@ class _Prompter:
     def choose(
         self,
         question: str,
-        action: _Action,
+        action: Action,
         key: str,
         options: list[tuple[_KeyPath, str]],
         details: list[str],
@@ -369,8 +369,8 @@ class _Prompter:
         ----------
         question : str
             Question to ask.
-        action : _Action
-            _Action the question asks about.
+        action : Action
+            Action the question asks about.
         key : str
             Configuration key the question is about.
         options : list[tuple[_KeyPath, str]]
@@ -546,13 +546,13 @@ def _compare_section(
 
 
 def _describe_change(
-    action: _Action, path: _KeyPath, current: Any, new_defaults: dict[str, Any]
+    action: Action, path: _KeyPath, current: Any, new_defaults: dict[str, Any]
 ) -> str:
     """Describe a proposed change to one key.
 
     Parameters
     ----------
-    action : _Action
+    action : Action
         The action that would make the change.
     path : _KeyPath
         Path to the key within the section.
@@ -568,7 +568,7 @@ def _describe_change(
     """
     name = ".".join(path)
     new = _get_path(new_defaults, path)
-    if action is _Action.FILL:
+    if action is Action.FILL:
         return f"+ {name} = {new!r}"
     return f"{name}: {_get_path(current, path)!r} -> {new!r}"
 
@@ -641,7 +641,7 @@ def _validate_section(
             message, unknown_keys = _extract_error(key, schema_error)
             if not unknown_keys or not prompter.ask(
                 f"  Remove {_dotted(unknown_keys)} from {key}?",
-                _Action.TRIM,
+                Action.TRIM,
                 key,
                 [f"  {message}"],
             ):
@@ -657,8 +657,8 @@ def _validate_section(
 # The questions asked for keys missing from a section, and for keys
 # that differ from the new defaults, in the order they are asked.
 _SECTION_QUESTIONS = [
-    (_Action.FILL, "Add missing keys to {key}?", "added", "green"),
-    (_Action.UPDATE, "Update values in {key} to the defaults?", "updated", "yellow"),
+    (Action.FILL, "Add missing keys to {key}?", "added", "green"),
+    (Action.UPDATE, "Update values in {key} to the defaults?", "updated", "yellow"),
 ]
 
 
@@ -957,7 +957,7 @@ def migrate_all(
                 if dry_run:
                     _console.print("  DRY RUN: not writing changes.")
                 write = not dry_run and prompter.ask(
-                    f"  Write changes to {realisation}?", _Action.WRITE
+                    f"  Write changes to {realisation}?", Action.WRITE
                 )
                 if write:
                     _write_json(realisation, result.migrated, backup)
