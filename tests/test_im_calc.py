@@ -3,8 +3,8 @@
 import functools
 
 import numpy as np
-from IM.ims import IM
 
+from IM.ims import IM
 from workflow.scripts import im_calc
 
 
