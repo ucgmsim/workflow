@@ -6,16 +6,24 @@ enough to hold the bottom sponge. Both are invariants rather than values, so
 they are tested as invariants.
 """
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import h5py
 import numpy as np
+import numpy.typing as npt
 import pytest
 from nzcvm.formats import sfile
 
 from velocity_modelling.bounding_box import BoundingBox
 from workflow import defaults, sw4
-from workflow.realisations import DomainParameters, RealisationMetadata, Refinements
+from workflow.realisations import (
+    DomainParameters,
+    RealisationMetadata,
+    Refinements,
+    SW4Resolution,
+)
 from workflow.scripts import sw4_template
 
 SPONGE_KM = 12.0
@@ -39,12 +47,20 @@ def domain() -> BoundingBox:
     )
 
 
+def constant_vs(z: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+    """A uniform 1000 m/s half-space."""
+    return np.full_like(z, 1000.0)
+
+
 def write_sfile(
     path: Path,
     shape: tuple[int, int],
     resolution: float,
     topography_height: float = 500.0,
     zmax: float = 1_000_000.0,
+    interface: float = 5000.0,
+    nk: int = 3,
+    vs: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.float64]] = constant_vs,
 ) -> None:
     """Write a minimal sfile carrying only what `generate_sw4_input` reads.
 
@@ -57,30 +73,44 @@ def write_sfile(
     resolution : float
         The coarsest grid's horizontal spacing, in metres.
     topography_height : float
-        The highest topography in the model, in metres above sea level.
+        The highest topography in the model, in metres above sea level. The
+        surface rises from sea level on its west edge to this on its east edge.
     zmax : float
         The depth of the bottom of the model, in metres.
+    interface : float
+        The depth of the interface between the two grids, in metres.
+    nk : int
+        The vertical gridpoint count of each grid.
+    vs : callable
+        Vs (m/s) as a function of depth (m). Vp is `sqrt(3)` times it.
     """
+    fine_shape = ((shape[0] - 1) * 2 + 1, (shape[1] - 1) * 2 + 1)
+    surface = -np.broadcast_to(
+        np.linspace(0.0, topography_height, fine_shape[1]), fine_shape
+    )
+    # A finer grid over the same footprint, to check the readers pick the
+    # coarsest and still get the same answer.
+    grids = (
+        (2, surface, np.full(fine_shape, interface)),
+        (1, np.full(shape, interface), np.full(shape, zmax)),
+    )
     with h5py.File(path, "w") as f:
         f.attrs[sfile.ORIGIN_AZIM_ATTR] = np.array([172.5, -43.5, 35.0])
         f.attrs[sfile.MIN_MAX_DEPTH_ATTR] = np.array([-topography_height, zmax])
         material = f.create_group(sfile.MATERIAL_GROUP)
-        # A finer grid over the same footprint, to check the reader picks the
-        # coarsest and still gets the same answer.
-        for index, factor in enumerate((2, 1)):
+        interfaces = f.create_group(sfile.SURFACE_GROUP)
+        interfaces["z_values_0"] = surface
+        for index, (factor, top, bottom) in enumerate(grids):
+            interfaces[f"z_values_{index + 1}"] = bottom
             grid = material.create_group(f"grid_{index}")
             grid.attrs[sfile.HORIZONTAL_ATTR] = resolution / factor
-            grid.attrs[sfile.NUMBER_OF_COMPONENTS_ATTR] = np.int32(1)
+            grid.attrs[sfile.NUMBER_OF_COMPONENTS_ATTR] = np.int32(2)
+            z = top[..., None] + np.linspace(0.0, 1.0, nk) * (bottom - top)[..., None]
+            # Chunked in rows of 4, like NZCVM's (much larger) chunks.
+            chunks = (4, *z.shape[1:])
+            grid.create_dataset("Cs", data=vs(z).astype(np.float32), chunks=chunks)
             grid.create_dataset(
-                "Cs",
-                data=np.zeros(
-                    (
-                        (shape[0] - 1) * factor + 1,
-                        (shape[1] - 1) * factor + 1,
-                        3,
-                    ),
-                    dtype=np.float32,
-                ),
+                "Cp", data=(np.sqrt(3) * vs(z)).astype(np.float32), chunks=chunks
             )
 
 
@@ -90,6 +120,8 @@ def render(
     depth_km: float,
     sfile_shape: tuple[int, int] = (121, 121),
     topography_height: float = 500.0,
+    resolution: SW4Resolution | None = None,
+    **sfile_kwargs: Any,
 ) -> dict[str, list[dict[str, str]]]:
     """Run `generate_sw4_input` and parse the SW4 file it writes.
 
@@ -105,6 +137,10 @@ def render(
         The (north, east) gridpoint counts of the velocity model at 400 m.
     topography_height : float
         The highest topography in the velocity model, in metres.
+    resolution : SW4Resolution, optional
+        Size SW4's refinements from the velocity model to these targets.
+    **sfile_kwargs : Any
+        Passed on to `write_sfile`.
 
     Returns
     -------
@@ -118,8 +154,16 @@ def render(
     DomainParameters(domain=domain, depth=depth_km, duration=10.0).write_to_realisation(
         realisation
     )
+    if resolution is not None:
+        resolution.write_to_realisation(realisation)
     velocity_model = tmp_path / "model.sfile"
-    write_sfile(velocity_model, sfile_shape, 400.0, topography_height=topography_height)
+    write_sfile(
+        velocity_model,
+        sfile_shape,
+        400.0,
+        topography_height=topography_height,
+        **sfile_kwargs,
+    )
     output = tmp_path / "sw4.in"
     sw4_template.generate_sw4_input(
         realisation,
@@ -218,3 +262,109 @@ def test_grid_pads_the_domain_by_one_sponge_per_side(
     # NOTE: In SW4 x = north, but in the workflow y = north.
     assert float(grid["x"]) == pytest.approx((domain.extent_y + 2 * SPONGE_KM) * 1000)
     assert float(grid["y"]) == pytest.approx((domain.extent_x + 2 * SPONGE_KM) * 1000)
+
+
+def layered_vs(z: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+    """500 m/s to 1 km, 2000 m/s to 8 km, then 4000 m/s."""
+    return np.select([z < 1000.0, z < 8000.0], [500.0, 2000.0], 4000.0)
+
+
+def test_refinements_are_sized_from_the_velocity_model(
+    tmp_path: Path, domain: BoundingBox
+) -> None:
+    """Each layer starts where the material below it is fast enough for it.
+
+    At 8 points per wavelength and 1 Hz, 200 m needs 1600 m/s (from 1 km) and
+    400 m needs 3200 m/s (from 8 km). The 100 m layer is then pushed to 1200 m
+    to hold `nz_min` = 12 cells. Flat topography keeps the curvilinear stretch
+    out of it.
+    """
+    commands = render(
+        tmp_path,
+        domain,
+        30.0,
+        topography_height=0.0,
+        resolution=SW4Resolution(
+            finest_resolution=100.0,
+            coarsest_resolution=400.0,
+            minimum_ppw=8.0,
+            max_frequency=1.0,
+        ),
+        zmax=60_000.0,
+        interface=10_000.0,
+        nk=201,
+        vs=layered_vs,
+    )
+
+    assert [float(r["zmax"]) for r in commands["refinement"]] == [1200.0, 8000.0]
+    (grid,) = commands["grid"]
+    assert float(grid["h"]) == 400.0
+
+
+def test_curvilinear_stretch_holds_back_coarsening(tmp_path: Path) -> None:
+    """Under topography, a curvilinear cell is taller than its nominal spacing.
+
+    1500 m of topography puts `zmax` at 4500 m, so the tallest column's cells
+    are stretched by 6000 / 4500. The 2000 m/s material then only resolves
+    200 m cells to 1500 m/s, short of the 1600 m/s it needs, until it leaves
+    the curvilinear grid.
+    """
+    velocity_model = tmp_path / "model.sfile"
+    write_sfile(
+        velocity_model,
+        (11, 11),
+        400.0,
+        topography_height=1500.0,
+        zmax=60_000.0,
+        interface=10_000.0,
+        nk=401,
+        vs=layered_vs,
+    )
+    with h5py.File(velocity_model) as f:
+        elevation_min, elevation_max = (
+            sw4_template._elevation_range_from_velocity_model(f)
+        )
+        topography_zmax = sw4.topography_zmax(elevation_min, elevation_max)
+        profile = sw4_template._vs_profile_from_velocity_model(
+            f, topography_zmax, bin_size=100.0
+        )
+
+    assert (elevation_min, elevation_max) == (0.0, 1500.0)
+    assert topography_zmax == 4500.0
+    refinements = sw4.size_refinements(
+        profile,
+        SW4Resolution(
+            finest_resolution=100.0,
+            coarsest_resolution=200.0,
+            minimum_ppw=8.0,
+            max_frequency=1.0,
+        ),
+        depth_m=30_000.0,
+        nz_min=12,
+    )
+    assert refinements[0].bottom == 4600.0
+
+
+def test_profile_is_independent_of_how_the_model_is_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Binning in pieces that straddle the HDF5 chunks gives the same profile."""
+    velocity_model = tmp_path / "model.sfile"
+    write_sfile(
+        velocity_model,
+        (11, 11),
+        400.0,
+        topography_height=1500.0,
+        zmax=60_000.0,
+        interface=10_000.0,
+        nk=41,
+        vs=layered_vs,
+    )
+    with h5py.File(velocity_model) as f:
+        whole = sw4_template._vs_profile_from_velocity_model(f, 4500.0, 100.0)
+        # 3 rows at a time, which does not divide the 4-row chunks.
+        monkeypatch.setattr(sw4_template, "PROFILE_BLOCK_ELEMENTS", 3 * 21 * 41)
+        pieces = sw4_template._vs_profile_from_velocity_model(f, 4500.0, 100.0)
+
+    np.testing.assert_array_equal(whole.min_vs, pieces.min_vs)
+    np.testing.assert_array_equal(whole.max_wave_speed, pieces.max_wave_speed)

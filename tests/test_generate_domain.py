@@ -125,8 +125,8 @@ def test_generate_domain() -> None:
     ("solver", "defaults_version", "fault_buffer", "error"),
     [
         # The fault buffer boundary itself is tested in `test_sw4.py`.
-        (Solver.SW4, defaults.DefaultsVersion.v26_7_1Hz, 2.0, ValueError),
-        (Solver.SW4, defaults.DefaultsVersion.v26_7_1Hz, 14.0, None),
+        (Solver.SW4, defaults.DefaultsVersion.v26_7_1Hz, 1.9, ValueError),
+        (Solver.SW4, defaults.DefaultsVersion.v26_7_1Hz, 2.0, None),
         # EMOD3D has no supergrid sponge, so any buffer is accepted.
         (Solver.EMOD3D, defaults.DefaultsVersion.v26_7_1Hz, 2.0, None),
         # An EMOD3D-only defaults version has no SW4 configuration to check.

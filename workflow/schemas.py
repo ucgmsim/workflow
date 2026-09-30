@@ -1296,6 +1296,27 @@ REFINEMENTS_SCHEMA = Schema(
     }
 )
 
+SW4_RESOLUTION_SCHEMA = Schema(
+    {
+        Literal(
+            "finest_resolution",
+            description="Grid spacing of SW4's top layer (m).",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "coarsest_resolution",
+            description="Largest SW4 grid spacing allowed (m).",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "minimum_ppw",
+            description="Points per shortest S wavelength each coarser layer keeps.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "max_frequency",
+            description="Frequency the points per wavelength are measured at (Hz).",
+        ): And(NUMBER, _is_positive),
+    }
+)
+
 SW4_COMMAND_SCHEMA = Schema(
     {
         "name": str,

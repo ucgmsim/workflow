@@ -2,9 +2,9 @@
 bb:
   flo: 1.0
 velocity_model:
-  # Minimum that clears the SW4 sponge on a 400 m grid; see
-  # `workflow.sw4.minimum_fault_buffer_m`.
-  fault_buffer: 14.0
+  # The stencil margin beyond the SW4 sponge on a 400 m grid; the sponge itself
+  # is outside the domain. See `workflow.sw4.minimum_fault_buffer_m`.
+  fault_buffer: 2.0
 refinements:
   refinements:
     [

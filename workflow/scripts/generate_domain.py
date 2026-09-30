@@ -631,7 +631,11 @@ def generate_domain_from_realisation(
         sw4.check_fault_buffer(
             velocity_model_parameters.fault_buffer,
             sw4_params,
-            sw4.coarsest_resolution(refinements, domain_parameters.depth),
+            sw4.planned_coarsest_resolution(
+                refinements,
+                sw4.read_resolution(realisation_ffp, metadata.defaults_version),
+                domain_parameters.depth,
+            ),
         )
 
     domain_parameters.write_to_realisation(realisation_ffp)

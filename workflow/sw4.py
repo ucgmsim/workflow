@@ -5,17 +5,37 @@ SW4 solves a damped equation, so sources and receivers there do not produce
 valid ground motion.
 """
 
+import dataclasses
+import itertools
 import math
+from pathlib import Path
 
+import numpy as np
+import numpy.typing as npt
+from scipy import ndimage
+
+from workflow.defaults import DefaultsVersion
 from workflow.realisations import (
     DomainParameters,
+    RealisationParseError,
+    Refinement,
     Refinements,
     SW4Parameters,
+    SW4Resolution,
     find_command,
 )
 
 SW4_DEFAULT_SUPERGRID_GRIDPOINTS = 30
 """SW4's default supergrid thickness, in grid points (`sw4/src/EW.C`)."""
+
+SW4_DEFAULT_CFL = 1.3
+"""SW4's default CFL number at 4th order (`mCFL` in `sw4/src/EW.C`)."""
+
+TOPOGRAPHY_ZMAX_RELIEF_FACTOR = 3.0
+"""Multiple of the topographic relief the curvilinear grid extends below it.
+
+From the SW4 User Guide (Chapter 5): `zmax >= tau_max + 3 (tau_max - tau_min)`.
+"""
 
 STENCIL_MARGIN_GRIDPOINTS = 5
 """Grid points of clearance required between a source and the sponge.
@@ -95,6 +115,62 @@ def coarsest_resolution(refinements: Refinements, depth_km: float) -> float:
     )
 
 
+def read_resolution(
+    realisation_ffp: Path, defaults_version: DefaultsVersion
+) -> SW4Resolution | None:
+    """Read how SW4's refinements are sized, if the realisation says.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        The realisation to read.
+    defaults_version : DefaultsVersion
+        The defaults to fall back to.
+
+    Returns
+    -------
+    SW4Resolution or None
+        The resolution targets, or None if neither the realisation nor its
+        defaults has them, in which case SW4 uses the velocity model's own
+        refinements.
+    """
+    try:
+        return SW4Resolution.read_from_realisation_or_defaults(
+            realisation_ffp, defaults_version
+        )
+    except RealisationParseError:
+        return None
+
+
+def planned_coarsest_resolution(
+    refinements: Refinements, resolution: SW4Resolution | None, depth_km: float
+) -> float:
+    """Find the coarsest grid spacing SW4 may use, before the model exists.
+
+    When SW4's refinements are sized from the velocity model, the actual coarsest
+    spacing is only known once the model is sampled, so this is the coarsest
+    allowed. That is an upper bound, so padding and clearance sized from it are
+    conservative.
+
+    Parameters
+    ----------
+    refinements : Refinements
+        The velocity model's refinements.
+    resolution : SW4Resolution or None
+        How SW4's refinements are sized, if not from `refinements`.
+    depth_km : float
+        The domain depth, in kilometres.
+
+    Returns
+    -------
+    float
+        The coarsest grid spacing, in metres.
+    """
+    if resolution is not None:
+        return resolution.coarsest_resolution
+    return coarsest_resolution(refinements, depth_km)
+
+
 def gridpoints_from_domain(
     domain_parameters: DomainParameters, refinements: Refinements
 ) -> int:
@@ -124,17 +200,15 @@ def gridpoints_from_domain(
     return gridpoints
 
 
-def minimum_fault_buffer_m(
-    sw4_params: SW4Parameters, coarsest_resolution: float
-) -> float:
+def minimum_fault_buffer_m(coarsest_resolution: float) -> float:
     """Compute the smallest fault buffer that clears the supergrid sponge.
 
-    This is the sponge width plus `STENCIL_MARGIN_GRIDPOINTS` grid points.
+    `create-sw4-input` pads the domain by one sponge width on every lateral
+    face, so the sponge lies wholly outside the domain and the buffer only
+    needs the `STENCIL_MARGIN_GRIDPOINTS` of clearance beyond it.
 
     Parameters
     ----------
-    sw4_params : SW4Parameters
-        The SW4 parameters.
     coarsest_resolution : float
         The coarsest grid spacing in the run, in metres.
 
@@ -143,10 +217,7 @@ def minimum_fault_buffer_m(
     float
         The minimum fault buffer, in metres.
     """
-    return (
-        supergrid_width(sw4_params, coarsest_resolution)
-        + STENCIL_MARGIN_GRIDPOINTS * coarsest_resolution
-    )
+    return STENCIL_MARGIN_GRIDPOINTS * coarsest_resolution
 
 
 def check_fault_buffer(
@@ -168,21 +239,18 @@ def check_fault_buffer(
     ValueError
         If the buffer is smaller than `minimum_fault_buffer_m`.
     """
-    minimum = minimum_fault_buffer_m(sw4_params, coarsest_resolution)
+    minimum = minimum_fault_buffer_m(coarsest_resolution)
     if fault_buffer_km * 1000.0 < minimum:
         sponge = supergrid_width(sw4_params, coarsest_resolution)
         raise ValueError(
             f"The fault buffer of {fault_buffer_km:.3f} km is smaller than the "
-            f"{minimum / 1000.0:.3f} km needed to keep sources out of the SW4 "
-            f"supergrid absorbing layer. On a {coarsest_resolution:.0f} m "
-            f"coarsest grid the sponge is {sponge / 1000.0:.3f} km wide, and a "
-            f"source needs a further {STENCIL_MARGIN_GRIDPOINTS} grid points "
-            f"({STENCIL_MARGIN_GRIDPOINTS * coarsest_resolution / 1000.0:.3f} km) "
-            "of clearance for its own stencil and the dissipation operator. "
-            "Inside the layer SW4 solves a damped, coordinate-stretched "
-            "equation, so the result is not a ground motion. Raise "
-            f"velocity_model.fault_buffer to at least {minimum / 1000.0:.3f} km, "
-            "or narrow the supergrid."
+            f"{minimum / 1000.0:.3f} km needed to keep sources clear of the SW4 "
+            "supergrid absorbing layer. `create-sw4-input` places the "
+            f"{sponge / 1000.0:.3f} km sponge outside the domain, but a source "
+            f"still needs {STENCIL_MARGIN_GRIDPOINTS} grid points of clearance "
+            f"on a {coarsest_resolution:.0f} m coarsest grid for its own "
+            "stencil and the dissipation operator. Raise "
+            f"velocity_model.fault_buffer to at least {minimum / 1000.0:.3f} km."
         )
 
 
@@ -256,3 +324,264 @@ def absorbed_period(
         * math.cos(math.radians(incidence_degrees))
         / (ADIABATIC_COEFFICIENT * speed)
     )
+
+
+def topography_zmax(elevation_min: float, elevation_max: float) -> float:
+    """Compute the depth the curvilinear grid should extend to, in metres.
+
+    This is the SW4 User Guide's `zmax >= tau_max + 3 (tau_max - tau_min)`, in
+    elevations (`tau = -e`). It depends on the lowest elevation as well as the
+    highest: a domain entirely inland needs less curvilinear grid than one
+    reaching the coast, and bathymetry needs more.
+
+    Parameters
+    ----------
+    elevation_min, elevation_max : float
+        The lowest and highest elevations of the top surface, in metres above
+        sea level.
+
+    Returns
+    -------
+    float
+        The depth of the bottom of the curvilinear grid, in metres below sea
+        level.
+    """
+    return -elevation_min + TOPOGRAPHY_ZMAX_RELIEF_FACTOR * (
+        elevation_max - elevation_min
+    )
+
+
+@dataclasses.dataclass
+class VsProfile:
+    """The slowest and fastest material at each depth of SW4's reference grid.
+
+    Depths are in SW4's reference coordinate. Inside the curvilinear grid, SW4
+    scales the topography linearly to zero at `zmax`
+    (`GridGeneratorGeneral::assignInterfaceSurfaces`), so a column with top
+    surface `tau` holds the reference depth `r` at the physical depth
+    `tau + r (zmax - tau) / zmax`, and every curvilinear cell in that column is
+    stretched vertically by `(zmax - tau) / zmax`. Refinement interfaces sit at
+    fixed reference depths, so this is the coordinate they are sized in.
+
+    The speeds are already adjusted for that stretch, so they can be compared
+    directly with the nominal grid spacing `h`: `min_vs` against the coarsest
+    spacing in a cell, `max(h, stretch h)`, and `max_wave_speed` against the
+    finest, `min(h, stretch h)`. SW4's own `minVs/h` printout ignores the
+    stretch (`EW::compute_minvsoverh`).
+    """
+
+    bin_size: float
+    """The height of each depth bin, in metres."""
+    min_vs: npt.NDArray[np.float64]
+    """The slowest effective Vs in each bin (m/s), NaN where a bin is empty."""
+    max_wave_speed: npt.NDArray[np.float64]
+    """The fastest effective `sqrt(Vp^2 + 2 Vs^2)` in each bin (m/s), the speed
+    SW4's time step is limited by (`EW::computeDT`), NaN where a bin is empty."""
+
+    def merge(self, other: "VsProfile") -> "VsProfile":
+        """Combine two profiles of the same bins, keeping the extremes of each.
+
+        Parameters
+        ----------
+        other : VsProfile
+            The profile to combine with.
+
+        Returns
+        -------
+        VsProfile
+            The combined profile.
+        """
+        return VsProfile(
+            bin_size=self.bin_size,
+            min_vs=np.fmin(self.min_vs, other.min_vs),
+            max_wave_speed=np.fmax(self.max_wave_speed, other.max_wave_speed),
+        )
+
+
+def vs_profile(
+    z: npt.ArrayLike,
+    tau: npt.ArrayLike,
+    vs: npt.ArrayLike,
+    vp: npt.ArrayLike,
+    topography_zmax: float,
+    bin_size: float,
+    n_bins: int,
+) -> VsProfile:
+    """Bin material samples by SW4 reference depth.
+
+    Parameters
+    ----------
+    z : array-like
+        The physical depth of each sample, in metres below sea level.
+    tau : array-like
+        The top surface depth of each sample's column, in metres below sea
+        level (negative above it). Broadcast against `z`.
+    vs, vp : array-like
+        The S and P wave speeds at each sample, in m/s.
+    topography_zmax : float
+        The depth of the bottom of the curvilinear grid, in metres.
+    bin_size : float
+        The height of each depth bin, in metres.
+    n_bins : int
+        The number of bins. Deeper samples land in the last bin.
+
+    Returns
+    -------
+    VsProfile
+        The profile of these samples.
+    """
+    z, tau, vs, vp = np.broadcast_arrays(
+        *(np.asarray(array, dtype=np.float64) for array in (z, tau, vs, vp))
+    )
+    curvilinear = z < topography_zmax
+    with np.errstate(divide="ignore", invalid="ignore"):
+        stretch = np.where(curvilinear, (topography_zmax - tau) / topography_zmax, 1.0)
+        reference = np.where(curvilinear, (z - tau) / stretch, z)
+
+    labels = np.clip(reference // bin_size, 0, n_bins - 1).astype(np.int64).ravel()
+    index = np.arange(n_bins)
+    empty = np.bincount(labels, minlength=n_bins) == 0
+    min_vs = ndimage.minimum((vs / np.maximum(stretch, 1.0)).ravel(), labels, index)
+    max_wave_speed = ndimage.maximum(
+        (np.sqrt(vp**2 + 2 * vs**2) / np.minimum(stretch, 1.0)).ravel(), labels, index
+    )
+    return VsProfile(
+        bin_size=bin_size,
+        min_vs=np.where(empty, np.nan, min_vs),
+        max_wave_speed=np.where(empty, np.nan, max_wave_speed),
+    )
+
+
+def size_refinements(
+    profile: VsProfile, resolution: SW4Resolution, depth_m: float, nz_min: int
+) -> list[Refinement]:
+    """Size SW4's mesh refinements from the material in the velocity model.
+
+    Each layer is twice the spacing of the one above it, and starts at the
+    shallowest reference depth below which no material is too slow for it to
+    keep `resolution.minimum_ppw` at `resolution.max_frequency`. Interfaces are
+    rounded deeper onto the coarser grid, and every layer keeps `nz_min` cells.
+
+    Parameters
+    ----------
+    profile : VsProfile
+        The velocity model's profile.
+    resolution : SW4Resolution
+        The resolution targets.
+    depth_m : float
+        The domain depth, in metres, excluding the bottom sponge.
+    nz_min : int
+        The fewest cells a layer may hold.
+
+    Returns
+    -------
+    list of Refinement
+        The layers from the surface down. The last layer's bottom is `depth_m`.
+    """
+    # The slowest material at or below each bin. Empty bins, including every bin
+    # below the velocity model, never block coarsening.
+    floor = np.fmin.accumulate(profile.min_vs[::-1])[::-1]
+    floor = np.where(np.isnan(floor), np.inf, floor)
+
+    refinements: list[Refinement] = []
+    top = 0.0
+    resolutions = resolution.resolutions
+    for finer, coarser in itertools.pairwise(resolutions):
+        needed = resolution.minimum_ppw * resolution.max_frequency * coarser
+        # `floor` never decreases with depth, so the bins it clears are a suffix.
+        (cleared,) = np.nonzero(floor >= needed)
+        if not cleared.size:
+            # Nothing is fast enough for the coarser grid, so the finer one
+            # carries on to the bottom.
+            refinements.append(Refinement(resolution=finer, bottom=depth_m))
+            return refinements
+        # Rounding up onto the coarser grid keeps every uncleared bin in the
+        # finer layer.
+        bottom = max(
+            math.ceil(cleared[0] * profile.bin_size / coarser) * coarser,
+            math.ceil((top + nz_min * finer) / coarser) * coarser,
+        )
+        if bottom >= depth_m:
+            refinements.append(Refinement(resolution=finer, bottom=depth_m))
+            return refinements
+        refinements.append(Refinement(resolution=finer, bottom=bottom))
+        top = bottom
+
+    refinements.append(Refinement(resolution=resolutions[-1], bottom=depth_m))
+    return refinements
+
+
+def _layer_bins(
+    profile: VsProfile, refinements: list[Refinement]
+) -> list[tuple[Refinement, slice]]:
+    """Pair each layer with the profile bins whose tops lie inside it."""
+    layers = []
+    top = 0.0
+    for refinement in refinements:
+        start = math.ceil(top / profile.bin_size)
+        stop = math.ceil(refinement.bottom / profile.bin_size)
+        layers.append((refinement, slice(start, stop)))
+        top = refinement.bottom
+    return layers
+
+
+def layer_ppw(
+    profile: VsProfile, refinements: list[Refinement], frequency: float
+) -> list[float]:
+    """Compute the points per shortest S wavelength each layer achieves.
+
+    Unlike SW4's `minVs/h` printout, this accounts for the curvilinear stretch.
+
+    Parameters
+    ----------
+    profile : VsProfile
+        The velocity model's profile.
+    refinements : list of Refinement
+        The layers from the surface down.
+    frequency : float
+        The frequency to measure at, in Hz.
+
+    Returns
+    -------
+    list of float
+        Each layer's points per wavelength, NaN if the profile has no material
+        in it.
+    """
+    return [
+        float(np.nanmin(profile.min_vs[bins], initial=np.inf))
+        / (refinement.resolution * frequency)
+        if np.any(np.isfinite(profile.min_vs[bins]))
+        else math.nan
+        for refinement, bins in _layer_bins(profile, refinements)
+    ]
+
+
+def layer_time_steps(
+    profile: VsProfile, refinements: list[Refinement], cfl: float = SW4_DEFAULT_CFL
+) -> list[float]:
+    """Estimate the stable time step of each layer, in seconds.
+
+    SW4 steps every grid at the smallest of these (`EW::computeDT`), so the
+    layer with the smallest one sets the cost of the whole run. This ignores
+    attenuation, which lowers SW4's time step slightly.
+
+    Parameters
+    ----------
+    profile : VsProfile
+        The velocity model's profile.
+    refinements : list of Refinement
+        The layers from the surface down.
+    cfl : float, default SW4_DEFAULT_CFL
+        The CFL number.
+
+    Returns
+    -------
+    list of float
+        Each layer's time step, NaN if the profile has no material in it.
+    """
+    return [
+        cfl * refinement.resolution / float(np.nanmax(profile.max_wave_speed[bins]))
+        if np.any(np.isfinite(profile.max_wave_speed[bins]))
+        else math.nan
+        for refinement, bins in _layer_bins(profile, refinements)
+    ]
