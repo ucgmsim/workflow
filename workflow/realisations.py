@@ -996,13 +996,11 @@ class Refinements(RealisationConfiguration):
 class SW4Resolution(RealisationConfiguration):
     """How SW4's own mesh refinements are sized from the velocity model.
 
-    These are distinct from `Refinements`, which sets how finely the velocity
-    model is sampled. That has to be chosen before any of the model exists, so
-    it assumes the slowest material in the country at every depth. SW4's grid is
-    chosen after the model is sampled, from the Vs it actually contains. The
-    top layer is always `finest_resolution`, and each coarser layer (twice the
-    spacing of the one above it) starts at the shallowest depth below which it
-    keeps `minimum_ppw` points per shortest S wavelength at `max_frequency`.
+    SW4's grid is independent of the velocity model grid for computational
+    efficiency reasons. The top layer is always `finest_resolution`, and each
+    coarser layer (twice the spacing of the one above it) starts at the
+    shallowest depth below which it keeps `minimum_ppw` points per shortest S
+    wavelength at `max_frequency`.
     """
 
     _config_key: ClassVar[str] = "sw4_resolution"

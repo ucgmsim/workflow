@@ -42,16 +42,6 @@ def test_supergrid_width(
     assert sw4.supergrid_width(sw4_parameters(**supergrid), resolution) == expected
 
 
-@pytest.mark.parametrize(
-    "resolution, expected", [(100.0, 500.0), (200.0, 1000.0), (400.0, 2000.0)]
-)
-def test_minimum_fault_buffer_is_the_stencil_margin(
-    resolution: float, expected: float
-) -> None:
-    """The sponge sits outside the domain, so only `5h` of clearance is needed."""
-    assert sw4.minimum_fault_buffer_m(resolution) == expected
-
-
 def test_check_fault_buffer_boundary() -> None:
     parameters = sw4_parameters(gp=30)
     sw4.check_fault_buffer(2.0, parameters, 400.0)
@@ -65,9 +55,15 @@ def test_default_fault_buffer_is_the_derived_minimum() -> None:
     resolution = SW4Resolution.read_from_defaults(version)
     velocity_model = VelocityModelParameters.read_from_defaults(version)
 
-    assert velocity_model.fault_buffer * 1000.0 == sw4.minimum_fault_buffer_m(
-        resolution.coarsest_resolution
+    sw4.check_fault_buffer(
+        velocity_model.fault_buffer, sw4_parameters(), resolution.coarsest_resolution
     )
+    with pytest.raises(ValueError, match="fault_buffer"):
+        sw4.check_fault_buffer(
+            velocity_model.fault_buffer - 0.1,
+            sw4_parameters(),
+            resolution.coarsest_resolution,
+        )
 
 
 @pytest.mark.parametrize(

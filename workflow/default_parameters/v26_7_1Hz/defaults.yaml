@@ -3,7 +3,7 @@ bb:
   flo: 1.0
 velocity_model:
   # The stencil margin beyond the SW4 sponge on a 400 m grid; the sponge itself
-  # is outside the domain. See `workflow.sw4.minimum_fault_buffer_m`.
+  # is outside the domain. See `workflow.sw4.check_fault_buffer`.
   fault_buffer: 2.0
 refinements:
   refinements:
@@ -12,10 +12,6 @@ refinements:
       { resolution: 200.0, bottom: 25000.0 },
     ]
   unbounded_refinement_resolution: 400.0
-# SW4's own refinements, sized from the sampled velocity model. The ladder
-# matches the velocity model's (100 m to 400 m), so SW4 never samples finer
-# than the model. The 100 m top layer gets 5 points per wavelength at 1 Hz
-# from the 500 m/s `min_vs`; every coarser layer keeps 8.
 sw4_resolution:
   finest_resolution: 100.0
   coarsest_resolution: 400.0

@@ -85,22 +85,22 @@ def _azimuth_from_velocity_model(velocity_model: h5py.File) -> float:
     return float(azimuth)
 
 
-# The depth of the bottom of the velocity model, in metres.
 def _model_bottom_from_velocity_model(velocity_model: h5py.File) -> float:
+    """Find the depth of the bottom of the velocity model, in metres."""
     _, bottom = velocity_model.attrs[sfile.MIN_MAX_DEPTH_ATTR]
     return float(bottom)
 
 
-# Split `range(n_rows)` into consecutive slices of at most `rows_per_block`.
 def _row_blocks(n_rows: int, rows_per_block: int) -> Iterator[slice]:
+    """Split `range(n_rows)` into consecutive slices of at most `rows_per_block`."""
     for start in range(0, n_rows, rows_per_block):
         yield slice(start, min(start + rows_per_block, n_rows))
 
 
-# The lowest and highest elevations of the model's top surface, in metres.
 def _elevation_range_from_velocity_model(
     velocity_model: h5py.File,
 ) -> tuple[float, float]:
+    """Find the lowest and highest elevations of the model's top surface (m)."""
     surface = velocity_model[sfile.SURFACE_GROUP]["z_values_0"]
     rows_per_block = max(1, PROFILE_BLOCK_ELEMENTS // surface.shape[1])
     # The sfile stores depths, positive down.
@@ -112,11 +112,14 @@ def _elevation_range_from_velocity_model(
     return -deepest, -shallowest
 
 
-# Read rows of a finer grid's surface, subsampled onto a coarser grid sharing
-# its corners, as SW4 assumes of an sfile's interfaces (`MaterialSfile.C`).
 def _decimated_rows(
     surface: h5py.Dataset, shape: tuple[int, int], rows: slice
 ) -> npt.NDArray[np.float64]:
+    """Read rows of a finer grid's surface, subsampled onto a coarser grid.
+
+    The two grids share their corners, as SW4 assumes of an sfile's interfaces
+    (`MaterialSfile.C`).
+    """
     fine_i, fine_j = surface.shape
     stride_i = (fine_i - 1) // max(shape[0] - 1, 1)
     stride_j = (fine_j - 1) // max(shape[1] - 1, 1)
@@ -130,11 +133,13 @@ def _decimated_rows(
     return np.asarray(surface[fine_rows, ::stride_j], dtype=np.float64)
 
 
-# How many rows of `Cs` and `Cp` to read together within `budget_bytes`. Rows
-# are whole chunk rows where they fit, so no chunk is read twice. Where one
-# row of chunks is over budget, HDF5 still decompresses whole chunks, so
-# memory is then bounded by the chunk size.
 def _profile_read_rows(dataset: h5py.Dataset, budget_bytes: int) -> int:
+    """Choose how many rows of `Cs` and `Cp` to read together within a budget.
+
+    Rows are whole chunk rows where they fit, so no chunk is read twice. Where
+    one row of chunks is over budget, HDF5 still decompresses whole chunks, so
+    memory is then bounded by the chunk size.
+    """
     ni, nj, nk = dataset.shape
     row_bytes = 2 * nj * nk * dataset.dtype.itemsize
     rows = max(1, budget_bytes // row_bytes)
@@ -143,14 +148,16 @@ def _profile_read_rows(dataset: h5py.Dataset, budget_bytes: int) -> int:
     return min(rows, ni)
 
 
-# Profile the model's slowest and fastest material by SW4 reference depth.
-# This reads the sfile as SW4 does (`MaterialSfile.C`), a block of rows at a
-# time, so it works for any sfile and for models larger than memory: `ngrids`
-# grids, each spanning `z_values_{g}` to `z_values_{g + 1}` with its vertical
-# points spaced evenly between them.
 def _vs_profile_from_velocity_model(
     velocity_model: h5py.File, topography_zmax: float, bin_size: float
 ) -> sw4.VsProfile:
+    """Profile the model's slowest and fastest material by SW4 reference depth.
+
+    This reads the sfile as SW4 does (`MaterialSfile.C`), a block of rows at a
+    time, so it works for any sfile and for models larger than memory: `ngrids`
+    grids, each spanning `z_values_{g}` to `z_values_{g + 1}` with its vertical
+    points spaced evenly between them.
+    """
     material = velocity_model[sfile.MATERIAL_GROUP]
     interfaces = velocity_model[sfile.SURFACE_GROUP]
     surface = interfaces["z_values_0"]

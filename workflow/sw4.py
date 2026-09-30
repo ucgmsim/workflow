@@ -7,6 +7,7 @@ valid ground motion.
 
 import dataclasses
 import math
+from typing import Self
 
 import numpy as np
 import numpy.typing as npt
@@ -87,26 +88,6 @@ def supergrid_width(sw4_params: SW4Parameters, coarsest_resolution: float) -> fl
     return float(gridpoints) * coarsest_resolution
 
 
-def minimum_fault_buffer_m(coarsest_resolution: float) -> float:
-    """Compute the smallest fault buffer that clears the supergrid sponge.
-
-    `create-sw4-input` pads the domain by one sponge width on every lateral
-    face, so the sponge lies wholly outside the domain and the buffer only
-    needs the `STENCIL_MARGIN_GRIDPOINTS` of clearance beyond it.
-
-    Parameters
-    ----------
-    coarsest_resolution : float
-        The coarsest grid spacing in the run, in metres.
-
-    Returns
-    -------
-    float
-        The minimum fault buffer, in metres.
-    """
-    return STENCIL_MARGIN_GRIDPOINTS * coarsest_resolution
-
-
 def check_fault_buffer(
     fault_buffer_km: float, sw4_params: SW4Parameters, coarsest_resolution: float
 ) -> None:
@@ -124,9 +105,10 @@ def check_fault_buffer(
     Raises
     ------
     ValueError
-        If the buffer is smaller than `minimum_fault_buffer_m`.
+        If the buffer is smaller than `STENCIL_MARGIN_GRIDPOINTS` grid points.
     """
-    minimum = minimum_fault_buffer_m(coarsest_resolution)
+    # The sponge lies outside the domain, so only the stencil margin is needed.
+    minimum = STENCIL_MARGIN_GRIDPOINTS * coarsest_resolution
     if fault_buffer_km * 1000.0 < minimum:
         sponge = supergrid_width(sw4_params, coarsest_resolution)
         raise ValueError(
@@ -217,9 +199,7 @@ def topography_zmax(elevation_min: float, elevation_max: float) -> float:
     """Compute the depth the curvilinear grid should extend to, in metres.
 
     This is the SW4 User Guide's `zmax >= tau_max + 3 (tau_max - tau_min)`, in
-    elevations (`tau = -e`). It depends on the lowest elevation as well as the
-    highest: a domain entirely inland needs less curvilinear grid than one
-    reaching the coast, and bathymetry needs more.
+    elevations (`tau = -e`).
 
     Parameters
     ----------
@@ -242,19 +222,10 @@ def topography_zmax(elevation_min: float, elevation_max: float) -> float:
 class VsProfile:
     """The slowest and fastest material at each depth of SW4's reference grid.
 
-    Depths are in SW4's reference coordinate. Inside the curvilinear grid, SW4
-    scales the topography linearly to zero at `zmax`
-    (`GridGeneratorGeneral::assignInterfaceSurfaces`), so a column with top
-    surface `tau` holds the reference depth `r` at the physical depth
-    `tau + r (zmax - tau) / zmax`, and every curvilinear cell in that column is
-    stretched vertically by `(zmax - tau) / zmax`. Refinement interfaces sit at
-    fixed reference depths, so this is the coordinate they are sized in.
-
-    The speeds are already adjusted for that stretch, so they can be compared
-    directly with the nominal grid spacing `h`: `min_vs` against the coarsest
-    spacing in a cell, `max(h, stretch h)`, and `max_wave_speed` against the
-    finest, `min(h, stretch h)`. SW4's own `minVs/h` printout ignores the
-    stretch (`EW::compute_minvsoverh`).
+    Depths here are calculated in SW4's curvilinear frame. If the topographic
+    stretching terminates at a depth `zmax`, a depth `r` from a surface `tau` lies
+    at depth `tau + r (zmax - tau) / zmax`, implying a stretch of
+    `(zmax - tau) / zmax`.
     """
 
     bin_size: float
@@ -266,7 +237,7 @@ class VsProfile:
     SW4's time step is limited by (`EW::computeDT`), NaN where a bin is empty."""
 
     @classmethod
-    def empty(cls, bin_size: float, n_bins: int) -> "VsProfile":
+    def empty(cls, bin_size: float, n_bins: int) -> Self:
         """Build a profile with no material in any bin.
 
         Parameters
@@ -288,7 +259,7 @@ class VsProfile:
             max_wave_speed=np.full(n_bins, np.nan),
         )
 
-    def filled(self) -> "VsProfile":
+    def filled(self) -> Self:
         """Fill each empty bin from the nearest non-empty bins either side of it.
 
         SW4 interpolates linearly between the model's samples, and clamps below
@@ -315,13 +286,13 @@ class VsProfile:
 
         min_vs = padded(self.min_vs)
         max_wave_speed = padded(self.max_wave_speed)
-        return VsProfile(
-            bin_size=self.bin_size,
+        return dataclasses.replace(
+            self,
             min_vs=np.fmin(min_vs[above], min_vs[below]),
             max_wave_speed=np.fmax(max_wave_speed[above], max_wave_speed[below]),
         )
 
-    def merge(self, other: "VsProfile") -> "VsProfile":
+    def merge(self, other: Self) -> Self:
         """Combine two profiles of the same bins, keeping the extremes of each.
 
         Parameters
@@ -334,8 +305,8 @@ class VsProfile:
         VsProfile
             The combined profile.
         """
-        return VsProfile(
-            bin_size=self.bin_size,
+        return dataclasses.replace(
+            self,
             min_vs=np.fmin(self.min_vs, other.min_vs),
             max_wave_speed=np.fmax(self.max_wave_speed, other.max_wave_speed),
         )
@@ -388,6 +359,7 @@ def vs_profile(
     slowest = np.where(curvilinear, np.maximum(column_stretch, 1.0), 1.0)
     fastest = np.where(curvilinear, np.minimum(column_stretch, 1.0), 1.0)
 
+    # `.at` sets `out[i]` to the min of `out[i]` and every value labelled `i`.
     min_vs = np.full(n_bins, np.inf)
     np.minimum.at(min_vs, labels, (vs / slowest.astype(np.float32)).ravel())
     # Squared, so the square root is only taken of each bin's maximum.
@@ -454,8 +426,7 @@ def size_refinements(
             math.ceil(cleared[0] * profile.bin_size / coarser) * coarser,
             math.ceil((top + nz_min * current) / coarser) * coarser,
         )
-        # A coarser layer too thin to hold `nz_min` cells above the domain
-        # bottom is not worth starting.
+        # Refinements require at least `nz_min` points.
         if bottom + nz_min * coarser > depth_m:
             break
         refinements.append(Refinement(resolution=current, bottom=bottom))
@@ -465,11 +436,14 @@ def size_refinements(
     return refinements
 
 
-# Each layer's slowest effective Vs and fastest effective wave speed over the
-# bins whose tops lie inside it, NaN where the profile has no material there.
 def _layer_extremes(
     profile: VsProfile, refinements: list[Refinement]
 ) -> list[tuple[Refinement, float, float]]:
+    """Find each layer's slowest effective Vs and fastest effective wave speed.
+
+    These are over the bins whose tops lie inside the layer, NaN where the
+    profile has no material there.
+    """
     profile = profile.filled()
     extremes = []
     top = 0.0
@@ -494,8 +468,6 @@ def layer_ppw(
     profile: VsProfile, refinements: list[Refinement], frequency: float
 ) -> list[float]:
     """Compute the points per shortest S wavelength each layer achieves.
-
-    Unlike SW4's `minVs/h` printout, this accounts for the curvilinear stretch.
 
     Parameters
     ----------
@@ -522,10 +494,6 @@ def layer_time_steps(
     profile: VsProfile, refinements: list[Refinement], cfl: float = SW4_DEFAULT_CFL
 ) -> list[float]:
     """Estimate the stable time step of each layer, in seconds.
-
-    SW4 steps every grid at the smallest of these (`EW::computeDT`), so the
-    layer with the smallest one sets the cost of the whole run. This ignores
-    attenuation, which lowers SW4's time step slightly.
 
     Parameters
     ----------
