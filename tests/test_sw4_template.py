@@ -22,7 +22,6 @@ from workflow.realisations import (
     DomainParameters,
     RealisationMetadata,
     Refinement,
-    Refinements,
     SW4Resolution,
 )
 from workflow.scripts import sw4_template
@@ -223,14 +222,11 @@ def test_grid_spacing_is_never_coarser_than_planned(
     `create-nzvm-input` pads the model, and `generate-domain` checks the fault
     buffer, for the coarsest spacing SW4 may choose, before the model exists.
     """
-    theoretical = Refinements.read_from_defaults(defaults.DefaultsVersion.v26_7_1Hz)
     resolution = SW4Resolution.read_from_defaults(defaults.DefaultsVersion.v26_7_1Hz)
 
     (grid,) = render(tmp_path, domain, depth_km)["grid"]
 
-    assert float(grid["h"]) <= sw4.planned_coarsest_resolution(
-        theoretical, resolution, depth_km
-    )
+    assert float(grid["h"]) <= resolution.coarsest_resolution
 
 
 def test_topography_deepens_a_thin_implicit_layer() -> None:

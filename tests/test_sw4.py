@@ -15,9 +15,6 @@ from workflow.realisations import (
     find_command,
 )
 
-DEEPEST_SUPPORTED_DOMAIN_KM = 350.0
-"""The deepest domain any realisation can ask for."""
-
 
 def sw4_parameters(**supergrid_parameters: float) -> SW4Parameters:
     """Build minimal SW4 parameters, with a `supergrid` command if given parameters."""
@@ -62,22 +59,15 @@ def test_check_fault_buffer_boundary() -> None:
         sw4.check_fault_buffer(1.9, parameters, 400.0)
 
 
-def test_coarsest_resolution_is_the_bottom_refinement() -> None:
-    refinements = Refinements.read_from_defaults(defaults.DefaultsVersion.v26_7_1Hz)
-    assert sw4.coarsest_resolution(refinements, 3.0) == 100.0
-    assert sw4.coarsest_resolution(refinements, 20.0) == 200.0
-    assert sw4.coarsest_resolution(refinements, 60.0) == 400.0
-    assert sw4.coarsest_resolution(refinements, DEEPEST_SUPPORTED_DOMAIN_KM) == 400.0
-
-
 def test_default_fault_buffer_is_the_derived_minimum() -> None:
-    """The default `fault_buffer` matches the minimum for the deepest domain."""
+    """The default `fault_buffer` matches the minimum for the coarsest SW4 grid."""
     version = defaults.DefaultsVersion.v26_7_1Hz
-    refinements = Refinements.read_from_defaults(version)
+    resolution = SW4Resolution.read_from_defaults(version)
     velocity_model = VelocityModelParameters.read_from_defaults(version)
 
-    coarsest = sw4.coarsest_resolution(refinements, DEEPEST_SUPPORTED_DOMAIN_KM)
-    assert velocity_model.fault_buffer * 1000.0 == sw4.minimum_fault_buffer_m(coarsest)
+    assert velocity_model.fault_buffer * 1000.0 == sw4.minimum_fault_buffer_m(
+        resolution.coarsest_resolution
+    )
 
 
 @pytest.mark.parametrize(

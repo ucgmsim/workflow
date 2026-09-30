@@ -89,7 +89,7 @@ def _sw4_grid(
     refinements: Refinements,
     sw4_params: SW4Parameters,
     nzcvm_settings: NZCVMSettings,
-    resolution: SW4Resolution | None = None,
+    resolution: SW4Resolution,
 ) -> SW4GridConfig:
     """Build the SW4 mesh-refined grid configuration.
 
@@ -101,17 +101,10 @@ def _sw4_grid(
         domain_parameters.depth + SW4_DEPTH_OFFSET_KM
     )
 
-    # NOTE: The sponge width must be measured on the refinements *SW4* will use,
-    # i.e. resolved against the bare domain depth. Resolving against
-    # `depth + SW4_DEPTH_OFFSET_KM` can land on a coarser bottom layer than SW4
-    # actually gets (a 400 m bottom layer gives a 12 km sponge where SW4's 200 m
-    # one gives 6 km), which would overstate the padding needed here and, worse,
-    # disagree with `create-sw4-input`.
-    # When SW4 sizes its own refinements, its coarsest spacing is not known
-    # until this model is sampled, so pad for the coarsest it may choose.
-    coarsest_resolution = sw4.planned_coarsest_resolution(
-        refinements, resolution, domain_parameters.depth
-    )
+    # NOTE: SW4 sizes its own refinements from this model once it is sampled,
+    # so its coarsest spacing is not known yet. Padding for the coarsest it may
+    # choose is an upper bound on the sponge and slack it needs.
+    coarsest_resolution = resolution.coarsest_resolution
     supergrid_width = sw4.supergrid_width(sw4_params, coarsest_resolution)
     model_padding = supergrid_width + SW4_MODEL_SLACK_GRIDPOINTS * coarsest_resolution
 
@@ -211,7 +204,9 @@ def generate_template(
                     realisation_ffp, metadata.defaults_version
                 ),
                 nzcvm_settings,
-                sw4.read_resolution(realisation_ffp, metadata.defaults_version),
+                SW4Resolution.read_from_realisation_or_defaults(
+                    realisation_ffp, metadata.defaults_version
+                ),
             )
         case GridFormat.EMOD3D:
             grid = _emod3d_grid(

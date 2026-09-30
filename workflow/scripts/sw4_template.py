@@ -7,10 +7,9 @@ the source, the stations, and the commands in the realisation's `sw4` section.
 The requested domain becomes the grid's interior, padded laterally by one
 supergrid width on each side.
 
-If the realisation (or its defaults) has an `sw4_resolution` section, SW4's
-refinements are sized from the Vs in the velocity model to keep a target number
-of points per wavelength. Otherwise they are the velocity model's own
-`refinements`.
+SW4's refinements are sized from the Vs in the velocity model, to the targets
+in the realisation's `sw4_resolution` section. They are independent of the
+velocity model's own `refinements`, which only set how finely it is sampled.
 
 Inputs
 ------
@@ -43,9 +42,9 @@ from workflow.realisations import (
     DomainParameters,
     RealisationMetadata,
     Refinement,
-    Refinements,
     SW4Command,
     SW4Parameters,
+    SW4Resolution,
     VelocityModelParameters,
     find_command,
 )
@@ -94,16 +93,16 @@ def _topography_height_from_velocity_model(
     return -float(global_min), float(zmax)
 
 
+# Split `range(n_rows)` into consecutive slices of at most `rows_per_block`.
 def _row_blocks(n_rows: int, rows_per_block: int) -> Iterator[slice]:
-    """Split `range(n_rows)` into consecutive slices of at most `rows_per_block`."""
     for start in range(0, n_rows, rows_per_block):
         yield slice(start, min(start + rows_per_block, n_rows))
 
 
+# The lowest and highest elevations of the model's top surface, in metres.
 def _elevation_range_from_velocity_model(
     velocity_model: h5py.File,
 ) -> tuple[float, float]:
-    """Find the lowest and highest elevations of a velocity model's top surface."""
     surface = velocity_model[sfile.SURFACE_GROUP]["z_values_0"]
     rows_per_block = max(1, PROFILE_BLOCK_ELEMENTS // surface.shape[1])
     # The sfile stores depths, positive down.
@@ -115,14 +114,11 @@ def _elevation_range_from_velocity_model(
     return -deepest, -shallowest
 
 
+# Read rows of a finer grid's surface, subsampled onto a coarser grid sharing
+# its corners, as SW4 assumes of an sfile's interfaces (`MaterialSfile.C`).
 def _decimated_rows(
     surface: h5py.Dataset, shape: tuple[int, int], rows: slice
 ) -> npt.NDArray[np.float64]:
-    """Read rows of a finer grid's surface, subsampled onto a coarser grid.
-
-    The two grids share their corners, as SW4 assumes of an sfile's interfaces
-    (`MaterialSfile.C`).
-    """
     fine_i, fine_j = surface.shape
     stride_i = (fine_i - 1) // max(shape[0] - 1, 1)
     stride_j = (fine_j - 1) // max(shape[1] - 1, 1)
@@ -136,26 +132,11 @@ def _decimated_rows(
     return np.asarray(surface[fine_rows, ::stride_j], dtype=np.float64)
 
 
+# How many rows of `Cs` and `Cp` to read together within `budget_bytes`. Rows
+# are whole chunk rows where they fit, so no chunk is read twice. Where one
+# row of chunks is over budget, HDF5 still decompresses whole chunks, so
+# memory is then bounded by the chunk size.
 def _profile_read_rows(dataset: h5py.Dataset, budget_bytes: int) -> int:
-    """Choose how many rows of a material dataset to read at once.
-
-    `Cs` and `Cp` are read together, so each gets half of `budget_bytes`. A
-    chunked dataset is read in whole rows of chunks where they fit, so no chunk
-    is read twice. Where one row of chunks is already over budget, a read still
-    decompresses whole chunks, so memory is then bounded by the chunk size.
-
-    Parameters
-    ----------
-    dataset : h5py.Dataset
-        A material dataset, shaped `(ni, nj, nk)`.
-    budget_bytes : int
-        The bytes to read at once, across both components.
-
-    Returns
-    -------
-    int
-        The rows (along `ni`) to read at once, at least one.
-    """
     ni, nj, nk = dataset.shape
     row_bytes = 2 * nj * nk * dataset.dtype.itemsize
     rows = max(1, budget_bytes // row_bytes)
@@ -164,18 +145,14 @@ def _profile_read_rows(dataset: h5py.Dataset, budget_bytes: int) -> int:
     return min(rows, ni)
 
 
+# Profile the model's slowest and fastest material by SW4 reference depth.
+# This reads the sfile as SW4 does (`MaterialSfile.C`), a block of rows at a
+# time, so it works for any sfile and for models larger than memory: `ngrids`
+# grids, each spanning `z_values_{g}` to `z_values_{g + 1}` with its vertical
+# points spaced evenly between them.
 def _vs_profile_from_velocity_model(
     velocity_model: h5py.File, topography_zmax: float, bin_size: float
 ) -> sw4.VsProfile:
-    """Profile the slowest and fastest material in an sfile by SW4 reference depth.
-
-    This reads the sfile as SW4 does (`MaterialSfile.C`), so it works for any
-    sfile, not just NZCVM's: `ngrids` grids, each spanning the surfaces
-    `z_values_{g}` and `z_values_{g + 1}` with its vertical points spaced evenly
-    between them. Every dataset, including the surfaces, is read a block of rows
-    at a time, so the model can be larger than memory. Peak memory is about
-    `PROFILE_READ_BYTES` plus the binning of `PROFILE_BLOCK_ELEMENTS` samples.
-    """
     material = velocity_model[sfile.MATERIAL_GROUP]
     interfaces = velocity_model[sfile.SURFACE_GROUP]
     surface = interfaces["z_values_0"]
@@ -439,9 +416,6 @@ def generate_sw4_input(
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
-    theoretical_refinements = Refinements.read_from_realisation_or_defaults(
-        realisation_ffp, metadata.defaults_version
-    )
     sw4_params = SW4Parameters.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
@@ -450,7 +424,9 @@ def generate_sw4_input(
             realisation_ffp, metadata.defaults_version
         )
     )
-    resolution = sw4.read_resolution(realisation_ffp, metadata.defaults_version)
+    resolution = SW4Resolution.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
     logger = log_utils.get_logger(__name__)
 
     depth = domain_parameters.depth
@@ -464,21 +440,16 @@ def generate_sw4_input(
         elevation_min, elevation_max = _elevation_range_from_velocity_model(f)
         topography_zmax = sw4.topography_zmax(elevation_min, elevation_max)
 
-        profile = None
-        if resolution is not None:
-            # NOTE: `_adjust_for_topography` can only deepen `topography_zmax`,
-            # which lessens the curvilinear stretch, so profiling against this
-            # shallower one is conservative.
-            profile = _vs_profile_from_velocity_model(
-                f, topography_zmax, bin_size=resolution.finest_resolution
-            )
-
-    if resolution is not None and profile is not None:
-        refinements = sw4.size_refinements(
-            profile, resolution, depth * 1000.0, nz_min=sw4_params.nz_min
+        # NOTE: `_adjust_for_topography` can only deepen `topography_zmax`,
+        # which lessens the curvilinear stretch, so profiling against this
+        # shallower one is conservative.
+        profile = _vs_profile_from_velocity_model(
+            f, topography_zmax, bin_size=resolution.finest_resolution
         )
-    else:
-        refinements = theoretical_refinements.refinements_for_depth(depth)
+
+    refinements = sw4.size_refinements(
+        profile, resolution, depth * 1000.0, nz_min=sw4_params.nz_min
+    )
 
     refinements, topography_zmax = _adjust_for_topography(
         refinements, topography_zmax, nzmin=sw4_params.nz_min
@@ -486,28 +457,27 @@ def generate_sw4_input(
     refinements = sorted(refinements, key=lambda r: r.bottom)
     coarsest_resolution = refinements[-1].resolution
 
-    if resolution is not None and profile is not None:
-        developer = find_command(sw4_params.commands, "developer")
-        cfl = developer.parameters.get("cfl") if developer is not None else None
-        cfl = sw4.SW4_DEFAULT_CFL if cfl is None else float(cfl)
-        logger.info(
-            "SW4 refinements sized from the velocity model",
-            topography_zmax_m=topography_zmax,
-            elevation_range_m=(elevation_min, elevation_max),
-            layers=[
-                {
-                    "resolution_m": refinement.resolution,
-                    "bottom_m": refinement.bottom,
-                    "ppw": ppw,
-                    "time_step_s": time_step,
-                }
-                for refinement, ppw, time_step in zip(
-                    refinements,
-                    sw4.layer_ppw(profile, refinements, resolution.max_frequency),
-                    sw4.layer_time_steps(profile, refinements, cfl),
-                )
-            ],
-        )
+    developer = find_command(sw4_params.commands, "developer")
+    cfl = developer.parameters.get("cfl") if developer is not None else None
+    cfl = sw4.SW4_DEFAULT_CFL if cfl is None else float(cfl)
+    logger.info(
+        "SW4 refinements sized from the velocity model",
+        topography_zmax_m=topography_zmax,
+        elevation_range_m=(elevation_min, elevation_max),
+        layers=[
+            {
+                "resolution_m": refinement.resolution,
+                "bottom_m": refinement.bottom,
+                "ppw": ppw,
+                "time_step_s": time_step,
+            }
+            for refinement, ppw, time_step in zip(
+                refinements,
+                sw4.layer_ppw(profile, refinements, resolution.max_frequency),
+                sw4.layer_time_steps(profile, refinements, cfl),
+            )
+        ],
+    )
     supergrid_width = sw4.supergrid_width(sw4_params, coarsest_resolution)
 
     sw4.check_fault_buffer(
@@ -577,10 +547,9 @@ def generate_sw4_input(
 
     velocity_model_directory = velocity_model.parent
     velocity_model_name = velocity_model.name
-    # Either the minimum-gridpoint adjustment in `refinements_for_depth` or the
-    # topography-following adjustment in `_adjust_for_topography` can push the
-    # bottom refinement deeper, increasing the total depth of the model. Here we
-    # account for that by updating `depth` to reflect this change.
+    # The topography-following adjustment in `_adjust_for_topography` can push
+    # the bottom refinement deeper, increasing the total depth of the model. Here
+    # we account for that by updating `depth` to reflect this change.
     depth = max(depth, refinements[-1].bottom / 1000.0)
     grid_command, other_commands = _build_sw4_commands(
         sw4_params,

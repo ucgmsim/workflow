@@ -8,16 +8,13 @@ valid ground motion.
 import dataclasses
 import itertools
 import math
-from pathlib import Path
 
 import numpy as np
 import numpy.typing as npt
 from scipy import ndimage
 
-from workflow.defaults import DefaultsVersion
 from workflow.realisations import (
     DomainParameters,
-    RealisationParseError,
     Refinement,
     Refinements,
     SW4Parameters,
@@ -92,83 +89,6 @@ def supergrid_width(sw4_params: SW4Parameters, coarsest_resolution: float) -> fl
         gridpoints = SW4_DEFAULT_SUPERGRID_GRIDPOINTS
 
     return float(gridpoints) * coarsest_resolution
-
-
-def coarsest_resolution(refinements: Refinements, depth_km: float) -> float:
-    """Find the coarsest grid spacing SW4 will use for a domain, in metres.
-
-    Parameters
-    ----------
-    refinements : Refinements
-        The mesh refinements.
-    depth_km : float
-        The domain depth, in kilometres.
-
-    Returns
-    -------
-    float
-        The coarsest grid spacing, in metres.
-    """
-    return max(
-        refinement.resolution
-        for refinement in refinements.refinements_for_depth(depth_km)
-    )
-
-
-def read_resolution(
-    realisation_ffp: Path, defaults_version: DefaultsVersion
-) -> SW4Resolution | None:
-    """Read how SW4's refinements are sized, if the realisation says.
-
-    Parameters
-    ----------
-    realisation_ffp : Path
-        The realisation to read.
-    defaults_version : DefaultsVersion
-        The defaults to fall back to.
-
-    Returns
-    -------
-    SW4Resolution or None
-        The resolution targets, or None if neither the realisation nor its
-        defaults has them, in which case SW4 uses the velocity model's own
-        refinements.
-    """
-    try:
-        return SW4Resolution.read_from_realisation_or_defaults(
-            realisation_ffp, defaults_version
-        )
-    except RealisationParseError:
-        return None
-
-
-def planned_coarsest_resolution(
-    refinements: Refinements, resolution: SW4Resolution | None, depth_km: float
-) -> float:
-    """Find the coarsest grid spacing SW4 may use, before the model exists.
-
-    When SW4's refinements are sized from the velocity model, the actual coarsest
-    spacing is only known once the model is sampled, so this is the coarsest
-    allowed. That is an upper bound, so padding and clearance sized from it are
-    conservative.
-
-    Parameters
-    ----------
-    refinements : Refinements
-        The velocity model's refinements.
-    resolution : SW4Resolution or None
-        How SW4's refinements are sized, if not from `refinements`.
-    depth_km : float
-        The domain depth, in kilometres.
-
-    Returns
-    -------
-    float
-        The coarsest grid spacing, in metres.
-    """
-    if resolution is not None:
-        return resolution.coarsest_resolution
-    return coarsest_resolution(refinements, depth_km)
 
 
 def gridpoints_from_domain(
@@ -536,10 +456,10 @@ def size_refinements(
     return refinements
 
 
+# Pair each layer with the profile bins whose tops lie inside it.
 def _layer_bins(
     profile: VsProfile, refinements: list[Refinement]
 ) -> list[tuple[Refinement, slice]]:
-    """Pair each layer with the profile bins whose tops lie inside it."""
     layers = []
     top = 0.0
     for refinement in refinements:
