@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 import schema
+from rich.console import RenderableType
 from typer.testing import CliRunner, Result
 
 from workflow.defaults import DefaultsVersion
@@ -51,7 +52,7 @@ class Answers(migrate._Prompter):
         question: str,
         action: Action,
         key: str | None = None,
-        details: list[str] | None = None,
+        details: list[RenderableType] | None = None,
     ) -> bool:
         self.asked.append((action, key))
         return self.answers.get(action, False)
@@ -62,7 +63,7 @@ class Answers(migrate._Prompter):
         action: Action,
         key: str,
         options: list[tuple[migrate._KeyPath, str]],
-        details: list[str],
+        details: list[RenderableType],
     ) -> list[migrate._KeyPath]:
         paths = [path for path, _ in options]
         return paths if self.ask(question, action, key) else []
@@ -360,7 +361,8 @@ def test_details_are_printed_only_the_first_time(tmp_path: Path) -> None:
     result = run_cli(tmp_path, "--yes", "--overwrite")
 
     assert result.exit_code == 0, result.output
-    assert result.output.count("fault_buffer: 2.0 -> 14.0") == 1
+    assert result.output.count('-    "fault_buffer": 2.0') == 1
+    assert result.output.count('+    "fault_buffer": 14.0') == 1
     assert result.output.count("velocity_model: updated fault_buffer") == 1
     assert result.output.count("changes listed above") == 2
 

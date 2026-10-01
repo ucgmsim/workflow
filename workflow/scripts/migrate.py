@@ -9,6 +9,7 @@ checked against its schema.
 
 import copy
 import dataclasses
+import difflib
 import functools
 import inspect
 import json
@@ -25,8 +26,9 @@ from typing import Annotated, Any, TypeGuard
 import parse
 import schema
 import typer
-from rich.console import Console
-from rich.markup import escape
+from rich.console import Console, RenderableType
+from rich.padding import Padding
+from rich.text import Text
 
 from qcore import cli
 from workflow import realisations, utils
@@ -316,7 +318,9 @@ class _Prompter:
             self.remembered[(key, action)] = response
         return response in (_Response.YES, _Response.AUTO)
 
-    def _explain(self, key: str | None, action: Action, details: list[str]) -> None:
+    def _explain(
+        self, key: str | None, action: Action, details: list[RenderableType]
+    ) -> None:
         if (key, action) not in self.remembered:
             for line in details:
                 _console.print(line)
@@ -326,7 +330,7 @@ class _Prompter:
         question: str,
         action: Action,
         key: str | None = None,
-        details: list[str] | None = None,
+        details: list[RenderableType] | None = None,
     ) -> bool:
         """Ask a question, or answer it from a remembered response.
 
@@ -339,7 +343,7 @@ class _Prompter:
         key : str | None
             Configuration key the question is about. Remembered
             answers apply to the same action on the same key.
-        details : list[str] | None
+        details : list[RenderableType] | None
             Lines explaining the question.
 
         Returns
@@ -357,7 +361,7 @@ class _Prompter:
         action: Action,
         key: str,
         options: list[tuple[_KeyPath, str]],
-        details: list[str],
+        details: list[RenderableType],
     ) -> list[_KeyPath]:
         """Ask which of several keys an action applies to.
 
@@ -376,7 +380,7 @@ class _Prompter:
         options : list[tuple[_KeyPath, str]]
             Keys the action could apply to, each with a plain text
             description of its change.
-        details : list[str]
+        details : list[RenderableType]
             Lines explaining the question.
 
         Returns
@@ -570,7 +574,49 @@ def _describe_change(
     new = _get_path(new_defaults, path)
     if action is Action.FILL:
         return f"+ {name} = {new!r}"
-    return f"{name}: {_get_path(current, path)!r} -> {new!r}"
+    old = _get_path(current, path)
+    if isinstance(old, list) and isinstance(new, list):
+        return f"{name}: list of {len(old)} -> list of {len(new)}"
+    return f"{name}: {old!r} -> {new!r}"
+
+
+# Plain ANSI colours, so the diff follows the terminal's own theme.
+_DIFF_STYLES = {"-": "red", "+": "green"}
+
+
+def _diff(current: Any, proposed: Any) -> RenderableType:
+    """Show the lines of a section's JSON that a change would alter.
+
+    Each list element is on its own line, so changes to long lists
+    show only the elements added or removed.
+
+    Parameters
+    ----------
+    current : Any
+        The section in the realisation.
+    proposed : Any
+        The section with the change applied.
+
+    Returns
+    -------
+    RenderableType
+        A unified diff, indented under its question. Long lines wrap.
+    """
+    diff = difflib.unified_diff(
+        json.dumps(current, indent=4).splitlines(),
+        json.dumps(proposed, indent=4).splitlines(),
+        n=2,
+        lineterm="",
+    )
+    # Skip the ---/+++ file headers and the first hunk header, and mark
+    # the gaps between later hunks.
+    lines = [
+        Text("...")
+        if line.startswith("@@")
+        else Text(line, _DIFF_STYLES.get(line[0], ""))
+        for line in list(diff)[3:]
+    ]
+    return Padding(Text("\n").join(lines), (0, 0, 0, 4))
 
 
 def _extract_error(name: str, error: schema.SchemaError) -> tuple[str, list[_KeyPath]]:
@@ -657,8 +703,8 @@ def _validate_section(
 # The questions asked for keys missing from a section, and for keys
 # that differ from the new defaults, in the order they are asked.
 _SECTION_QUESTIONS = [
-    (Action.FILL, "Add missing keys to {key}?", "added", "green"),
-    (Action.UPDATE, "Update values in {key} to the defaults?", "updated", "yellow"),
+    (Action.FILL, "Add missing keys to {key}?", "added"),
+    (Action.UPDATE, "Update values in {key} to the defaults?", "updated"),
 ]
 
 
@@ -685,7 +731,7 @@ def _fill_section(
     """
     current = data.get(key, _MISSING)
     changes = []
-    for paths, (action, question, verb, colour) in zip(
+    for paths, (action, question, verb) in zip(
         _compare_section(current, new_section), _SECTION_QUESTIONS, strict=True
     ):
         if not paths:
@@ -694,12 +740,15 @@ def _fill_section(
             (path, _describe_change(action, path, current, new_section))
             for path in paths
         ]
-        labels = (
-            [f"+ {key} (whole section)"]
-            if current is _MISSING
-            else [label for _, label in options]
-        )
-        details = [f"    [{colour}]{escape(label)}[/{colour}]" for label in labels]
+        if current is _MISSING:
+            details: list[RenderableType] = [
+                Text(f"    + {key} (whole section)", "green")
+            ]
+        else:
+            proposed = copy.deepcopy(current)
+            for path in paths:
+                _set_path(proposed, path, _get_path(new_section, path))
+            details = [_diff(current, proposed)]
         chosen = prompter.choose(
             f"  {question.format(key=key)}", action, key, options, details
         )
