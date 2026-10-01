@@ -1,5 +1,6 @@
 import copy
 import json
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -37,7 +38,7 @@ def read(path: Path) -> Any:
     return json.loads(path.read_text())
 
 
-class Answers(migrate._Prompter):
+class Answers(migrate.Prompter):
     """Prompter answering each action from a fixed table, recording what was asked."""
 
     def __init__(self, **answers: bool) -> None:
@@ -62,14 +63,14 @@ class Answers(migrate._Prompter):
         question: str,
         action: Action,
         key: str,
-        options: list[tuple[migrate._KeyPath, str]],
+        options: list[tuple[migrate.KeyPath, str]],
         details: list[RenderableType],
-    ) -> list[migrate._KeyPath]:
+    ) -> list[migrate.KeyPath]:
         paths = [path for path, _ in options]
         return paths if self.ask(question, action, key) else []
 
 
-def run_migrate(prompter: migrate._Prompter, path: Path) -> migrate._MigrationResult:
+def run_migrate(prompter: migrate.Prompter, path: Path) -> migrate.MigrationResult:
     return migrate._migrate(path, NEW, migrate._realisation_configurations(), prompter)
 
 
@@ -112,13 +113,13 @@ def test_differing_values_are_updated_and_new_sections_added(
 
 
 def test_assume_yes_keeps_differing_values_unless_overwrite() -> None:
-    prompter = migrate._Prompter(assume_yes=True)
+    prompter = migrate.Prompter(assume_yes=True)
     assert prompter.ask("?", Action.FILL, "bb")
     assert prompter.ask("?", Action.WRITE)
-    options: list[tuple[migrate._KeyPath, str]] = [(("flo",), "flo")]
+    options: list[tuple[migrate.KeyPath, str]] = [(("flo",), "flo")]
     assert prompter.choose("?", Action.UPDATE, "bb", options, []) == []
 
-    prompter = migrate._Prompter(assume_yes=True, overwrite=True)
+    prompter = migrate.Prompter(assume_yes=True, overwrite=True)
     assert prompter.choose("?", Action.UPDATE, "bb", options, []) == [("flo",)]
 
 
@@ -184,7 +185,7 @@ def test_sections_without_defaults_are_validated(realisation: Path) -> None:
 def test_non_realisation_json_is_skipped(tmp_path: Path) -> None:
     path = write(tmp_path / "stations.json", {"stations": []})
     result = run_migrate(Answers(), path)
-    assert result.status is migrate._Status.SKIPPED
+    assert result.status is migrate.Status.SKIPPED
     assert not result.errors
 
 
@@ -406,13 +407,13 @@ class Picker:
         monkeypatch: pytest.MonkeyPatch,
         typed: list[str],
         ticks: list[list[str]],
-        confirmations: list[migrate._Response],
+        confirmations: list[migrate.Response],
     ) -> None:
         self.typed, self.ticks, self.confirmations = typed, ticks, confirmations
         self.prompts: list[str] = []
         self.shown: list[tuple[list[str], list[bool]]] = []
         monkeypatch.setattr("builtins.input", self.input)
-        monkeypatch.setattr(migrate, "_terminal_available", lambda: True)
+        monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
         monkeypatch.setattr(migrate, "_select_keys", self.select_keys)
         monkeypatch.setattr(migrate, "_confirm_selection", self.confirm_selection)
 
@@ -424,14 +425,14 @@ class Picker:
     def select_keys(
         self,
         question: str,
-        options: list[tuple[migrate._KeyPath, str]],
-        ticks: dict[migrate._KeyPath, bool],
-    ) -> dict[migrate._KeyPath, bool]:
+        options: list[tuple[migrate.KeyPath, str]],
+        ticks: dict[migrate.KeyPath, bool],
+    ) -> dict[migrate.KeyPath, bool]:
         self.shown.append(([label for _, label in options], list(ticks.values())))
         ticked = self.ticks.pop(0)
         return {path: ".".join(path) in ticked for path, _ in options}
 
-    def confirm_selection(self) -> migrate._Response:
+    def confirm_selection(self) -> migrate.Response:
         return self.confirmations.pop(0)
 
 
@@ -439,9 +440,9 @@ def test_selected_keys_are_updated_and_the_rest_kept(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     path = write(tmp_path / "realisation.json", with_flo_and_fmin())
-    picker = Picker(monkeypatch, ["s"], [["flo"]], [migrate._Response.YES])
+    picker = Picker(monkeypatch, ["s"], [["flo"]], [migrate.Response.YES])
 
-    result = run_migrate(migrate._Prompter(), path)
+    result = run_migrate(migrate.Prompter(), path)
 
     assert result.migrated["bb"]["flo"] == 1.0
     assert result.migrated["bb"]["fmin"] == 0.3
@@ -459,10 +460,10 @@ def test_declining_selection_returns_to_the_question(
         monkeypatch,
         ["s", "s", "n"],
         [["flo"], ["flo"]],
-        [migrate._Response.NO, migrate._Response.NO],
+        [migrate.Response.NO, migrate.Response.NO],
     )
 
-    result = run_migrate(migrate._Prompter(), path)
+    result = run_migrate(migrate.Prompter(), path)
 
     assert result.migrated["bb"] == read(path)["bb"]
     # Reopening the list keeps the previous ticks.
@@ -477,8 +478,8 @@ def test_yes_to_selection_asks_again_next_time(
         write(tmp_path / name / "realisation.json", with_flo_and_fmin())
         for name in ["a", "b"]
     ]
-    picker = Picker(monkeypatch, ["s", "y"], [["fmin"]], [migrate._Response.YES])
-    prompter = migrate._Prompter()
+    picker = Picker(monkeypatch, ["s", "y"], [["fmin"]], [migrate.Response.YES])
+    prompter = migrate.Prompter()
 
     first, second = (run_migrate(prompter, path) for path in paths)
 
@@ -494,8 +495,8 @@ def test_always_remembers_the_selection(
         write(tmp_path / name / "realisation.json", with_flo_and_fmin(flo))
         for name, flo in [("a", 0.25), ("b", 0.5)]
     ]
-    picker = Picker(monkeypatch, ["s"], [["fmin"]], [migrate._Response.AUTO])
-    prompter = migrate._Prompter()
+    picker = Picker(monkeypatch, ["s"], [["fmin"]], [migrate.Response.ALWAYS])
+    prompter = migrate.Prompter()
 
     first, second = (run_migrate(prompter, path) for path in paths)
 
@@ -513,8 +514,8 @@ def test_remembered_selection_asks_again_for_new_keys(
     second_data["bb"]["fmax"] = 50.0
     first_path = write(tmp_path / "a" / "realisation.json", first_data)
     second_path = write(tmp_path / "b" / "realisation.json", second_data)
-    picker = Picker(monkeypatch, ["s", "n"], [["fmin"]], [migrate._Response.AUTO])
-    prompter = migrate._Prompter()
+    picker = Picker(monkeypatch, ["s", "n"], [["fmin"]], [migrate.Response.ALWAYS])
+    prompter = migrate.Prompter()
 
     run_migrate(prompter, first_path)
     second = run_migrate(prompter, second_path)
