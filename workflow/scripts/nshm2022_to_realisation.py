@@ -276,7 +276,7 @@ def generate_realisation(
         The initial hypocentre strike coordinate (0 - 1). If not supplied, draw
         shypo from a truncated normal distribution.
     dhypo : float, optional
-        The initial hypocentre strike coordinate (0 - 1). If not supplied, draw
+        The initial hypocentre down-dip coordinate (0 - 1). If not supplied, draw
         dhypo from a weibull distribution.
     lat_hypo : float, optional
         The initial hypocentre latitude (degrees). Will cause an error
@@ -302,7 +302,9 @@ def generate_realisation(
     if lat_hypo is not None and (
         dhypo is not None or shypo is not None or initial_fault
     ):
-        print("Latitude and longitude are incompatible with shypo and dhypo.")
+        print(
+            "Latitude and longitude are incompatible with shypo, dhypo and initial fault."
+        )
         raise typer.Exit(code=1)
 
     metadata = RealisationMetadata(

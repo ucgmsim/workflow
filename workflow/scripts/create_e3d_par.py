@@ -21,7 +21,7 @@ Can be run in the cybershake container. Can also be run from your own computer u
 
 Usage
 -----
-`create-e3d-par [OPTIONS] REALISATION_FFP SRF_FILE_FFP VELOCITY_MODEL_FFP STATIONS_FFP GRID_FFP OUTPUT_FFP`
+`create-e3d-par [OPTIONS] REALISATION_FFP SRF_FILE_FFP VELOCITY_MODEL_FFP STATIONS_FFP OUTPUT_FFP`
 
 For More Help
 -------------
