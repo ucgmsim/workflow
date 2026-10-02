@@ -988,7 +988,16 @@ def _build_layer(config: dict) -> "LayerConfig":
     # it. Review this once Python 3.15 drops with lazy imports.
     from nzcvm.config.layers import LayerConfig
 
-    return LayerConfig.from_dict(config)
+    # nzcvm derives some layer fields from the layer type (`provides` and
+    # `requires`: the coordinates a layer supplies to, or needs from, earlier
+    # layers), and since 2026.10.1 rejects them as input. Realisations written
+    # before then carry them, so drop them rather than fail to read those.
+    derived = {
+        field.name for field in dataclasses.fields(LayerConfig) if not field.init
+    }
+    return LayerConfig.from_dict(
+        {key: value for key, value in config.items() if key not in derived}
+    )
 
 
 NZCVM_SCHEMA = Schema(

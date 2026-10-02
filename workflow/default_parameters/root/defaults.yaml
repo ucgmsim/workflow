@@ -231,15 +231,10 @@ nzcvm:
 
       max_vp_vs_ratio: 4.0
       min_vp_vs_ratio: 1.73
-      provides: []
-      requires: []
       type: clamp
     - type: backus
       samples: 5
     - coastline: /nzcvm/resources/coastline.wkb.gz
-      provides:
-        - coastline
-      requires: []
       type: coastline
     - basin_depth:
         - bottom_depth: 0
@@ -487,21 +482,13 @@ nzcvm:
           rho: 3330.0
           vp: 8100.0
           vs: 4600.0
-      provides: []
-      requires:
-        - coastline
       type: offshore
     - depth_t: 450.0
-      provides: []
-      requires:
-        - coastline
       type: ely
       vs30: /nzcvm/resources/vs30.zarr
     - model_globs:
         - "*.zarr"
       model_path: /nzcvm/models
-      provides: []
-      requires: []
       type: query
 
 velocity_model:
