@@ -3,7 +3,7 @@ Generate a realisation from a GCMT solution.
 
 Description
 -----------
-This script generates a realisation from a GCMT solution by fetching the necessary data from the GeoNet and automated GCMT solutions, selecting the most likely nodal plane, and generating a rupture geometry using CCLDpy.
+This script generates a realisation from a GCMT solution by fetching the necessary data from the GeoNet and automated GCMT solutions, selecting the most likely nodal plane, classifying the tectonic type for the empirical ground motion models, and generating a rupture geometry using CCLDpy.
 
 Inputs
 ------
@@ -39,11 +39,12 @@ import typer
 
 from qcore import cli
 from qcore.uncertainties import distributions
-from source_modelling import community_fault_model, magnitude_scaling, moment, sources
+from source_modelling import focal_mechanism, magnitude_scaling, moment, sources
 from source_modelling.community_fault_model import NodalPlane
 from workflow import realisations
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import (
+    EmpiricalParameters,
     Magnitudes,
     Rakes,
     RealisationMetadata,
@@ -53,6 +54,12 @@ from workflow.realisations import (
 
 MOMENT_TENSOR_SOLUTION_URL = "https://raw.githubusercontent.com/GeoNet/data/main/moment-tensor/GeoNet_CMT_solutions.csv"
 NAN_PUBLIC_ID = "9999999"
+TECT_TYPES = {
+    focal_mechanism.TectonicType.CRUSTAL: "active_shallow",
+    focal_mechanism.TectonicType.INTERFACE: "subduction_interface",
+    focal_mechanism.TectonicType.SLAB: "subduction_slab",
+}
+"""The `oq_wrapper.constants.TectType` value for each tectonic type."""
 app = typer.Typer()
 
 
@@ -64,7 +71,7 @@ class NodalPlaneChoice(StrEnum):
     PLANE_2 = auto()
     """Second nodal plane."""
     MOST_LIKELY = auto()
-    """The most likely nodal plane estimated from the community fault model."""
+    """The most likely nodal plane estimated from the community fault model (see `source_modelling.focal_mechanism`)."""
 
 
 class SamplingStrategy(StrEnum):
@@ -199,7 +206,8 @@ def gcmt_to_realisation(
     magnitude = moment.moment_to_magnitude(
         moment.dyne_cm_to_newton_metre(solution_moment), bold_m=True
     )
-    model = community_fault_model.get_community_fault_model()
+    centroid = np.array([latitude, longitude, centroid_depth])
+    classifier = focal_mechanism.CMTClassifier.load()
 
     match nodal_plane:
         case NodalPlaneChoice.PLANE_1:
@@ -207,9 +215,14 @@ def gcmt_to_realisation(
         case NodalPlaneChoice.PLANE_2:
             selected_nodal_plane = nodal_plane_2
         case NodalPlaneChoice.MOST_LIKELY:
-            selected_nodal_plane = community_fault_model.most_likely_nodal_plane(
-                model, np.array([latitude, longitude]), nodal_plane_1, nodal_plane_2
+            selected_nodal_plane = classifier.most_likely_nodal_plane(
+                centroid, nodal_plane_1, nodal_plane_2
             )
+
+    empirical_parameters = EmpiricalParameters.read_from_defaults(defaults_version)
+    empirical_parameters.tect_type = TECT_TYPES[
+        classifier.tectonic_type(centroid, nodal_plane_1, nodal_plane_2)
+    ]
 
     # Calculate dip direction from strike (strike + 90 degrees for right-hand rule)
     dip_direction = (selected_nodal_plane.strike + 90) % 360
@@ -217,8 +230,6 @@ def gcmt_to_realisation(
     length, width = magnitude_scaling.magnitude_to_length_width(
         scaling_relation, magnitude, selected_nodal_plane.rake
     )
-
-    centroid = np.array([latitude, longitude, centroid_depth])
 
     # Create source based on source_type parameter
     if source_type == SourceType.POINT_SOURCE:
@@ -293,7 +304,14 @@ def gcmt_to_realisation(
 
     realisation_ffp.parent.mkdir(parents=True, exist_ok=True)
 
-    for config in [metadata, source_config, rupture_config, magnitudes, rakes]:
+    for config in [
+        metadata,
+        source_config,
+        rupture_config,
+        magnitudes,
+        rakes,
+        empirical_parameters,
+    ]:
         config.write_to_realisation(realisation_ffp)
 
     realisations.append_log_entry(realisation_ffp)
