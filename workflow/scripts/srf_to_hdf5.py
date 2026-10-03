@@ -7,7 +7,7 @@ Convert an SRF file into SW4's SRF-HDF5 source format. This is a thin wrapper ov
 
 Inputs
 ------
-An SRF file, for example one produced by `realisation-to-srf`.
+An SRF file, for example one produced by `rupture-generator generate`.
 
 Outputs
 -------
