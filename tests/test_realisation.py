@@ -1144,7 +1144,9 @@ def test_nzcvm_defaults_are_nzcvm_layers(
     # nzcvm derives: the defaults themselves must be configs nzcvm accepts.
     from nzcvm.config.layers import LayerConfig
 
-    for layer in defaults.load_defaults(defaults_version)["nzcvm"]["layers"]:
+    nzcvm_defaults = defaults.load_defaults(defaults_version)["nzcvm"]
+    assert isinstance(nzcvm_defaults, dict)
+    for layer in nzcvm_defaults["layers"]:
         LayerConfig.from_dict(layer)
 
 
