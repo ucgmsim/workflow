@@ -47,9 +47,9 @@ from workflow.realisations import (
     Magnitudes,
     Rakes,
     RealisationMetadata,
-    Refinements,
     SourceConfig,
     SW4Parameters,
+    SW4Resolution,
     VelocityModelParameters,
 )
 
@@ -625,13 +625,15 @@ def generate_domain_from_realisation(
         sw4_params = SW4Parameters.read_from_realisation_or_defaults(
             realisation_ffp, metadata.defaults_version
         )
-        refinements = Refinements.read_from_realisation_or_defaults(
+        resolution = SW4Resolution.read_from_realisation_or_defaults(
             realisation_ffp, metadata.defaults_version
         )
+        # SW4's coarsest spacing is only known once the velocity model is
+        # sampled, so check against the coarsest it may choose.
         sw4.check_fault_buffer(
             velocity_model_parameters.fault_buffer,
             sw4_params,
-            sw4.coarsest_resolution(refinements, domain_parameters.depth),
+            resolution.coarsest_resolution,
         )
 
     domain_parameters.write_to_realisation(realisation_ffp)

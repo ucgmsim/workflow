@@ -7,6 +7,10 @@ the source, the stations, and the commands in the realisation's `sw4` section.
 The requested domain becomes the grid's interior, padded laterally by one
 supergrid width on each side.
 
+SW4's refinements are sized from the Vs in the velocity model, to the targets
+in the realisation's `sw4_resolution` section. They are independent of the
+velocity model's own `refinements`, which only set how finely it is sampled.
+
 Inputs
 ------
 1. A realisation file containing domain parameters,
@@ -21,10 +25,14 @@ An SW4 input file.
 
 import copy
 import itertools
+import math
 import string
+from collections.abc import Iterator
 from pathlib import Path
 
 import h5py
+import numpy as np
+import numpy.typing as npt
 import typer
 from nzcvm.formats import sfile
 
@@ -34,9 +42,9 @@ from workflow.realisations import (
     DomainParameters,
     RealisationMetadata,
     Refinement,
-    Refinements,
     SW4Command,
     SW4Parameters,
+    SW4Resolution,
     VelocityModelParameters,
     find_command,
 )
@@ -46,6 +54,13 @@ app = typer.Typer()
 IMAGE_TIME_KEYS = frozenset({"time", "timeInterval", "cycle", "cycleInterval"})
 """Parameter keys that determine when an `imagehdf5` command fires. If none of
 these are set, SW4 never emits the image, so we default to the simulation end time."""
+
+PROFILE_READ_BYTES = 2**30
+"""Bytes of `Cs` and `Cp` read at once when profiling the velocity model."""
+
+PROFILE_BLOCK_ELEMENTS = 2**22
+"""Samples binned at once when profiling the velocity model. Binning holds
+about ten float64 temporaries per sample, so this is about 340 MB."""
 
 SW4_TEMPLATE = string.Template("""
 ${fileio}
@@ -70,12 +85,116 @@ def _azimuth_from_velocity_model(velocity_model: h5py.File) -> float:
     return float(azimuth)
 
 
-def _topography_height_from_velocity_model(
+def _model_bottom_from_velocity_model(velocity_model: h5py.File) -> float:
+    """Find the depth of the bottom of the velocity model, in metres."""
+    _, bottom = velocity_model.attrs[sfile.MIN_MAX_DEPTH_ATTR]
+    return float(bottom)
+
+
+def _row_blocks(n_rows: int, rows_per_block: int) -> Iterator[slice]:
+    """Split `range(n_rows)` into consecutive slices of at most `rows_per_block`."""
+    for start in range(0, n_rows, rows_per_block):
+        yield slice(start, min(start + rows_per_block, n_rows))
+
+
+def _elevation_range_from_velocity_model(
     velocity_model: h5py.File,
 ) -> tuple[float, float]:
-    """Extract the minimum topography height from a velocity model HDF5 file."""
-    global_min, zmax = velocity_model.attrs[sfile.MIN_MAX_DEPTH_ATTR]
-    return -float(global_min), float(zmax)
+    """Find the lowest and highest elevations of the model's top surface (m)."""
+    surface = velocity_model[sfile.SURFACE_GROUP]["z_values_0"]
+    rows_per_block = max(1, PROFILE_BLOCK_ELEMENTS // surface.shape[1])
+    # The sfile stores depths, positive down.
+    shallowest, deepest = math.inf, -math.inf
+    for rows in _row_blocks(surface.shape[0], rows_per_block):
+        block = surface[rows]
+        shallowest = min(shallowest, float(block.min()))
+        deepest = max(deepest, float(block.max()))
+    return -deepest, -shallowest
+
+
+def _decimated_rows(
+    surface: h5py.Dataset, shape: tuple[int, int], rows: slice
+) -> npt.NDArray[np.float64]:
+    """Read rows of a finer grid's surface, subsampled onto a coarser grid.
+
+    The two grids share their corners, as SW4 assumes of an sfile's interfaces
+    (`MaterialSfile.C`).
+    """
+    fine_i, fine_j = surface.shape
+    stride_i = (fine_i - 1) // max(shape[0] - 1, 1)
+    stride_j = (fine_j - 1) // max(shape[1] - 1, 1)
+    if (shape[0] - 1) * stride_i != fine_i - 1 or (
+        shape[1] - 1
+    ) * stride_j != fine_j - 1:
+        raise ValueError(
+            f"A {surface.shape} surface does not decimate onto a {shape} grid."
+        )
+    fine_rows = slice(rows.start * stride_i, (rows.stop - 1) * stride_i + 1, stride_i)
+    return np.asarray(surface[fine_rows, ::stride_j], dtype=np.float64)
+
+
+def _profile_read_rows(dataset: h5py.Dataset, budget_bytes: int) -> int:
+    """Choose how many rows of `Cs` and `Cp` to read together within a budget.
+
+    Rows are whole chunk rows where they fit, so no chunk is read twice. Where
+    one row of chunks is over budget, HDF5 still decompresses whole chunks, so
+    memory is then bounded by the chunk size.
+    """
+    ni, nj, nk = dataset.shape
+    row_bytes = 2 * nj * nk * dataset.dtype.itemsize
+    rows = max(1, budget_bytes // row_bytes)
+    if dataset.chunks is not None and dataset.chunks[0] <= rows:
+        rows -= rows % dataset.chunks[0]
+    return min(rows, ni)
+
+
+def _vs_profile_from_velocity_model(
+    velocity_model: h5py.File, topography_zmax: float, bin_size: float
+) -> sw4.VsProfile:
+    """Profile the model's slowest and fastest material by SW4 reference depth.
+
+    This reads the sfile as SW4 does (`MaterialSfile.C`), a block of rows at a
+    time, so it works for any sfile and for models larger than memory: `ngrids`
+    grids, each spanning `z_values_{g}` to `z_values_{g + 1}` with its vertical
+    points spaced evenly between them.
+    """
+    material = velocity_model[sfile.MATERIAL_GROUP]
+    interfaces = velocity_model[sfile.SURFACE_GROUP]
+    surface = interfaces["z_values_0"]
+    n_bins = math.ceil(_model_bottom_from_velocity_model(velocity_model) / bin_size) + 1
+
+    profile = sw4.VsProfile.empty(bin_size, n_bins)
+    for index in range(int(velocity_model.attrs[sfile.NGRIDS_ATTR])):
+        grid = material[f"grid_{index}"]
+        vs, vp = grid["Cs"], grid["Cp"]
+        ni, nj, nk = vs.shape
+        top_surface = interfaces[f"z_values_{index}"]
+        bottom_surface = interfaces[f"z_values_{index + 1}"]
+        fraction = np.linspace(0.0, 1.0, nk)
+
+        bin_rows = max(1, PROFILE_BLOCK_ELEMENTS // (nj * nk))
+        for read in _row_blocks(ni, _profile_read_rows(vs, PROFILE_READ_BYTES)):
+            vs_block, vp_block = vs[read], vp[read]
+            top = _decimated_rows(top_surface, (ni, nj), read)
+            bottom = np.asarray(bottom_surface[read], dtype=np.float64)
+            tau = _decimated_rows(surface, (ni, nj), read)
+            for rows in _row_blocks(read.stop - read.start, bin_rows):
+                z = (
+                    top[rows, :, None]
+                    + fraction * (bottom[rows] - top[rows])[..., None]
+                )
+                partial = sw4.vs_profile(
+                    z,
+                    tau[rows, :, None],
+                    vs_block[rows],
+                    vp_block[rows],
+                    topography_zmax,
+                    bin_size,
+                    n_bins,
+                )
+                profile = profile.merge(partial)
+
+    return profile
 
 
 def _lateral_footprint_from_velocity_model(
@@ -299,9 +418,6 @@ def generate_sw4_input(
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
-    theoretical_refinements = Refinements.read_from_realisation_or_defaults(
-        realisation_ffp, metadata.defaults_version
-    )
     sw4_params = SW4Parameters.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
@@ -310,30 +426,59 @@ def generate_sw4_input(
             realisation_ffp, metadata.defaults_version
         )
     )
+    resolution = SW4Resolution.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
     logger = log_utils.get_logger(__name__)
+
+    depth = domain_parameters.depth
+    time = domain_parameters.duration
 
     with h5py.File(velocity_model, "r") as f:
         # The grid azimuth must match the velocity model's azimuth inside SW4.
         azimuth = _azimuth_from_velocity_model(f)
-        topography_height, sfile_zmax = _topography_height_from_velocity_model(f)
+        sfile_zmax = _model_bottom_from_velocity_model(f)
         sfile_x, sfile_y = _lateral_footprint_from_velocity_model(f)
+        elevation_min, elevation_max = _elevation_range_from_velocity_model(f)
+        topography_zmax = sw4.topography_zmax(elevation_min, elevation_max)
 
-    # HACK: The SW4 User Guide (Chapter 5) suggests
-    # z_max >= -e_min + 3 (e_max - e_min), where e_min and e_max are the minimum
-    # and maximum topography levels of the velocity model. We assume that the
-    # minimum elevation is zero (i.e. every simulation contains ocean, and there
-    # is no ocean bathymetry).
-    topography_zmax = 3 * topography_height
+        # NOTE: `_adjust_for_topography` can only deepen `topography_zmax`,
+        # which lessens the curvilinear stretch, so profiling against this
+        # shallower one is conservative.
+        profile = _vs_profile_from_velocity_model(
+            f, topography_zmax, bin_size=resolution.finest_resolution
+        )
 
-    depth = domain_parameters.depth
-    time = domain_parameters.duration
-    refinements = theoretical_refinements.refinements_for_depth(depth)
+    refinements = sw4.size_refinements(
+        profile, resolution, depth * 1000.0, nz_min=sw4_params.nz_min
+    )
 
     refinements, topography_zmax = _adjust_for_topography(
         refinements, topography_zmax, nzmin=sw4_params.nz_min
     )
-    refinements = sorted(refinements, key=lambda r: r.bottom)
     coarsest_resolution = refinements[-1].resolution
+
+    developer = find_command(sw4_params.commands, "developer")
+    cfl = developer.parameters.get("cfl") if developer is not None else None
+    cfl = sw4.SW4_DEFAULT_CFL if cfl is None else float(cfl)
+    logger.info(
+        "SW4 refinements sized from the velocity model",
+        topography_zmax_m=topography_zmax,
+        elevation_range_m=(elevation_min, elevation_max),
+        layers=[
+            {
+                "resolution_m": refinement.resolution,
+                "bottom_m": refinement.bottom,
+                "ppw": ppw,
+                "time_step_s": time_step,
+            }
+            for refinement, ppw, time_step in zip(
+                refinements,
+                sw4.layer_ppw(profile, refinements, resolution.max_frequency),
+                sw4.layer_time_steps(profile, refinements, cfl),
+            )
+        ],
+    )
     supergrid_width = sw4.supergrid_width(sw4_params, coarsest_resolution)
 
     sw4.check_fault_buffer(
@@ -403,10 +548,9 @@ def generate_sw4_input(
 
     velocity_model_directory = velocity_model.parent
     velocity_model_name = velocity_model.name
-    # Either the minimum-gridpoint adjustment in `refinements_for_depth` or the
-    # topography-following adjustment in `_adjust_for_topography` can push the
-    # bottom refinement deeper, increasing the total depth of the model. Here we
-    # account for that by updating `depth` to reflect this change.
+    # The topography-following adjustment in `_adjust_for_topography` can push
+    # the bottom refinement deeper, increasing the total depth of the model. Here
+    # we account for that by updating `depth` to reflect this change.
     depth = max(depth, refinements[-1].bottom / 1000.0)
     grid_command, other_commands = _build_sw4_commands(
         sw4_params,
