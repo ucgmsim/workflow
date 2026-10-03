@@ -1,6 +1,7 @@
 # NOTE: this fix contains tests that mirror the Realisations wiki. If
 # these tests fail, you should update the wiki if necesary to ensure
 # it stays consistent with the codebase.
+import dataclasses
 import json
 import struct
 from datetime import UTC, datetime
@@ -1126,6 +1127,56 @@ def test_defaults_are_loadable(
             realisation_config.read_from_defaults(defaults_version)
     else:
         realisation_config.read_from_defaults(defaults_version)
+
+
+NZCVM_DEFAULTS_VERSIONS = [
+    version
+    for version in defaults.DefaultsVersion
+    if "nzcvm" in defaults.load_defaults(version)
+]
+
+
+@pytest.mark.parametrize("defaults_version", NZCVM_DEFAULTS_VERSIONS)
+def test_nzcvm_defaults_are_nzcvm_layers(
+    defaults_version: defaults.DefaultsVersion,
+) -> None:
+    # Straight through nzcvm, not NZCVMSettings, which tolerates the fields
+    # nzcvm derives: the defaults themselves must be configs nzcvm accepts.
+    from nzcvm.config.layers import LayerConfig
+
+    for layer in defaults.load_defaults(defaults_version)["nzcvm"]["layers"]:
+        LayerConfig.from_dict(layer)
+
+
+@pytest.mark.parametrize("defaults_version", NZCVM_DEFAULTS_VERSIONS)
+def test_nzcvm_settings_round_trip(
+    tmp_path: Path, defaults_version: defaults.DefaultsVersion
+) -> None:
+    settings = realisations.NZCVMSettings.read_from_defaults(defaults_version)
+    realisation_ffp = tmp_path / "realisation.json"
+    settings.write_to_realisation(realisation_ffp)
+
+    written = json.loads(realisation_ffp.read_text())["nzcvm"]
+    for layer in written["layers"]:
+        assert "provides" not in layer and "requires" not in layer
+    assert realisations.NZCVMSettings.read_from_realisation(realisation_ffp) == settings
+
+
+@pytest.mark.parametrize("defaults_version", NZCVM_DEFAULTS_VERSIONS)
+def test_nzcvm_settings_read_derived_layer_fields(
+    tmp_path: Path, defaults_version: defaults.DefaultsVersion
+) -> None:
+    # Realisations written before nzcvm 2026.10.1 carry every layer's
+    # `provides` and `requires`, as `dataclasses.asdict` wrote them.
+    settings = realisations.NZCVMSettings.read_from_defaults(defaults_version)
+    realisation_ffp = tmp_path / "realisation.json"
+    realisation_ffp.write_text(
+        json.dumps(
+            {"nzcvm": dataclasses.asdict(settings)},
+            default=realisations.path_serialiser,
+        )
+    )
+    assert realisations.NZCVMSettings.read_from_realisation(realisation_ffp) == settings
 
 
 def test_velocity_model_column_order(tmp_path: Path) -> None:
