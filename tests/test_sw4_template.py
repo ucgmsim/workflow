@@ -13,8 +13,8 @@ import numpy as np
 import pytest
 from nzcvm.formats import sfile
 
-from velocity_modelling.bounding_box import BoundingBox
 from workflow import defaults, sw4
+from workflow.bounding_box import BoundingBox
 from workflow.realisations import DomainParameters, RealisationMetadata, Refinements
 from workflow.scripts import sw4_template
 

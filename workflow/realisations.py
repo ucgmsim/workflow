@@ -31,8 +31,8 @@ from source_modelling import moment, sources
 from source_modelling.magnitude_scaling import BoldM
 from source_modelling.rupture_propagation import JumpPair
 from source_modelling.sources import IsSource
-from velocity_modelling.bounding_box import BoundingBox
 from workflow import defaults, schemas
+from workflow.bounding_box import BoundingBox
 from workflow.defaults import DefaultsVersion
 
 if TYPE_CHECKING:
