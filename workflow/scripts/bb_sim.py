@@ -45,7 +45,7 @@ import scipy as sp
 import typer
 import xarray as xr
 
-from qcore import cli, timeseries
+from qcore import cli
 from site_calculation import amplification
 from workflow import log_utils, realisations, sw4
 from workflow.realisations import BroadbandParameters, RealisationMetadata
@@ -185,9 +185,9 @@ def _broadband_component(
     hf = amplification.amplify_waveform(component["hf"].values, amp, n_fft)
     lf = component["lf"].values
     if filter_legs in (FilterLeg.HF, FilterLeg.BOTH):
-        hf = timeseries.bwfilter(hf, dt, config.flo, timeseries.Band.HIGHPASS)
+        hf = amplification.bwfilter(hf, dt, config.flo, amplification.Band.HIGHPASS)
     if filter_legs in (FilterLeg.LF, FilterLeg.BOTH):
-        lf = timeseries.bwfilter(lf, dt, config.flo, timeseries.Band.LOWPASS)
+        lf = amplification.bwfilter(lf, dt, config.flo, amplification.Band.LOWPASS)
     bb = component["lf"].copy(data=((hf + lf) * G).astype(np.float32))
     return bb.to_dataset(name="waveform")
 
