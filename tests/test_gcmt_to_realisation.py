@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from source_modelling import sources
+from source_modelling import focal_mechanism, sources
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import EmpiricalParameters, Rakes, SourceConfig
 from workflow.scripts import gcmt_to_realisation
@@ -76,3 +76,21 @@ def test_gcmt_to_realisation_most_likely_nodal_plane(tmp_path: Path) -> None:
     assert plane.strike == pytest.approx(20.0, abs=0.5)
     assert plane.dip == pytest.approx(35.0, abs=0.5)
     assert Rakes.read_from_realisation(realisation_ffp).rakes["2103645"] == 79.0
+
+
+def test_gcmt_to_realisation_tectonic_type_override(tmp_path: Path) -> None:
+    solutions_ffp = tmp_path / "solutions.csv"
+    SOLUTIONS.to_csv(solutions_ffp, index=False)
+    realisation_ffp = tmp_path / "realisation.json"
+
+    gcmt_to_realisation.gcmt_to_realisation(
+        "2103645",
+        DefaultsVersion.v24_2_2_1,
+        realisation_ffp,
+        gcmt_to_realisation.SourceType.FINITE_FAULT,
+        tectonic_type=focal_mechanism.TectonicType.CRUSTAL,
+        solution_origin=solutions_ffp,
+    )
+
+    empirical = EmpiricalParameters.read_from_realisation(realisation_ffp)
+    assert empirical.tect_type == "active_shallow"
