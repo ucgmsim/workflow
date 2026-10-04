@@ -34,13 +34,14 @@ workflow stages, their inputs, outputs and environments.
 
 ```mermaid
 flowchart LR
-    A[NSHM To Realisation] --> B[SRF Generation]
+    A[NSHM To Realisation] --> B[Rupture Generator Input]
+    B --> B2[Rupture Generation]
     A --> C[Domain Generation]
-    B --> D[Stoch Generation]
+    B2 --> D[Stoch Generation]
     C --> E[Velocity Model Generation]
     C --> F[Station Selection]
     C --> G[Write Model Coordinates]
-    B --> H[Create EMOD3D Parameters]
+    B2 --> H[Create EMOD3D Parameters]
     E --> H
     F --> H
     G --> H
@@ -61,7 +62,8 @@ To find the documentation for a given stage, find the module that runs this stag
 | Stage                         | Module                                                |
 |:------------------------------|:------------------------------------------------------|
 | NSHM to Realisation           | `workflow.scripts.nshm2022_to_realisation`            |
-| SRF Generation                | `workflow.scripts.realisation_to_srf`                 |
+| Rupture Generator Input       | `workflow.scripts.rupture_input_template`             |
+| Rupture Generation            | See below.                                            |
 | Domain Generation             | `workflow.scripts.generate_velocity_model_parameters` |
 | Stoch Generation              | `workflow.scripts.generate_stoch`                     |
 | Velocity Model Generation     | `workflow.scripts.generate_velocity_model`            |
