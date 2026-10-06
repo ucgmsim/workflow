@@ -1022,6 +1022,26 @@ class NZCVMSettings(RealisationConfiguration):
     surface: Path
     """nzcvm DEM surface"""
 
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the settings to a dictionary representation.
+
+        Each layer is serialised by nzcvm itself, which leaves out the fields
+        it derives from the layer type (`provides` and `requires`). nzcvm
+        rejects those as input, so `dataclasses.asdict`, which writes every
+        field, would write a realisation nzcvm cannot read back.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the settings.
+        """
+        return {
+            "layers": [layer.to_dict() for layer in self.layers],
+            "chunks": dict(self.chunks),
+            "surface": self.surface,
+        }
+
 
 @dataclasses.dataclass
 class VelocityModelParameters(RealisationConfiguration):
