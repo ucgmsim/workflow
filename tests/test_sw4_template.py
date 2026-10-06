@@ -21,6 +21,13 @@ from workflow.scripts import sw4_template
 SPONGE_KM = 12.0
 """The v26_7_1Hz sponge width, in kilometres."""
 
+SW4_VERSIONS = [
+    defaults.DefaultsVersion.v26_7_0_25Hz,
+    defaults.DefaultsVersion.v26_7_0_5Hz,
+    defaults.DefaultsVersion.v26_7_1Hz,
+]
+"""The defaults versions configured for SW4."""
+
 
 @pytest.fixture
 def domain() -> BoundingBox:
@@ -90,6 +97,7 @@ def render(
     depth_km: float,
     sfile_shape: tuple[int, int] = (121, 121),
     topography_height: float = 500.0,
+    defaults_version: defaults.DefaultsVersion = defaults.DefaultsVersion.v26_7_1Hz,
 ) -> dict[str, list[dict[str, str]]]:
     """Run `generate_sw4_input` and parse the SW4 file it writes.
 
@@ -105,6 +113,8 @@ def render(
         The (north, east) gridpoint counts of the velocity model at 400 m.
     topography_height : float
         The highest topography in the velocity model, in metres.
+    defaults_version : DefaultsVersion
+        The defaults the realisation takes its SW4 configuration from.
 
     Returns
     -------
@@ -113,7 +123,7 @@ def render(
     """
     realisation = tmp_path / "realisation.json"
     RealisationMetadata(
-        name="test", version="1", defaults_version=defaults.DefaultsVersion.v26_7_1Hz
+        name="test", version="1", defaults_version=defaults_version
     ).write_to_realisation(realisation)
     DomainParameters(domain=domain, depth=depth_km, duration=10.0).write_to_realisation(
         realisation
@@ -161,9 +171,13 @@ def test_bottom_refinement_holds_the_sponge(
     assert float(grid["z"]) == pytest.approx((depth_km + SPONGE_KM) * 1000.0)
 
 
+@pytest.mark.parametrize("defaults_version", SW4_VERSIONS)
 @pytest.mark.parametrize("depth_km", [10.0, 30.0, 60.0, 120.0, 350.0])
 def test_grid_spacing_is_the_theoretical_coarsest(
-    tmp_path: Path, domain: BoundingBox, depth_km: float
+    tmp_path: Path,
+    domain: BoundingBox,
+    depth_km: float,
+    defaults_version: defaults.DefaultsVersion,
 ) -> None:
     """The grid spacing can be read from the theoretical refinements.
 
@@ -171,9 +185,11 @@ def test_grid_spacing_is_the_theoretical_coarsest(
     while `create-nzvm-input` reads it from the theoretical ones. That only
     agrees because topography adjustment moves bottoms, never resolutions.
     """
-    theoretical = Refinements.read_from_defaults(defaults.DefaultsVersion.v26_7_1Hz)
+    theoretical = Refinements.read_from_defaults(defaults_version)
 
-    (grid,) = render(tmp_path, domain, depth_km)["grid"]
+    (grid,) = render(tmp_path, domain, depth_km, defaults_version=defaults_version)[
+        "grid"
+    ]
 
     assert float(grid["h"]) == sw4.coarsest_resolution(theoretical, depth_km)
 

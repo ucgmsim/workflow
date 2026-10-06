@@ -16,6 +16,13 @@ from workflow.realisations import (
 DEEPEST_SUPPORTED_DOMAIN_KM = 350.0
 """The deepest domain any realisation can ask for."""
 
+SW4_VERSIONS = [
+    defaults.DefaultsVersion.v26_7_0_25Hz,
+    defaults.DefaultsVersion.v26_7_0_5Hz,
+    defaults.DefaultsVersion.v26_7_1Hz,
+]
+"""The defaults versions configured for SW4."""
+
 
 def sw4_parameters(**supergrid_parameters: float) -> SW4Parameters:
     """Build minimal SW4 parameters, with a `supergrid` command if given parameters."""
@@ -66,9 +73,25 @@ def test_coarsest_resolution_is_the_bottom_refinement() -> None:
     assert sw4.coarsest_resolution(refinements, DEEPEST_SUPPORTED_DOMAIN_KM) == 400.0
 
 
-def test_default_fault_buffer_is_the_derived_minimum() -> None:
+def test_lower_frequency_coarsest_resolution_matches_1hz() -> None:
+    """The lower-frequency versions share 26.7.1Hz's coarsest grid, so a domain
+    sized for one clears the sponge in all of them."""
+    for version in SW4_VERSIONS:
+        refinements = Refinements.read_from_defaults(version)
+        assert (
+            sw4.coarsest_resolution(refinements, DEEPEST_SUPPORTED_DOMAIN_KM) == 400.0
+        )
+    lower = Refinements.read_from_defaults(defaults.DefaultsVersion.v26_7_0_25Hz)
+    assert sw4.coarsest_resolution(lower, 3.0) == 400.0
+    half = Refinements.read_from_defaults(defaults.DefaultsVersion.v26_7_0_5Hz)
+    assert sw4.coarsest_resolution(half, 3.0) == 200.0
+
+
+@pytest.mark.parametrize("version", SW4_VERSIONS)
+def test_default_fault_buffer_is_the_derived_minimum(
+    version: defaults.DefaultsVersion,
+) -> None:
     """The default `fault_buffer` matches the minimum for the deepest domain."""
-    version = defaults.DefaultsVersion.v26_7_1Hz
     sw4_params = SW4Parameters.read_from_defaults(version)
     refinements = Refinements.read_from_defaults(version)
     velocity_model = VelocityModelParameters.read_from_defaults(version)
@@ -81,19 +104,17 @@ def test_default_fault_buffer_is_the_derived_minimum() -> None:
 
 @pytest.mark.parametrize(
     "version",
-    [
-        version
-        for version in defaults.DefaultsVersion
-        if version != defaults.DefaultsVersion.v26_7_1Hz
-    ],
+    [version for version in defaults.DefaultsVersion if version not in SW4_VERSIONS],
 )
 def test_root_fault_buffer_is_left_alone(version: defaults.DefaultsVersion) -> None:
     assert VelocityModelParameters.read_from_defaults(version).fault_buffer == 2.0
 
 
-def test_default_prefilter_matches_hf_highpass() -> None:
+@pytest.mark.parametrize("version", SW4_VERSIONS)
+def test_default_prefilter_matches_hf_highpass(
+    version: defaults.DefaultsVersion,
+) -> None:
     """The LF prefilter and the HF highpass are a matched pair at `flo`."""
-    version = defaults.DefaultsVersion.v26_7_1Hz
     prefilter = find_command(
         SW4Parameters.read_from_defaults(version).commands, "prefilter"
     )
