@@ -1,0 +1,2 @@
+PublicID,Date,Latitude,Longitude,strike1,dip1,rake1,strike2,dip2,rake2,ML,Mw,Mo,CD,NS,DC,Mxx,Mxy,Mxz,Myy,Myz,Mzz,VR,Tva,Tpl,Taz,Nva,Npl,Naz,Pva,Ppl,Paz
+e2esmoke,20260101000000,-43.6,172.25,60,70,170,153.5,80.6,20.3,4.3,4.3,3.16e+22,5,6,100,0,0,0,0,0,0,80,0,0,0,0,0,0,0,0,0
