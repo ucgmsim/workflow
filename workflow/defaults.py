@@ -17,6 +17,8 @@ class DefaultsVersion(StrEnum):
     v24_2_2_1 = "24.2.2.1"
     v24_2_2_2 = "24.2.2.2"
     v24_2_2_4 = "24.2.2.4"
+    v26_7_0_25Hz = "26.7.0.25Hz"  # noqa: N815 - mirrors the version string
+    v26_7_0_5Hz = "26.7.0.5Hz"  # noqa: N815 - mirrors the version string
     v26_7_1Hz = "26.7.1Hz"  # noqa: N815 - mirrors the version string
 
 
