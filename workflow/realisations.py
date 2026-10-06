@@ -993,6 +993,55 @@ class Refinements(RealisationConfiguration):
 
 
 @dataclasses.dataclass
+class SW4Resolution(RealisationConfiguration):
+    """How SW4's own mesh refinements are sized from the velocity model.
+
+    SW4's grid is independent of the velocity model grid for computational
+    efficiency reasons. The top layer is always `finest_resolution`, and each
+    coarser layer (twice the spacing of the one above it) starts at the
+    shallowest depth below which it keeps `minimum_ppw` points per shortest S
+    wavelength at `max_frequency`.
+    """
+
+    _config_key: ClassVar[str] = "sw4_resolution"
+    _schema: ClassVar[Schema] = schemas.SW4_RESOLUTION_SCHEMA
+
+    finest_resolution: float
+    """Grid spacing of the top layer (metres). Its points per wavelength are
+    whatever the slowest surface material gives, and are reported, not
+    enforced."""
+    coarsest_resolution: float
+    """Largest grid spacing allowed (metres). A power-of-two multiple of
+    `finest_resolution`."""
+    minimum_ppw: float
+    """Points per shortest S wavelength every coarser layer must keep."""
+    max_frequency: float
+    """The frequency the points per wavelength are measured at (Hz)."""
+
+    def __post_init__(self) -> None:
+        """Check that the coarsest resolution is reachable by halving.
+
+        Raises
+        ------
+        ValueError
+            If `coarsest_resolution / finest_resolution` is not a power of two.
+        """
+        ratio = self.coarsest_resolution / self.finest_resolution
+        if ratio < 1 or not float(np.log2(ratio)).is_integer():
+            raise ValueError(
+                f"The coarsest SW4 resolution ({self.coarsest_resolution} m) must "
+                "be a power-of-two multiple of the finest "
+                f"({self.finest_resolution} m), as SW4 refines by 2:1."
+            )
+
+    @property
+    def resolutions(self) -> list[float]:
+        """list of float: Every grid spacing from finest to coarsest (metres)."""
+        levels = round(np.log2(self.coarsest_resolution / self.finest_resolution))
+        return [self.finest_resolution * 2**level for level in range(levels + 1)]
+
+
+@dataclasses.dataclass
 class NZCVMSettings(RealisationConfiguration):
     """Settings for generating a velocity model with NZCVM."""
 
