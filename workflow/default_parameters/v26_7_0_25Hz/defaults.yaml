@@ -1,9 +1,9 @@
 ---
-# The 1 Hz defaults (26.7.1Hz) at a quarter of the frequency: the same domain,
-# source and physics on a single 400 m grid (the 1 Hz run's points per
+# The 1 Hz defaults (26.7.1Hz) at a quarter of the frequency: the same source
+# and physics on a single 400 m grid (the 1 Hz run's points per
 # wavelength at the surface), at a thirtieth or so of the cost. A quick look at
-# an event; the coarsest grid matches 26.7.1Hz's, so the two share a domain
-# and `fault_buffer`.
+# an event. The coarsest grid matches 26.7.1Hz's, so the sponge and the
+# minimum `fault_buffer` are the same.
 bb:
   flo: 0.25
 velocity_model:
