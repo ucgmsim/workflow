@@ -576,7 +576,7 @@ def generate_fault_srf(
         except subprocess.CalledProcessError as e:
             logger.error(
                 "failed",
-                exception=e.output.decode("utf-8"),
+                exception=e.output.decode("utf-8") if e.output else None,
                 code=e.returncode,
                 stderr=e.stderr.decode("utf-8"),
             )
@@ -771,7 +771,7 @@ def generate_point_source_srf(
     except subprocess.CalledProcessError as e:
         logger.error(
             "failed",
-            exception=e.output.decode("utf-8"),
+            exception=e.output.decode("utf-8") if e.output else None,
             code=e.returncode,
             stderr=e.stderr.decode("utf-8"),
         )
