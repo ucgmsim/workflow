@@ -189,3 +189,6 @@ devenv.local.nix
 
 # pre-commit
 .pre-commit-config.yaml
+
+# Generated from uv.lock by the container workflow.
+container/constraints.txt

@@ -1,0 +1,140 @@
+name: E2E smoke test
+
+# Runs tests/e2e/test_pipeline.py: every stage of the SW4 workflow, from a
+# GCMT solution to intensity measures, on a tiny problem (see the test's
+# docstring). It checks that the stages still fit together on a given set of
+# dependency versions:
+#
+#   locked  uv.lock, which the release container is built from. Runs on every
+#           PR and push, so a change here that breaks the chain fails its PR.
+#   latest  The newest releases of everything on PyPI (`uv lock --upgrade`),
+#           which the next `uv lock` will pick up.
+#   heads   The ucgmsim packages at the branch heads that
+#           realtime_simulation_workflow builds its weekly container from.
+#
+# latest and heads run nightly, and open (or comment on) an issue when they
+# fail, so a dependency update that would break a simulation shows up before
+# a simulation runs on it.
+#
+# genslip and generic_slip2srf come from EMOD3D, a private repository, so the
+# workflow needs a token that can read it in the EMOD3D_TOKEN secret.
+
+on:
+  pull_request:
+  push:
+    branches: [pegasus]
+  schedule:
+    - cron: "0 14 * * *" # 02:00-03:00 in New Zealand.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        deps: ${{ fromJSON(contains(fromJSON('["schedule", "workflow_dispatch"]'), github.event_name) && '["locked", "latest", "heads"]' || '["locked"]') }}
+    name: e2e (${{ matrix.deps }})
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake gfortran pkg-config libfftw3-dev libopenmpi-dev openmpi-bin \
+            gmt libgmt-dev ghostscript
+
+      - name: Checkout EMOD3D
+        uses: actions/checkout@v4
+        with:
+          repository: ucgmsim/EMOD3D
+          token: ${{ secrets.EMOD3D_TOKEN }}
+          path: EMOD3D
+
+      - name: Cache EMOD3D tools
+        id: emod3d-cache
+        uses: actions/cache@v4
+        with:
+          path: EMOD3D/tools
+          key: emod3d-${{ runner.os }}-${{ hashFiles('EMOD3D/**/*.c', 'EMOD3D/**/*.f', 'EMOD3D/**/CMakeLists.txt') }}
+
+      # The same targets and flags as container/runner.def.
+      - name: Build genslip and generic_slip2srf
+        if: steps.emod3d-cache.outputs.cache-hit != 'true'
+        working-directory: EMOD3D
+        run: |
+          cmake -B build -DHF_TIME_WINDOW=off -DUSE_FFTW=on \
+            -DCMAKE_C_FLAGS="-march=x86-64 -mtune=generic -std=gnu89" .
+          cmake --build build -j "$(nproc)" --target genslip_v5.6.2 generic_slip2srf
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install dependencies (locked)
+        if: matrix.deps == 'locked'
+        run: uv sync --frozen --extra test
+
+      - name: Install dependencies (latest)
+        if: matrix.deps == 'latest'
+        run: |
+          uv lock --upgrade
+          uv sync --extra test
+
+      # Kept in step with UCGMSIM_PACKAGES in realtime_simulation_workflow's flow.cylc.
+      - name: Install dependencies (heads)
+        if: matrix.deps == 'heads'
+        run: |
+          uv sync --frozen --extra test
+          uv pip install \
+            "qcore-utils[cli] @ git+https://github.com/ucgmsim/qcore.git@master" \
+            "source-modelling @ git+https://github.com/ucgmsim/source_modelling.git@main" \
+            "velocity-modelling @ git+https://github.com/ucgmsim/velocity_modelling.git@main" \
+            "nzcvm @ git+https://github.com/ucgmsim/nzcvm.git@master" \
+            "nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB.git@main" \
+            "oq-wrapper @ git+https://github.com/ucgmsim/Empirical_Engine.git@master" \
+            "im-calculation @ git+https://github.com/ucgmsim/IM_calculation.git@master" \
+            "hf-simulation @ git+https://github.com/ucgmsim/high-frequency.git@master" \
+            "site-calculation @ git+https://github.com/ucgmsim/site_calculation.git@master" \
+            "pygmt-helper @ git+https://github.com/ucgmsim/pygmt_helper.git@main"
+
+      - name: Record dependency versions
+        run: uv pip list | tee dependency-versions.txt
+
+      - name: Run the smoke test
+        env:
+          WORKFLOW_E2E: "1"
+          GENSLIP: ${{ github.workspace }}/EMOD3D/tools/genslip_v5.6.2
+          GENERIC_SLIP2SRF: ${{ github.workspace }}/EMOD3D/tools/generic_slip2srf
+        run: uv run --no-sync pytest tests/e2e -v --basetemp="$RUNNER_TEMP/e2e"
+
+      - name: Upload run directory
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ matrix.deps }}
+          path: |
+            ${{ runner.temp }}/e2e
+            dependency-versions.txt
+          retention-days: 14
+
+      - name: Report a nightly failure
+        if: failure() && github.event_name == 'schedule' && matrix.deps != 'locked'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: "E2E smoke test fails on ${{ matrix.deps }} dependencies"
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          body="The nightly smoke test failed against the ${{ matrix.deps }} dependency set: $RUN_URL"
+          issue=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number')
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --body "$body"
+          else
+            gh issue create --title "$TITLE" --body "$body"
+          fi
