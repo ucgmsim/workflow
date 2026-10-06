@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.13"
 resolution-markers = [
     "(python_full_version >= '3.15' and platform_machine != 'ARM64') or (python_full_version >= '3.15' and sys_platform != 'win32')",
@@ -3119,35 +3119,36 @@ wheels = [
 
 [[package]]
 name = "source-modelling"
-version = "2026.9.1"
+version = "2026.10.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "geopandas" },
+    { name = "h5netcdf" },
     { name = "h5py" },
     { name = "networkx" },
     { name = "numba" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "parse" },
+    { name = "pyproj" },
     { name = "qcore-utils" },
     { name = "scipy" },
     { name = "shapely" },
-    { name = "xarray", extra = ["io"] },
+    { name = "xarray" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8e/81/0c7bd9824f283fcc602946707a91afd9cea28287cdc682e8fc13b5369b26/source_modelling-2026.9.1.tar.gz", hash = "sha256:15ac52923f0ddceeea9d50d2287c6953eda93eb37190fe4ffa4c4690a9b8e581", size = 357843, upload-time = "2026-09-23T03:35:39.888Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/85/39/3fbd0652f1d100ed338d49bc84f6b77cb5504b2a711379a4463ac0598e0c/source_modelling-2026.10.2.tar.gz", hash = "sha256:61d9fce9dfd43dcd9afd7423f22645654fbf62a3fc635da274707447a5630c25", size = 914935, upload-time = "2026-10-06T00:47:39.342Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/52/7e/cecb2d74d472aeac04a4bcbea7a67ea587a9bfaa91005bc4e9e3c34230c1/source_modelling-2026.9.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:fd5c21bdbd4d3430c42f4269f38cb1bae54ebf38f09abe6c9a9c354727ca65a3", size = 551260, upload-time = "2026-09-23T03:35:24.201Z" },
-    { url = "https://files.pythonhosted.org/packages/22/54/da792f6c2c651e5bc1ab6a9dbc5e22a667e492ac27376928f5785c9ce022/source_modelling-2026.9.1-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:98b8de45fc5b2c4b53fca9a39567a5f443e49f9c68f0957e7f2bbae13ade6d17", size = 560528, upload-time = "2026-09-23T03:35:25.502Z" },
-    { url = "https://files.pythonhosted.org/packages/d5/43/9fbf855e173ddea42ff878719c7e7b6bed252f25d9b92933cde399d51017/source_modelling-2026.9.1-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:9e7d4928998c0138bdccc738c16617b98d85be92f2ee3bfa9b4381720f5e5533", size = 585862, upload-time = "2026-09-23T03:35:26.77Z" },
-    { url = "https://files.pythonhosted.org/packages/65/d0/10a5c6e6f806048bdf67898894d02b929827e8e69a6d321bb9e527cdf9c1/source_modelling-2026.9.1-cp313-cp313-win_amd64.whl", hash = "sha256:92f718ef89378107231a429743145c727ca46f9887513150a106a059d6d40fe6", size = 461657, upload-time = "2026-09-23T03:35:27.984Z" },
-    { url = "https://files.pythonhosted.org/packages/e7/ac/688bd4e0d562439c56183253923dbcf5cc959f3d65d4a02bfb71e564fa81/source_modelling-2026.9.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:398f176fee45b4ef7966197c9cb03249e53d623dd315bc458a982c24bde06521", size = 550932, upload-time = "2026-09-23T03:35:29.176Z" },
-    { url = "https://files.pythonhosted.org/packages/dc/02/ce9b730215c5681c49e9166ee0815be9e61cb6719ab91534158c7201aa6d/source_modelling-2026.9.1-cp314-cp314-macosx_11_0_x86_64.whl", hash = "sha256:7080c5132eb297918388d6b629ef80f81e0a29c5085b557ca70f640e21e84e86", size = 560411, upload-time = "2026-09-23T03:35:30.406Z" },
-    { url = "https://files.pythonhosted.org/packages/d0/1c/871f77cb55dbabe7a541c49ad99574463c222418092483e4072465abc2f2/source_modelling-2026.9.1-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:912125c0e8a623ea31e5325234892b74b99f405a6dd39dc2a50a768aa55b1c1d", size = 585703, upload-time = "2026-09-23T03:35:32.048Z" },
-    { url = "https://files.pythonhosted.org/packages/74/45/6ccaf697b8cffed8d24cc0d6454dad658aaecb9374e8f6685ea47f0c332a/source_modelling-2026.9.1-cp314-cp314-win_amd64.whl", hash = "sha256:ce7bc1f7f9cd179cb4db2cbef5c67ae6e7cb233a9a66baad580bcb40ed09417c", size = 465645, upload-time = "2026-09-23T03:35:33.412Z" },
-    { url = "https://files.pythonhosted.org/packages/87/ce/5e473d3541f8d356322cdbdd901b0ab27177be6f1d664a152e259d0c681e/source_modelling-2026.9.1-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:a263943e5803ca2678a7532de2dea162022cf9ecf208aff797db4589b5364e64", size = 547831, upload-time = "2026-09-23T03:35:34.746Z" },
-    { url = "https://files.pythonhosted.org/packages/05/90/39ac2df60e3ce85089d7947e1bf8bec2840798b89b492ce42dc06e89053d/source_modelling-2026.9.1-cp314-cp314t-macosx_11_0_x86_64.whl", hash = "sha256:0792c672f1f1766d6d84d90516be2cefe26d3239fc3c81c5895406e164c03b0c", size = 558007, upload-time = "2026-09-23T03:35:36.017Z" },
-    { url = "https://files.pythonhosted.org/packages/35/bd/1131a031fb56523a2ea980e455f8461b14ab44e8b7f11a75afb4af40514d/source_modelling-2026.9.1-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:18628ebf548d2b1acfc82544a24226581bd1cf6b677bc0e48b9734edc2c17a58", size = 584170, upload-time = "2026-09-23T03:35:37.265Z" },
-    { url = "https://files.pythonhosted.org/packages/c1/44/5d5afb33f60eae6f6d88b144a195539c9f7c578ff16ee44473f02bf0cccb/source_modelling-2026.9.1-cp314-cp314t-win_amd64.whl", hash = "sha256:78c8467a05bddf316a12adc7598a04531251b991c3988a02c8bd47f06917866e", size = 465588, upload-time = "2026-09-23T03:35:38.447Z" },
+    { url = "https://files.pythonhosted.org/packages/5b/bb/76e66b35da3f941d535d8ba39d1a7b2877cbe68a66f5a258f3f945a3bd4d/source_modelling-2026.10.2-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:d7ba60a0f108202b178b3ce90a042a7fb12f564995fcda23af568cd5b8ef8aa5", size = 1104011, upload-time = "2026-10-06T00:47:22.402Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/7a/33424179affa6a43879559d7e658288e99f73402ccba5df32ec271d0e166/source_modelling-2026.10.2-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:20f1fbfb1277ecc7d106475effb028c58869a9de8955e6a2c5a5abfc510c197e", size = 1113201, upload-time = "2026-10-06T00:47:23.704Z" },
+    { url = "https://files.pythonhosted.org/packages/8f/54/b5277d44cc50bf4b4ae6a16ef2b5a943de2f53f70a928cfc88ddc2f3cf31/source_modelling-2026.10.2-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:46b028a7b7dc0cc8bf1c87bd99ded8d0ab8c30eea65bf7380a51cbb151744ddd", size = 1134131, upload-time = "2026-10-06T00:47:25.064Z" },
+    { url = "https://files.pythonhosted.org/packages/2d/22/23c6641f4891347ba6933488d9a9b523eb0a64db342e81b813714578c61d/source_modelling-2026.10.2-cp313-cp313-win_amd64.whl", hash = "sha256:91406b957f22783e3a2c47cbb53e4792421fc8e14d49186075f0d8a93378c3f4", size = 1013598, upload-time = "2026-10-06T00:47:26.821Z" },
+    { url = "https://files.pythonhosted.org/packages/de/01/52afe0e1ecec765b643ded0493c5f38dc8d7a0b2862e237a14aa01a5074d/source_modelling-2026.10.2-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:3bff893eec3d0d2ce13fcf1be9e07099b1c18dfc82396e77110a2b5b31677f79", size = 1103652, upload-time = "2026-10-06T00:47:28.242Z" },
+    { url = "https://files.pythonhosted.org/packages/a1/af/62ab40a849d00d105d0a4dfbb83b8390e6984636bbe5fe6ddff05b4b6148/source_modelling-2026.10.2-cp314-cp314-macosx_11_0_x86_64.whl", hash = "sha256:8a700b96cf31d01698608cd18bbe435fcc9aa93978ce5a13d727b170251034c0", size = 1112567, upload-time = "2026-10-06T00:47:29.624Z" },
+    { url = "https://files.pythonhosted.org/packages/9d/fb/c0a66cb154efa8d0f56a6603b7ff8a6db9e1b6b0e7bfbf40a46f6c296997/source_modelling-2026.10.2-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:20d2ec6e6fcbf8d58402ddadf377d4fcd065b221b117ecda5b16777155fa2aef", size = 1134011, upload-time = "2026-10-06T00:47:30.939Z" },
+    { url = "https://files.pythonhosted.org/packages/49/95/14a3e68dcb4ed45e52e516106ac6f5b073c635bf84b1b8f32eb482cf59de/source_modelling-2026.10.2-cp314-cp314-win_amd64.whl", hash = "sha256:87ae3e905b5dce20b9ee1f7648e1b6ebfd83172fc88287a0281d912d4874f79b", size = 1017557, upload-time = "2026-10-06T00:47:32.228Z" },
+    { url = "https://files.pythonhosted.org/packages/b2/a1/e8299843b6b12d921c31f50c78b76923e17b1d15391e339f9bd44f36d1c1/source_modelling-2026.10.2-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:0e561e3490ec329ad66672067e16d6d031572fa56645176bc67a6a3b74be91ab", size = 1101222, upload-time = "2026-10-06T00:47:33.637Z" },
+    { url = "https://files.pythonhosted.org/packages/91/a2/e97078c1260ff46d1b8030c09532349713e6a037707a3d4343437697c7bb/source_modelling-2026.10.2-cp314-cp314t-macosx_11_0_x86_64.whl", hash = "sha256:81f2b91e57a7313dc0a5fd447419667930b57ee93997c13c9b579a833c884dbb", size = 1110082, upload-time = "2026-10-06T00:47:35.007Z" },
+    { url = "https://files.pythonhosted.org/packages/18/23/96aeaaa21c8dc3fb4f3e07053afcca07a4327f0beee19c9b158ff9af638f/source_modelling-2026.10.2-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:e3eb9e03476ac144c2f728994156a15b53d7ee05d58604799884b634cedf23c8", size = 1132379, upload-time = "2026-10-06T00:47:36.415Z" },
+    { url = "https://files.pythonhosted.org/packages/3b/3f/e138b89051a4087c4ec27a77e15400ca4d1de458b5af38bd19529cd6c144/source_modelling-2026.10.2-cp314-cp314t-win_amd64.whl", hash = "sha256:10a9471998e2061a523cfa309bc130ab45bafba3304db1c08fb89a55b25439f1", size = 1017435, upload-time = "2026-10-06T00:47:38.05Z" },
 ]
 
 [[package]]
@@ -3503,7 +3504,7 @@ requires-dist = [
     { name = "scipy-stubs", marker = "extra == 'types'" },
     { name = "shapely" },
     { name = "site-calculation", specifier = ">=2026.7.1" },
-    { name = "source-modelling", specifier = ">=2026.9.1" },
+    { name = "source-modelling", specifier = ">=2026.10.2" },
     { name = "structlog" },
     { name = "tqdm" },
     { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.75" },
