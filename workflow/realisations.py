@@ -1223,15 +1223,34 @@ class StochConfig(RealisationConfiguration):
 
     Not part of :class:`HFConfig`: these size the stoch grid, which is an input to the
     high-frequency simulation rather than one of its parameters.
+
+    generate-stoch picks one dx and one dy for every plane, as the HF code
+    requires, trading drift from the target resolution against padding (see
+    `generate_stoch.stoch_resolution`). A padding weight of 0 always gives the
+    target resolution, however much the planes are padded. For a single plane, a
+    weight above 1 gives srf2stoch's ``target_dx`` behaviour: the whole number
+    of cells closest to the target, with no padding. Weights in between suit
+    multi-segment ruptures, where no resolution fits every plane. The resolution
+    always lies within the bounds, which must contain the target.
     """
 
     _config_key: ClassVar[str] = "stoch"
     _schema: ClassVar[Schema] = schemas.STOCH_CONFIG_SCHEMA
 
-    stoch_dx: float
-    """stoch file resolution in x."""
-    stoch_dy: float
-    """stoch file resolution in y."""
+    stoch_target_dx: float
+    """Preferred stoch file resolution along strike (km)."""
+    stoch_min_dx: float
+    """Smallest stoch file resolution along strike (km)."""
+    stoch_max_dx: float | None
+    """Largest stoch file resolution along strike (km), or None for no limit."""
+    stoch_target_dy: float
+    """Preferred stoch file resolution down dip (km)."""
+    stoch_min_dy: float
+    """Smallest stoch file resolution down dip (km)."""
+    stoch_max_dy: float | None
+    """Largest stoch file resolution down dip (km), or None for no limit."""
+    stoch_padding_weight: float
+    """Cost of one wasted (padded) cell, measured in cells of drift from the target."""
 
 
 @dataclasses.dataclass

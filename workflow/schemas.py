@@ -7,6 +7,7 @@ for a description of realisations and the schemas.
 """
 
 import dataclasses
+import math
 from enum import IntEnum, StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -1129,11 +1130,48 @@ HF_CONFIG_SCHEMA = Schema(
     }
 )
 
+
+def _stoch_bounds_contain_target(config: dict[str, float | None]) -> bool:
+    for axis in ("dx", "dy"):
+        target = config[f"stoch_target_{axis}"]
+        lower = config[f"stoch_min_{axis}"]
+        upper = config[f"stoch_max_{axis}"]
+        assert target is not None and lower is not None
+        if not lower <= target <= (math.inf if upper is None else upper):
+            return False
+    return True
+
+
 STOCH_CONFIG_SCHEMA = Schema(
-    {
-        Literal("stoch_dx", description="Stoch file dx"): And(NUMBER, _is_positive),
-        Literal("stoch_dy", description="Stoch file dy"): And(NUMBER, _is_positive),
-    }
+    And(
+        {
+            Literal("stoch_target_dx", description="Preferred stoch file dx"): And(
+                NUMBER, _is_positive, math.isfinite
+            ),
+            Literal("stoch_min_dx", description="Smallest allowed stoch file dx"): And(
+                NUMBER, _is_non_negative
+            ),
+            Literal(
+                "stoch_max_dx",
+                description="Largest allowed stoch file dx, or None for no limit",
+            ): Or(None, And(NUMBER, _is_positive, math.isfinite)),
+            Literal("stoch_target_dy", description="Preferred stoch file dy"): And(
+                NUMBER, _is_positive, math.isfinite
+            ),
+            Literal("stoch_min_dy", description="Smallest allowed stoch file dy"): And(
+                NUMBER, _is_non_negative
+            ),
+            Literal(
+                "stoch_max_dy",
+                description="Largest allowed stoch file dy, or None for no limit",
+            ): Or(None, And(NUMBER, _is_positive, math.isfinite)),
+            Literal(
+                "stoch_padding_weight",
+                description="Cost of a padded cell, in cells of drift from the target resolution",
+            ): And(NUMBER, _is_non_negative, math.isfinite),
+        },
+        _stoch_bounds_contain_target,
+    )
 )
 
 EMOD3D_PARAMETERS_SCHEMA = Schema(

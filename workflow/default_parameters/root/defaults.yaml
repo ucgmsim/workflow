@@ -77,8 +77,16 @@ hf:
   record:
     dt: 0.01
 stoch:
-  stoch_dx: 2.0
-  stoch_dy: 2.0
+  stoch_target_dx: 2.0
+  stoch_min_dx: 0.0
+  stoch_max_dx: null
+  stoch_target_dy: 2.0
+  stoch_min_dy: 0.0
+  stoch_max_dy: null
+  # Matches srf2stoch's target_dx for a single plane. Any weight > 1.0 is
+  # equivalent there. With several planes, larger weights trade more drift
+  # from the target for less padding.
+  stoch_padding_weight: 2.0
 rupture_velocity:
   rvfrac: 0.8
   rvfrac_shal: 0.6
