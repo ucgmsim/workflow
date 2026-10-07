@@ -210,6 +210,9 @@ srf:
     inittime: 0.0
 nzcvm:
   surface: /nzcvm/resources/dem.zarr
+  # SW4 runs with topography. Set a decay (e.g. `{type: sleve, scale: 1000.0}`)
+  # and drop the `topography` command from `sw4.commands` to run without.
+  decay: null
   chunks:
     i: 256
     j: 256

@@ -1186,6 +1186,38 @@ def test_nzcvm_settings_read_derived_layer_fields(
     assert realisations.NZCVMSettings.read_from_realisation(realisation_ffp) == settings
 
 
+def test_nzcvm_settings_round_trip_a_decay(tmp_path: Path) -> None:
+    from nzcvm.config.grids.terrain import SleveDecay
+
+    settings = dataclasses.replace(
+        realisations.NZCVMSettings.read_from_defaults(
+            defaults.DefaultsVersion.v26_7_1Hz
+        ),
+        decay=SleveDecay(scale=1000.0),
+    )
+    realisation_ffp = tmp_path / "realisation.json"
+    settings.write_to_realisation(realisation_ffp)
+
+    written = json.loads(realisation_ffp.read_text())["nzcvm"]
+    assert written["decay"] == {"type": "sleve", "scale": 1000.0}
+    assert realisations.NZCVMSettings.read_from_realisation(realisation_ffp) == settings
+
+
+def test_nzcvm_settings_require_an_explicit_decay(tmp_path: Path) -> None:
+    # SW4 with or without topography is never implied: `decay: null` states it.
+    settings = realisations.NZCVMSettings.read_from_defaults(
+        defaults.DefaultsVersion.v26_7_1Hz
+    )
+    written = settings.to_dict()
+    del written["decay"]
+    realisation_ffp = tmp_path / "realisation.json"
+    realisation_ffp.write_text(
+        json.dumps({"nzcvm": written}, default=realisations.path_serialiser)
+    )
+    with pytest.raises(schema.SchemaMissingKeyError, match="decay"):
+        realisations.NZCVMSettings.read_from_realisation(realisation_ffp)
+
+
 def test_velocity_model_column_order(tmp_path: Path) -> None:
     velocity_model = realisations.VelocityModel1D(
         model=pd.DataFrame(
