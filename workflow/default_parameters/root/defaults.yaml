@@ -486,7 +486,7 @@ nzcvm:
           vp: 8100.0
           vs: 4600.0
       type: offshore
-    - depth_t: 450.0
+    - depth_t: 350.0
       type: ely
       vs30: /nzcvm/resources/vs30.zarr
     - model_globs:
