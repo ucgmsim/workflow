@@ -19,7 +19,7 @@ dependencies = [
   "hf-simulation>=2026.9.1",
   "site-calculation>=2026.7.1",
   "source_modelling>=2026.10.2",
-  "nzcvm>=2026.9.1",
+  "nzcvm>=2026.10.3",
   # Data Formats
   "geopandas",
   "fiona",                 # Imported, undeclared, by openquake's GMMs

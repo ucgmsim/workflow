@@ -36,6 +36,7 @@ from workflow import defaults, schemas
 from workflow.defaults import DefaultsVersion
 
 if TYPE_CHECKING:
+    from nzcvm.config.grids.terrain import Decay
     from nzcvm.config.layers import LayerConfig
 
 
@@ -1005,6 +1006,9 @@ class NZCVMSettings(RealisationConfiguration):
     """nzcvm chunk configuration"""
     surface: Path
     """nzcvm DEM surface"""
+    decay: "Decay | None"
+    """The SW4 grid's terrain decay: None for SW4 with topography, any decay
+    for SW4 without topography, on the flat nominal model."""
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -1024,6 +1028,7 @@ class NZCVMSettings(RealisationConfiguration):
             "layers": [layer.to_dict() for layer in self.layers],
             "chunks": dict(self.chunks),
             "surface": self.surface,
+            "decay": None if self.decay is None else self.decay.to_dict(),
         }
 
 

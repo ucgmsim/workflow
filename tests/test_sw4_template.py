@@ -6,16 +6,24 @@ enough to hold the bottom sponge. Both are invariants rather than values, so
 they are tested as invariants.
 """
 
+import dataclasses
 from pathlib import Path
 
 import h5py
 import numpy as np
 import pytest
+from nzcvm.config.grids.terrain import Decay, SleveDecay
 from nzcvm.formats import sfile
 
 from velocity_modelling.bounding_box import BoundingBox
 from workflow import defaults, sw4
-from workflow.realisations import DomainParameters, RealisationMetadata, Refinements
+from workflow.realisations import (
+    DomainParameters,
+    NZCVMSettings,
+    RealisationMetadata,
+    Refinements,
+    SW4Parameters,
+)
 from workflow.scripts import sw4_template
 
 SPONGE_KM = 12.0
@@ -98,6 +106,8 @@ def render(
     sfile_shape: tuple[int, int] = (121, 121),
     topography_height: float = 500.0,
     defaults_version: defaults.DefaultsVersion = defaults.DefaultsVersion.v26_7_1Hz,
+    decay: Decay | None = None,
+    topography_command: bool = True,
 ) -> dict[str, list[dict[str, str]]]:
     """Run `generate_sw4_input` and parse the SW4 file it writes.
 
@@ -115,6 +125,10 @@ def render(
         The highest topography in the velocity model, in metres.
     defaults_version : DefaultsVersion
         The defaults the realisation takes its SW4 configuration from.
+    decay : Decay | None
+        The realisation's NZCVM terrain decay.
+    topography_command : bool
+        If False, drop the `topography` command from the SW4 commands.
 
     Returns
     -------
@@ -128,6 +142,14 @@ def render(
     DomainParameters(domain=domain, depth=depth_km, duration=10.0).write_to_realisation(
         realisation
     )
+    nzcvm_settings = NZCVMSettings.read_from_defaults(defaults_version)
+    dataclasses.replace(nzcvm_settings, decay=decay).write_to_realisation(realisation)
+    if not topography_command:
+        sw4_params = SW4Parameters.read_from_defaults(defaults_version)
+        sw4_params.commands = [
+            command for command in sw4_params.commands if command.name != "topography"
+        ]
+        sw4_params.write_to_realisation(realisation)
     velocity_model = tmp_path / "model.sfile"
     write_sfile(velocity_model, sfile_shape, 400.0, topography_height=topography_height)
     output = tmp_path / "sw4.in"
@@ -234,3 +256,63 @@ def test_grid_pads_the_domain_by_one_sponge_per_side(
     # NOTE: In SW4 x = north, but in the workflow y = north.
     assert float(grid["x"]) == pytest.approx((domain.extent_y + 2 * SPONGE_KM) * 1000)
     assert float(grid["y"]) == pytest.approx((domain.extent_x + 2 * SPONGE_KM) * 1000)
+
+
+def test_without_topography_keeps_the_refinements(
+    tmp_path: Path, domain: BoundingBox
+) -> None:
+    """SW4 without topography is Cartesian, so no refinement moves for it."""
+    depth_km = 60.0
+    commands = render(
+        tmp_path,
+        domain,
+        depth_km,
+        topography_height=0.0,
+        decay=SleveDecay(scale=1000.0),
+        topography_command=False,
+    )
+    theoretical = Refinements.read_from_defaults(
+        defaults.DefaultsVersion.v26_7_1Hz
+    ).refinements_for_depth(depth_km)
+
+    assert "topography" not in commands
+    assert [float(refinement["zmax"]) for refinement in commands["refinement"]] == [
+        refinement.bottom for refinement in theoretical[:-1]
+    ]
+
+
+def test_topography_command_with_a_decay_is_rejected(
+    tmp_path: Path, domain: BoundingBox
+) -> None:
+    """A decay flattens the model, so SW4 must not also expect topography."""
+    with pytest.raises(ValueError, match="include `topography`"):
+        render(
+            tmp_path,
+            domain,
+            30.0,
+            topography_height=0.0,
+            decay=SleveDecay(scale=1000.0),
+        )
+
+
+def test_no_topography_command_without_a_decay_is_rejected(
+    tmp_path: Path, domain: BoundingBox
+) -> None:
+    """Without a decay the model keeps its topography, so SW4 needs it too."""
+    with pytest.raises(ValueError, match="no `topography` command"):
+        render(tmp_path, domain, 30.0, topography_command=False)
+
+
+def test_without_topography_rejects_an_sfile_with_topography(
+    tmp_path: Path, domain: BoundingBox
+) -> None:
+    """A nominal run needs the nominal sfile, whose free surface is at 0 m."""
+    with pytest.raises(ValueError, match="above sea level"):
+        render(
+            tmp_path,
+            domain,
+            30.0,
+            topography_height=500.0,
+            decay=SleveDecay(scale=1000.0),
+            topography_command=False,
+        )

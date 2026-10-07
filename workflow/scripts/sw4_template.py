@@ -32,6 +32,7 @@ from qcore import cli
 from workflow import log_utils, sw4
 from workflow.realisations import (
     DomainParameters,
+    NZCVMSettings,
     RealisationMetadata,
     Refinement,
     Refinements,
@@ -106,7 +107,7 @@ def _build_sw4_commands(
     lat: float,
     velocity_model_name: str,
     velocity_model_directory: Path,
-    topography_zmax: float,
+    topography_zmax: float | None,
     simulation_time: float,
 ) -> tuple[SW4Command, list[SW4Command]]:
     """Resolve SW4Parameters.commands, layering in runtime-computed values.
@@ -127,8 +128,9 @@ def _build_sw4_commands(
         Filename of the velocity model sfile.
     velocity_model_directory : Path
         Directory containing the velocity model sfile.
-    topography_zmax : float
-        Computed maximum topography depth.
+    topography_zmax : float | None
+        Computed maximum topography depth, or None when SW4 runs without
+        topography.
     simulation_time : float
         Simulation duration (seconds), used as the default image output time.
 
@@ -169,6 +171,40 @@ def _build_sw4_commands(
             other_commands.append(command)
 
     return grid_command, other_commands
+
+
+def _check_topography_mode(
+    decay_set: bool, topography: SW4Command | None, topography_height: float
+) -> None:
+    """Check the realisation and the sfile agree on whether SW4 has topography.
+
+    Raises
+    ------
+    ValueError
+        If the SW4 `topography` command and the NZCVM decay disagree, or the
+        sfile has topography where none was asked for.
+    """
+    if topography is not None and decay_set:
+        raise ValueError(
+            "The SW4 commands include `topography`, but the velocity model has a"
+            " terrain decay, which flattens it into a nominal model for SW4"
+            " without topography. Remove the decay (`nzcvm.decay: null`) to run"
+            " with topography, or the `topography` command to run without."
+        )
+    if topography is None and not decay_set:
+        raise ValueError(
+            "The SW4 commands have no `topography` command, but the velocity"
+            " model has no terrain decay, so it keeps its topography. Add a"
+            " decay (`nzcvm.decay`) to run SW4 without topography, or the"
+            " `topography` command to run with it."
+        )
+    # A nominal sfile puts its free surface at z = 0 everywhere.
+    if decay_set and topography_height != 0.0:
+        raise ValueError(
+            "The realisation runs SW4 without topography, but the sfile reaches"
+            f" {topography_height:.1f} m above sea level. Regenerate it with"
+            " `create-nzvm-input` from this realisation."
+        )
 
 
 def _adjust_for_topography(
@@ -310,6 +346,9 @@ def generate_sw4_input(
             realisation_ffp, metadata.defaults_version
         )
     )
+    nzcvm_settings = NZCVMSettings.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
     logger = log_utils.get_logger(__name__)
 
     with h5py.File(velocity_model, "r") as f:
@@ -318,20 +357,29 @@ def generate_sw4_input(
         topography_height, sfile_zmax = _topography_height_from_velocity_model(f)
         sfile_x, sfile_y = _lateral_footprint_from_velocity_model(f)
 
-    # HACK: The SW4 User Guide (Chapter 5) suggests
-    # z_max >= -e_min + 3 (e_max - e_min), where e_min and e_max are the minimum
-    # and maximum topography levels of the velocity model. We assume that the
-    # minimum elevation is zero (i.e. every simulation contains ocean, and there
-    # is no ocean bathymetry).
-    topography_zmax = 3 * topography_height
+    _check_topography_mode(
+        nzcvm_settings.decay is not None,
+        find_command(sw4_params.commands, "topography"),
+        topography_height,
+    )
 
     depth = domain_parameters.depth
     time = domain_parameters.duration
     refinements = theoretical_refinements.refinements_for_depth(depth)
 
-    refinements, topography_zmax = _adjust_for_topography(
-        refinements, topography_zmax, nzmin=sw4_params.nz_min
-    )
+    topography_zmax = None
+    if nzcvm_settings.decay is None:
+        # HACK: The SW4 User Guide (Chapter 5) suggests
+        # z_max >= -e_min + 3 (e_max - e_min), where e_min and e_max are the
+        # minimum and maximum topography levels of the velocity model. We assume
+        # that the minimum elevation is zero (i.e. every simulation contains
+        # ocean, and there is no ocean bathymetry).
+        refinements, topography_zmax = _adjust_for_topography(
+            refinements, 3 * topography_height, nzmin=sw4_params.nz_min
+        )
+    # Without topography, SW4's grids are all Cartesian below a flat free
+    # surface at z = 0 (`EW::cleanUpRefinementLevels`), so the refinements stand
+    # as given.
     refinements = sorted(refinements, key=lambda r: r.bottom)
     coarsest_resolution = refinements[-1].resolution
     supergrid_width = sw4.supergrid_width(sw4_params, coarsest_resolution)

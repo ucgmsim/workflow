@@ -22,6 +22,7 @@ from velocity_modelling.bounding_box import BoundingBox
 from workflow.defaults import DefaultsVersion
 
 if TYPE_CHECKING:
+    from nzcvm.config.grids.terrain import Decay
     from nzcvm.config.layers import LayerConfig
 
 
@@ -1000,11 +1001,26 @@ def _build_layer(config: dict) -> "LayerConfig":
     )
 
 
+def _build_decay(config: dict) -> "Decay":
+    """Build a terrain decay from a config dictionary."""
+    # Imported lazily, like `LayerConfig` in `_build_layer`.
+    from nzcvm.config.grids.terrain import Decay
+
+    return Decay.from_dict(config)
+
+
 NZCVM_SCHEMA = Schema(
     {
         Literal("layers"): [Use(_build_layer)],
         Literal("chunks"): Or({}, {Use(Coordinate): int}),
         Literal("surface"): Use(Path),
+        Literal(
+            "decay",
+            description=(
+                "The SW4 grid's terrain decay. null runs SW4 with topography;"
+                " any decay runs it without, on the flat nominal model."
+            ),
+        ): Or(None, Use(_build_decay)),
     }
 )
 SEED_SCHEMA = Schema(
