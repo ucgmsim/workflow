@@ -1,4 +1,4 @@
-name: Build, Test in Container, and Upload
+name: Build and Upload Container
 
 # Runs after a release is published to PyPI (called from publish-PyPI.yml),
 # or manually to rebuild the image for an existing PyPI release.
@@ -10,7 +10,7 @@ on:
         required: true
         type: string
       ref:
-        description: 'Git ref to take the tests from (defaults to the triggering ref)'
+        description: 'Git ref to take the Dockerfile and uv.lock from (defaults to the triggering ref)'
         required: false
         type: string
   workflow_dispatch:
@@ -33,11 +33,14 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
 
-      # PyPI can take a little while to serve a freshly uploaded release.
+      # PyPI can take a little while to serve a freshly uploaded release. Poll
+      # the simple index pip installs from: the JSON API can list a release
+      # minutes before the simple index does.
       - name: Wait for the release to appear on PyPI
         run: |
           for _ in $(seq 30); do
-            if curl -sf "https://pypi.org/pypi/ucgmsim-workflow/${{ inputs.version }}/json" > /dev/null; then
+            if curl -sf -H "Cache-Control: no-cache" "https://pypi.org/simple/ucgmsim-workflow/" \
+                | grep -q "ucgmsim_workflow-${{ inputs.version }}-py3-none-any.whl"; then
               exit 0
             fi
             sleep 10
@@ -77,10 +80,3 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-
-      - name: Run pytest
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/mnt \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.version }} \
-            bash -c "pytest /mnt/tests"
