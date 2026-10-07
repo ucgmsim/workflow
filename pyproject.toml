@@ -35,6 +35,7 @@ dependencies = [
   "scipy",
   "shapely",
   # CLI
+  "questionary>=2.1.1",
   "tqdm",
   "typer",
   # Misc.
@@ -89,6 +90,8 @@ gcmt-auto-simulate = "workflow.scripts.gcmt_auto_simulate:app"
 import-realisation = "workflow.scripts.import_realisation:app"
 lf-to-xarray = "workflow.scripts.lf_to_xarray:app"
 migrate = "workflow.scripts.migrate:app"
+copy-realisation-configs = "workflow.scripts.migrate:copy_app"
+clone-realisations = "workflow.scripts.migrate:clone_app"
 validate-sfile = "workflow.scripts.validate_sfile:app"
 create-nzvm-input = "workflow.scripts.nzvm_input_template:app"
 create-sw4-input = "workflow.scripts.sw4_template:app"
