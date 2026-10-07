@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import scipy.sparse as sp
+from schema import SchemaError
 from typer.testing import CliRunner
 
 from source_modelling import srf
@@ -14,6 +15,7 @@ from workflow.scripts.generate_stoch import (
     _box_average_matrix,
     app,
     convert_srf_to_stoch,
+    stoch_resolution,
 )
 
 # (nstk, ndip, len, wid) for each plane of the synthetic SRF. The first
@@ -325,6 +327,171 @@ def test_average_rake_is_in_degrees(synthetic_srf: SrfFile) -> None:
         assert plane.header.average_rake == pytest.approx(185.0, abs=1e-3)
 
 
+# --- stoch_resolution --------------------------------------------------------
+
+
+def cost(
+    extents: np.ndarray, resolution: float, target: float, padding_weight: float
+) -> float:
+    """The drift + weighted padding that stoch_resolution minimises, in cells."""
+    cells = extents / resolution
+    padding = (np.maximum(1, np.ceil(cells - 1e-9)) - cells).sum()
+    drift = np.abs(cells - extents / target).sum()
+    return float(drift + padding_weight * padding)
+
+
+def srf2stoch_resolution(extent: float, target: float) -> float:
+    """srf2stoch's target_dx: the whole number of cells closest to the target."""
+    return extent / int(extent / target + 0.5)
+
+
+@pytest.mark.parametrize("extent", [23.7, 6.5, 15.3, 41.05])
+@pytest.mark.parametrize("target", [1.0, 2.0, 2.2, 3.0])
+def test_stoch_resolution_zero_weight_is_the_target(
+    extent: float, target: float
+) -> None:
+    """A padding weight of 0 gives the target, however much it pads."""
+    assert stoch_resolution(
+        np.array([extent, extent / 3]), np.array([0.1, 0.1]), target, 0.0, 0.0, None
+    ) == pytest.approx(target)
+
+
+@pytest.mark.parametrize("extent", [23.7, 6.5, 15.3, 41.05])
+@pytest.mark.parametrize("target", [1.0, 2.0, 2.2, 3.0])
+@pytest.mark.parametrize("padding_weight", [1.01, 2.0, 100.0])
+def test_stoch_resolution_single_plane_matches_srf2stoch(
+    extent: float, target: float, padding_weight: float
+) -> None:
+    """For a single plane, a padding weight above 1 is srf2stoch's target_dx."""
+    assert stoch_resolution(
+        np.array([extent]), np.array([0.1]), target, padding_weight, 0.0, None
+    ) == pytest.approx(srf2stoch_resolution(extent, target))
+
+
+def test_stoch_resolution_trades_padding_for_drift() -> None:
+    """A large enough weight moves off the target to a resolution that pads less."""
+    extents = np.array([3.4, 1.9, 5.1, 5.6])
+    srf_resolutions = np.full(4, 0.1)
+    exact = stoch_resolution(extents, srf_resolutions, 2.0, 0.0, 0.0, None)
+    traded = stoch_resolution(extents, srf_resolutions, 2.0, 2.0, 0.0, None)
+    assert exact == pytest.approx(2.0)
+    assert traded != pytest.approx(2.0)
+    assert cost(extents, traded, 2.0, 2.0) < cost(extents, exact, 2.0, 2.0)
+
+
+def test_stoch_resolution_ties_go_to_the_target() -> None:
+    """When padding exactly pays for the drift, the target wins."""
+    # At weight 1, 1.9 km saves exactly as much padding as it drifts.
+    extents = np.array([3.4, 1.9, 5.1, 5.6])
+    srf_resolutions = np.full(4, 0.1)
+    assert cost(extents, 1.9, 2.0, 1.0) == pytest.approx(cost(extents, 2.0, 2.0, 1.0))
+    assert stoch_resolution(
+        extents, srf_resolutions, 2.0, 1.0, 0.0, None
+    ) == pytest.approx(2.0)
+
+
+def test_stoch_resolution_equal_bounds_force_the_resolution() -> None:
+    """Setting the minimum equal to the maximum forces that resolution."""
+    assert stoch_resolution(
+        np.array([6.5, 2.7]), np.array([0.5, 0.3]), 2.0, 10.0, 2.0, 2.0
+    ) == pytest.approx(2.0)
+
+
+def test_stoch_resolution_forces_finer_than_the_srf() -> None:
+    """An upper bound below the SRF resolution is respected."""
+    assert stoch_resolution(
+        np.array([6.5]), np.array([0.5]), 0.25, 0.0, 0.0, 0.25
+    ) == pytest.approx(0.25)
+
+
+def test_stoch_resolution_is_no_finer_than_the_srf() -> None:
+    """The planes are never up-sampled past the coarsest SRF resolution."""
+    assert stoch_resolution(
+        np.array([6.0, 4.0]), np.array([0.5, 0.25]), 0.1, 0.0, 0.0, None
+    ) == pytest.approx(0.5)
+
+
+def test_stoch_resolution_finds_a_common_factor() -> None:
+    """Planes are fit exactly by a common factor of their extents near the target."""
+    assert stoch_resolution(
+        np.array([6.0, 4.0]), np.array([0.5, 0.5]), 1.8, 10.0, 0.0, None
+    ) == pytest.approx(2.0)
+
+
+@pytest.mark.parametrize("seed", range(10))
+def test_stoch_resolution_beats_a_grid_search(seed: int) -> None:
+    """No resolution in the bounds costs less than the chosen one."""
+    rng = np.random.default_rng(seed)
+    extents = np.round(rng.uniform(1, 30, rng.integers(1, 5)), 1)
+    srf_resolutions = extents / rng.integers(5, 50, len(extents))
+    min_resolution, max_resolution = np.sort(rng.uniform(0.5, 5, 2))
+    target = rng.uniform(min_resolution, max_resolution)
+    padding_weight = rng.uniform(0, 3)
+    resolution = stoch_resolution(
+        extents,
+        srf_resolutions,
+        target,
+        padding_weight,
+        min_resolution,
+        max_resolution,
+    )
+    lower = min(max(min_resolution, srf_resolutions.max()), max_resolution)
+    assert lower - 1e-9 <= resolution <= max_resolution + 1e-9
+    best = cost(extents, resolution, target, padding_weight)
+    for trial in np.linspace(lower, max_resolution, 2000):
+        assert best <= cost(extents, trial, target, padding_weight) + 1e-9
+
+
+def test_convert_srf_to_stoch_exact_resolution_has_no_sliver_cell(
+    synthetic_srf: SrfFile,
+) -> None:
+    """A resolution dividing the plane exactly gives exactly that many cells.
+
+    Without a tolerance, float error in length / dx can round up to an extra,
+    almost entirely empty, cell.
+    """
+    # 2.7 / (2.7 / 31) is 31.000000000000004 in floating point.
+    (_, plane) = convert_srf_to_stoch(synthetic_srf, 2.7 / 31, 1.5 / 3).data
+    assert plane.header.nx == 31
+    assert plane.header.ny == 3
+
+
+STOCH_CONFIG = {
+    "stoch_target_dx": 2.0,
+    "stoch_min_dx": 0.0,
+    "stoch_max_dx": None,
+    "stoch_target_dy": 2.0,
+    "stoch_min_dy": 0.0,
+    "stoch_max_dy": None,
+    "stoch_padding_weight": 0.0,
+}
+
+
+def test_stoch_config_accepts_no_maximum() -> None:
+    """A maximum of None means the resolution has no upper limit."""
+    config = realisations.StochConfig.from_dict(
+        STOCH_CONFIG | {"stoch_min_dx": 1.0, "stoch_max_dy": 2.0}
+    )
+    assert config.stoch_max_dx is None
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"stoch_min_dx": 3.0, "stoch_max_dx": 2.5},
+        {"stoch_target_dx": 2.5, "stoch_max_dx": 2.0},
+        {"stoch_target_dy": 1.0, "stoch_min_dy": 1.5},
+        {"stoch_max_dx": float("inf")},
+        {"stoch_target_dx": 0.0},
+        {"stoch_padding_weight": -1.0},
+    ],
+)
+def test_stoch_config_rejects_bad_values(bad: dict[str, float]) -> None:
+    """The bounds must contain the target, and no limit is spelled None."""
+    with pytest.raises(SchemaError):
+        realisations.StochConfig.from_dict(STOCH_CONFIG | bad)
+
+
 # --- Integration -------------------------------------------------------------
 
 
@@ -357,19 +524,43 @@ def test_generate_stoch_smoke(
     assert len(stoch_file.data) == len(PLANE_SHAPES)
 
     srf_file = srf.read_srf(srf_ffp)
+    config = realisations.StochConfig.read_from_realisation_or_defaults(
+        realisation_ffp, defaults.DefaultsVersion.v24_2_2_1
+    )
+    lengths = srf_file.header["len"].to_numpy(dtype=np.float64)
+    widths = srf_file.header["wid"].to_numpy(dtype=np.float64)
+    dx = stoch_resolution(
+        lengths,
+        lengths / srf_file.header["nstk"].to_numpy(),
+        config.stoch_target_dx,
+        config.stoch_padding_weight,
+        config.stoch_min_dx,
+        config.stoch_max_dx,
+    )
+    dy = stoch_resolution(
+        widths,
+        widths / srf_file.header["ndip"].to_numpy(),
+        config.stoch_target_dy,
+        config.stoch_padding_weight,
+        config.stoch_min_dy,
+        config.stoch_max_dy,
+    )
     for i, plane in enumerate(stoch_file.data):
         header = srf_file.header.iloc[i]
-        # Every plane uses the configured stoch dx/dy, as the HF code
-        # requires. Planes smaller than a cell round up to a single cell
-        # rather than down-sampling to an empty grid.
-        assert plane.header.dx == pytest.approx(2.0)
-        assert plane.header.dy == pytest.approx(2.0)
+        # Every plane shares the configured stoch dx/dy, as the HF code
+        # requires, to the 10 m the stoch header is written to. Planes
+        # smaller than a cell round up to a single cell rather than
+        # down-sampling to an empty grid.
+        assert plane.header.dx == pytest.approx(dx, abs=0.005)
+        assert plane.header.dy == pytest.approx(dy, abs=0.005)
         assert plane.slip.shape == (plane.header.ny, plane.header.nx)
         assert plane.header.dtop == pytest.approx(header["dtop"])
         assert plane.header.dip == pytest.approx(header["dip"])
         assert plane.header.strike == pytest.approx(header["stk"] % 360)
         assert (plane.slip >= 0).all()
         assert (plane.rise > 0).all()
-    # The written file preserves the moment to the precision of the %e
-    # formatting used by the stoch format.
-    assert_moment_preserved(srf_file, stoch_file, rel=1e-4)
+    # The written file preserves the moment to the precision of the stoch
+    # format: %e for slip, and dx and dy rounded to 10 m in the header (as
+    # srf2stoch writes them), which scales the cell area by up to 0.005 / dx
+    # and 0.005 / dy.
+    assert_moment_preserved(srf_file, stoch_file, rel=1e-4 + 0.005 / dx + 0.005 / dy)

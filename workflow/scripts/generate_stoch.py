@@ -25,6 +25,7 @@ For More Help
 See the output of `generate-stoch --help` or `workflow.scripts.generate_stoch`.
 """
 
+import math
 from pathlib import Path
 from typing import Annotated
 
@@ -200,9 +201,12 @@ def convert_srf_to_stoch(srf_file: SrfFile, dx: float, dy: float) -> StochFile:
             for column in ("slip", "rake", "rise", "tinit")
         )
 
-        length, width = float(header["len"]), float(header["wid"])
-        nx = int(np.ceil(length / dx))
-        ny = int(np.ceil(width / dy))
+        # Read the extent at full precision, so that a dx dividing it exactly
+        # gives a whole number of cells.
+        length = float(srf_file.header["len"].iloc[i])
+        width = float(srf_file.header["wid"].iloc[i])
+        nx = _n_cells(length, dx)
+        ny = _n_cells(width, dy)
         # The HF code centres the stoch grid along strike on (elon, elat), the
         # top-centre of the plane, but hangs it down-dip from the top edge at
         # dtop (with dhypo measured from that edge). So along strike the
@@ -239,6 +243,103 @@ def convert_srf_to_stoch(srf_file: SrfFile, dx: float, dy: float) -> StochFile:
     return StochFile(planes)
 
 
+_CELL_TOLERANCE = 1e-9
+
+
+def _n_cells(extent: float, resolution: float) -> int:
+    """Count the cells of size `resolution` needed to cover `extent`.
+
+    A cell that would cover less than a billionth of `resolution` is float
+    error from dividing the extent exactly, and is not counted.
+    """
+    return max(1, math.ceil(extent / resolution - _CELL_TOLERANCE))
+
+
+def stoch_resolution(
+    extents: np.ndarray,
+    srf_resolutions: np.ndarray,
+    target_resolution: float,
+    padding_weight: float,
+    min_resolution: float,
+    max_resolution: float | None,
+) -> float:
+    """Choose the cell size shared by a set of planes along one axis.
+
+    Every plane of a stoch file shares one cell size, so planes whose extent is
+    not a multiple of it are padded out by part of a cell. This trades the
+    padding against drift from a target cell size, both counted in cells, and
+    picks the cell size within the bounds that minimises
+
+        drift + padding_weight * padding.
+
+    A weight of 0 gives the target, however much the planes are padded. For a
+    single plane, any weight above 1 gives srf2stoch's ``target_dx``
+    behaviour: the whole number of cells closest to the target, with no
+    padding. The cell size is never finer than the coarsest SRF resolution
+    (srf2stoch does the same), unless `max_resolution` forces it.
+
+    Parameters
+    ----------
+    extents : np.ndarray
+        The extent of each plane along the axis (length or width, km).
+    srf_resolutions : np.ndarray
+        The SRF resolution of each plane along the axis (km).
+    target_resolution : float
+        The preferred cell size (km).
+    padding_weight : float
+        The cost of one padded cell, in cells of drift from the target.
+    min_resolution : float
+        The smallest allowed cell size (km).
+    max_resolution : float or None
+        The largest allowed cell size (km), or None for no limit.
+
+    Returns
+    -------
+    float
+        The cell size within the bounds with the least cost. Among equals,
+        the one closest to the target, then the finest.
+
+    Notes
+    -----
+    For cell size d and target t, the padding and drift are
+
+        padding(d) = sum_i (ceil(L_i / d) - L_i / d),
+        drift(d)   = sum_i L_i * |1 / d - 1 / t|,
+
+    that is, the cells hanging off the planes, and how many more or fewer
+    cells the planes have than at the target. Measuring drift in cells, rather
+    than in km, is what makes a single plane round its cell count to the
+    nearest whole number, as srf2stoch does.
+
+    In terms of u = 1 / d, both are linear wherever the ceilings are constant,
+    apart from a kink at u = 1 / t. The cost is therefore smallest at a size
+    d = L_i / n where some plane fits exactly into n cells, at the target, or
+    at a bound, and we only have to check those.
+    """
+    upper = math.inf if max_resolution is None else max_resolution
+    lower = min(max(min_resolution, float(srf_resolutions.max())), upper)
+    candidates = [lower, min(max(target_resolution, lower), upper)]
+    if math.isfinite(upper):
+        candidates.append(upper)
+    for extent in extents:
+        # Plane fits exactly into n cells of extent / n, for each n in bounds.
+        fewest = max(1, math.ceil(extent / upper - _CELL_TOLERANCE))
+        most = math.floor(extent / lower + _CELL_TOLERANCE)
+        candidates.extend(extent / n for n in range(fewest, most + 1))
+    candidates = np.array(candidates)
+
+    cells = extents / candidates[:, np.newaxis]
+    n_cells = np.maximum(1, np.ceil(cells - _CELL_TOLERANCE))
+    padding = (n_cells - cells).sum(axis=1)
+    drift = np.abs(cells - extents / target_resolution).sum(axis=1)
+    cost = drift + padding_weight * padding
+    # Among equal costs, prefer the least drift from the target, then the finest.
+    tolerance = _CELL_TOLERANCE * len(extents)
+    cheapest = cost <= cost.min() + tolerance
+    closest = cheapest & (drift <= drift[cheapest].min() + tolerance)
+    return float(candidates[closest].min())
+
+
 @cli.from_docstring(app)
 @log_utils.log_call()
 def generate_stoch(
@@ -262,9 +363,26 @@ def generate_stoch(
         realisation_ffp, metadata.defaults_version
     )
 
-    stoch_file = convert_srf_to_stoch(
-        srf.read_srf(srf_ffp), stoch_config.stoch_dx, stoch_config.stoch_dy
+    srf_file = srf.read_srf(srf_ffp)
+    lengths = srf_file.header["len"].to_numpy(dtype=np.float64)
+    widths = srf_file.header["wid"].to_numpy(dtype=np.float64)
+    dx = stoch_resolution(
+        lengths,
+        lengths / srf_file.header["nstk"].to_numpy(),
+        stoch_config.stoch_target_dx,
+        stoch_config.stoch_padding_weight,
+        stoch_config.stoch_min_dx,
+        stoch_config.stoch_max_dx,
     )
+    dy = stoch_resolution(
+        widths,
+        widths / srf_file.header["ndip"].to_numpy(),
+        stoch_config.stoch_target_dy,
+        stoch_config.stoch_padding_weight,
+        stoch_config.stoch_min_dy,
+        stoch_config.stoch_max_dy,
+    )
+    stoch_file = convert_srf_to_stoch(srf_file, dx, dy)
     with open(stoch_ffp, "w") as f:
         stoch_file.dump(f)
 
