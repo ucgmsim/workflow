@@ -39,9 +39,8 @@ import typer
 
 from qcore import cli, geo
 from source_modelling import magnitude_scaling, moment, sources
-from velocity_modelling import bounding_box
-from velocity_modelling.bounding_box import BoundingBox
-from workflow import log_utils, realisations, sw4, utils
+from workflow import bounding_box, log_utils, realisations, sw4, utils
+from workflow.bounding_box import BoundingBox
 from workflow.realisations import (
     DomainParameters,
     Magnitudes,

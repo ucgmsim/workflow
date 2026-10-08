@@ -14,8 +14,8 @@ import numpy as np
 import pytest
 from nzcvm.config.grids.terrain import Decay, SleveDecay
 
-from velocity_modelling.bounding_box import BoundingBox
 from workflow import defaults
+from workflow.bounding_box import BoundingBox
 from workflow.realisations import (
     DomainParameters,
     NZCVMSettings,
