@@ -3386,7 +3386,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'test'", specifier = ">=6.0.0" },
     { name = "pytest-cov", marker = "extra == 'test'" },
     { name = "pyyaml" },
-    { name = "qcore-utils", specifier = ">=2025.12.2,<2026.10" },
+    { name = "qcore-utils", specifier = ">=2025.12.2" },
     { name = "questionary", specifier = ">=2.1.1" },
     { name = "requests" },
     { name = "rich", specifier = ">=14.3.2" },
