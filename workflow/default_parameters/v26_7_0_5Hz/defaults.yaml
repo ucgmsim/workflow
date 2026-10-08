@@ -43,7 +43,7 @@ sw4:
       parameters:
         { order: 4, passes: 2, fc1: null, fc2: 0.558235, type: "lowpass" }
     - name: "topography"
-      parameters: { order: 3 }
+      parameters: { order: 4 }
     - name: "imagehdf5"
       parameters:
         { mode: "topo", z: 0.0, file: "topo", cycle: 0, precision: "float" }
