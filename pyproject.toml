@@ -12,7 +12,7 @@ dynamic = ["version"]
 dependencies = [
   # UCGMSim Dependencies
   "im-calculation>=2026.09.2",
-  "velocity-modelling>=2026.2.1",
+  "velocity-modelling>=2026.10.1",
   "nshmdb>=2026.09.1",
   "oq_wrapper>=2026.05.2",
   "qcore-utils>=2025.12.2",
