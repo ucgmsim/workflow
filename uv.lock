@@ -1785,7 +1785,7 @@ dependencies = [
     { name = "numpy" },
     { name = "pandas" },
     { name = "pyproj" },
-    { name = "qcore-utils" },
+    { name = "qcore-utils", extra = ["cli"] },
     { name = "requests" },
     { name = "shapely" },
     { name = "source-modelling" },
@@ -1984,6 +1984,7 @@ dependencies = [
     { name = "zarr" },
     { name = "zfpy" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/93/5a/f8f5f3ca673d46d4ba4e0e171384026d033c805c7264a3ac67bc8b3a92df/nzcvm-2026.10.4.tar.gz", hash = "sha256:95e6b3a8548574777080305618e63be4ccf9e573c9ccf6dcb9666c0ae160519b", size = 192421, upload-time = "2026-10-08T01:28:34.275Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6d/5e/5ba8b8d389204c2c17ab53a559c55e2bed36445a37ac9d59d8875a5e7fe5/nzcvm-2026.10.4-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:4b18390da7ff634d464e954d85a71a9637bb5a896ed47d9b04a24d1a02f39a00", size = 501940, upload-time = "2026-10-08T01:28:22.312Z" },
     { url = "https://files.pythonhosted.org/packages/2c/11/f0f6645bb2c6422324d008ab0729a8f117cbd9b99942b958a2b8cec71617/nzcvm-2026.10.4-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:f8719f3eb62fd7d8f756f66e4734b5f1f79c472efc8ddc2d49baa85e5a0320f0", size = 516397, upload-time = "2026-10-08T01:28:23.892Z" },
@@ -2699,25 +2700,25 @@ wheels = [
 
 [[package]]
 name = "qcore-utils"
-version = "2026.8.2"
+version = "2026.10.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "docstring-parser" },
-    { name = "numba", marker = "python_full_version < '3.15'" },
     { name = "numpy" },
     { name = "pandas" },
-    { name = "pooch" },
-    { name = "pyfftw" },
     { name = "pyproj" },
-    { name = "pyyaml" },
     { name = "scipy" },
-    { name = "typer" },
     { name = "typing-extensions" },
     { name = "xarray" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/72/8d/1247786da6e689cd11846aa4027548c93c573e0409391fc2963d1cbe9800/qcore_utils-2026.8.2.tar.gz", hash = "sha256:904a680f40a42f2c27451fb86212309a801ebdb81f5a2ebef019fb3f744cb441", size = 180944, upload-time = "2026-08-11T04:38:04.432Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e6/6e/db03d35dcbdfd587e42148cffb39844a8001fa93eb1bdcc8c52a7255f867/qcore_utils-2026.10.1.tar.gz", hash = "sha256:41f800289497caff7065d1bb137d6dd2186c33ddf0dfe4ca2b5170f3c43ccc92", size = 102701, upload-time = "2026-10-01T03:27:44.497Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a8/09/d6aa2f655c61c0a77d92340559b7fd4322ca52261a55b57fae36d7d59673/qcore_utils-2026.8.2-py3-none-any.whl", hash = "sha256:e6c82ab6024fea0090a565b601a4310cc60dec9ecb1d995f056bf316e05716f9", size = 102067, upload-time = "2026-08-11T04:38:02.785Z" },
+    { url = "https://files.pythonhosted.org/packages/65/5e/7f075683b39c26e1f0455fd26db3936ff511bfb10638a1fe0608c1185d13/qcore_utils-2026.10.1-py3-none-any.whl", hash = "sha256:ee98051d491c92ce8bd7e8c72b901743cb03c3eabf4a9b7f9a4ccd28a2ff7b4e", size = 44391, upload-time = "2026-10-01T03:27:42.936Z" },
+]
+
+[package.optional-dependencies]
+cli = [
+    { name = "docstring-parser" },
+    { name = "typer" },
 ]
 
 [[package]]
