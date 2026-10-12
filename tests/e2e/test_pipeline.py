@@ -253,13 +253,13 @@ def test_srf_to_hdf5(work: Path) -> None:
 
 
 def test_generate_stoch(realisation: Path, work: Path) -> None:
-    """The stoch file the HF simulation reads."""
+    """The stoch slip model the HF simulation reads."""
     require(work / "realisation.srf")
     run(
         "generate-stoch",
         realisation,
         work / "realisation.srf",
-        work / "realisation.stoch",
+        work / "stoch.h5",
     )
 
 
@@ -318,9 +318,9 @@ def test_lf_to_xarray(work: Path) -> None:
 
 def test_hf_sim(realisation: Path, work: Path) -> None:
     """The stochastic HF simulation at every station."""
-    require(work / "realisation.stoch", work / "stations/stations.ll")
+    require(work / "stoch.h5", work / "stations/stations.ll")
     run(
-        "hf-sim", realisation, work / "realisation.stoch", work / "stations/stations.ll",
+        "hf-sim", realisation, work / "stoch.h5", work / "stations/stations.ll",
         work / "realisation.hf",
     )  # fmt: skip
 

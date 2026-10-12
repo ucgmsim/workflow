@@ -1201,7 +1201,8 @@ class HFConfig(RealisationConfiguration):
     Three fields here are not in that class at all: `source.stress_drop_bars`,
     `path.q_frequency_exponent` and `site.kappa_s`. The simulation takes the stress
     parameter per subfault and the other two per station; the realisation keeps one value
-    for each, and `hf-sim` broadcasts it to every subfault or station.
+    for each. `generate-stoch` fills every subfault's stress parameter with
+    `source.stress_drop_bars`, and `hf-sim` broadcasts the other two to every station.
     """
 
     _config_key: ClassVar[str] = "hf"

@@ -8,7 +8,7 @@ Inputs
 ------
 1. A station list (in the "latitude longitude name" format),
 2. A 1D velocity model,
-3. A stoch file,
+3. A stoch slip model (HDF5) from `generate-stoch`,
 4. A realisation with domain parameters and metadata.
 
 Outputs
@@ -59,7 +59,6 @@ from hf_simulation import (
     RuptureVelocity as RuptureVelocityTaper,
 )
 from qcore import cli
-from source_modelling.stoch import StochFile
 from workflow import log_utils, realisations, utils
 from workflow.realisations import (
     DomainParameters,
@@ -71,6 +70,7 @@ from workflow.realisations import (
 from workflow.realisations import (
     HFConfig as HFConfigDefaults,
 )
+from workflow.scripts.generate_stoch import read_stoch
 from workflow.waveforms import Component
 
 app = typer.Typer()
@@ -88,8 +88,8 @@ def _build_config(
 
     The realisation carries `stress_drop_bars`, `q_frequency_exponent` and `kappa_s` as
     run-wide constants, but the simulation takes the first per subfault and the other two
-    per station. They are left out here and broadcast by `_build_slip_model` and
-    `_simulate_chunk`.
+    per station. They are left out here: the stress parameter comes from the slip model
+    `generate-stoch` writes, and `_simulate_chunk` broadcasts the other two.
     """
     source: dict[str, Any] = _without(hf_config.source, "stress_drop_bars") | {
         "rupture_velocity": RuptureVelocityTaper(
@@ -118,34 +118,33 @@ def _without(group: dict[str, Any], key: str) -> dict[str, Any]:
     return {name: value for name, value in group.items() if name != key}
 
 
-def _build_slip_model(stoch_ffp: Path, stress_drop_bars: float) -> SlipModel:
-    """Read a stoch file into a simulation slip model.
+def _build_slip_model(stoch_ffp: Path) -> SlipModel:
+    """Read a stoch slip model written by `generate-stoch` into a simulation slip model."""
+    dx, dy, planes = read_stoch(stoch_ffp)
 
-    The stoch format has no stress parameter, so every subfault gets `stress_drop_bars`.
-    """
-    stoch = StochFile.from_file(stoch_ffp)
+    def grid(plane: xr.Dataset, name: str) -> np.ndarray:
+        # (down-dip, along-strike), which is how the simulation takes them.
+        return plane[name].transpose("dip", "strike").values.astype(np.float32)
+
     return SlipModel(
         [
             FaultSegment(
-                longitude_deg=plane.header.longitude,
-                latitude_deg=plane.header.latitude,
-                strike_deg=plane.header.strike,
-                dip_deg=plane.header.dip,
-                rake_deg=plane.header.average_rake,
-                top_depth_km=plane.header.dtop,
-                subfault_length_km=plane.header.dx,
-                subfault_width_km=plane.header.dy,
-                hypocentre_along_strike_km=plane.header.shypo,
-                hypocentre_down_dip_km=plane.header.dhypo,
-                # (down-dip, along-strike), which is how the stoch format stores them.
-                slip=plane.slip.astype(np.float32),
-                rise_time_s=plane.rise.astype(np.float32),
-                rupture_time_s=plane.trup.astype(np.float32),
-                stress_drop_bars=np.full(
-                    plane.slip.shape, stress_drop_bars, np.float32
-                ),
+                longitude_deg=plane.attrs["longitude"],
+                latitude_deg=plane.attrs["latitude"],
+                strike_deg=plane.attrs["strike"],
+                dip_deg=plane.attrs["dip"],
+                rake_deg=plane.attrs["rake"],
+                top_depth_km=plane.attrs["dtop"],
+                subfault_length_km=dx,
+                subfault_width_km=dy,
+                hypocentre_along_strike_km=plane.attrs["shypo"],
+                hypocentre_down_dip_km=plane.attrs["dhypo"],
+                slip=grid(plane, "slip"),
+                rise_time_s=grid(plane, "rise_time"),
+                rupture_time_s=grid(plane, "rupture_time"),
+                stress_drop_bars=grid(plane, "stress_drop"),
             )
-            for plane in stoch.data
+            for plane in planes
         ]
     )
 
@@ -213,7 +212,7 @@ def run_hf(
     realisation_ffp : Path
         Path to the JSON file containing realisation data.
     stoch_ffp : Path
-        Path to the input stochastic file.
+        Path to the stoch slip model written by `generate-stoch`.
     station_file : Path
         Path to the file containing station locations and names.
     out_file : Path
@@ -245,7 +244,7 @@ def run_hf(
     stations = stations.sort_values("seed")
 
     simulator = Simulator(
-        _build_slip_model(stoch_ffp, hf_config.source["stress_drop_bars"]),
+        _build_slip_model(stoch_ffp),
         _build_velocity_model(velocity_model_1d),
         _build_config(hf_config, rupture_velocity, domain_parameters),
     )

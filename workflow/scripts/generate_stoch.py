@@ -2,7 +2,8 @@
 
 Description
 -----------
-Generate Stoch file for HF simulation. This file is just a down-sampled version of the SRF.
+Generate the stoch slip model for HF simulation. This is a down-sampled version of the SRF on
+the uniform subfault grid the HF code simulates, with a stress parameter for every subfault.
 
 Inputs
 ------
@@ -10,7 +11,14 @@ A realisation file containing a metadata configuration, and a generated SRF file
 
 Outputs
 -------
-A [Stoch](https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation#FileFormatsUsedInGroundMotionSimulation-Stochformat) file containing a down-sampled version of the SRF.
+An HDF5 file, written by xarray as a `DataTree`, holding the down-sampled SRF. The root group
+carries the subfault size shared by every plane (`dx` and `dy`, km) and has one child group
+per plane, `plane_0`, `plane_1`, ..., in SRF order. Each plane group has the plane geometry
+as attributes (`longitude`, `latitude`, `strike`, `dip`, `rake`, `dtop`, `shypo`, `dhypo`)
+and four `(dip, strike)` grids: `slip` (cm), `rise_time` (s), `rupture_time` (s) and
+`stress_drop` (bars). The `strike` coordinate is the centre of each subfault along strike
+from the top-centre of the plane, and `dip` the centre down dip from its top edge (km). Read
+it with `xarray.open_datatree`.
 
 Usage
 -----
@@ -32,13 +40,13 @@ from typing import Annotated
 import numpy as np
 import scipy.sparse as sp
 import typer
+import xarray as xr
 
 from qcore import cli
 from source_modelling import srf
 from source_modelling.srf import SrfFile
-from source_modelling.stoch import StochFile, StochHeader, StochPlane
 from workflow import log_utils, realisations
-from workflow.realisations import RealisationMetadata, StochConfig
+from workflow.realisations import HFConfig, RealisationMetadata, StochConfig
 
 app = typer.Typer()
 
@@ -174,24 +182,29 @@ def _circular_mean(angles: np.ndarray, weights: np.ndarray) -> float:
     return float(np.angle(mean, deg=True) % 360.0)
 
 
-def convert_srf_to_stoch(srf_file: SrfFile, dx: float, dy: float) -> StochFile:
-    """Convert an SRF file into a Stoch file by box-averaging slip, tinit and tinit * rise.
+def convert_srf_to_stoch(
+    srf_file: SrfFile, dx: float, dy: float, stress_drop_bars: float
+) -> xr.DataTree:
+    """Down-sample an SRF file into a stoch slip model by box-averaging slip, tinit and rise.
 
     Parameters
     ----------
     srf_file : SrfFile
         The SRF file to convert.
     dx : float
-        The desired strike-resolution for the output stoch file.
+        The desired strike-resolution for the output slip model.
     dy : float
-        The desired dip-resolution for the output stoch file.
+        The desired dip-resolution for the output slip model.
+    stress_drop_bars : float
+        The stress parameter given to every subfault.
 
     Returns
     -------
-    StochFile
-        An output stoch file downsampled from ``srf_file``.
+    xr.DataTree
+        The slip model downsampled from ``srf_file``, laid out as the module docstring
+        describes.
     """
-    planes = []
+    planes = {}
     for i, segment in enumerate(srf_file.segments):
         header = srf_file.header.iloc[i].astype(np.float32)
         nstk, ndip = int(header["nstk"]), int(header["ndip"])
@@ -225,22 +238,67 @@ def convert_srf_to_stoch(srf_file: SrfFile, dx: float, dy: float) -> StochFile:
         trup_grid = _weighted_box_mean(tinit, np.ones_like(tinit), wy, wx)
         rise_grid = _weighted_box_mean(rise, slip, wy, wx, empty=1e-5)
 
-        stoch_header = StochHeader(
-            longitude=header["elon"],
-            latitude=header["elat"],
-            nx=nx,
-            ny=ny,
-            dx=dx,
-            dy=dy,
-            strike=round(header["stk"]) % 360,
-            dip=round(header["dip"]),
-            average_rake=round(_circular_mean(rake, slip)),
-            dtop=header["dtop"],
-            shypo=header["shyp"],
-            dhypo=header["dhyp"],
+        dims = ("dip", "strike")
+        # The plane geometry at full precision, which the stoch text format rounded.
+        geometry = srf_file.header.iloc[i]
+        planes[f"plane_{i}"] = xr.Dataset(
+            {
+                "slip": (dims, slip_grid, {"units": "cm"}),
+                "rise_time": (dims, rise_grid, {"units": "s"}),
+                "rupture_time": (dims, trup_grid, {"units": "s"}),
+                "stress_drop": (
+                    dims,
+                    np.full((ny, nx), stress_drop_bars, np.float32),
+                    {"units": "bar"},
+                ),
+            },
+            coords={
+                # Subfault centres, matching the grid alignment above.
+                "strike": (
+                    "strike",
+                    (np.arange(nx) + 0.5 - nx / 2) * dx,
+                    {"units": "km"},
+                ),
+                "dip": ("dip", (np.arange(ny) + 0.5) * dy, {"units": "km"}),
+            },
+            attrs={
+                "longitude": float(geometry["elon"]),
+                "latitude": float(geometry["elat"]),
+                "strike": float(geometry["stk"]) % 360.0,
+                "dip": float(geometry["dip"]),
+                "rake": _circular_mean(rake, slip),
+                "dtop": float(geometry["dtop"]),
+                "shypo": float(geometry["shyp"]),
+                "dhypo": float(geometry["dhyp"]),
+            },
         )
-        planes.append(StochPlane(stoch_header, slip_grid, rise_grid, trup_grid))
-    return StochFile(planes)
+    return xr.DataTree.from_dict(
+        {"/": xr.Dataset(attrs={"dx": dx, "dy": dy}), **planes}
+    )
+
+
+def read_stoch(stoch_ffp: Path) -> tuple[float, float, list[xr.Dataset]]:
+    """Read a stoch slip model written by `generate-stoch`.
+
+    Parameters
+    ----------
+    stoch_ffp : Path
+        Path to the slip model.
+
+    Returns
+    -------
+    dx : float
+        Subfault length along strike shared by every plane (km).
+    dy : float
+        Subfault width down dip shared by every plane (km).
+    planes : list of xr.Dataset
+        Each plane of the slip model, in SRF order.
+    """
+    with xr.open_datatree(stoch_ffp, engine="h5netcdf") as tree:
+        # HDF5 lists groups by name, so plane_10 would come before plane_2.
+        names = sorted(tree.children, key=lambda name: int(name.removeprefix("plane_")))
+        planes = [tree[name].to_dataset().load() for name in names]
+        return float(tree.attrs["dx"]), float(tree.attrs["dy"]), planes
 
 
 _CELL_TOLERANCE = 1e-9
@@ -347,19 +405,22 @@ def generate_stoch(
     srf_ffp: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
     stoch_ffp: Annotated[Path, typer.Argument(dir_okay=False)],
 ) -> None:
-    """Generate a stoch file from an SRF file.
+    """Generate a stoch slip model from an SRF file.
 
     Parameters
     ----------
     realisation_ffp : Path
         Path to the realisation.
     srf_ffp : Path
-        Path to the SRF file which is used as input for the stoch file generation.
+        Path to the SRF file which is used as input for the slip model generation.
     stoch_ffp : Path
-        Path to the output file where the generated stoch file will be saved.
+        Path to the output HDF5 file where the slip model will be saved.
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     stoch_config = StochConfig.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
+    hf_config = HFConfig.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
 
@@ -382,8 +443,8 @@ def generate_stoch(
         stoch_config.stoch_min_dy,
         stoch_config.stoch_max_dy,
     )
-    stoch_file = convert_srf_to_stoch(srf_file, dx, dy)
-    with open(stoch_ffp, "w") as f:
-        stoch_file.dump(f)
+    # The realisation has one stress parameter for the whole rupture, for now.
+    stoch = convert_srf_to_stoch(srf_file, dx, dy, hf_config.source["stress_drop_bars"])
+    stoch.to_netcdf(stoch_ffp, engine="h5netcdf")
 
     realisations.append_log_entry(realisation_ffp)
