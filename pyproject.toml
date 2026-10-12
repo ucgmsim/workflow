@@ -8,7 +8,7 @@ authors = [{ name = "QuakeCoRE" }]
 description = "Next generation workflow powered by cylc."
 readme = "README.md"
 # Python 3.15 is blocked by third-party packages without cp315 wheels:
-#   - h5py (direct, and via source-modelling, nzcvm, velocity-modelling and
+#   - h5py (direct, and via source-modelling[hdf5], nzcvm, velocity-modelling and
 #     openquake-engine): expected with h5py 3.17,
 #     https://github.com/h5py/h5py/issues/2972; the sdist needs a system HDF5.
 #   - fiona (imported by openquake's GSIMs): no release since 1.10.1
@@ -29,7 +29,7 @@ dependencies = [
   "qcore-utils>=2025.12.2",
   "hf-simulation>=2026.10.1",
   "site-calculation>=2026.7.1",
-  "source_modelling>=2026.10.2",
+  "source_modelling[hdf5]>=2026.10.2", # srf-to-hdf5 uses SrfFile.write_sw4_hdf5
   "nzcvm>=2026.10.3",
   # Data Formats
   "geopandas",
