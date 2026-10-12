@@ -1003,10 +1003,25 @@ wheels = [
 
 [[package]]
 name = "hf-simulation"
-version = "2026.9.3.dev13+g99f7ea01d"
-source = { git = "https://github.com/ucgmsim/high-frequency?branch=ai%2Fper-subfault-stress-drop#99f7ea01d7d435dc2ade2da168a4d957b4f89728" }
+version = "2026.10.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/56/3e/20d8f664966b6f055ff1b8ec52eab4b7addbfb0ada107e54840bfc17cc6e/hf_simulation-2026.10.1.tar.gz", hash = "sha256:316492021a1cdc21610dc5e16a25691219aa265e48574dc8cd589c8cf1cc9b9f", size = 893692, upload-time = "2026-10-12T02:55:40.269Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/30/bd/2c0f15aae477db2325d761c6a1ad2670930e45a0e8f271445ccabfd4e831/hf_simulation-2026.10.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:bc5317bbe8aa4faac4c357400b740cab34e37c872c480e9b16a3a2108d984aaa", size = 482431, upload-time = "2026-10-12T02:55:19.747Z" },
+    { url = "https://files.pythonhosted.org/packages/ef/5b/00c462289e830a518a88af200b81dc1ea53346a7dc41b67fea36d474fe28/hf_simulation-2026.10.1-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:604fa4d77573dd49d3640dc7a8baf7e4ef35bf7fb21647081f11c47db38d1f95", size = 689078, upload-time = "2026-10-12T02:55:21.194Z" },
+    { url = "https://files.pythonhosted.org/packages/fa/ec/681b97d854683acc8c6e92662ce4bc1685c21ebc9868400631b33dbd20cb/hf_simulation-2026.10.1-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:82cc66bddf314700796fa172f643db1cc750bc0bcd8ecf2a1a41a167cb4a9e5a", size = 6218115, upload-time = "2026-10-12T02:55:23.156Z" },
+    { url = "https://files.pythonhosted.org/packages/92/e4/42201ce2893091a62603e738a0f7a69e8e22bbca0d6875f5b179d814343a/hf_simulation-2026.10.1-cp313-cp313-win_amd64.whl", hash = "sha256:535d585d92433c1165b18a46639c08f3343569681dbb86f533d750ed1d71de2e", size = 680439, upload-time = "2026-10-12T02:55:24.755Z" },
+    { url = "https://files.pythonhosted.org/packages/bf/3e/0edd94f5d6bd1cc9c00ef86ea67f8cedad2d4a801e3d96b8fbafee0b2c69/hf_simulation-2026.10.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:b7b2f06328204927e2c696bc3a10f329eae5308e01f3cb74dff58c683cd39c6c", size = 483007, upload-time = "2026-10-12T02:55:26.348Z" },
+    { url = "https://files.pythonhosted.org/packages/35/43/1d6489f9b1d4c40b09a52bafe19d114dc8c5b999fdaf871512d6e430b460/hf_simulation-2026.10.1-cp314-cp314-macosx_11_0_x86_64.whl", hash = "sha256:c3f0d7f254efc1fec4f871de011f4adef2809beebc95be1e1ab790999e468918", size = 690328, upload-time = "2026-10-12T02:55:28.152Z" },
+    { url = "https://files.pythonhosted.org/packages/11/28/d5759ab2f4406e1bc620ccf73e79b7ce2d9c5f722b9bd0f1223a78addd9f/hf_simulation-2026.10.1-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:0b94125d61a93678831d57f663fc203c95ca56c18adaa29a6a483f8da719f43a", size = 6224852, upload-time = "2026-10-12T02:55:29.952Z" },
+    { url = "https://files.pythonhosted.org/packages/0b/f5/9761fad4b75f584223cccc9833ff27f006214627362db7d13d8a60e66951/hf_simulation-2026.10.1-cp314-cp314-win_amd64.whl", hash = "sha256:0cb1c07636b97877ec1c5a489daa1913c81bd381c560b7b0b0d0743be90418e8", size = 697634, upload-time = "2026-10-12T02:55:31.585Z" },
+    { url = "https://files.pythonhosted.org/packages/e2/96/648653d9151f82c19a67108a810edf9c1c7aa40287aed6f71c2a7794a1d9/hf_simulation-2026.10.1-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:40008668d7131b5396dbb1b68bee9896c757b7bc043c7656d92169f4dc235e9c", size = 478109, upload-time = "2026-10-12T02:55:33.219Z" },
+    { url = "https://files.pythonhosted.org/packages/f2/40/89eddf3a54d777ea59cae21c61fb0330db214bbd64ac5b0fd0db6b75a38a/hf_simulation-2026.10.1-cp314-cp314t-macosx_11_0_x86_64.whl", hash = "sha256:3576e793d858ed74af97136bcb9c508d046803e02ab557e4337cefa9f09c105c", size = 683404, upload-time = "2026-10-12T02:55:35.035Z" },
+    { url = "https://files.pythonhosted.org/packages/72/b2/3feccad1b7af49f01a4ed8771104caf7b67556177a041beb80b382490097/hf_simulation-2026.10.1-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:2061fc07e307106a6c6c0e06bbecc8ce6bba1cd5cf759377f3754ca5c958af02", size = 6221865, upload-time = "2026-10-12T02:55:36.694Z" },
+    { url = "https://files.pythonhosted.org/packages/57/7f/6ea2a3c05706cb71030003f5c08f9f3b547c9353148df0da669d33095fba/hf_simulation-2026.10.1-cp314-cp314t-win_amd64.whl", hash = "sha256:16e3f859853d6cd14b10ddf27c246f0f7e39473e260c2720121c3aca0245103b", size = 694049, upload-time = "2026-10-12T02:55:38.88Z" },
 ]
 
 [[package]]
@@ -3506,7 +3521,7 @@ requires-dist = [
     { name = "fiona" },
     { name = "geopandas" },
     { name = "h5py", specifier = ">=3.15.1" },
-    { name = "hf-simulation", git = "https://github.com/ucgmsim/high-frequency?branch=ai%2Fper-subfault-stress-drop" },
+    { name = "hf-simulation", specifier = ">=2026.10.1" },
     { name = "hypothesis", extras = ["numpy"], marker = "extra == 'test'", specifier = ">=6.0.0" },
     { name = "im-calculation", specifier = ">=2026.9.2" },
     { name = "netcdf4" },
