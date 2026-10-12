@@ -84,8 +84,14 @@ def _build_config(
     rupture_velocity: RuptureVelocity,
     domain_parameters: DomainParameters,
 ) -> HfConfig:
-    """Translate the realisation's configuration into the simulation's."""
-    source: dict[str, Any] = hf_config.source | {
+    """Translate the realisation's configuration into the simulation's.
+
+    The realisation carries `stress_drop_bars`, `q_frequency_exponent` and `kappa_s` as
+    run-wide constants, but the simulation takes the first per subfault and the other two
+    per station. They are left out here and broadcast by `_build_slip_model` and
+    `_simulate_chunk`.
+    """
+    source: dict[str, Any] = _without(hf_config.source, "stress_drop_bars") | {
         "rupture_velocity": RuptureVelocityTaper(
             fraction=rupture_velocity.rvfrac,
             shallow=rupture_velocity.rvfrac_shal,
@@ -93,22 +99,30 @@ def _build_config(
             **hf_config.source["rupture_velocity"],
         )
     }
-    path: dict[str, Any] = hf_config.path | {
+    path: dict[str, Any] = _without(hf_config.path, "q_frequency_exponent") | {
         "rayset": tuple(Ray(ray) for ray in hf_config.path["rayset"]),
         "path_duration_model": PathDurationModel(hf_config.path["path_duration_model"]),
     }
     return HfConfig(
         source=SourceParameters(**source),
         path=PathParameters(**path),
-        site=SiteParameters(**hf_config.site),
+        site=SiteParameters(**_without(hf_config.site, "kappa_s")),
         record=RecordParameters(
             duration_s=domain_parameters.duration, **hf_config.record
         ),
     )
 
 
-def _build_slip_model(stoch_ffp: Path) -> SlipModel:
-    """Read a stoch file into a simulation slip model."""
+def _without(group: dict[str, Any], key: str) -> dict[str, Any]:
+    """Return a configuration group without one of its keys."""
+    return {name: value for name, value in group.items() if name != key}
+
+
+def _build_slip_model(stoch_ffp: Path, stress_drop_bars: float) -> SlipModel:
+    """Read a stoch file into a simulation slip model.
+
+    The stoch format has no stress parameter, so every subfault gets `stress_drop_bars`.
+    """
     stoch = StochFile.from_file(stoch_ffp)
     return SlipModel(
         [
@@ -127,6 +141,9 @@ def _build_slip_model(stoch_ffp: Path) -> SlipModel:
                 slip=plane.slip.astype(np.float32),
                 rise_time_s=plane.rise.astype(np.float32),
                 rupture_time_s=plane.trup.astype(np.float32),
+                stress_drop_bars=np.full(
+                    plane.slip.shape, stress_drop_bars, np.float32
+                ),
             )
             for plane in stoch.data
         ]
@@ -151,13 +168,22 @@ def _simulate_chunk(
     station_chunk: xr.Dataset,
     time: np.ndarray,
     simulator: Simulator,
+    kappa_s: float,
+    q_frequency_exponent: float,
 ) -> xr.DataArray:
-    """Simulate one dask block's worth of stations in a single call."""
+    """Simulate one dask block's worth of stations in a single call.
+
+    `kappa_s` and `q_frequency_exponent` are the realisation's run-wide values, given to
+    every station in the block.
+    """
     station_names = station_chunk["station"].values
+    station_count = len(station_names)
     waveform = simulator.run_stations(
         latitude_deg=station_chunk["latitude"].values.astype(np.float32),
         longitude_deg=station_chunk["longitude"].values.astype(np.float32),
         station_seed=station_chunk["seed"].values.astype(np.uint64),
+        kappa_s=np.full(station_count, kappa_s, np.float32),
+        q_frequency_exponent=np.full(station_count, q_frequency_exponent, np.float32),
     )
     # `hf_simulation` already uses the workflow's component labels, but orders them
     # 090, 000, ver; waveform files store them in `Component` order.
@@ -219,7 +245,7 @@ def run_hf(
     stations = stations.sort_values("seed")
 
     simulator = Simulator(
-        _build_slip_model(stoch_ffp),
+        _build_slip_model(stoch_ffp, hf_config.source["stress_drop_bars"]),
         _build_velocity_model(velocity_model_1d),
         _build_config(hf_config, rupture_velocity, domain_parameters),
     )
@@ -264,7 +290,12 @@ def run_hf(
         waveform = station_inputs.map_blocks(
             _simulate_chunk,
             template=template,
-            kwargs={"time": time, "simulator": simulator},
+            kwargs={
+                "time": time,
+                "simulator": simulator,
+                "kappa_s": hf_config.site["kappa_s"],
+                "q_frequency_exponent": hf_config.path["q_frequency_exponent"],
+            },
         ).rename("waveform")
 
         # The Vs30 the HF waveforms are simulated at, which bb-sim amplifies from.

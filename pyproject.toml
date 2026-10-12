@@ -202,3 +202,8 @@ extend-ignore = ["GL08"]
 [[tool.npdlint.scope]]
 match = { private = true }
 skip = true
+
+[tool.uv.sources]
+# Per-station kappa/Q and per-subfault stress drop (ucgmsim/high-frequency#22, #26).
+# Switch back to the PyPI release once those are published.
+hf-simulation = { git = "https://github.com/ucgmsim/high-frequency", branch = "ai/per-subfault-stress-drop" }

@@ -1197,6 +1197,11 @@ class HFConfig(RealisationConfiguration):
     from the domain, and the three `source.rupture_velocity` multipliers live in
     :class:`RuptureVelocity` because SRF generation reads the same physical values. Both
     are injected by `hf-sim`.
+
+    Three fields here are not in that class at all: `source.stress_drop_bars`,
+    `path.q_frequency_exponent` and `site.kappa_s`. The simulation takes the stress
+    parameter per subfault and the other two per station; the realisation keeps one value
+    for each, and `hf-sim` broadcasts it to every subfault or station.
     """
 
     _config_key: ClassVar[str] = "hf"
