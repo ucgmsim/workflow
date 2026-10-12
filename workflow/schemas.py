@@ -1112,14 +1112,12 @@ HF_CONFIG_SCHEMA = Schema(
         },
         Literal("path", description="Which rays, and how the medium attenuates"): {
             Literal("rayset", description="ray types 1: direct, 2: moho"): [Or(1, 2)],
-            Literal("q_frequency_exponent", description="x in Q(f) = Q0 f^x"): NUMBER,
             Literal(
                 "path_duration_model",
                 description="0: GP2010, 1: WUS, 2: ENA, 11: BT2014, 12: BT2015",
             ): Or(0, 1, 2, 11, 12),
         },
         Literal("site", description="The near-surface"): {
-            Literal("kappa_s", description="Near-surface attenuation (s)"): NUMBER,
             Literal("fmax_hz", description="High-frequency cutoff"): And(
                 NUMBER, _is_positive
             ),

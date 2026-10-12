@@ -6,7 +6,7 @@ Generate stochastic high frequency ground acceleration data for a number of stat
 
 Inputs
 ------
-1. A station list (in the "latitude longitude name" format),
+1. A site table of the stations to simulate (`stations.parquet`, see `workflow.sites`),
 2. A 1D velocity model,
 3. A stoch slip model (HDF5) from `generate-stoch`,
 4. A realisation with domain parameters and metadata.
@@ -22,7 +22,7 @@ Can be run in the cybershake container. Can also be run from your own computer u
 
 Usage
 -----
-`hf-sim [OPTIONS] REALISATION_FFP STOCH_FFP STATION_FILE OUT_FILE`
+`hf-sim [OPTIONS] REALISATION_FFP STOCH_FFP SITES_FFP OUT_FILE`
 
 For More Help
 -------------
@@ -35,7 +35,6 @@ from typing import Annotated, Any
 import dask
 import dask.array as da
 import numpy as np
-import pandas as pd
 import typer
 import xarray as xr
 from tqdm.dask import TqdmCallback
@@ -59,7 +58,7 @@ from hf_simulation import (
     RuptureVelocity as RuptureVelocityTaper,
 )
 from qcore import cli
-from workflow import log_utils, realisations, utils
+from workflow import log_utils, realisations, sites, utils
 from workflow.realisations import (
     DomainParameters,
     HFVelocityModel1D,
@@ -85,10 +84,9 @@ def _build_config(
 ) -> HfConfig:
     """Translate the realisation's configuration into the simulation's.
 
-    The realisation carries `stress_drop_bars`, `q_frequency_exponent` and `kappa_s` as
-    run-wide constants, but the simulation takes the first per subfault and the other two
-    per station. They are left out here: the stress parameter comes from the slip model
-    `generate-stoch` writes, and `_simulate_chunk` broadcasts the other two.
+    The realisation carries `stress_drop_bars` as a run-wide constant, but the simulation
+    takes it per subfault. It is left out here: the stress parameter comes from the slip
+    model `generate-stoch` writes.
     """
     source: dict[str, Any] = _without(hf_config.source, "stress_drop_bars") | {
         "rupture_velocity": RuptureVelocityTaper(
@@ -98,14 +96,14 @@ def _build_config(
             **hf_config.source["rupture_velocity"],
         )
     }
-    path: dict[str, Any] = _without(hf_config.path, "q_frequency_exponent") | {
+    path: dict[str, Any] = hf_config.path | {
         "rayset": tuple(Ray(ray) for ray in hf_config.path["rayset"]),
         "path_duration_model": PathDurationModel(hf_config.path["path_duration_model"]),
     }
     return HfConfig(
         source=SourceParameters(**source),
         path=PathParameters(**path),
-        site=SiteParameters(**_without(hf_config.site, "kappa_s")),
+        site=SiteParameters(**hf_config.site),
         record=RecordParameters(
             duration_s=domain_parameters.duration, **hf_config.record
         ),
@@ -187,25 +185,18 @@ def _build_velocity_model(velocity_model: HFVelocityModel1D) -> VelocityModel1D:
 
 
 def _simulate_chunk(
-    station_chunk: xr.Dataset,
-    time: np.ndarray,
-    simulator: Simulator,
-    kappa_s: float,
-    q_frequency_exponent: float,
+    station_chunk: xr.Dataset, time: np.ndarray, simulator: Simulator
 ) -> xr.DataArray:
-    """Simulate one dask block's worth of stations in a single call.
-
-    `kappa_s` and `q_frequency_exponent` are the realisation's run-wide values, given to
-    every station in the block.
-    """
+    """Simulate one dask block's worth of stations in a single call."""
     station_names = station_chunk["station"].values
-    station_count = len(station_names)
     waveform = simulator.run_stations(
         latitude_deg=station_chunk["latitude"].values.astype(np.float32),
         longitude_deg=station_chunk["longitude"].values.astype(np.float32),
         station_seed=station_chunk["seed"].values.astype(np.uint64),
-        kappa_s=np.full(station_count, kappa_s, np.float32),
-        q_frequency_exponent=np.full(station_count, q_frequency_exponent, np.float32),
+        kappa_s=station_chunk["kappa_s"].values.astype(np.float32),
+        q_frequency_exponent=station_chunk["q_frequency_exponent"].values.astype(
+            np.float32
+        ),
     )
     # `hf_simulation` already uses the workflow's component labels, but orders them
     # 090, 000, ver; waveform files store them in `Component` order.
@@ -225,7 +216,7 @@ def _simulate_chunk(
 def run_hf(
     realisation_ffp: Annotated[Path, typer.Argument()],
     stoch_ffp: Annotated[Path, typer.Argument(exists=True)],
-    station_file: Annotated[Path, typer.Argument(exists=True)],
+    sites_ffp: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
     out_file: Annotated[Path, typer.Argument()],
 ) -> None:
     """Run the HF simulation and write the HF output file.
@@ -236,8 +227,8 @@ def run_hf(
         Path to the JSON file containing realisation data.
     stoch_ffp : Path
         Path to the stoch slip model written by `generate-stoch`.
-    station_file : Path
-        Path to the file containing station locations and names.
+    sites_ffp : Path
+        Path to the site table of the stations to simulate (see `workflow.sites`).
     out_file : Path
         Filepath where the HF output will be saved.
     """
@@ -254,12 +245,9 @@ def run_hf(
         realisation_ffp, metadata.defaults_version
     )
 
-    stations = pd.read_csv(
-        station_file,
-        delimiter=r"\s+",
-        header=None,
-        names=["longitude", "latitude", "station"],
-    ).set_index("station")
+    stations = sites.read_sites(sites_ffp)[
+        ["latitude", "longitude", "kappa_s", "q_frequency_exponent"]
+    ]
 
     stations["seed"] = hf_simulation.station_seeds(
         seeds.hf_seed, stations.index.to_list()
@@ -312,19 +300,16 @@ def run_hf(
         waveform = station_inputs.map_blocks(
             _simulate_chunk,
             template=template,
-            kwargs={
-                "time": time,
-                "simulator": simulator,
-                "kappa_s": hf_config.site["kappa_s"],
-                "q_frequency_exponent": hf_config.path["q_frequency_exponent"],
-            },
+            kwargs={"time": time, "simulator": simulator},
         ).rename("waveform")
 
         # The Vs30 the HF waveforms are simulated at, which bb-sim amplifies from.
         station_inputs["vref"] = xr.full_like(
-            station_inputs["latitude"], velocity_model_1d.model["Vs"].iloc[0] * 1000
+            station_inputs["latitude"], velocity_model_1d.vs30
         )
-        dataset = xr.merge([waveform, station_inputs])
+        dataset = xr.merge(
+            [waveform, station_inputs[["latitude", "longitude", "seed", "vref"]]]
+        )
         dataset.attrs = {
             "start_sec": 0.0,
             "dt": hf_config.dt,

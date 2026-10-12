@@ -1097,6 +1097,19 @@ class VelocityModel1D(RealisationConfiguration):
     model: pd.DataFrame
     """The layers of the velocity model, one row per layer."""
 
+    @property
+    def vs30(self) -> float:
+        """float: Time-averaged shear-wave velocity in the top 30 m of the model, m/s.
+
+        The last layer is a half-space, and extends as deep as it needs to.
+        """
+        thickness_m = self.model["thickness"].to_numpy(np.float64) * 1000
+        vs_m_s = self.model["Vs"].to_numpy(np.float64) * 1000
+        top = np.concatenate(([0.0], np.cumsum(thickness_m)[:-1]))
+        bottom = np.append(top[1:], np.inf)
+        thickness_in_top_30m = np.clip(np.minimum(bottom, 30.0) - top, 0.0, None)
+        return float(30.0 / np.sum(thickness_in_top_30m / vs_m_s))
+
     def write_velocity_model(self, velocity_model_path: Path) -> None:
         """Write a 1D velocity model to the specified path.
 
@@ -1198,11 +1211,11 @@ class HFConfig(RealisationConfiguration):
     :class:`RuptureVelocity` because SRF generation reads the same physical values. Both
     are injected by `hf-sim`.
 
-    Three fields here are not in that class at all: `source.stress_drop_bars`,
-    `path.q_frequency_exponent` and `site.kappa_s`. The simulation takes the stress
-    parameter per subfault and the other two per station; the realisation keeps one value
-    for each. `generate-stoch` fills every subfault's stress parameter with
-    `source.stress_drop_bars`, and `hf-sim` broadcasts the other two to every station.
+    One field here is not in that class at all: `source.stress_drop_bars`. The
+    simulation takes the stress parameter per subfault; the realisation keeps one value,
+    and `generate-stoch` fills every subfault's stress parameter with it. The per-station
+    `kappa_s` and `q_frequency_exponent` are site parameters, read from the site table
+    (see `workflow.sites`).
     """
 
     _config_key: ClassVar[str] = "hf"

@@ -33,7 +33,7 @@
                 --cpus-per-task = 4 # While we only use 4 threads, consider increasing this to allocate more memory per task, as the conversion can be memory intensive. For MN5, setting this 112 will give entire 256GB of the node to the task.
                 --time = 02:00:00
     [[generate_station_coordinates]]
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-station-coordinates /share/realisation.json /share/stations
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-station-coordinates /share/realisation.json /share/sites.parquet /share/stations
     [[generate_model_coordinates]]
         platform = localhost
         script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif generate-model-coordinates /share/realisation.json /share/model
@@ -49,7 +49,7 @@
             --hint = nomultithread
             --time = 00:30:00
     [[run_hf]]
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif run-hf /share/realisation.json /share/stoch.h5 /share/stations/stations.ll /share/realisation.hf
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif run-hf /share/realisation.json /share/stoch.h5 /share/stations/stations.parquet /share/realisation.hf
         [[directives]]
             --cpus-per-task = 128
             --time = 01:00:00
@@ -57,7 +57,7 @@
         script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif plot-ts /share/LF/OutBin /share/simulation.m4v
         
     [[run_bb]]
-        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif bb-sim /share/realisation.json /share/stations/stations.ll /stations.vs30 /share/LF/OutBin /share/realisation.hf /share/Velocity_Model /share/realisation.bb /out
+        script = apptainer exec -c --bind "$PWD:/out,$CYLC_WORKFLOW_SHARE_DIR:/share" /nesi/nobackup/nesi00213/containers/runner_latest.sif bb-sim /share/realisation.json /share/stations/stations.parquet /share/LF/OutBin /share/realisation.hf /share/Velocity_Model /share/realisation.bb /out
         [[directives]]
             --cpus-per-task = 128
             --time = 01:00:00
