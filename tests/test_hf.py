@@ -1,6 +1,9 @@
+from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, cast
 
 import numpy as np
+import pytest
 import xarray as xr
 from hypothesis import given
 from hypothesis import strategies as st
@@ -76,6 +79,58 @@ def test_build_config_mirrors_the_realisation() -> None:
     assert not hasattr(config.source, "stress_drop_bars")
     assert not hasattr(config.path, "q_frequency_exponent")
     assert not hasattr(config.site, "kappa_s")
+
+
+def test_build_slip_model_reads_every_grid_from_the_stoch_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each plane of the slip model, stress parameter included, comes from the file."""
+    rng = np.random.default_rng(3)
+    shapes = [(2, 3), (1, 4)]
+    planes = {
+        f"plane_{i}": xr.Dataset(
+            {
+                name: (("dip", "strike"), rng.uniform(1, 100, shape).astype(np.float32))
+                for name in ("slip", "rise_time", "rupture_time", "stress_drop")
+            },
+            attrs={
+                "longitude": 172.0 + i,
+                "latitude": -43.0 - i,
+                "strike": 45.5,
+                "dip": 60.25,
+                "rake": 92.7,
+                "dtop": 1.5,
+                "shypo": 0.25,
+                "dhypo": 1.0,
+            },
+        )
+        for i, shape in enumerate(shapes)
+    }
+    stoch_ffp = tmp_path / "stoch.h5"
+    xr.DataTree.from_dict(
+        {"/": xr.Dataset(attrs={"dx": 1.25, "dy": 1.5}), **planes}
+    ).to_netcdf(stoch_ffp, engine="h5netcdf")
+    # FaultSegment and SlipModel are opaque, so record what they are given.
+    monkeypatch.setattr(hf_sim, "FaultSegment", dict)
+    monkeypatch.setattr(hf_sim, "SlipModel", list)
+
+    segments = cast(list[dict[str, Any]], hf_sim._build_slip_model(stoch_ffp))
+
+    assert len(segments) == len(shapes)
+    for segment, plane in zip(segments, planes.values()):
+        assert segment["longitude_deg"] == plane.attrs["longitude"]
+        assert segment["strike_deg"] == plane.attrs["strike"]
+        assert segment["rake_deg"] == plane.attrs["rake"]
+        assert segment["subfault_length_km"] == 1.25
+        assert segment["subfault_width_km"] == 1.5
+        for keyword, name in [
+            ("slip", "slip"),
+            ("rise_time_s", "rise_time"),
+            ("rupture_time_s", "rupture_time"),
+            ("stress_drop_bars", "stress_drop"),
+        ]:
+            assert segment[keyword].dtype == np.float32
+            np.testing.assert_array_equal(segment[keyword], plane[name].values)
 
 
 def test_simulate_chunk_broadcasts_kappa_and_q_to_every_station() -> None:
