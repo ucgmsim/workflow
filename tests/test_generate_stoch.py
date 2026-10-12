@@ -15,9 +15,9 @@ from workflow.scripts.generate_stoch import (
     _box_average_matrix,
     app,
     convert_srf_to_stoch,
-    read_stoch,
     stoch_resolution,
 )
+from workflow.scripts.hf_sim import read_stoch
 
 # (nstk, ndip, len, wid) for each plane of the synthetic SRF. The first
 # plane divides evenly into the 2km stoch grid used below (dstk = ddip =

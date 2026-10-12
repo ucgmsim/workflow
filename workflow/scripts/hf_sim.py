@@ -70,7 +70,6 @@ from workflow.realisations import (
 from workflow.realisations import (
     HFConfig as HFConfigDefaults,
 )
-from workflow.scripts.generate_stoch import read_stoch
 from workflow.waveforms import Component
 
 app = typer.Typer()
@@ -116,6 +115,30 @@ def _build_config(
 def _without(group: dict[str, Any], key: str) -> dict[str, Any]:
     """Return a configuration group without one of its keys."""
     return {name: value for name, value in group.items() if name != key}
+
+
+def read_stoch(stoch_ffp: Path) -> tuple[float, float, list[xr.Dataset]]:
+    """Read a stoch slip model written by `generate-stoch`.
+
+    Parameters
+    ----------
+    stoch_ffp : Path
+        Path to the slip model.
+
+    Returns
+    -------
+    dx : float
+        Subfault length along strike shared by every plane (km).
+    dy : float
+        Subfault width down dip shared by every plane (km).
+    planes : list of xr.Dataset
+        Each plane of the slip model, in SRF order.
+    """
+    with xr.open_datatree(stoch_ffp, engine="h5netcdf") as tree:
+        # HDF5 lists groups by name, so plane_10 would come before plane_2.
+        names = sorted(tree.children, key=lambda name: int(name.removeprefix("plane_")))
+        planes = [tree[name].to_dataset().load() for name in names]
+        return float(tree.attrs["dx"]), float(tree.attrs["dy"]), planes
 
 
 def _build_slip_model(stoch_ffp: Path) -> SlipModel:
