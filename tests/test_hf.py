@@ -75,7 +75,7 @@ def test_build_config_mirrors_the_realisation() -> None:
     assert config.source.rupture_velocity.deep == 0.9
     # ... but the sigma does come from the `hf` section.
     assert config.source.rupture_velocity.sigma == 0.1
-    # Left out: hf-sim broadcasts it per subfault instead.
+    # Left out: generate-stoch writes it per subfault into the slip model instead.
     assert not hasattr(config.source, "stress_drop_bars")
 
 
