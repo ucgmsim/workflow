@@ -338,7 +338,13 @@ def generate_realisation(
     rakes = {
         fault_name: fault_info.rake for fault_name, fault_info in faults_info.items()
     }
-    avg_rake = np.mean(list(rakes.values()))
+    # Rakes are angles: average their unit vectors, not the numbers. The
+    # arithmetic mean breaks across +-180 deg (workflow #205, fixed on pegasus
+    # by #207, whose Rakes.as_vectors() this commit predates).
+    rake_radians = np.radians(list(rakes.values()))
+    avg_rake = np.degrees(
+        np.arctan2(np.mean(np.sin(rake_radians)), np.mean(np.cos(rake_radians)))
+    )
     components = moment.find_connected_faults(
         faults, separation_distance, dip_delta, min_connected_depth
     )
