@@ -924,14 +924,10 @@ def test_velocity_model_1d_vs30(
     assert _velocity_model_1d(thickness, vs).vs30 == pytest.approx(expected)
 
 
-def test_hf_velocity_model_1d_defaults_vs30(tmp_path: Path) -> None:
+def test_hf_velocity_model_1d_defaults_vs30() -> None:
     """The shipped HF model's Vs30 is its top layer's Vs, which hf-sim used before."""
-    realisation_ffp = tmp_path / "realisation.json"
-    realisation_ffp.write_text("{}")
     for version in defaults.DefaultsVersion:
-        model = realisations.HFVelocityModel1D.read_from_realisation_or_defaults(
-            realisation_ffp, version
-        )
+        model = realisations.HFVelocityModel1D.read_from_defaults(version)
         assert model.vs30 == pytest.approx(model.model["Vs"].iloc[0] * 1000)
 
 

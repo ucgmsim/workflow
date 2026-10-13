@@ -245,9 +245,10 @@ def run_hf(
         realisation_ffp, metadata.defaults_version
     )
 
+    # Plain float64, as xarray cannot hold pandas' nullable extension dtypes.
     stations = sites.read_sites(sites_ffp)[
         ["latitude", "longitude", "kappa_s", "q_frequency_exponent"]
-    ]
+    ].astype(np.float64)
 
     stations["seed"] = hf_simulation.station_seeds(
         seeds.hf_seed, stations.index.to_list()
@@ -308,7 +309,19 @@ def run_hf(
             station_inputs["latitude"], velocity_model_1d.vs30
         )
         dataset = xr.merge(
-            [waveform, station_inputs[["latitude", "longitude", "seed", "vref"]]]
+            [
+                waveform,
+                station_inputs[
+                    [
+                        "latitude",
+                        "longitude",
+                        "seed",
+                        "vref",
+                        "kappa_s",
+                        "q_frequency_exponent",
+                    ]
+                ],
+            ]
         )
         dataset.attrs = {
             "start_sec": 0.0,

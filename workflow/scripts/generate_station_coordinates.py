@@ -93,8 +93,10 @@ def write_emod3d_station_format(
         lon=stations["longitude"].to_numpy(float),
     ).T
 
-    cx = nx // 2 * resolution_parameters.resolution
-    cy = ny // 2 * resolution_parameters.resolution
+    # EMOD3D centres its grid at half its length, which falls between grid
+    # points when nx or ny is odd.
+    cx = 0.5 * nx * resolution_parameters.resolution
+    cy = 0.5 * ny * resolution_parameters.resolution
 
     # translate coordinates so that top-left corner of the domain is at (0, 0)
     x += cx
@@ -106,10 +108,20 @@ def write_emod3d_station_format(
 
     in_domain_mask = (x >= 0) & (x < nx) & (y >= 0) & (y < ny)
     # filter out stations outside the domain
-    stations = stations.loc[in_domain_mask].copy()
+    stations = sites.validate(stations.loc[in_domain_mask]).copy()
 
     if len(stations) == 0:
         raise ValueError("No stations in domain.")
+    # EMOD3D reads each name as a whitespace-delimited word.
+    if bad_names := [
+        name
+        for name in stations.index
+        if not isinstance(name, str) or name.split() != [name]
+    ]:
+        raise ValueError(
+            "EMOD3D station names must be non-empty and contain no whitespace:"
+            f" {bad_names}."
+        )
 
     x = x[in_domain_mask]
     y = y[in_domain_mask]
@@ -153,7 +165,7 @@ def write_sw4_station_format(
     nzvm_coordinates = coordinates.wgs_depth_to_nztm(lat_lon)
     poly = domain_parameters.domain.polygon
     mask = shapely.contains_xy(poly, nzvm_coordinates[:, 0], nzvm_coordinates[:, 1])
-    stations = stations.loc[mask]
+    stations = sites.validate(stations.loc[mask])
 
     if len(stations) == 0:
         raise ValueError("No stations in domain.")
@@ -197,9 +209,12 @@ def generate_fd_files(
     output_path.mkdir(exist_ok=True)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
 
-    # Only the stations in the domain are checked for complete site
-    # parameters, when the filtered table is written.
-    stations = pd.read_parquet(sites_ffp)
+    # Only the stations in the domain need complete site parameters, which
+    # the writers check before writing anything. Every station needs a
+    # location to tell whether it is in the domain.
+    stations = sites.validate_structure(pd.read_parquet(sites_ffp))
+    if missing := sites.missing_values(stations[["latitude", "longitude"]]):
+        raise ValueError(f"Site table has stations missing locations: {missing}.")
 
     match format:
         case Format.EMOD3D:

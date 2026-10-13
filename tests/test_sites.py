@@ -13,7 +13,6 @@ def site_table() -> pd.DataFrame:
             "latitude": [-43.5, -43.6],
             "longitude": [172.6, 172.4],
             "vs30": [400.0, 250.0],
-            "vs30_simulation": [500.0, 500.0],
             "z1pt0": [0.2, 0.4],
             "z2pt5": [1.2, 2.0],
             "kappa_s": [0.045, 0.03],
@@ -54,6 +53,15 @@ def test_every_station_needs_every_value() -> None:
     table.loc["LINC", "z1pt0"] = np.nan
     with pytest.raises(ValueError, match=r"\{'z1pt0': \['LINC'\]\}"):
         sites.validate(table)
+
+
+def test_structure_ignores_missing_values() -> None:
+    table = site_table()
+    table.loc["LINC", "z1pt0"] = np.nan
+    pd.testing.assert_frame_equal(
+        sites.validate_structure(table), table[list(sites.COLUMNS)]
+    )
+    assert sites.missing_values(table) == {"z1pt0": ["LINC"]}
 
 
 def test_missing_values_are_not_written(tmp_path: Path) -> None:

@@ -352,7 +352,7 @@ def test_bb_sim(realisation: Path, work: Path) -> None:
 
 
 def test_im_calc(realisation: Path, work: Path) -> None:
-    """Intensity measures for every station, all finite."""
+    """Intensity measures for every station, all finite, with empirical estimates."""
     require(work / "realisation.bb")
     ko_matrices = work / "ko_matrices"
     ko_matrices.mkdir()
@@ -370,3 +370,5 @@ def test_im_calc(realisation: Path, work: Path) -> None:
         if "station" in node.dataset.coords:
             found_stations.update(node.dataset.coords["station"].values.tolist())
     assert found_stations >= set(STATIONS)
+    # im-calc only warns when an empirical model fails, so check one ran.
+    assert any("/empirical/" in node.path for node in intensity_measures.subtree)
