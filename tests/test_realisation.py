@@ -887,6 +887,50 @@ def test_velocity_model_1d(tmp_path: Path) -> None:
     )
 
 
+def _velocity_model_1d(
+    thickness: list[float], vs: list[float]
+) -> realisations.VelocityModel1D:
+    layers = len(thickness)
+    return realisations.VelocityModel1D(
+        model=pd.DataFrame(
+            {
+                "thickness": thickness,
+                "Vp": [2.0] * layers,
+                "Vs": vs,
+                "Qp": [100.0] * layers,
+                "Qs": [50.0] * layers,
+                "rho": [2.0] * layers,
+            }
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "thickness, vs, expected",
+    [
+        # A top layer at least 30 m thick sets the Vs30 alone.
+        ([0.05, 1.0], [0.5, 2.0], 500.0),
+        ([0.03, 1.0], [0.5, 2.0], 500.0),
+        # 10 m at 250 m/s then 20 m at 500 m/s: 30 / (0.04 + 0.04) s.
+        ([0.01, 0.05], [0.25, 0.5], 375.0),
+        # The last layer is a half-space, however thin it is written.
+        ([0.01, 0.0], [0.25, 0.5], 375.0),
+    ],
+)
+def test_velocity_model_1d_vs30(
+    thickness: list[float], vs: list[float], expected: float
+) -> None:
+    """Vs30 is the travel-time average over the top 30 m, in m/s."""
+    assert _velocity_model_1d(thickness, vs).vs30 == pytest.approx(expected)
+
+
+def test_hf_velocity_model_1d_defaults_vs30() -> None:
+    """The shipped HF model's Vs30 is its top layer's Vs, which hf-sim used before."""
+    for version in defaults.DefaultsVersion:
+        model = realisations.HFVelocityModel1D.read_from_defaults(version)
+        assert model.vs30 == pytest.approx(model.model["Vs"].iloc[0] * 1000)
+
+
 def test_intensity_measure_calculation_parameters(tmp_path: Path) -> None:
     im_calc_params = realisations.IntensityMeasureCalculationParameters(
         ims=[im_calculation.IM("PGA"), im_calculation.IM("PGV")],

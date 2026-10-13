@@ -32,8 +32,8 @@ def test_build_config_mirrors_the_realisation() -> None:
     The two structures mirror each other group for group, so `build_config` is a splat plus
     the two values the realisation deliberately does not carry: the record duration, which
     the domain computes, and the rupture-velocity multipliers, which live in their own
-    section because SRF generation reads them too. The three per-subfault and per-station
-    values are left out, to be broadcast elsewhere. This pins all three parts of that.
+    section because SRF generation reads them too. The per-subfault stress drop is left
+    out, to be broadcast elsewhere. This pins all three parts of that.
     """
     hf_config = HFConfig(
         source={
@@ -42,8 +42,8 @@ def test_build_config_mirrors_the_realisation() -> None:
             "corner_frequency_alpha": 0.1,
             "rupture_velocity": {"sigma": 0.1},
         },
-        path={"rayset": [1, 2], "q_frequency_exponent": 0.6, "path_duration_model": 11},
-        site={"kappa_s": 0.045, "fmax_hz": 20.0},
+        path={"rayset": [1, 2], "path_duration_model": 11},
+        site={"fmax_hz": 20.0},
         record={"dt": 0.005},
     )
     rupture_velocity = RuptureVelocity(
@@ -75,10 +75,8 @@ def test_build_config_mirrors_the_realisation() -> None:
     assert config.source.rupture_velocity.deep == 0.9
     # ... but the sigma does come from the `hf` section.
     assert config.source.rupture_velocity.sigma == 0.1
-    # Left out: hf-sim broadcasts them per subfault and per station instead.
+    # Left out: generate-stoch writes it per subfault into the slip model instead.
     assert not hasattr(config.source, "stress_drop_bars")
-    assert not hasattr(config.path, "q_frequency_exponent")
-    assert not hasattr(config.site, "kappa_s")
 
 
 def test_build_slip_model_reads_every_grid_from_the_stoch_file(
@@ -133,8 +131,8 @@ def test_build_slip_model_reads_every_grid_from_the_stoch_file(
             np.testing.assert_array_equal(segment[keyword], plane[name].values)
 
 
-def test_simulate_chunk_broadcasts_kappa_and_q_to_every_station() -> None:
-    """A block simulated with run-wide kappa and Q equals passing them per station."""
+def test_simulate_chunk_passes_each_station_its_own_kappa_and_q() -> None:
+    """A block simulates each station with the kappa and Q from its own site."""
     segment = FaultSegment(
         longitude_deg=173.0,
         latitude_deg=-43.0,
@@ -168,30 +166,32 @@ def test_simulate_chunk_broadcasts_kappa_and_q_to_every_station() -> None:
     latitude = np.array([-43.4, -43.6], np.float32)
     longitude = np.array([172.6, 172.4], np.float32)
     seeds = hf_simulation.station_seeds(1234, names)
+    kappa_s = np.array([0.03, 0.06], np.float32)
+    q_frequency_exponent = np.array([0.5, 0.7], np.float32)
     chunk = xr.Dataset(
         {
             "latitude": ("station", latitude),
             "longitude": ("station", longitude),
             "seed": ("station", seeds),
+            "kappa_s": ("station", kappa_s),
+            "q_frequency_exponent": ("station", q_frequency_exponent),
         },
         coords={"station": names},
     )
     # The default 0.005 s sample interval over the 40 s record.
     time = np.arange(8000) * 0.005
 
-    broadcast = hf_sim._simulate_chunk(
-        chunk, time, simulator, kappa_s=0.045, q_frequency_exponent=0.6
-    )
+    chunked = hf_sim._simulate_chunk(chunk, time, simulator)
     direct = simulator.run_stations(
         latitude_deg=latitude,
         longitude_deg=longitude,
         station_seed=seeds,
-        kappa_s=np.full(2, 0.045, np.float32),
-        q_frequency_exponent=np.full(2, 0.6, np.float32),
+        kappa_s=kappa_s,
+        q_frequency_exponent=q_frequency_exponent,
     )
     assert np.abs(direct).max() > 0
     np.testing.assert_array_equal(
-        broadcast.sel(component=list(hf_simulation.COMPONENTS)).values, direct
+        chunked.sel(component=list(hf_simulation.COMPONENTS)).values, direct
     )
 
 

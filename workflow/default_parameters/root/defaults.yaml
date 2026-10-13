@@ -69,10 +69,8 @@ hf:
       sigma: 0.1
   path:
     rayset: [1]
-    q_frequency_exponent: 0.6
     path_duration_model: 11
   site:
-    kappa_s: 0.045
     fmax_hz: 10.0
   record:
     dt: 0.01
