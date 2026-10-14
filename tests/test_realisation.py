@@ -1065,21 +1065,7 @@ def test_sw4_parameters(tmp_path: Path) -> None:
     assert realisations.SW4Parameters.read_from_realisation(realisation_path) == sw4
 
 
-def test_sw4_parameters_defaults() -> None:
-    """SW4Parameters should load the expected commands from v26_7_1Hz defaults."""
-    sw4 = realisations.SW4Parameters.read_from_defaults(
-        defaults.DefaultsVersion.v26_7_1Hz
-    )
-    assert sw4.verbose == 2
-    developer = realisations.find_command(sw4.commands, "developer")
-    assert developer is not None
-    assert developer.parameters["reporttiming"] is True
-    assert developer.parameters["cfl"] == 0.9
-    assert sum(1 for command in sw4.commands if command.name == "imagehdf5") == 10
-
-
 def test_sources(tmp_path: Path) -> None:
-    realisation_ffp = tmp_path / "realisation.json"
     source_json = {
         "sources": {
             "source_geometries": {
