@@ -228,7 +228,7 @@ class RealisationConfiguration(ABC):
         realisation_ffp = Path(realisation_ffp)
         try:
             return cls.read_from_realisation(realisation_ffp)
-        except RealisationParseError, FileNotFoundError:
+        except (RealisationParseError, FileNotFoundError):
             default_config = cls.read_from_defaults(defaults_version)
             default_config.write_to_realisation(realisation_ffp)
             return default_config
@@ -333,7 +333,7 @@ class Seeds(RealisationConfiguration):
         """
         try:
             return cls.read_from_realisation(realisation_ffp)
-        except RealisationParseError, FileNotFoundError:
+        except (RealisationParseError, FileNotFoundError):
             config = cls.random_seeds()
             config.write_to_realisation(realisation_ffp)
             return config
@@ -1058,13 +1058,13 @@ class NZCVMSettings(RealisationConfiguration):
     _config_key: ClassVar[str] = "nzcvm"
     _schema: ClassVar[Schema] = schemas.NZCVM_SCHEMA
 
-    layers: list[LayerConfig]
+    layers: list["LayerConfig"]
     """nzcvm layer config"""
     chunks: dict[Coordinate, int]
     """nzcvm chunk configuration"""
     surface: Path
     """nzcvm DEM surface"""
-    decay: Decay | None
+    decay: "Decay | None"
     """The SW4 grid's terrain decay: None for SW4 with topography, any decay
     for SW4 without topography, on the flat nominal model."""
 
@@ -1493,7 +1493,7 @@ class SW4Command:
             parts.append(f"{key}={value}")
         return " ".join(parts)
 
-    def merged(self, **overrides: str | float | bool | None) -> SW4Command:
+    def merged(self, **overrides: str | float | bool | None) -> "SW4Command":
         """Return a copy of this command with `overrides` merged into its parameters.
 
         Parameters
@@ -1703,7 +1703,7 @@ def append_log_entry(realisation_ffp: Path | str) -> None:
     try:
         log_trail = LogTrail.read_from_realisation(realisation_ffp)
         log_trail.log_entry(utility, args)
-    except RealisationParseError, FileNotFoundError:
+    except (RealisationParseError, FileNotFoundError):
         log_trail = LogTrail(log=[log_entry])
 
     log_trail.write_to_realisation(realisation_ffp)

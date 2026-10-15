@@ -78,7 +78,7 @@ class PointSourceParams:
     """Initial time for generic_slip2srf"""
 
     @classmethod
-    def from_dict(cls, params_dict: dict) -> PointSourceParams:
+    def from_dict(cls, params_dict: dict) -> "PointSourceParams":
         """Create PointSourceParams from a dictionary.
 
         This class method is necessary because the schema library passes validated
@@ -980,7 +980,7 @@ VELOCITY_MODEL_SCHEMA = Schema(
 )
 
 
-def _build_layer(config: dict) -> LayerConfig:
+def _build_layer(config: dict) -> "LayerConfig":
     """Build a layer from a config dictionary"""
 
     # NOTE: This method exists because the LayerConfig import is relatively
@@ -1002,7 +1002,7 @@ def _build_layer(config: dict) -> LayerConfig:
     )
 
 
-def _build_decay(config: dict) -> Decay:
+def _build_decay(config: dict) -> "Decay":
     """Build a terrain decay from a config dictionary."""
     # Imported lazily, like `LayerConfig` in `_build_layer`.
     from nzcvm.config.grids.terrain import Decay

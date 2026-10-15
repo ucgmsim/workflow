@@ -7,7 +7,7 @@ name = "ucgmsim-workflow"
 authors = [{ name = "QuakeCoRE" }]
 description = "Next generation workflow powered by cylc."
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 dynamic = ["version"]
 dependencies = [
   # UCGMSim Dependencies
@@ -61,7 +61,7 @@ types = ["pandas-stubs", "types-geopandas", "types-requests", "scipy-stubs"]
 dev = ["ruff>=0.16.5", "deptry", "ty>=0.0.75", "npdlint"]
 
 [tool.uv.sources]
-rupture-generator = { git = "https://github.com/ucgmsim/rupture_generator", rev = "22943a8bb0cde9ce485eca052c578895a9ce1d01" }
+rupture-generator = { git = "https://github.com/ucgmsim/rupture_generator", rev = "0f01a6437474525bad099a1ae3bdf91fa08c4bc3" }
 
 [tool.ty.src]
 # Generated/dynamic schema definitions that ty cannot usefully analyse.
