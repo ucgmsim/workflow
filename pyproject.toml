@@ -61,7 +61,7 @@ types = ["pandas-stubs", "types-geopandas", "types-requests", "scipy-stubs"]
 dev = ["ruff>=0.16.5", "deptry", "ty>=0.0.75", "npdlint"]
 
 [tool.uv.sources]
-rupture-generator = { git = "https://github.com/ucgmsim/rupture_generator", rev = "c12a14af4b3414acaf9e4b1112a10a26b4592ae1" }
+rupture-generator = { git = "https://github.com/ucgmsim/rupture_generator", rev = "22943a8bb0cde9ce485eca052c578895a9ce1d01" }
 
 [tool.ty.src]
 # Generated/dynamic schema definitions that ty cannot usefully analyse.
