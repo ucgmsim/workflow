@@ -252,7 +252,10 @@ rupture_generation:
     family: truncated_normal
     coefficient_of_variation: 0.75
     # risetimefac and deep_risetimefac across risetimedep +/- risetimedep_range and
-    # deep_risetimedep +/- deep_risetimedep_range.
+    # deep_risetimedep +/- deep_risetimedep_range. As in genslip, the deep taper (the
+    # last two points of a four-point profile) starts no shallower than the hypocentre
+    # on the fault the rupture starts on; create-rupture-input moves it, and does the
+    # same to the rupture-speed taper from `rupture_velocity:`.
     factor:
       type: profile
       depth_km: [5.0, 8.0, 15.0, 20.0]
@@ -285,6 +288,18 @@ rupture_generation:
       type: profile
       depth_km: [1.0, 3.0, 5.0, 8.0]
       values: [0.5, 0.13, 0.13, 0.13]
+  # Where the front crosses from one fault to the next, which the generator finds from
+  # the parent's solved onsets. The realisation's jump points are not used, and genslip
+  # has no counterpart: realisation-to-srf delayed each child fault by the parent's onset
+  # at its jump point plus the gap at 3.5 km/s. Shaw & Dieterich (2007): a gap under
+  # delta_km is crossed for certain, wider ones with a probability decaying over d0_km,
+  # and none wider than max_jump_km.
+  jump:
+    d0_km: 3.0
+    delta_km: 1.0
+    max_jump_km: 15.0
+    probability_cap: 0.99
+    interior: false
 nzcvm:
   surface: /nzcvm/resources/dem.zarr
   # SW4 runs with topography. Set a decay (e.g. `{type: sleve, scale: 1000.0}`)

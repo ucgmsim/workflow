@@ -12,15 +12,18 @@ passed through unchanged. Everything else the generator needs the realisation al
 knows, and this is the only place the two vocabularies meet: the fault geometry becomes a
 GeoJSON fault system, and the hypocentre, the 1D velocity model, the per-fault magnitudes
 and rakes, the causality tree, the seed and the rupture-speed profile become the tables
-that describe them.
+that describe them. A point source is drawn on the patch it carries, and the fault the
+rupture starts on has its deep rise-time and rupture-speed tapers moved below the
+hypocentre, as genslip moved them. The realisation's jump points are not used.
 
 This is the successor to `realisation-to-srf`, which drives genslip from the `srf`
 section, and runs beside it until that path is retired.
 
 Inputs
 ------
-1. A realisation with source geometries, magnitudes, rakes, a rupture propagation tree,
-   a 1D velocity model, seeds, and `rupture_generation` and `rupture_velocity` sections.
+1. A realisation with source geometries (faults, planes or points), magnitudes, rakes, a
+   rupture propagation tree, a 1D velocity model, seeds, and `rupture_generation` and
+   `rupture_velocity` sections.
 
 Outputs
 -------
@@ -173,8 +176,54 @@ def fault_section(name: str, geometry: sources.Plane | sources.Fault) -> dict[st
     return feature
 
 
-def build_fault_system(source_config: SourceConfig) -> dict[str, Any]:
-    """Describe the realisation's sources as a GeoJSON fault system.
+def point_plane(point: sources.Point) -> sources.Plane:
+    """The plane a point source stands for.
+
+    The generator draws finite faults alone, so a point source is drawn on the patch it
+    already carries: `length_m` by `width_m` about the point, at its strike, dip and dip
+    direction, which `gcmt-to-realisation` sizes by magnitude scaling. genslip's path
+    gave a point source one subfault and a cosine slip-rate function; this one has a slip
+    distribution and the finite-fault pulse instead.
+
+    A patch that would break the surface is lowered until its top edge is at the
+    surface, because the generator refuses a fault above ground.
+
+    Parameters
+    ----------
+    point : sources.Point
+        The point source.
+
+    Returns
+    -------
+    sources.Plane
+        Its patch.
+    """
+    latitude, longitude, depth_m = point.coordinates
+    depth_km = depth_m / 1000.0 + max(0.0, -point.top_m / 1000.0)
+    if depth_km != depth_m / 1000.0:
+        log_utils.get_logger(__name__).info(
+            "Lowered a point source's patch to the surface",
+            lowered_m=round(depth_km * 1000.0 - depth_m),
+        )
+    dip_direction = (
+        {}
+        if abs(point.dip - 90.0) < VERTICAL_DIP_TOLERANCE_DEG
+        else {"dip_dir": point.dip_dir}
+    )
+    return sources.Plane.from_centroid_strike_dip(
+        np.array([latitude, longitude, depth_km]),
+        point.dip,
+        point.length,
+        point.width,
+        strike=point.strike,
+        **dip_direction,
+    )
+
+
+def finite_geometries(
+    source_config: SourceConfig,
+) -> dict[str, sources.Plane | sources.Fault]:
+    """The realisation's sources as finite faults, each point source on its patch.
 
     Parameters
     ----------
@@ -183,27 +232,74 @@ def build_fault_system(source_config: SourceConfig) -> dict[str, Any]:
 
     Returns
     -------
+    dict of str to sources.Plane or sources.Fault
+        Each source's finite fault, by name.
+    """
+    return {
+        name: point_plane(geometry) if isinstance(geometry, sources.Point) else geometry
+        for name, geometry in source_config.source_geometries.items()
+    }
+
+
+def build_fault_system(
+    geometries: dict[str, sources.Plane | sources.Fault],
+) -> dict[str, Any]:
+    """Describe the realisation's faults as a GeoJSON fault system.
+
+    Parameters
+    ----------
+    geometries : dict of str to sources.Plane or sources.Fault
+        The faults, by name.
+
+    Returns
+    -------
     dict
         The `FeatureCollection`, one section per fault.
-
-    Raises
-    ------
-    TypeError
-        If a source is a point, which the generator cannot rupture.
     """
-    features = []
-    for name, geometry in source_config.source_geometries.items():
-        if not isinstance(geometry, (sources.Plane, sources.Fault)):
-            raise TypeError(
-                f"{name} is a {type(geometry).__name__}; the rupture generator draws "
-                "finite faults alone. Use realisation-to-srf for a point source."
-            )
-        features.append(fault_section(name, geometry))
-    return {"type": "FeatureCollection", "features": features}
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            fault_section(name, geometry) for name, geometry in geometries.items()
+        ],
+    }
+
+
+def deepened_taper(
+    profile: dict[str, Any], hypocentre_depth_km: float
+) -> dict[str, Any] | None:
+    """Move a depth profile's deep taper below the hypocentre, as genslip does.
+
+    genslip starts its deep rise-time and rupture-speed tapers at the hypocentre's depth
+    when that is deeper than where they would otherwise start, so a rupture never
+    nucleates inside the slow, long-rise-time zone. A four-point profile is a shallow
+    taper over its first two points and a deep one over its last two; the deep one keeps
+    its width and moves down.
+
+    Parameters
+    ----------
+    profile : dict
+        A depth profile, as the generator's TOML states it.
+    hypocentre_depth_km : float
+        The hypocentre's depth, in kilometres.
+
+    Returns
+    -------
+    dict or None
+        The moved profile, or None when it needs no moving or is not a four-point
+        profile.
+    """
+    if profile.get("type") != "profile" or len(profile["depth_km"]) != 4:
+        return None
+    shift_km = hypocentre_depth_km - profile["depth_km"][2]
+    if shift_km <= 0.0:
+        return None
+    shallow, deep = profile["depth_km"][:2], profile["depth_km"][2:]
+    return profile | {"depth_km": [*shallow, *(depth + shift_km for depth in deep)]}
 
 
 def build_rupture(
     rupture_generation: RuptureGenerationConfig,
+    geometries: dict[str, sources.Plane | sources.Fault],
     rupture_propagation: RupturePropagationConfig,
     magnitudes: Magnitudes,
     rakes: Rakes,
@@ -218,6 +314,8 @@ def build_rupture(
     ----------
     rupture_generation : RuptureGenerationConfig
         The generator's own tables, passed through.
+    geometries : dict of str to sources.Plane or sources.Fault
+        The faults, by name, which place the hypocentre at depth.
     rupture_propagation : RupturePropagationConfig
         Supplies the hypocentre and the causality tree.
     magnitudes : Magnitudes
@@ -317,16 +415,43 @@ def build_rupture(
         "pulse": rupture_generation.pulse,
     }
 
+    # The fault the rupture starts on gets its deep tapers moved below the hypocentre.
+    # The others are left as they are: where the front enters them is the generator's
+    # to find.
+    hypocentre_depth_km = (
+        geometries[initial_fault].fault_coordinates_to_wgs_depth_coordinates(
+            np.array([strike_fraction, dip_fraction])
+        )[2]
+        / 1000.0
+    )
+    overrides = {}
+    for table, factor in (
+        ("rise", rupture_generation.rise.get("factor")),
+        ("speed", speed["factor"]),
+    ):
+        deepened = (
+            None if factor is None else deepened_taper(factor, hypocentre_depth_km)
+        )
+        if deepened is not None:
+            overrides[table] = {"factor": deepened}
+    if overrides:
+        rupture["segments"] = {initial_fault: overrides}
+
     parents = {
         child: parent
         for child, parent in rupture_propagation.rupture_causality_tree.items()
         if parent is not None
     }
     # Stated rather than sampled, because the hazard model chose which fault triggers
-    # which. The jump points are not carried across: the generator finds where each
-    # fault starts from its parent's solved onsets. A single fault has no tree to state.
+    # which. The realisation's jump points are not used: the generator finds where each
+    # fault starts from its parent's solved onsets, under its own jump model. A single
+    # fault has no tree to state.
     if parents:
-        rupture["propagation"] = {"type": "predetermined", "parents": parents}
+        rupture["propagation"] = {
+            "type": "predetermined",
+            "parents": parents,
+            "model": rupture_generation.jump,
+        }
 
     return rupture
 
@@ -367,9 +492,11 @@ def generate_rupture_input(
         realisation_ffp, metadata.defaults_version
     )
 
-    fault_system = build_fault_system(source_config)
+    geometries = finite_geometries(source_config)
+    fault_system = build_fault_system(geometries)
     rupture = build_rupture(
         rupture_generation,
+        geometries,
         rupture_propagation,
         magnitudes,
         rakes,

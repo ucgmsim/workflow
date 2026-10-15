@@ -34,11 +34,14 @@ VERSION = defaults.DefaultsVersion.v26_7_1Hz
 
 
 def _fault(
-    trace: list[tuple[float, float]], dip: float, dip_dir: float
+    trace: list[tuple[float, float]],
+    dip: float,
+    dip_dir: float,
+    bottom_km: float = 12.0,
 ) -> sources.Fault:
     """A fault hung from a (latitude, longitude) trace, as nshm2022-to-realisation builds them."""
     return sources.Fault.from_trace_points(
-        np.array(trace), 0.0, 12.0, dip, dip_dir=dip_dir
+        np.array(trace), 0.0, bottom_km, dip, dip_dir=dip_dir
     )
 
 
@@ -100,13 +103,16 @@ def test_defaults_are_rupture_generator_tables(
                 table: getattr(rupture_generation, table)
                 for table in ("slip", "rise", "rake", "perturbation", "pulse")
             },
+            "propagation": {"type": "sampled", "model": rupture_generation.jump},
         }
     )
     assert decoded.perturbation.blend_sigma == 4.0
 
 
 def _write_realisation(
-    path: Path, faults: dict[str, sources.Fault], tree: dict[str, str | None]
+    path: Path,
+    faults: dict[str, sources.Fault | sources.Point],
+    tree: dict[str, str | None],
 ) -> None:
     RealisationMetadata(
         name="test", version="1", tag="test", defaults_version=VERSION
@@ -143,7 +149,10 @@ def test_generated_rupture_matches_realisation(tmp_path: Path, initial: str) -> 
     assert document["propagation"] == {
         "type": "predetermined",
         "parents": {other: initial},
+        "model": RuptureGenerationConfig.read_from_defaults(VERSION).jump,
     }
+    # A hypocentre at 7 km leaves the deep tapers where they are.
+    assert "segments" not in document
     assert document["seed"] == Seeds.read_from_realisation(realisation_ffp).genslip_seed
 
     scenario = rupture_config.build(rupture_config.load(rupture_path))
@@ -176,18 +185,118 @@ def test_generated_rupture_matches_realisation(tmp_path: Path, initial: str) -> 
     assert depth == pytest.approx(hypocentre[2], abs=1000.0)
 
 
-def test_point_source_is_refused(tmp_path: Path) -> None:
-    """A point source has no finite fault for the generator to draw."""
-    point = sources.Point.from_lat_lon_depth(
-        np.array([-42.0, 172.0, 5000.0]),
-        length_m=1000.0,
-        width_m=1000.0,
-        strike=0.0,
-        dip=90.0,
-        dip_dir=0.0,
+def _point(depth_m: float, dip: float = 60.0) -> sources.Point:
+    return sources.Point.from_lat_lon_depth(
+        np.array([-42.0, 172.0, depth_m]),
+        length_m=3000.0,
+        width_m=2000.0,
+        strike=40.0,
+        dip=dip,
+        dip_dir=130.0,
     )
-    with pytest.raises(TypeError, match="realisation-to-srf"):
-        rupture_input.build_fault_system(SourceConfig(source_geometries={"p": point}))
+
+
+@pytest.mark.parametrize("dip", [60.0, 90.0])
+def test_point_source_is_drawn_on_its_patch(dip: float) -> None:
+    """A point source becomes the plane it stands for, centred on it."""
+    point = _point(5000.0, dip)
+    plane = rupture_input.point_plane(point)
+    assert plane.length == pytest.approx(3.0)
+    assert plane.width == pytest.approx(2.0)
+    assert plane.strike == pytest.approx(40.0, abs=0.1)
+    assert plane.dip == pytest.approx(dip)
+    assert plane.top_m == pytest.approx(point.top_m)
+    np.testing.assert_allclose(
+        coordinates.wgs_depth_to_nztm(plane.centroid), point.bounds, atol=1.0
+    )
+
+
+def test_shallow_point_source_patch_stays_underground() -> None:
+    """A patch that would break the surface is lowered until its top is at it."""
+    plane = rupture_input.point_plane(_point(500.0))
+    assert plane.top_m == pytest.approx(0.0, abs=1e-6)
+    assert plane.width == pytest.approx(2.0)
+
+
+def test_point_source_realisation_draws(tmp_path: Path) -> None:
+    """A point-source realisation writes input the generator draws."""
+    realisation_ffp = tmp_path / "realisation.json"
+    _write_realisation(realisation_ffp, {"point": _point(8000.0)}, {"point": None})
+    rupture_path = tmp_path / "rupture.toml"
+    rupture_input.generate_rupture_input(
+        realisation_ffp, tmp_path / "faults.geojson", rupture_path
+    )
+    scenario = rupture_config.build(rupture_config.load(rupture_path))
+    drawn = generate(
+        scenario.realisation,
+        scenario.medium,
+        scenario.sources,
+        scenario.model,
+        seed=scenario.seed,
+    )
+    assert set(drawn) == {"point"}
+    assert "propagation" not in tomllib.loads(rupture_path.read_text())
+
+
+PROFILE = {
+    "type": "profile",
+    "depth_km": [5.0, 8.0, 15.0, 20.0],
+    "values": [2, 1, 1, 2],
+}
+
+
+@pytest.mark.parametrize(
+    ("profile", "depth_km", "expected"),
+    [
+        (PROFILE, 10.0, None),
+        (PROFILE, 15.0, None),
+        (PROFILE, 18.0, [5.0, 8.0, 18.0, 23.0]),
+        ({"type": "constant", "value": 1.0}, 18.0, None),
+        ({"type": "profile", "depth_km": [1.0, 2.0], "values": [1, 2]}, 18.0, None),
+    ],
+)
+def test_deepened_taper(
+    profile: dict, depth_km: float, expected: list[float] | None
+) -> None:
+    """The deep taper starts no shallower than the hypocentre, and keeps its width."""
+    deepened = rupture_input.deepened_taper(profile, depth_km)
+    if expected is None:
+        assert deepened is None
+    else:
+        assert deepened == profile | {"depth_km": expected}
+
+
+def test_deep_hypocentre_moves_initial_fault_tapers() -> None:
+    """Only the fault the rupture starts on has its deep tapers moved."""
+    deep = _fault([(-42.0, 172.0), (-42.05, 172.1)], 90.0, 0.0, bottom_km=30.0)
+    rupture_velocity = RuptureVelocity.read_from_defaults(VERSION)
+    rupture = rupture_input.build_rupture(
+        RuptureGenerationConfig.read_from_defaults(VERSION),
+        {"deep": deep, "other": NORTH_EAST},
+        RupturePropagationConfig(
+            rupture_causality_tree={"deep": None, "other": "deep"},
+            jump_points={},
+            # 24 km down a vertical fault 30 km wide.
+            hypocentre=np.array([0.5, 0.8]),
+        ),
+        Magnitudes(magnitudes={"deep": 6.5, "other": 6.0}),
+        Rakes(rakes={"deep": 90.0, "other": 90.0}),
+        VelocityModel1D.read_from_defaults(VERSION),
+        rupture_velocity,
+        Seeds.random_seeds(),
+        Path("faults.geojson"),
+    )
+    segments = rupture["segments"]
+    assert set(segments) == {"deep"}
+    assert segments["deep"]["rise"]["factor"]["depth_km"] == pytest.approx(
+        [5.0, 8.0, 24.0, 29.0]
+    )
+    assert segments["deep"]["speed"]["factor"]["depth_km"] == pytest.approx(
+        [5.0, 8.0, 24.0, 29.0]
+    )
+    # The global tables are the defaults, for the other fault.
+    assert rupture["rise"]["factor"]["depth_km"] == [5.0, 8.0, 15.0, 20.0]
+    assert rupture["speed"]["factor"]["depth_km"] == [5.0, 8.0, 15.0, 20.0]
 
 
 def test_slip_dependent_rupture_speed_is_refused(tmp_path: Path) -> None:
@@ -196,6 +305,7 @@ def test_slip_dependent_rupture_speed_is_refused(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="rvfrac_slip_sig"):
         rupture_input.build_rupture(
             RuptureGenerationConfig.read_from_defaults(VERSION),
+            {"a": NORTH_EAST},
             RupturePropagationConfig(
                 rupture_causality_tree={"a": None},
                 jump_points={},

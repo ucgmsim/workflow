@@ -1113,6 +1113,10 @@ RUPTURE_GENERATION_SCHEMA = Schema(
         Literal(
             "pulse", description="Slip-rate sampling and shape ([pulse])"
         ): _RUPTURE_GENERATOR_TABLE,
+        Literal(
+            "jump",
+            description="How readily the rupture crosses between faults ([propagation.model])",
+        ): _RUPTURE_GENERATOR_TABLE,
     }
 )
 

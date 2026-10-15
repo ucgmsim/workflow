@@ -721,6 +721,8 @@ class RuptureGenerationConfig(RealisationConfiguration):
     """Onset displacement off the coherent front. The generator's `[perturbation]`."""
     pulse: dict[str, Any]
     """Slip-rate sampling and shape. The generator's `[pulse]`."""
+    jump: dict[str, Any]
+    """How readily the rupture crosses between faults. The generator's `[propagation.model]`."""
 
 
 @dataclasses.dataclass
