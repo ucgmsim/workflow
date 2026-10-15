@@ -227,6 +227,17 @@ nzcvm:
         vs:
           max: null
           min: 500.0
+          # An unclamped velocity model would require a 200m -> 100m
+          # refinement at 5000m elevation to retain 8 PPW. By clamping to at
+          # least 1600 m/s, we trade a small amount of clamping in the
+          # velocity model (limited to small regions offshore, and the under
+          # constrained Palmerston North Pliocene) for a ~30% reduction in
+          # SW4 grid points.
+          # NOTE: nzcvm elevations are positive DOWN (metres below sea
+          # level), matching the SW4 refinement `bottom`.
+          floors:
+            - elevation: 3000.0
+              min: 1600.0
         qs:
           min: 0.05
           max: 0.05
