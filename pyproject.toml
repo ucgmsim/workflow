@@ -60,7 +60,7 @@ dev = ["ruff>=0.16.5", "deptry", "ty>=0.0.75", "npdlint"]
 
 [tool.ty.src]
 # Generated/dynamic schema definitions that ty cannot usefully analyse.
-exclude = ["workflow/schemas.py"]
+exclude = ["workflow/schemas.py", ".claude"]
 
 [tool.deptry]
 optional_dependencies_dev_groups = ["test", "dev", "types"]
