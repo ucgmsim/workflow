@@ -16,6 +16,7 @@ from rupture_generator.geometry import geometry_from_geojson
 from rupture_generator.rupture.generator import generate
 from rupture_generator.rupture.source import magnitude_from_moment
 from source_modelling import sources
+from source_modelling.magnitude_scaling import BoldM
 from workflow import defaults
 from workflow.realisations import (
     Magnitudes,
@@ -111,7 +112,7 @@ def test_defaults_are_rupture_generator_tables(
 
 def _write_realisation(
     path: Path,
-    faults: dict[str, sources.Fault | sources.Point],
+    faults: dict[str, sources.IsSource],
     tree: dict[str, str | None],
 ) -> None:
     RealisationMetadata(
@@ -122,7 +123,7 @@ def _write_realisation(
         rupture_causality_tree=tree, jump_points={}, hypocentre=np.array([0.3, 0.6])
     ).write_to_realisation(path)
     Magnitudes(
-        magnitudes={name: 6.0 + 0.1 * i for i, name in enumerate(faults)}
+        magnitudes={name: BoldM(6.0 + 0.1 * i) for i, name in enumerate(faults)}
     ).write_to_realisation(path)
     Rakes(rakes={name: 90.0 for name in faults}).write_to_realisation(path)
     Seeds.random_seeds().write_to_realisation(path)
@@ -136,7 +137,7 @@ def test_generated_rupture_matches_realisation(tmp_path: Path, initial: str) -> 
     """The input draws a rupture with the realisation's moments and hypocentre."""
     realisation_ffp = tmp_path / "realisation.json"
     other = "ne" if initial == "sw" else "sw"
-    faults = {"sw": SOUTH_WEST, "ne": NORTH_EAST}
+    faults: dict[str, sources.IsSource] = {"sw": SOUTH_WEST, "ne": NORTH_EAST}
     _write_realisation(realisation_ffp, faults, {initial: None, other: initial})
     geometry_path = tmp_path / "rupture" / "faults.geojson"
     rupture_path = tmp_path / "rupture.toml"
@@ -279,7 +280,7 @@ def test_deep_hypocentre_moves_initial_fault_tapers() -> None:
             # 24 km down a vertical fault 30 km wide.
             hypocentre=np.array([0.5, 0.8]),
         ),
-        Magnitudes(magnitudes={"deep": 6.5, "other": 6.0}),
+        Magnitudes(magnitudes={"deep": BoldM(6.5), "other": BoldM(6.0)}),
         Rakes(rakes={"deep": 90.0, "other": 90.0}),
         VelocityModel1D.read_from_defaults(VERSION),
         rupture_velocity,
@@ -311,7 +312,7 @@ def test_slip_dependent_rupture_speed_is_refused(tmp_path: Path) -> None:
                 jump_points={},
                 hypocentre=np.array([0.5, 0.5]),
             ),
-            Magnitudes(magnitudes={"a": 6.0}),
+            Magnitudes(magnitudes={"a": BoldM(6.0)}),
             Rakes(rakes={"a": 90.0}),
             VelocityModel1D(
                 model=pd.DataFrame(
