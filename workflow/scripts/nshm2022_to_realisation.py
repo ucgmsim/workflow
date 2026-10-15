@@ -77,7 +77,7 @@ def default_magnitude_estimation(
     faults: dict[str, Fault],
     # NOTE: this must be in quotes because the runtime class DisjointSet is
     # not generic, just the stub implementation.
-    components: DisjointSet[str],
+    components: "DisjointSet[str]",
     avg_rake: float,
     strategy: SamplingStrategy,
 ) -> dict[str, magnitude_scaling.BoldM]:

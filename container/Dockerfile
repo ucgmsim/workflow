@@ -50,7 +50,7 @@ RUN apt-get update && apt-get install -y \
 RUN mkdir -p /sw/cargo /sw/rust /sw/python /sw/venv
 
 # Python installation
-ARG PYTHON_VERSION=3.14.8
+ARG PYTHON_VERSION=3.13.12
 RUN curl -o /tmp/Python-${PYTHON_VERSION}.tar.xz \
         https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz && \
     cd /tmp && \
