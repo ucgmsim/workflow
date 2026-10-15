@@ -95,6 +95,7 @@ clone-realisations = "workflow.scripts.migrate:clone_app"
 validate-sfile = "workflow.scripts.validate_sfile:app"
 create-nzvm-input = "workflow.scripts.nzvm_input_template:app"
 create-sw4-input = "workflow.scripts.sw4_template:app"
+extract-subset = "workflow.scripts.extract_subset:app"
 
 [tool.setuptools.package-dir]
 workflow = "workflow"
