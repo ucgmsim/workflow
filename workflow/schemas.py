@@ -7,6 +7,7 @@ for a description of realisations and the schemas.
 """
 
 import dataclasses
+import math
 from enum import IntEnum, StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -22,6 +23,7 @@ from velocity_modelling.bounding_box import BoundingBox
 from workflow.defaults import DefaultsVersion
 
 if TYPE_CHECKING:
+    from nzcvm.config.grids.terrain import Decay
     from nzcvm.config.layers import LayerConfig
 
 
@@ -988,7 +990,24 @@ def _build_layer(config: dict) -> "LayerConfig":
     # it. Review this once Python 3.15 drops with lazy imports.
     from nzcvm.config.layers import LayerConfig
 
-    return LayerConfig.from_dict(config)
+    # nzcvm derives some layer fields from the layer type (`provides` and
+    # `requires`: the coordinates a layer supplies to, or needs from, earlier
+    # layers), and since 2026.10.1 rejects them as input. Realisations written
+    # before then carry them, so drop them rather than fail to read those.
+    derived = {
+        field.name for field in dataclasses.fields(LayerConfig) if not field.init
+    }
+    return LayerConfig.from_dict(
+        {key: value for key, value in config.items() if key not in derived}
+    )
+
+
+def _build_decay(config: dict) -> "Decay":
+    """Build a terrain decay from a config dictionary."""
+    # Imported lazily, like `LayerConfig` in `_build_layer`.
+    from nzcvm.config.grids.terrain import Decay
+
+    return Decay.from_dict(config)
 
 
 NZCVM_SCHEMA = Schema(
@@ -996,6 +1015,13 @@ NZCVM_SCHEMA = Schema(
         Literal("layers"): [Use(_build_layer)],
         Literal("chunks"): Or({}, {Use(Coordinate): int}),
         Literal("surface"): Use(Path),
+        Literal(
+            "decay",
+            description=(
+                "The SW4 grid's terrain decay. null runs SW4 with topography;"
+                " any decay runs it without, on the flat nominal model."
+            ),
+        ): Or(None, Use(_build_decay)),
     }
 )
 SEED_SCHEMA = Schema(
@@ -1086,14 +1112,12 @@ HF_CONFIG_SCHEMA = Schema(
         },
         Literal("path", description="Which rays, and how the medium attenuates"): {
             Literal("rayset", description="ray types 1: direct, 2: moho"): [Or(1, 2)],
-            Literal("q_frequency_exponent", description="x in Q(f) = Q0 f^x"): NUMBER,
             Literal(
                 "path_duration_model",
                 description="0: GP2010, 1: WUS, 2: ENA, 11: BT2014, 12: BT2015",
             ): Or(0, 1, 2, 11, 12),
         },
         Literal("site", description="The near-surface"): {
-            Literal("kappa_s", description="Near-surface attenuation (s)"): NUMBER,
             Literal("fmax_hz", description="High-frequency cutoff"): And(
                 NUMBER, _is_positive
             ),
@@ -1104,11 +1128,48 @@ HF_CONFIG_SCHEMA = Schema(
     }
 )
 
+
+def _stoch_bounds_contain_target(config: dict[str, float | None]) -> bool:
+    for axis in ("dx", "dy"):
+        target = config[f"stoch_target_{axis}"]
+        lower = config[f"stoch_min_{axis}"]
+        upper = config[f"stoch_max_{axis}"]
+        assert target is not None and lower is not None
+        if not lower <= target <= (math.inf if upper is None else upper):
+            return False
+    return True
+
+
 STOCH_CONFIG_SCHEMA = Schema(
-    {
-        Literal("stoch_dx", description="Stoch file dx"): And(NUMBER, _is_positive),
-        Literal("stoch_dy", description="Stoch file dy"): And(NUMBER, _is_positive),
-    }
+    And(
+        {
+            Literal("stoch_target_dx", description="Preferred stoch file dx"): And(
+                NUMBER, _is_positive, math.isfinite
+            ),
+            Literal("stoch_min_dx", description="Smallest allowed stoch file dx"): And(
+                NUMBER, _is_non_negative
+            ),
+            Literal(
+                "stoch_max_dx",
+                description="Largest allowed stoch file dx, or None for no limit",
+            ): Or(None, And(NUMBER, _is_positive, math.isfinite)),
+            Literal("stoch_target_dy", description="Preferred stoch file dy"): And(
+                NUMBER, _is_positive, math.isfinite
+            ),
+            Literal("stoch_min_dy", description="Smallest allowed stoch file dy"): And(
+                NUMBER, _is_non_negative
+            ),
+            Literal(
+                "stoch_max_dy",
+                description="Largest allowed stoch file dy, or None for no limit",
+            ): Or(None, And(NUMBER, _is_positive, math.isfinite)),
+            Literal(
+                "stoch_padding_weight",
+                description="Cost of a padded cell, in cells of drift from the target resolution",
+            ): And(NUMBER, _is_non_negative, math.isfinite),
+        },
+        _stoch_bounds_contain_target,
+    )
 )
 
 EMOD3D_PARAMETERS_SCHEMA = Schema(

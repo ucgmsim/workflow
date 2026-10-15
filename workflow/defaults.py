@@ -3,6 +3,7 @@
 import importlib
 from enum import StrEnum
 from importlib import resources
+from typing import Any
 
 import yaml
 
@@ -16,10 +17,12 @@ class DefaultsVersion(StrEnum):
     v24_2_2_1 = "24.2.2.1"
     v24_2_2_2 = "24.2.2.2"
     v24_2_2_4 = "24.2.2.4"
+    v26_7_0_25Hz = "26.7.0.25Hz"  # noqa: N815 - mirrors the version string
+    v26_7_0_5Hz = "26.7.0.5Hz"  # noqa: N815 - mirrors the version string
     v26_7_1Hz = "26.7.1Hz"  # noqa: N815 - mirrors the version string
 
 
-def load_defaults(version: DefaultsVersion) -> dict[str, int | float | str]:
+def load_defaults(version: DefaultsVersion) -> dict[str, dict[str, Any]]:
     """Load default parameters for EMOD3D simulation from a YAML file.
 
     Parameters
@@ -30,9 +33,10 @@ def load_defaults(version: DefaultsVersion) -> dict[str, int | float | str]:
     Returns
     -------
     dict
-        A dictionary containing the default parameters loaded from the YAML file.
-        The keys are strings representing parameter names, and the values can be
-        integers, floats, or strings depending on the parameter.
+        The default parameters loaded from the YAML files, one section per
+        realisation configuration (e.g. ``"nzcvm"``, ``"velocity_model"``),
+        keyed by the configuration's name. Each section maps parameter
+        names to values, which may themselves be nested lists and mappings.
     """
     defaults_package = importlib.import_module(
         f"workflow.default_parameters.v{version.value.replace('.', '_')}"

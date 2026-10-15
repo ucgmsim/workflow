@@ -36,6 +36,7 @@ from workflow import defaults, schemas
 from workflow.defaults import DefaultsVersion
 
 if TYPE_CHECKING:
+    from nzcvm.config.grids.terrain import Decay
     from nzcvm.config.layers import LayerConfig
 
 
@@ -121,6 +122,22 @@ class RealisationConfiguration(ABC):
         return dataclasses.asdict(self)
 
     @classmethod
+    def from_dict(cls, config: Any) -> Self:
+        """Load configuration from its dictionary form, validating it against the schema.
+
+        Parameters
+        ----------
+        config : Any
+            The configuration section, as stored in a realisation.
+
+        Returns
+        -------
+        RealisationConfiguration
+            The validated configuration.
+        """
+        return cls(**cls._schema.validate(config))
+
+    @classmethod
     def read_from_realisation(cls, realisation_ffp: Path | str) -> Self:
         """Read configuration from a realisation file.
 
@@ -150,7 +167,7 @@ class RealisationConfiguration(ABC):
                 raise RealisationParseError(
                     f"No {cls._config_key} in realisation configuration"
                 )
-        return cls(**cls._schema.validate(realisation_config[cls._config_key]))
+        return cls.from_dict(realisation_config[cls._config_key])
 
     @classmethod
     def read_from_defaults(cls, defaults_version: DefaultsVersion) -> Self:
@@ -179,7 +196,7 @@ class RealisationConfiguration(ABC):
             raise RealisationParseError(
                 f"No {cls._config_key} in defaults configuration"
             )
-        return cls(**cls._schema.validate(default_config[cls._config_key]))
+        return cls.from_dict(default_config[cls._config_key])
 
     @classmethod
     def read_from_realisation_or_defaults(
@@ -1005,6 +1022,30 @@ class NZCVMSettings(RealisationConfiguration):
     """nzcvm chunk configuration"""
     surface: Path
     """nzcvm DEM surface"""
+    decay: "Decay | None"
+    """The SW4 grid's terrain decay: None for SW4 with topography, any decay
+    for SW4 without topography, on the flat nominal model."""
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the settings to a dictionary representation.
+
+        Each layer is serialised by nzcvm itself, which leaves out the fields
+        it derives from the layer type (`provides` and `requires`). nzcvm
+        rejects those as input, so `dataclasses.asdict`, which writes every
+        field, would write a realisation nzcvm cannot read back.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the settings.
+        """
+        return {
+            "layers": [layer.to_dict() for layer in self.layers],
+            "chunks": dict(self.chunks),
+            "surface": self.surface,
+            "decay": None if self.decay is None else self.decay.to_dict(),
+        }
 
 
 @dataclasses.dataclass
@@ -1055,6 +1096,19 @@ class VelocityModel1D(RealisationConfiguration):
 
     model: pd.DataFrame
     """The layers of the velocity model, one row per layer."""
+
+    @property
+    def vs30(self) -> float:
+        """float: Time-averaged shear-wave velocity in the top 30 m of the model, m/s.
+
+        The last layer is a half-space, and extends as deep as it needs to.
+        """
+        thickness_m = self.model["thickness"].to_numpy(np.float64) * 1000
+        vs_m_s = self.model["Vs"].to_numpy(np.float64) * 1000
+        top = np.concatenate(([0.0], np.cumsum(thickness_m)[:-1]))
+        bottom = np.append(top[1:], np.inf)
+        thickness_in_top_30m = np.clip(np.minimum(bottom, 30.0) - top, 0.0, None)
+        return float(30.0 / np.sum(thickness_in_top_30m / vs_m_s))
 
     def write_velocity_model(self, velocity_model_path: Path) -> None:
         """Write a 1D velocity model to the specified path.
@@ -1156,6 +1210,12 @@ class HFConfig(RealisationConfiguration):
     from the domain, and the three `source.rupture_velocity` multipliers live in
     :class:`RuptureVelocity` because SRF generation reads the same physical values. Both
     are injected by `hf-sim`.
+
+    One field here is not in that class at all: `source.stress_drop_bars`. The
+    simulation takes the stress parameter per subfault; the realisation keeps one value,
+    and `generate-stoch` fills every subfault's stress parameter with it. The per-station
+    `kappa_s` and `q_frequency_exponent` are site parameters, read from the site table
+    (see `workflow.sites`).
     """
 
     _config_key: ClassVar[str] = "hf"
@@ -1182,15 +1242,34 @@ class StochConfig(RealisationConfiguration):
 
     Not part of :class:`HFConfig`: these size the stoch grid, which is an input to the
     high-frequency simulation rather than one of its parameters.
+
+    generate-stoch picks one dx and one dy for every plane, as the HF code
+    requires, trading drift from the target resolution against padding (see
+    `generate_stoch.stoch_resolution`). A padding weight of 0 always gives the
+    target resolution, however much the planes are padded. For a single plane, a
+    weight above 1 gives srf2stoch's ``target_dx`` behaviour: the whole number
+    of cells closest to the target, with no padding. Weights in between suit
+    multi-segment ruptures, where no resolution fits every plane. The resolution
+    always lies within the bounds, which must contain the target.
     """
 
     _config_key: ClassVar[str] = "stoch"
     _schema: ClassVar[Schema] = schemas.STOCH_CONFIG_SCHEMA
 
-    stoch_dx: float
-    """stoch file resolution in x."""
-    stoch_dy: float
-    """stoch file resolution in y."""
+    stoch_target_dx: float
+    """Preferred stoch file resolution along strike (km)."""
+    stoch_min_dx: float
+    """Smallest stoch file resolution along strike (km)."""
+    stoch_max_dx: float | None
+    """Largest stoch file resolution along strike (km), or None for no limit."""
+    stoch_target_dy: float
+    """Preferred stoch file resolution down dip (km)."""
+    stoch_min_dy: float
+    """Smallest stoch file resolution down dip (km)."""
+    stoch_max_dy: float | None
+    """Largest stoch file resolution down dip (km), or None for no limit."""
+    stoch_padding_weight: float
+    """Cost of one wasted (padded) cell, measured in cells of drift from the target."""
 
 
 @dataclasses.dataclass
@@ -1349,9 +1428,7 @@ class SW4Command:
 
     name: str
     """The SW4 command name (e.g. `attenuation`, `supergrid`, `imagehdf5`)."""
-    parameters: dict[str, str | int | float | bool | None] = dataclasses.field(
-        default_factory=dict
-    )
+    parameters: dict[str, Any] = dataclasses.field(default_factory=dict)
     """The command's key=value parameters. None values are omitted."""
 
     def render(self) -> str:
@@ -1372,7 +1449,7 @@ class SW4Command:
             parts.append(f"{key}={value}")
         return " ".join(parts)
 
-    def merged(self, **overrides: str | float | bool | None) -> "SW4Command":
+    def merged(self, **overrides: Any) -> "SW4Command":
         """Return a copy of this command with `overrides` merged into its parameters.
 
         Parameters

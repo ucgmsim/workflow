@@ -1,12 +1,30 @@
+import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
+import numpy as np
+import pandas as pd
+import pytest
+
+from source_modelling.moment import BoldM
+from source_modelling.sources import Fault, Plane, Point
 from workflow import schemas
-from workflow.realisations import RuptureVelocity, SRFConfig
+from workflow.realisations import (
+    Magnitudes,
+    Rakes,
+    RupturePropagationConfig,
+    RuptureVelocity,
+    Seeds,
+    SourceConfig,
+    SRFConfig,
+    VelocityModel1D,
+)
 from workflow.scripts import realisation_to_srf
 
 
-def test_build_genslip_command_static_args() -> None:
-    srf_config = SRFConfig(
+@pytest.fixture
+def srf_config() -> SRFConfig:
+    return SRFConfig(
         resolution=0.1,
         dt=0.005,
         point_source_params=schemas.PointSourceParams(
@@ -126,10 +144,11 @@ def test_build_genslip_command_static_args() -> None:
         print_command=False,
         print_seed=False,
     )
-    genslip_path = Path("genslip_v5.6.2")
-    gsf_path = Path("/tmp/fault.gsf")
-    vel_path = Path("/tmp/velocity.vm")
-    rupture_velocity = RuptureVelocity(
+
+
+@pytest.fixture
+def rupture_velocity() -> RuptureVelocity:
+    return RuptureVelocity(
         rvfrac=1.0,
         rvfrac_shal=0.6,
         rvfrac_slip_sig=None,
@@ -139,6 +158,14 @@ def test_build_genslip_command_static_args() -> None:
         deep_depth=20.0,
         deep_transition_range=2.5,
     )
+
+
+def test_build_genslip_command_static_args(
+    srf_config: SRFConfig, rupture_velocity: RuptureVelocity
+) -> None:
+    genslip_path = Path("genslip_v5.6.2")
+    gsf_path = Path("/tmp/fault.gsf")
+    vel_path = Path("/tmp/velocity.vm")
     cmd = realisation_to_srf._build_genslip_command(
         genslip_path=genslip_path,
         gsf_file_path=gsf_path,
@@ -264,3 +291,129 @@ def test_build_genslip_command_static_args() -> None:
         "print_command=0",
         "print_seed=0",
     }
+
+
+def _environment(work_directory: Path) -> realisation_to_srf.SRFEnvironmentContext:
+    return realisation_to_srf.SRFEnvironmentContext(
+        genslip_path=Path("genslip"),
+        generic_slip2srf_path=Path("generic_slip2srf"),
+        work_directory=work_directory,
+        seeds=Seeds(
+            nshm_to_realisation_seed=1,
+            rupture_propagation_seed=2,
+            genslip_seed=3,
+            srfgen_seed=4,
+            hf_seed=5,
+        ),
+    )
+
+
+def test_generate_fault_srf_reraises_on_genslip_failure(
+    tmp_path: Path, srf_config: SRFConfig, rupture_velocity: RuptureVelocity
+) -> None:
+    """Regression test for #164.
+
+    The genslip failure handler used to call ``e.output.decode("utf-8")``, but
+    genslip's stdout is written straight to the SRF file handle, so
+    ``e.output`` is always None and the handler raised AttributeError before
+    it could log genslip's stderr or re-raise the original error.
+    """
+    name = "fault"
+    plane = Plane(
+        np.array(
+            [
+                [1578000.0, 5180000.0, 0.0],
+                [1579000.0, 5180000.0, 0.0],
+                [1579000.0, 5180000.0, 5000.0],
+                [1578000.0, 5180000.0, 5000.0],
+            ]
+        )
+    )
+    fault = Fault(planes=[plane])
+
+    params = realisation_to_srf.SRFRealisationContext(
+        source_config=SourceConfig({name: fault}),
+        rupture_propagation_config=RupturePropagationConfig(
+            rupture_causality_tree={name: None},
+            jump_points={},
+            hypocentre=np.array([0.5, 0.0]),
+        ),
+        magnitudes=Magnitudes({name: BoldM(7.0)}),
+        rakes=Rakes({name: 180.0}),
+        velocity_model_1d=VelocityModel1D(pd.DataFrame({"thickness": [1.0, 2.0]})),
+        srf_config=srf_config,
+        rupture_velocity=rupture_velocity,
+    )
+    environment = _environment(tmp_path)
+    environment.srf_directory.mkdir()
+
+    error = subprocess.CalledProcessError(
+        returncode=3, cmd=["genslip"], output=None, stderr=b"genslip stderr boom"
+    )
+
+    with (
+        patch.object(
+            realisation_to_srf,
+            "generate_fault_gsf",
+            return_value=tmp_path / "fault.gsf",
+        ),
+        patch.object(realisation_to_srf.subprocess, "run", side_effect=error),
+        pytest.raises(subprocess.CalledProcessError),
+    ):
+        realisation_to_srf.generate_fault_srf(name, params, environment)
+
+
+def test_generate_point_source_srf_reraises_on_generic_slip2srf_failure(
+    tmp_path: Path, srf_config: SRFConfig, rupture_velocity: RuptureVelocity
+) -> None:
+    """Regression test for #164.
+
+    Same bug as ``test_generate_fault_srf_reraises_on_genslip_failure``, but
+    in the generic_slip2srf failure handler used for point sources.
+    """
+    name = "point"
+    point = Point(
+        bounds=np.array([1600000.0, 5180000.0, 5000.0]),
+        length_m=1000.0,
+        width_m=1000.0,
+        strike=90.0,
+        dip=45.0,
+        dip_dir=180.0,
+    )
+
+    params = realisation_to_srf.SRFRealisationContext(
+        source_config=SourceConfig({name: point}),
+        rupture_propagation_config=RupturePropagationConfig(
+            rupture_causality_tree={name: None},
+            jump_points={},
+            hypocentre=np.array([0.5, 0.0]),
+        ),
+        magnitudes=Magnitudes({name: BoldM(7.0)}),
+        rakes=Rakes({name: 180.0}),
+        velocity_model_1d=VelocityModel1D(pd.DataFrame({"thickness": [1.0, 2.0]})),
+        srf_config=srf_config,
+        rupture_velocity=rupture_velocity,
+    )
+    environment = _environment(tmp_path)
+
+    error = subprocess.CalledProcessError(
+        returncode=3,
+        cmd=["generic_slip2srf"],
+        output=None,
+        stderr=b"generic_slip2srf stderr boom",
+    )
+
+    with (
+        patch.object(
+            realisation_to_srf,
+            "generate_fault_gsf",
+            return_value=tmp_path / "point.gsf",
+        ),
+        patch.object(
+            realisation_to_srf.moment, "magnitude_to_moment", return_value=1e17
+        ),
+        patch.object(realisation_to_srf.moment, "point_source_slip", return_value=1.0),
+        patch.object(realisation_to_srf.subprocess, "run", side_effect=error),
+        pytest.raises(subprocess.CalledProcessError),
+    ):
+        realisation_to_srf.generate_point_source_srf(name, params, environment)

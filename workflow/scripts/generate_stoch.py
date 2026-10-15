@@ -2,7 +2,8 @@
 
 Description
 -----------
-Generate Stoch file for HF simulation. This file is just a down-sampled version of the SRF.
+Generate the stoch slip model for HF simulation. This is a down-sampled version of the SRF on
+the uniform subfault grid the HF code simulates, with a stress parameter for every subfault.
 
 Inputs
 ------
@@ -10,7 +11,14 @@ A realisation file containing a metadata configuration, and a generated SRF file
 
 Outputs
 -------
-A [Stoch](https://wiki.canterbury.ac.nz/display/QuakeCore/File+Formats+Used+In+Ground+Motion+Simulation#FileFormatsUsedInGroundMotionSimulation-Stochformat) file containing a down-sampled version of the SRF.
+An HDF5 file, written by xarray as a `DataTree`, holding the down-sampled SRF. The root group
+carries the subfault size shared by every plane (`dx` and `dy`, km) and has one child group
+per plane, `plane_0`, `plane_1`, ..., in SRF order. Each plane group has the plane geometry
+as attributes (`longitude`, `latitude`, `strike`, `dip`, `rake`, `dtop`, `shypo`, `dhypo`)
+and four `(dip, strike)` grids: `slip` (cm), `rise_time` (s), `rupture_time` (s) and
+`stress_drop` (bars). The `strike` coordinate is the centre of each subfault along strike
+from the top-centre of the plane, and `dip` the centre down dip from its top edge (km). Read
+it with `xarray.open_datatree`.
 
 Usage
 -----
@@ -25,19 +33,20 @@ For More Help
 See the output of `generate-stoch --help` or `workflow.scripts.generate_stoch`.
 """
 
+import math
 from pathlib import Path
 from typing import Annotated
 
 import numpy as np
 import scipy.sparse as sp
 import typer
+import xarray as xr
 
 from qcore import cli
 from source_modelling import srf
 from source_modelling.srf import SrfFile
-from source_modelling.stoch import StochFile, StochHeader, StochPlane
 from workflow import log_utils, realisations
-from workflow.realisations import RealisationMetadata, StochConfig
+from workflow.realisations import HFConfig, RealisationMetadata, StochConfig
 
 app = typer.Typer()
 
@@ -173,24 +182,29 @@ def _circular_mean(angles: np.ndarray, weights: np.ndarray) -> float:
     return float(np.angle(mean, deg=True) % 360.0)
 
 
-def convert_srf_to_stoch(srf_file: SrfFile, dx: float, dy: float) -> StochFile:
-    """Convert an SRF file into a Stoch file by box-averaging slip, tinit and tinit * rise.
+def convert_srf_to_stoch(
+    srf_file: SrfFile, dx: float, dy: float, stress_drop_bars: float
+) -> xr.DataTree:
+    """Down-sample an SRF file into a stoch slip model by box-averaging slip, tinit and rise.
 
     Parameters
     ----------
     srf_file : SrfFile
         The SRF file to convert.
     dx : float
-        The desired strike-resolution for the output stoch file.
+        The desired strike-resolution for the output slip model.
     dy : float
-        The desired dip-resolution for the output stoch file.
+        The desired dip-resolution for the output slip model.
+    stress_drop_bars : float
+        The stress parameter given to every subfault.
 
     Returns
     -------
-    StochFile
-        An output stoch file downsampled from ``srf_file``.
+    xr.DataTree
+        The slip model downsampled from ``srf_file``, laid out as the module docstring
+        describes.
     """
-    planes = []
+    planes = {}
     for i, segment in enumerate(srf_file.segments):
         header = srf_file.header.iloc[i].astype(np.float32)
         nstk, ndip = int(header["nstk"]), int(header["ndip"])
@@ -200,9 +214,12 @@ def convert_srf_to_stoch(srf_file: SrfFile, dx: float, dy: float) -> StochFile:
             for column in ("slip", "rake", "rise", "tinit")
         )
 
-        length, width = float(header["len"]), float(header["wid"])
-        nx = int(np.ceil(length / dx))
-        ny = int(np.ceil(width / dy))
+        # Read the extent at full precision, so that a dx dividing it exactly
+        # gives a whole number of cells.
+        length = float(srf_file.header["len"].iloc[i])
+        width = float(srf_file.header["wid"].iloc[i])
+        nx = _n_cells(length, dx)
+        ny = _n_cells(width, dy)
         # The HF code centres the stoch grid along strike on (elon, elat), the
         # top-centre of the plane, but hangs it down-dip from the top edge at
         # dtop (with dhypo measured from that edge). So along strike the
@@ -221,22 +238,140 @@ def convert_srf_to_stoch(srf_file: SrfFile, dx: float, dy: float) -> StochFile:
         trup_grid = _weighted_box_mean(tinit, np.ones_like(tinit), wy, wx)
         rise_grid = _weighted_box_mean(rise, slip, wy, wx, empty=1e-5)
 
-        stoch_header = StochHeader(
-            longitude=header["elon"],
-            latitude=header["elat"],
-            nx=nx,
-            ny=ny,
-            dx=dx,
-            dy=dy,
-            strike=round(header["stk"]) % 360,
-            dip=round(header["dip"]),
-            average_rake=round(_circular_mean(rake, slip)),
-            dtop=header["dtop"],
-            shypo=header["shyp"],
-            dhypo=header["dhyp"],
+        dims = ("dip", "strike")
+        # The plane geometry at full precision, which the stoch text format rounded.
+        geometry = srf_file.header.iloc[i]
+        planes[f"plane_{i}"] = xr.Dataset(
+            {
+                "slip": (dims, slip_grid, {"units": "cm"}),
+                "rise_time": (dims, rise_grid, {"units": "s"}),
+                "rupture_time": (dims, trup_grid, {"units": "s"}),
+                "stress_drop": (
+                    dims,
+                    np.full((ny, nx), stress_drop_bars, np.float32),
+                    {"units": "bar"},
+                ),
+            },
+            coords={
+                # Subfault centres, matching the grid alignment above.
+                "strike": (
+                    "strike",
+                    (np.arange(nx) + 0.5 - nx / 2) * dx,
+                    {"units": "km"},
+                ),
+                "dip": ("dip", (np.arange(ny) + 0.5) * dy, {"units": "km"}),
+            },
+            attrs={
+                "longitude": float(geometry["elon"]),
+                "latitude": float(geometry["elat"]),
+                "strike": float(geometry["stk"]) % 360.0,
+                "dip": float(geometry["dip"]),
+                "rake": _circular_mean(rake, slip),
+                "dtop": float(geometry["dtop"]),
+                "shypo": float(geometry["shyp"]),
+                "dhypo": float(geometry["dhyp"]),
+            },
         )
-        planes.append(StochPlane(stoch_header, slip_grid, rise_grid, trup_grid))
-    return StochFile(planes)
+    return xr.DataTree.from_dict(
+        {"/": xr.Dataset(attrs={"dx": dx, "dy": dy}), **planes}
+    )
+
+
+_CELL_TOLERANCE = 1e-9
+
+
+def _n_cells(extent: float, resolution: float) -> int:
+    """Count the cells of size `resolution` needed to cover `extent`.
+
+    A cell that would cover less than a billionth of `resolution` is float
+    error from dividing the extent exactly, and is not counted.
+    """
+    return max(1, math.ceil(extent / resolution - _CELL_TOLERANCE))
+
+
+def stoch_resolution(
+    extents: np.ndarray,
+    srf_resolutions: np.ndarray,
+    target_resolution: float,
+    padding_weight: float,
+    min_resolution: float,
+    max_resolution: float | None,
+) -> float:
+    """Choose the cell size shared by a set of planes along one axis.
+
+    Every plane of a stoch file shares one cell size, so planes whose extent is
+    not a multiple of it are padded out by part of a cell. This trades the
+    padding against drift from a target cell size, both counted in cells, and
+    picks the cell size within the bounds that minimises
+
+        drift + padding_weight * padding.
+
+    A weight of 0 gives the target, however much the planes are padded. For a
+    single plane, any weight above 1 gives srf2stoch's ``target_dx``
+    behaviour: the whole number of cells closest to the target, with no
+    padding. The cell size is never finer than the coarsest SRF resolution
+    (srf2stoch does the same), unless `max_resolution` forces it.
+
+    Parameters
+    ----------
+    extents : np.ndarray
+        The extent of each plane along the axis (length or width, km).
+    srf_resolutions : np.ndarray
+        The SRF resolution of each plane along the axis (km).
+    target_resolution : float
+        The preferred cell size (km).
+    padding_weight : float
+        The cost of one padded cell, in cells of drift from the target.
+    min_resolution : float
+        The smallest allowed cell size (km).
+    max_resolution : float or None
+        The largest allowed cell size (km), or None for no limit.
+
+    Returns
+    -------
+    float
+        The cell size within the bounds with the least cost. Among equals,
+        the one closest to the target, then the finest.
+
+    Notes
+    -----
+    For cell size d and target t, the padding and drift are
+
+        padding(d) = sum_i (ceil(L_i / d) - L_i / d),
+        drift(d)   = sum_i L_i * |1 / d - 1 / t|,
+
+    that is, the cells hanging off the planes, and how many more or fewer
+    cells the planes have than at the target. Measuring drift in cells, rather
+    than in km, is what makes a single plane round its cell count to the
+    nearest whole number, as srf2stoch does.
+
+    In terms of u = 1 / d, both are linear wherever the ceilings are constant,
+    apart from a kink at u = 1 / t. The cost is therefore smallest at a size
+    d = L_i / n where some plane fits exactly into n cells, at the target, or
+    at a bound, and we only have to check those.
+    """
+    upper = math.inf if max_resolution is None else max_resolution
+    lower = min(max(min_resolution, float(srf_resolutions.max())), upper)
+    candidates = [lower, min(max(target_resolution, lower), upper)]
+    if math.isfinite(upper):
+        candidates.append(upper)
+    for extent in extents:
+        # Plane fits exactly into n cells of extent / n, for each n in bounds.
+        fewest = max(1, math.ceil(extent / upper - _CELL_TOLERANCE))
+        most = math.floor(extent / lower + _CELL_TOLERANCE)
+        candidates.extend(extent / n for n in range(fewest, most + 1))
+    candidates = np.array(candidates)
+
+    cells = extents / candidates[:, np.newaxis]
+    n_cells = np.maximum(1, np.ceil(cells - _CELL_TOLERANCE))
+    padding = (n_cells - cells).sum(axis=1)
+    drift = np.abs(cells - extents / target_resolution).sum(axis=1)
+    cost = drift + padding_weight * padding
+    # Among equal costs, prefer the least drift from the target, then the finest.
+    tolerance = _CELL_TOLERANCE * len(extents)
+    cheapest = cost <= cost.min() + tolerance
+    closest = cheapest & (drift <= drift[cheapest].min() + tolerance)
+    return float(candidates[closest].min())
 
 
 @cli.from_docstring(app)
@@ -246,26 +381,46 @@ def generate_stoch(
     srf_ffp: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
     stoch_ffp: Annotated[Path, typer.Argument(dir_okay=False)],
 ) -> None:
-    """Generate a stoch file from an SRF file.
+    """Generate a stoch slip model from an SRF file.
 
     Parameters
     ----------
     realisation_ffp : Path
         Path to the realisation.
     srf_ffp : Path
-        Path to the SRF file which is used as input for the stoch file generation.
+        Path to the SRF file which is used as input for the slip model generation.
     stoch_ffp : Path
-        Path to the output file where the generated stoch file will be saved.
+        Path to the output HDF5 file where the slip model will be saved.
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     stoch_config = StochConfig.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     )
-
-    stoch_file = convert_srf_to_stoch(
-        srf.read_srf(srf_ffp), stoch_config.stoch_dx, stoch_config.stoch_dy
+    hf_config = HFConfig.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
     )
-    with open(stoch_ffp, "w") as f:
-        stoch_file.dump(f)
+
+    srf_file = srf.read_srf(srf_ffp)
+    lengths = srf_file.header["len"].to_numpy(dtype=np.float64)
+    widths = srf_file.header["wid"].to_numpy(dtype=np.float64)
+    dx = stoch_resolution(
+        lengths,
+        lengths / srf_file.header["nstk"].to_numpy(),
+        stoch_config.stoch_target_dx,
+        stoch_config.stoch_padding_weight,
+        stoch_config.stoch_min_dx,
+        stoch_config.stoch_max_dx,
+    )
+    dy = stoch_resolution(
+        widths,
+        widths / srf_file.header["ndip"].to_numpy(),
+        stoch_config.stoch_target_dy,
+        stoch_config.stoch_padding_weight,
+        stoch_config.stoch_min_dy,
+        stoch_config.stoch_max_dy,
+    )
+    # The realisation has one stress parameter for the whole rupture, for now.
+    stoch = convert_srf_to_stoch(srf_file, dx, dy, hf_config.source["stress_drop_bars"])
+    stoch.to_netcdf(stoch_ffp, engine="h5netcdf")
 
     realisations.append_log_entry(realisation_ffp)

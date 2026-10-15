@@ -1,20 +1,36 @@
-"""Check that realisation can be loaded, if it can't automatically trim extraneous tags and offer to fill in default values."""
+"""Migrate realisations to a new defaults version.
 
+Each realisation is migrated in memory and written at most once, after
+the user has approved the changes. Missing keys are filled in, values
+that differ from the new defaults can be updated key by key, unknown
+keys can be trimmed, and every section present in the realisation is
+checked against its schema.
+"""
+
+import copy
+import dataclasses
 import difflib
+import functools
 import inspect
 import json
+import os
 import re
 import shutil
-from collections import defaultdict
-from collections.abc import MutableMapping
+import sys
+import tempfile
+from collections import Counter, defaultdict
+from collections.abc import Iterator
 from enum import Enum, auto
 from pathlib import Path
-from typing import Annotated, TypeGuard
+from typing import Annotated, Any, TypeGuard
 
 import parse
+import questionary
 import schema
 import typer
-from rich.console import Console
+from rich.console import Console, RenderableType
+from rich.padding import Padding
+from rich.text import Text
 
 from qcore import cli
 from workflow import realisations, utils
@@ -22,27 +38,19 @@ from workflow.defaults import DefaultsVersion
 from workflow.realisations import Seeds
 
 app = typer.Typer()
-console = Console()
+copy_app = typer.Typer()
+clone_app = typer.Typer()
+_console = Console()
 
 
 # Every use site refers to a RealisationConfiguration *subclass* (the classes
 # returned by realisation_configurations), not an instance of one.
-type ConfigType = type[realisations.RealisationConfiguration]
+type _ConfigType = type[realisations.RealisationConfiguration]
+type KeyPath = tuple[str, ...]
 
 
-def is_realisation_configuration(cls: object) -> TypeGuard[ConfigType]:
-    """Returns True if the class is a subclass of realisation configuration.
-
-    Parameters
-    ----------
-    cls : object
-        Object to check.
-
-    Returns
-    -------
-    bool
-        True if class is a realisation configuration.
-    """
+def _is_realisation_configuration(cls: object) -> TypeGuard[_ConfigType]:
+    """Returns True if the class is a subclass of realisation configuration."""
     return (
         cls != realisations.RealisationConfiguration
         and inspect.isclass(cls)
@@ -50,52 +58,22 @@ def is_realisation_configuration(cls: object) -> TypeGuard[ConfigType]:
     )
 
 
-def realisation_configurations() -> list[ConfigType]:
-    """Return a list of all realisation configurations.
-
-    Returns
-    -------
-    list[ConfigType]
-        A list of all realisation configuration types.
-    """
+def _realisation_configurations() -> list[_ConfigType]:
+    """Return a list of all realisation configurations."""
     return [
         cls
         for name, cls in inspect.getmembers(realisations)
-        if is_realisation_configuration(cls)
+        if _is_realisation_configuration(cls)
     ]
 
 
-def loadable_defaults(
-    configurations: list[ConfigType], defaults: DefaultsVersion
-) -> dict[ConfigType, realisations.RealisationConfiguration]:
-    """Filter a list of realisation configurations for those with loadable defaults.
-
-
-
-    Parameters
-    ----------
-    configurations : list[ConfigType]
-        Configurations to filter.
-    defaults : defaults.DefaultsVersion
-        Defaults to try and load.
-
-
-    Returns
-    -------
-    dict[ConfigType, realisations.RealisationConfiguration]
-        A mapping from realisation configuration types to their
-        defaults specified by ``defaults``.
-
-    Raises
-    ------
-    TypeError
-        If ``configurations`` contains a type that is not a
-        realisation configuration.
-
-    """
-    config_defaults: dict[ConfigType, realisations.RealisationConfiguration] = {}
+def _loadable_defaults(
+    configurations: list[_ConfigType], defaults: DefaultsVersion
+) -> dict[_ConfigType, realisations.RealisationConfiguration]:
+    """Filter a list of realisation configurations for those with loadable defaults."""
+    config_defaults: dict[_ConfigType, realisations.RealisationConfiguration] = {}
     for config in configurations:
-        if not is_realisation_configuration(config):
+        if not _is_realisation_configuration(config):
             raise TypeError(
                 f"{config=} should be a subclass of realisations.RealisationConfiguration"
             )
@@ -108,380 +86,741 @@ def loadable_defaults(
     return config_defaults
 
 
+@functools.cache
+def _default_sections(defaults_version: DefaultsVersion) -> dict[str, Any]:
+    """Return the defaults for a version as they would be written to a realisation."""
+    defaults = _loadable_defaults(_realisation_configurations(), defaults_version)
+    return {
+        config._config_key: json.loads(
+            json.dumps(default.to_dict(), default=realisations.path_serialiser)
+        )
+        for config, default in defaults.items()
+    }
+
+
 class Response(Enum):
     """Enum for response to prompts asked of user."""
 
     YES = auto()
+    """Accept this change once."""
     NO = auto()
-    AUTO = auto()  # Always (!)
-    NEVER = auto()  # Never (N)
+    """Reject this change once."""
+    ALWAYS = auto()
+    """(A)lways accept this change."""
+    NEVER = auto()
+    """(N)ever accept this change."""
+    SELECT = auto()
+    """Select which keys to migrate."""
 
 
 class Action(Enum):
     """Migration actions that can be taken on realisation configuration."""
 
-    MIGRATE = auto()
-    TRIM = auto()
     FILL = auto()
+    """Add keys that are missing from the realisation."""
     UPDATE = auto()
+    """Update values that differ from the new defaults."""
+    TRIM = auto()
+    """Remove keys the schema does not recognise."""
+    WRITE = auto()
+    """Write the migrated realisation to disk."""
 
 
-def yes_no_always_prompt(raw_prompt: str) -> Response:
-    """Prompt user for a decision, handling y, n, !, and N.
+class PromptUnavailableError(Exception):
+    """Raised when a question needs an answer but there is no terminal to ask."""
 
 
-    Parameters
-    ----------
-    raw_prompt : str
-        Prompt to prepend to options.
-
-
-    Returns
-    -------
-    Response
-        Response from user.
-    """
-
-    prompt = f"{raw_prompt} (y/n/!/N): "
+def _yes_no_always_prompt(raw_prompt: str, allow_select: bool = False) -> Response:
+    """Prompt user for a decision, handling y, n, !, N and optionally s."""
+    options = "y/n/!/N/s" if allow_select else "y/n/!/N"
+    prompt = f"{raw_prompt} ({options}): "
     response_map = {
         "N": Response.NEVER,
-        "!": Response.AUTO,
-        "A": Response.AUTO,
+        "!": Response.ALWAYS,
+        "A": Response.ALWAYS,
         "y": Response.YES,
         "n": Response.NO,
     }
+    help_text = "y = yes, n = no, ! = yes to this question from now on, N = no to this question from now on"
+    if allow_select:
+        response_map["s"] = Response.SELECT
+        help_text += ", s = choose which keys"
     while True:
-        raw_response = input(prompt).strip()
+        try:
+            raw_response = input(prompt).strip()
+        except EOFError as e:
+            raise PromptUnavailableError(
+                "No answer to prompt; rerun with --yes or --check to migrate without prompts."
+            ) from e
         if raw_response in response_map:
             return response_map[raw_response]
+        _console.print(help_text)
 
 
-def autofill(
-    realisation: Path,
-    config: realisations.RealisationConfiguration,
-    dry_run: bool,
-) -> None:
-    """Autofill realisation with defaults from config.
+def _select_keys(
+    question: str, options: list[tuple[KeyPath, str]], ticks: dict[KeyPath, bool]
+) -> dict[KeyPath, bool]:
+    """Let the user tick which keys to change, with the arrow keys and space."""
+
+    choices = [
+        questionary.Choice(label, value=path, checked=ticks[path])
+        for path, label in options
+    ]
+    chosen = questionary.checkbox(
+        question,
+        choices=choices,
+        instruction="(● migrate, ○ keep; space: toggle, a: toggle all, enter: done)",
+    ).unsafe_ask()
+    return {path: path in chosen for path, _ in options}
+
+
+def _confirm_selection() -> Response:
+    """Ask whether to apply the keys just selected."""
+
+    choices = [
+        questionary.Choice("Yes (ask again next time)", value=Response.YES),
+        questionary.Choice("No (back to the question)", value=Response.NO),
+        questionary.Choice(
+            "Always (apply this selection from now on)", value=Response.ALWAYS
+        ),
+    ]
+    return questionary.select("Apply changes?", choices=choices).unsafe_ask()
+
+
+class Prompter:
+    """Ask migration questions, remembering "always" and "never" answers.
+
+    Each question comes with details explaining it, which are printed
+    only when the question is not answered from an earlier answer.
 
     Parameters
     ----------
-    realisation : Path
-        Realisation to write to.
-    config : realisations.RealisationConfiguration
-        Config to write.
-    dry_run : bool
-        If True, print to console instead of writing.
+    assume_yes : bool
+        If True, answer every question without prompting. Every action
+        is accepted except `Action.UPDATE`, which is accepted only if
+        ``overwrite`` is set, so existing values are kept by default.
+    overwrite : bool
+        With ``assume_yes``, update values that differ from the new
+        defaults.
     """
-    if dry_run:
-        console.print(
-            f"DRY RUN: Would merge with {config.__class__.__name__} defaults in {realisation}"
-        )
-    else:
-        config.write_to_realisation(realisation)
+
+    def __init__(self, assume_yes: bool = False, overwrite: bool = False) -> None:
+        """Ask migration questions, remembering "always" and "never" answers.
+
+        Parameters
+        ----------
+        assume_yes : bool
+            If True, answer every question without prompting. Every action
+            is accepted except `Action.UPDATE`, which is accepted only if
+            ``overwrite`` is set, so existing values are kept by default.
+        overwrite : bool
+            With ``assume_yes``, update values that differ from the new
+            defaults.
+        """
+
+        self.assume_yes = assume_yes
+        self.overwrite = overwrite
+        self.remembered: dict[tuple[str | None, Action], Response] = {}
+        self.selections: dict[tuple[str, Action], dict[KeyPath, bool]] = {}
+
+    def _preset(self, key: str | None, action: Action) -> Response | None:
+        response = self.remembered.get((key, action))
+        if response is None and self.assume_yes:
+            keep = action is Action.UPDATE and not self.overwrite
+            response = Response.NEVER if keep else Response.ALWAYS
+        return response
+
+    def _settle(self, key: str | None, action: Action, response: Response) -> bool:
+        if response in (Response.ALWAYS, Response.NEVER):
+            self.remembered[(key, action)] = response
+        return response in (Response.YES, Response.ALWAYS)
+
+    def _explain(
+        self, key: str | None, action: Action, details: list[RenderableType]
+    ) -> None:
+        if (key, action) not in self.remembered:
+            for line in details:
+                _console.print(line)
+
+    def ask(
+        self,
+        question: str,
+        action: Action,
+        key: str | None = None,
+        details: list[RenderableType] | None = None,
+    ) -> bool:
+        """Ask a question, or answer it from a remembered response.
+
+        Parameters
+        ----------
+        question : str
+            Question to ask.
+        action : Action
+            Action the question asks about.
+        key : str | None
+            Configuration key the question is about. Remembered
+            answers apply to the same action on the same key.
+        details : list[RenderableType] | None
+            Lines explaining the question.
+
+        Returns
+        -------
+        bool
+            True if the action should be taken.
+        """
+        self._explain(key, action, details or [])
+        response = self._preset(key, action) or _yes_no_always_prompt(question)
+        return self._settle(key, action, response)
+
+    def choose(
+        self,
+        question: str,
+        action: Action,
+        key: str,
+        options: list[tuple[KeyPath, str]],
+        details: list[RenderableType],
+    ) -> list[KeyPath]:
+        """Ask which of several keys an action applies to.
+
+        As well as the answers `ask` accepts, the user can pick keys
+        from a list. A remembered selection is reused only when it
+        covers every key; otherwise the question is asked again.
+
+        Parameters
+        ----------
+        question : str
+            Question to ask.
+        action : Action
+            Action the question asks about.
+        key : str
+            Configuration key the question is about.
+        options : list[tuple[KeyPath, str]]
+            Keys the action could apply to, each with a plain text
+            description of its change.
+        details : list[RenderableType]
+            Lines explaining the question.
+
+        Returns
+        -------
+        list[KeyPath]
+            The keys to apply the action to.
+        """
+        paths = [path for path, _ in options]
+        preset = self._preset(key, action)
+        selection = self.selections.get((key, action))
+        if preset is None and selection is not None and selection.keys() >= set(paths):
+            return [path for path in paths if selection[path]]
+
+        self._explain(key, action, details)
+        if preset is not None:
+            return paths if self._settle(key, action, preset) else []
+
+        ticks = dict.fromkeys(paths, True)
+        while True:
+            response = _yes_no_always_prompt(
+                question, allow_select=sys.stdin.isatty()
+            )  # sys.stdin.isatty() == True if user is in a standard terminal
+            if response is not Response.SELECT:
+                return paths if self._settle(key, action, response) else []
+            ticks = _select_keys(question, options, ticks)
+            confirmation = _confirm_selection()
+            if confirmation is Response.NO:
+                continue
+            if confirmation is Response.ALWAYS:
+                self.selections[(key, action)] = ticks
+            return [path for path in paths if ticks[path]]
 
 
-def extract_error(
-    name: str, schema: schema.Schema, e: schema.SchemaError
-) -> tuple[str, list[str]]:
-    """Returns the formatted error string and a list of extraneous keys found.
+# TODO: Python 3.15 introduces a sentinel object, which should replace this when
+# available.
+#
+# _MISSING = sentinel("missing")
+#
+# Missing is a sentinel value that _get_path can use
+# to distinguish a missing value from a null entry in a realisation (which does
+# happen). Because _MISSING is `object()`, we can test for missing values using
+# `value is _MISSING` which returns true only if _get_path could not lookup a
+# path.
+_MISSING = object()
 
+
+def _get_path(data: Any, path: KeyPath) -> Any:
+    """Look up a nested key, returning a sentinel if it is not present."""
+    for key in path:
+        if not isinstance(data, dict) or key not in data:
+            return _MISSING
+        data = data[key]
+    return data
+
+
+def _set_path(data: dict[str, Any], path: KeyPath, value: Any) -> None:
+    """Set a nested key, creating (or replacing non-dict) parents as needed."""
+    for key in path[:-1]:
+        if not isinstance(data.get(key), dict):
+            data[key] = {}
+        data = data[key]
+    data[path[-1]] = copy.deepcopy(value)
+
+
+def _remove_path(data: Any, path: KeyPath) -> bool:
+    """Remove a nested key."""
+    parent = _get_path(data, path[:-1])
+    if not isinstance(parent, dict) or path[-1] not in parent:
+        return False
+    del parent[path[-1]]
+    return True
+
+
+def _leaf_paths(data: dict[str, Any], prefix: KeyPath = ()) -> Iterator[KeyPath]:
+    """Yield the paths to every non-dictionary value in nested dictionaries."""
+    for key, value in data.items():
+        if isinstance(value, dict) and value:
+            yield from _leaf_paths(value, (*prefix, key))
+        else:
+            yield (*prefix, key)
+
+
+def _dotted(paths: list[KeyPath]) -> str:
+    """Format key paths for display."""
+    return ", ".join(".".join(path) for path in paths)
+
+
+def _compare_section(
+    current: Any, new_defaults: dict[str, Any]
+) -> tuple[list[KeyPath], list[KeyPath]]:
+    """Find how a section differs from the new defaults.
+
+    Parameters
+    ----------
+    current : Any
+        The section in the realisation.
+    new_defaults : dict[str, Any]
+        The section in the defaults being migrated to.
+
+    Returns
+    -------
+    list[KeyPath]
+        Keys present in the new defaults but not in the realisation.
+    list[KeyPath]
+        Keys whose value differs from the new defaults.
+    """
+    missing, different = [], []
+    for path in _leaf_paths(new_defaults):
+        value = _get_path(current, path)
+        # NOTE: See the comment describing the _MISSING sentinel.
+        if value is _MISSING:
+            missing.append(path)
+        elif value != _get_path(new_defaults, path):
+            different.append(path)
+    return missing, different
+
+
+def _describe_change(
+    action: Action, path: KeyPath, current: Any, new_defaults: dict[str, Any]
+) -> str:
+    """Describe a proposed change to one key.
+
+    Parameters
+    ----------
+    action : Action
+        The action that would make the change.
+    path : KeyPath
+        Path to the key within the section.
+    current : Any
+        The section in the realisation.
+    new_defaults : dict[str, Any]
+        The section in the defaults being migrated to.
+
+    Returns
+    -------
+    str
+        The change, as plain text.
+    """
+    name = ".".join(path)
+    new = _get_path(new_defaults, path)
+    if action is Action.FILL:
+        return f"+ {name} = {new!r}"
+    old = _get_path(current, path)
+    if isinstance(old, list) and isinstance(new, list):
+        return f"{name}: list of {len(old)} -> list of {len(new)}"
+    return f"{name}: {old!r} -> {new!r}"
+
+
+# Plain ANSI colours, so the diff follows the terminal's own theme.
+_DIFF_STYLES = {"-": "red", "+": "green"}
+
+
+def _diff(current: Any, proposed: Any) -> RenderableType:
+    """Show the lines of a section's JSON that a change would alter."""
+    diff = difflib.unified_diff(
+        # By dumping the json here we get a pretty-printed version of the diff
+        # for free from difflib.
+        json.dumps(current, indent=4).splitlines(),
+        json.dumps(proposed, indent=4).splitlines(),
+        n=2,
+        lineterm="",
+    )
+    # Skip the ---/+++ file headers and the first hunk header, and mark
+    # the gaps between later hunks.
+    lines = [
+        Text("...")
+        if line.startswith("@@")
+        else Text(line, _DIFF_STYLES.get(line[0], ""))
+        for line in list(diff)[3:]
+    ]
+    return Padding(Text("\n").join(lines), (0, 0, 0, 4))
+
+
+def _extract_error(name: str, error: schema.SchemaError) -> tuple[str, list[KeyPath]]:
+    """Returns the formatted error string and the paths of any unknown keys.
 
     Parameters
     ----------
     name : str
         Name of configuration to parse.
-    schema : schema.Schema
-        Schema to read.
-    e : schema.SchemaError
+    error : schema.SchemaError
         Schema error encountered.
-
 
     Returns
     -------
     str
         Human readable error message.
+    list[KeyPath]
+        Paths to unknown keys identified in the error, relative to
+        the configuration section.
+    """
+    autos = [auto for auto in error.autos if isinstance(auto, str)]
+    parents = tuple(
+        match.group(1)
+        for auto in autos
+        if (match := re.match(r"^Key '(.*?)' error", auto))
+    )
+    location = ".".join((name, *parents))
+    last_error = autos[-1] if autos else str(error)
+
+    if match := re.match(r"^Wrong keys? (.*?) in \{", last_error):
+        unknown_keys = re.findall(r"'(.*?)'", match.group(1))
+        return (
+            f"Unknown keys in {location}: [red]{', '.join(unknown_keys)}[/red]",
+            [(*parents, key) for key in unknown_keys],
+        )
+
+    return f"Error in {location}: {last_error}", []
+
+
+def _validate_section(
+    config: _ConfigType, section: Any, prompter: Prompter
+) -> tuple[list[str], list[str]]:
+    """Check a section loads, offering to remove unknown keys until it does.
+
+    Parameters
+    ----------
+    config : _ConfigType
+        Configuration the section should load as.
+    section : Any
+        The section to check. Unknown keys are removed in place.
+    prompter : _Prompter
+        Asks whether to remove unknown keys.
+
+    Returns
+    -------
     list[str]
-        Unknown keys identified in error.
+        Descriptions of the changes made.
+    list[str]
+        Errors that stop the section from loading.
     """
-
-    path_segments = [str(a) for a in e.autos if isinstance(a, str)]
-    keys = []
-    for segment in path_segments:
-        if match := re.match(r"^Key '(.*?)'", segment):
-            keys.append(match.group(1))
-
-    last_error = e.autos[-1] if e.autos else str(e)
-    extraneous_keys = []
-    assert isinstance(last_error, str)
-    if "Wrong keys" in last_error:
-        extraneous_keys = re.findall(r"'(.*?)'", last_error.split(" in {")[0])
-        error_msg = f"Extraneous keys found: [red]{', '.join(extraneous_keys)}[/red]"
-        return f"Error in {name}: {error_msg}", extraneous_keys
-
-    if match := re.match(r"^Wrong key '(.*?)'", last_error):
-        unknown_key = match.group(1)
-        return f"Error in {name}: Unknown key '{unknown_key}'", [unknown_key]
-
-    return f"Error in {name}: {last_error}", []
-
-
-def should_trim_keys(config: ConfigType, extra_keys: list[str]) -> Response:
-    """Prompts user if they want to trim extra keys.
-
-    Parameters
-    ----------
-    config : ConfigType
-        Config to trim keys from.
-    extra_keys : list[str]
-        Extra keys to trim.
-
-    Returns
-    -------
-    Response
-        Response from user to prompt.
-    """
-    return yes_no_always_prompt(
-        f"Remove extraneous keys {extra_keys} from {config._config_key}?"
-    )
+    key = config._config_key
+    changes = []
+    while True:
+        try:
+            config.from_dict(copy.deepcopy(section))
+            return changes, []
+        except schema.SchemaError as schema_error:
+            message, unknown_keys = _extract_error(key, schema_error)
+            if not unknown_keys or not prompter.ask(
+                f"  Remove {_dotted(unknown_keys)} from {key}?",
+                Action.TRIM,
+                key,
+                [f"  {message}"],
+            ):
+                return changes, [message]
+            # Every removal must succeed, or the loop would not make progress.
+            if not all(_remove_path(section, path) for path in unknown_keys):
+                return changes, [message]
+            changes.append(f"{key}: removed {_dotted(unknown_keys)}")
+        except Exception as error:  # noqa: BLE001
+            return changes, [f"Error in {key}: {error}"]
 
 
-def should_update(config: ConfigType) -> Response:
-    """Prompt user to merge config with default values.
-
-    Parameters
-    ----------
-    config : ConfigType
-        Config to merge with.
-
-    Returns
-    -------
-    Response
-        Response from user to prompt.
-    """
-    return yes_no_always_prompt(f"Merge with defaults for {config._config_key}?")
+# The questions asked for keys missing from a section, and for keys
+# that differ from the new defaults, in the order they are asked.
+_SECTION_QUESTIONS = [
+    (Action.FILL, "Add missing keys to {key}?", "added"),
+    (Action.UPDATE, "Update values in {key} to the defaults?", "updated"),
+]
 
 
-def trim_keys(
-    realisation: Path,
-    config: ConfigType,
-    extra_keys: list[str],
-    dry_run: bool,
-) -> None:
-    """Trim extra keys from realisation.
-
-    Parameters
-    ----------
-    realisation : Path
-        Path to realisation.
-    config : ConfigType
-        Config to trim from.
-    extra_keys : list[str]
-        Keys to trim.
-    dry_run : bool
-        If True, print instead of trimming.
-    """
-    if dry_run:
-        console.print(f"DRY RUN: Would remove {extra_keys} from {realisation}")
-    else:
-        with open(realisation, "r") as f:
-            data = json.load(f)
-
-        config_data = data[config._config_key]
-        for k in extra_keys:
-            config_data.pop(k, None)
-
-        with open(realisation, "w") as f:
-            json.dump(data, f, indent=4)
-
-
-def print_diff(config_a: dict, config_b: dict) -> None:
-    """Pretty print diff between two dictionaries.
-
-    Parameters
-    ----------
-    config_a : dict
-        Dictionary a.
-    config_b : dict
-        Dictionary b.
-    """
-    config_a_str = json.dumps(config_a, indent=4, default=realisations.path_serialiser)
-    config_b_str = json.dumps(config_b, indent=4, default=realisations.path_serialiser)
-
-    diff = difflib.context_diff(
-        config_a_str.splitlines(keepends=True),
-        config_b_str.splitlines(keepends=True),
-        fromfile="Current",
-        tofile="Defaults",
-    )
-
-    for line in diff:
-        if line.startswith("+ "):
-            console.print(f"[green]{line}[/green]", end="")
-        elif line.startswith("- "):
-            console.print(f"[red]{line}[/red]", end="")
-        elif line.startswith("!"):
-            console.print(f"[yellow]{line}[/yellow]", end="")
+def _fill_section(
+    key: str, data: dict[str, Any], new_section: dict[str, Any], prompter: Prompter
+) -> list[str]:
+    """Offer to bring a section of a realisation in line with the new defaults."""
+    current = data.get(key, _MISSING)
+    changes = []
+    for paths, (action, question, verb) in zip(
+        _compare_section(current, new_section), _SECTION_QUESTIONS, strict=True
+    ):
+        if not paths:
+            continue
+        options = [
+            (path, _describe_change(action, path, current, new_section))
+            for path in paths
+        ]
+        if current is _MISSING:
+            details: list[RenderableType] = [
+                Text(f"    + {key} (whole section)", "green")
+            ]
         else:
-            console.print(line, end="")
+            proposed = copy.deepcopy(current)
+            for path in paths:
+                _set_path(proposed, path, _get_path(new_section, path))
+            details = [_diff(current, proposed)]
+        chosen = prompter.choose(
+            f"  {question.format(key=key)}", action, key, options, details
+        )
+        if not chosen:
+            continue
+        if current is _MISSING and len(chosen) == len(paths):
+            changes.append(f"{key}: added from defaults")
+        else:
+            changes.append(f"{key}: {verb} {_dotted(chosen)}")
+        if not isinstance(current, dict):
+            current = data[key] = {}
+        for path in chosen:
+            _set_path(current, path, _get_path(new_section, path))
+    return changes
 
 
-def migrate(
+class Status(Enum):
+    """Outcome of migrating a realisation."""
+
+    UNCHANGED = auto()
+    WRITTEN = auto()
+    NOT_WRITTEN = auto()
+    """There were changes, but they were not written (declined or dry run)."""
+    SKIPPED = auto()
+    """The file is not a realisation."""
+
+
+@dataclasses.dataclass
+class MigrationResult:
+    """The result of migrating one realisation in memory.
+
+    Parameters
+    ----------
+    path : Path
+        Path to the realisation.
+    original : Any
+        The realisation JSON as read from disk, or None if it could not be read.
+    migrated : Any
+        The realisation JSON after migration, or None if it was not migrated.
+    changes : list[str]
+        Human-readable descriptions of each change made during migration.
+    errors : list[str]
+        Errors encountered while migrating.
+    status : _Status
+        What happened to the realisation.
+    """
+
+    path: Path
+    original: Any = None
+    migrated: Any = None
+    changes: list[str] = dataclasses.field(default_factory=list)
+    errors: list[str] = dataclasses.field(default_factory=list)
+    status: Status = Status.UNCHANGED
+
+    @property
+    def changed(self) -> bool:
+        """Whether the migrated realisation differs from the original."""
+        return self.migrated != self.original
+
+
+def _migrate(
     realisation: Path,
     defaults_version: DefaultsVersion,
-    check_configs: list[ConfigType],
-    defaults: dict[ConfigType, realisations.RealisationConfiguration],
-    auto_response: MutableMapping[tuple[ConfigType, Action], Response],
-    dry_run: bool,
-) -> None:
-    """Attempt to migrate realisation to new defaults set.
-
-    Parameters
-    ----------
-    realisation : Path
-        Path to realisation.
-    defaults_version : DefaultsVersion
-        Defaults to update to.
-    check_configs : list[ConfigType]
-        Configurations to check.
-    defaults : dict[ConfigType, realisations.RealisationConfiguration]
-        Defaults to use.
-    auto_response : MutableMapping[tuple[ConfigType, Action], Response]
-        Auto response map recording user's always and never requests.
-    dry_run : bool
-        If True, print instead of writing to realisations.
-    """
-    metadata = realisations.RealisationMetadata.read_from_realisation(realisation)
-    if metadata.defaults_version != defaults_version:
-        console.print(
-            f"Updating defaults in {realisation} from {metadata.defaults_version} to {defaults_version}"
-        )
-        if not dry_run:
-            metadata.defaults_version = defaults_version
-            metadata.write_to_realisation(realisation)
+    check_configs: list[_ConfigType],
+    prompter: Prompter,
+) -> MigrationResult:
+    """Migrate a realisation to a new defaults version in memory."""
+    result = MigrationResult(realisation)
     try:
-        with open(realisation, "r") as f:
-            json_data = json.load(f)
-    except json.JSONDecodeError:
-        console.print(
-            f"[bold red]Invalid JSON in {realisation}, skipping...[/bold red]"
-        )
-        return
+        with open(realisation, encoding="utf-8") as f:
+            result.original = json.load(f)
+    except json.JSONDecodeError as error:
+        result.errors.append(f"Invalid JSON: {error}")
+        return result
+
+    metadata = (
+        result.original.get("metadata") if isinstance(result.original, dict) else None
+    )
+    if not isinstance(metadata, dict):
+        result.status = Status.SKIPPED
+        return result
+
+    data = copy.deepcopy(result.original)
+    result.migrated = data
+
+    old_version = metadata.get("defaults_version")
+    new_defaults = _default_sections(defaults_version)
+
+    if old_version != defaults_version:
+        data["metadata"]["defaults_version"] = str(defaults_version)
+        result.changes.append(f"defaults_version: {old_version} -> {defaults_version}")
 
     for config in check_configs:
-        default_config = defaults.get(config)
-        if not default_config:
-            continue
-        default_config_dict = default_config.to_dict()
-        current_config = json_data.get(config._config_key, {})
-        if current_config != default_config_dict:
-            print_diff(current_config, default_config_dict)
-            print()
-            response = auto_response.get((config, Action.UPDATE)) or should_update(
-                config
-            )
+        key = config._config_key
+        if key in new_defaults:
+            result.changes.extend(_fill_section(key, data, new_defaults[key], prompter))
+        if key in data:
+            changes, errors = _validate_section(config, data[key], prompter)
+            result.changes.extend(changes)
+            result.errors.extend(errors)
 
-            if response in (Response.AUTO, Response.NEVER):
-                auto_response[(config, Action.UPDATE)] = response
+    return result
 
-            if response in (response.AUTO, response.YES):
-                autofill(
-                    realisation,
-                    default_config,
-                    dry_run=dry_run,
-                )
 
-        try:
-            _ = config.read_from_realisation(realisation)
-        except realisations.RealisationParseError:
-            if config not in defaults and config != realisations.Seeds:
-                console.print(
-                    f"[bold red]Missing required configuration {config.__class__.__name__}[/bold red]"
-                )
-        except schema.SchemaError as error:
-            console.print(f"[red]Schema error for {realisation}[/red]")
+def _write_json(path: Path, data: Any, backup: str | None) -> None:
+    """Write JSON over a file in one step, optionally backing it up first."""
+    if backup:
+        shutil.copy2(path, path.with_suffix(path.suffix + backup))
+    # Write next to the original and rename, so an interrupted write
+    # never leaves a truncated file behind.
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=path.parent, suffix=".tmp", delete=False
+    ) as f:
+        json.dump(data, f, indent=4)
+    shutil.copymode(path, f.name)
+    os.replace(f.name, path)
 
-            default_config = defaults.get(config)
-            error, extra_keys = extract_error(config._config_key, config._schema, error)
-            console.print(error)
-            if extra_keys:
-                response = auto_response.get((config, Action.TRIM)) or should_trim_keys(
-                    config, extra_keys
-                )
 
-                if response in (Response.AUTO, Response.NEVER):
-                    auto_response[(config, Action.TRIM)] = response
-
-                if response in (response.AUTO, response.YES):
-                    trim_keys(realisation, config, extra_keys, dry_run)
-                    # Try to read one more time
-                    try:
-                        _ = config.read_from_realisation(realisation)
-                    except schema.SchemaError as error:
-                        error, _ = extract_error(
-                            config._config_key, config._schema, error
-                        )
-                        console.print(
-                            f"[bold red]Unrecoverable schema error for {realisation}[/bold red]"
-                        )
-                        console.print(error)
-
-        except Exception as e:  # noqa: BLE001
-            console.print(
-                f"[bold red]Could not load realisation {realisation} for unrecoverable reason:[/bold red]"
-            )
-            console.print(str(e))
+def _find_realisations(paths: list[Path], glob: str) -> list[Path]:
+    """Expand files and directories into a list of realisation files."""
+    found: dict[Path, None] = {}
+    for path in paths:
+        if path.is_dir():
+            found.update(dict.fromkeys(sorted(path.rglob(glob))))
+        else:
+            found[path] = None
+    return list(found)
 
 
 @cli.from_docstring(app, name="migrate")
 def migrate_all(
-    realisation_directory: Annotated[
-        Path, typer.Argument(exists=True, file_okay=False)
-    ],
+    paths: Annotated[list[Path], typer.Argument(exists=True)],
     defaults_version: DefaultsVersion,
     glob: str = "*.json",
     backup: str | None = None,
     dry_run: bool = False,
+    yes: Annotated[bool, typer.Option("--yes", "-y")] = False,
+    check: bool = False,
+    overwrite: bool = False,
 ) -> None:
-    """Migrate all realisations in a directory to the current workflow version.
+    """Migrate realisations to a new defaults version.
+
+    Missing keys are filled in, values that differ from the new
+    defaults are updated, and unknown keys are removed, after asking.
+    Answer s to choose which values to update. Each realisation is
+    written once, after you approve its changes.
+    Exits with status 1 if any realisation has errors, or with
+    --check, if any realisation needs migrating.
 
     Parameters
     ----------
-    realisation_directory : Path
-        Path containing realisations.
+    paths : list[Path]
+        Realisation files, or directories to search for realisations.
     defaults_version : DefaultsVersion
         Defaults version to migrate to.
     glob : str
-        Glob pattern to look for realisations.
+        Glob pattern to look for realisations in directories.
     backup : str | None
         If given, backup the realisation file with named suffix before
-        running migration. Equivalent to the ``-iext`` flag used in
-        sed. Has no effect when combined with dry run.
+        writing it. Equivalent to the ``-iext`` flag used in sed. Has
+        no effect when combined with dry run.
     dry_run : bool
         If given, print instead of writing. Useful to check what would
         be migrated.
+    yes : bool
+        Accept every change without asking, except updating values
+        that differ from the new defaults, which are kept unless
+        --overwrite is given.
+    check : bool
+        Report what would change without asking or writing, and exit
+        with status 1 if anything would. Useful in CI or batch jobs.
+    overwrite : bool
+        With --yes or --check, update values that differ from the new
+        defaults instead of keeping them.
+
+    Raises
+    ------
+    typer.BadParameter
+        If both --yes and --check are given, or --overwrite is given
+        without either.
+    typer.Exit
+        If any realisation has errors or, with --check, needs migrating.
     """
-    auto_response = {}
-    configs = realisation_configurations()
-    defaults = loadable_defaults(configs, defaults_version)
+    if yes and check:
+        raise typer.BadParameter("--yes and --check cannot be used together.")
+    if overwrite and not (yes or check):
+        raise typer.BadParameter("--overwrite needs --yes or --check.")
+    dry_run = dry_run or check
+    prompter = Prompter(assume_yes=yes or check, overwrite=overwrite)
+    configs = _realisation_configurations()
+    statuses: Counter[Status] = Counter()
+    with_errors = 0
+    listed: set[str] = set()
 
-    for realisation in realisation_directory.rglob(glob):
-        if backup and not dry_run:  # only make a copy if we actually modify the file.
-            shutil.copy(
-                realisation, realisation.with_suffix(realisation.suffix + backup)
-            )
+    try:
+        for realisation in _find_realisations(paths, glob):
+            # Soft wrap so long paths stay on one line and can be copy-pasted.
+            _console.print(f"[bold blue]{realisation}[/bold blue]", soft_wrap=True)
+            result = _migrate(realisation, defaults_version, configs, prompter)
+            with_errors += bool(result.errors)
+            for error in result.errors:
+                _console.print(f"  [bold red]{error}[/bold red]")
+            if result.status is Status.SKIPPED:
+                _console.print("  Not a realisation (no metadata), skipping.")
+            elif result.changed:
+                new_changes = [c for c in result.changes if c not in listed]
+                for change in new_changes:
+                    _console.print(f"  {change}")
+                listed.update(new_changes)
+                if already_listed := len(result.changes) - len(new_changes):
+                    _console.print(f"  {already_listed} changes listed above")
+                if dry_run:
+                    _console.print("  DRY RUN: not writing changes.")
+                write = not dry_run and prompter.ask(
+                    f"  Write changes to {realisation}?", Action.WRITE
+                )
+                if write:
+                    _write_json(realisation, result.migrated, backup)
+                result.status = Status.WRITTEN if write else Status.NOT_WRITTEN
+            statuses[result.status] += 1
+    except PromptUnavailableError as error:
+        _console.print(f"[bold red]{error}[/bold red]")
+        raise typer.Exit(code=2) from error
 
-        migrate(
-            realisation,
-            defaults_version,
-            configs,
-            defaults,
-            auto_response,
-            dry_run,
-        )
+    _console.print(
+        f"{statuses[Status.WRITTEN]} written, "
+        f"{statuses[Status.NOT_WRITTEN]} with changes not written, "
+        f"{statuses[Status.UNCHANGED]} unchanged, "
+        f"{statuses[Status.SKIPPED]} skipped, "
+        f"{with_errors} with errors."
+    )
+    if with_errors or (check and statuses[Status.NOT_WRITTEN]):
+        raise typer.Exit(code=1)
 
 
-@cli.from_docstring(app)
-def copy(
+@cli.from_docstring(copy_app)
+def copy_configs(
     realisation_template: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
     realisation_directory: Annotated[
         Path, typer.Argument(exists=True, file_okay=False)
@@ -503,36 +842,35 @@ def copy(
         Directory containing realisation files.
     configs : list[str]
         Configurations to copy. If None, will copy all configurations
-        in realisation file.
+        in the template.
     backup : str | None
         If given, backup the realisation file with named suffix before
-        running migration. Equivalent to the ``-iext`` flag used in
-        sed. Has no effect when combined with dry run.
+        copying. Equivalent to the ``-iext`` flag used in sed.
     glob : str
         Glob pattern to look for realisations.
+
+    Raises
+    ------
+    typer.BadParameter
+        If a configuration in ``configs`` is not in the template.
     """
     with open(realisation_template) as f:
         template = json.load(f)
 
     configs = configs or list(template)
+    if unknown := [config for config in configs if config not in template]:
+        raise typer.BadParameter(f"Not in {realisation_template}: {', '.join(unknown)}")
+    selected = {config: template[config] for config in configs}
 
     for realisation_path in realisation_directory.rglob(glob):
-        if backup:
-            shutil.copy(
-                realisation_path,
-                realisation_path.with_suffix(realisation_path.suffix + backup),
-            )
-
-        with open(realisation_path) as f:
+        with open(realisation_path, encoding="utf-8") as f:
             realisation = json.load(f)
 
-        utils.merge_dictionaries(realisation, template)
-
-        with open(realisation_path, "w") as f:
-            json.dump(realisation, f, indent=4)
+        utils.merge_dictionaries(realisation, selected)
+        _write_json(realisation_path, realisation, backup)
 
 
-@cli.from_docstring(app)
+@cli.from_docstring(clone_app)
 def clone(
     realisation_directory: Annotated[
         Path, typer.Argument(exists=True, file_okay=False)

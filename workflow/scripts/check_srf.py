@@ -81,13 +81,15 @@ def check_srf(
         np.searchsorted(velocity_model["depth"], srf_file.points["dep"]),
     )
     mu = velocity_model["mu"].iloc[indices].values
+    # SRF area (cm^2) x slip (cm) x mu (dyne/cm^2) is a moment in dyne-cm, but
+    # `moment_to_magnitude` takes Nm.
+    srf_moment_dyne_cm = (
+        np.array(srf_file.points["area"].values)
+        * np.array(srf_file.points["slip"].values)
+        * mu
+    ).sum()
     srf_magnitude = moment.moment_to_magnitude(
-        (
-            np.array(srf_file.points["area"].values)
-            * np.array(srf_file.points["slip"].values)
-            * mu
-        ).sum(),
-        bold_m=True,
+        moment.dyne_cm_to_newton_metre(srf_moment_dyne_cm), bold_m=True
     )
     logger = log_utils.get_logger("__name__")
 

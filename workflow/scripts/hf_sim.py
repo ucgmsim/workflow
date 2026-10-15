@@ -6,9 +6,9 @@ Generate stochastic high frequency ground acceleration data for a number of stat
 
 Inputs
 ------
-1. A station list (in the "latitude longitude name" format),
+1. A site table of the stations to simulate (`stations.parquet`, see `workflow.sites`),
 2. A 1D velocity model,
-3. A stoch file,
+3. A stoch slip model (HDF5) from `generate-stoch`,
 4. A realisation with domain parameters and metadata.
 
 Outputs
@@ -22,7 +22,7 @@ Can be run in the cybershake container. Can also be run from your own computer u
 
 Usage
 -----
-`hf-sim [OPTIONS] REALISATION_FFP STOCH_FFP STATION_FILE OUT_FILE`
+`hf-sim [OPTIONS] REALISATION_FFP STOCH_FFP SITES_FFP OUT_FILE`
 
 For More Help
 -------------
@@ -35,7 +35,6 @@ from typing import Annotated, Any
 import dask
 import dask.array as da
 import numpy as np
-import pandas as pd
 import typer
 import xarray as xr
 from tqdm.dask import TqdmCallback
@@ -59,8 +58,7 @@ from hf_simulation import (
     RuptureVelocity as RuptureVelocityTaper,
 )
 from qcore import cli
-from source_modelling.stoch import StochFile
-from workflow import log_utils, realisations, utils
+from workflow import log_utils, realisations, sites, utils
 from workflow.realisations import (
     DomainParameters,
     HFVelocityModel1D,
@@ -84,8 +82,13 @@ def _build_config(
     rupture_velocity: RuptureVelocity,
     domain_parameters: DomainParameters,
 ) -> HfConfig:
-    """Translate the realisation's configuration into the simulation's."""
-    source: dict[str, Any] = hf_config.source | {
+    """Translate the realisation's configuration into the simulation's.
+
+    The realisation carries `stress_drop_bars` as a run-wide constant, but the simulation
+    takes it per subfault. It is left out here: the stress parameter comes from the slip
+    model `generate-stoch` writes.
+    """
+    source: dict[str, Any] = _without(hf_config.source, "stress_drop_bars") | {
         "rupture_velocity": RuptureVelocityTaper(
             fraction=rupture_velocity.rvfrac,
             shallow=rupture_velocity.rvfrac_shal,
@@ -107,28 +110,62 @@ def _build_config(
     )
 
 
+def _without(group: dict[str, Any], key: str) -> dict[str, Any]:
+    """Return a configuration group without one of its keys."""
+    return {name: value for name, value in group.items() if name != key}
+
+
+def read_stoch(stoch_ffp: Path) -> tuple[float, float, list[xr.Dataset]]:
+    """Read a stoch slip model written by `generate-stoch`.
+
+    Parameters
+    ----------
+    stoch_ffp : Path
+        Path to the slip model.
+
+    Returns
+    -------
+    dx : float
+        Subfault length along strike shared by every plane (km).
+    dy : float
+        Subfault width down dip shared by every plane (km).
+    planes : list of xr.Dataset
+        Each plane of the slip model, in SRF order.
+    """
+    with xr.open_datatree(stoch_ffp, engine="h5netcdf") as tree:
+        # HDF5 lists groups by name, so plane_10 would come before plane_2.
+        names = sorted(tree.children, key=lambda name: int(name.removeprefix("plane_")))
+        planes = [tree[name].to_dataset().load() for name in names]
+        return float(tree.attrs["dx"]), float(tree.attrs["dy"]), planes
+
+
 def _build_slip_model(stoch_ffp: Path) -> SlipModel:
-    """Read a stoch file into a simulation slip model."""
-    stoch = StochFile.from_file(stoch_ffp)
+    """Read a stoch slip model written by `generate-stoch` into a simulation slip model."""
+    dx, dy, planes = read_stoch(stoch_ffp)
+
+    def grid(plane: xr.Dataset, name: str) -> np.ndarray:
+        # (down-dip, along-strike), which is how the simulation takes them.
+        return plane[name].transpose("dip", "strike").values.astype(np.float32)
+
     return SlipModel(
         [
             FaultSegment(
-                longitude_deg=plane.header.longitude,
-                latitude_deg=plane.header.latitude,
-                strike_deg=plane.header.strike,
-                dip_deg=plane.header.dip,
-                rake_deg=plane.header.average_rake,
-                top_depth_km=plane.header.dtop,
-                subfault_length_km=plane.header.dx,
-                subfault_width_km=plane.header.dy,
-                hypocentre_along_strike_km=plane.header.shypo,
-                hypocentre_down_dip_km=plane.header.dhypo,
-                # (down-dip, along-strike), which is how the stoch format stores them.
-                slip=plane.slip.astype(np.float32),
-                rise_time_s=plane.rise.astype(np.float32),
-                rupture_time_s=plane.trup.astype(np.float32),
+                longitude_deg=plane.attrs["longitude"],
+                latitude_deg=plane.attrs["latitude"],
+                strike_deg=plane.attrs["strike"],
+                dip_deg=plane.attrs["dip"],
+                rake_deg=plane.attrs["rake"],
+                top_depth_km=plane.attrs["dtop"],
+                subfault_length_km=dx,
+                subfault_width_km=dy,
+                hypocentre_along_strike_km=plane.attrs["shypo"],
+                hypocentre_down_dip_km=plane.attrs["dhypo"],
+                slip=grid(plane, "slip"),
+                rise_time_s=grid(plane, "rise_time"),
+                rupture_time_s=grid(plane, "rupture_time"),
+                stress_drop_bars=grid(plane, "stress_drop"),
             )
-            for plane in stoch.data
+            for plane in planes
         ]
     )
 
@@ -148,9 +185,7 @@ def _build_velocity_model(velocity_model: HFVelocityModel1D) -> VelocityModel1D:
 
 
 def _simulate_chunk(
-    station_chunk: xr.Dataset,
-    time: np.ndarray,
-    simulator: Simulator,
+    station_chunk: xr.Dataset, time: np.ndarray, simulator: Simulator
 ) -> xr.DataArray:
     """Simulate one dask block's worth of stations in a single call."""
     station_names = station_chunk["station"].values
@@ -158,6 +193,10 @@ def _simulate_chunk(
         latitude_deg=station_chunk["latitude"].values.astype(np.float32),
         longitude_deg=station_chunk["longitude"].values.astype(np.float32),
         station_seed=station_chunk["seed"].values.astype(np.uint64),
+        kappa_s=station_chunk["kappa_s"].values.astype(np.float32),
+        q_frequency_exponent=station_chunk["q_frequency_exponent"].values.astype(
+            np.float32
+        ),
     )
     # `hf_simulation` already uses the workflow's component labels, but orders them
     # 090, 000, ver; waveform files store them in `Component` order.
@@ -177,7 +216,7 @@ def _simulate_chunk(
 def run_hf(
     realisation_ffp: Annotated[Path, typer.Argument()],
     stoch_ffp: Annotated[Path, typer.Argument(exists=True)],
-    station_file: Annotated[Path, typer.Argument(exists=True)],
+    sites_ffp: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
     out_file: Annotated[Path, typer.Argument()],
 ) -> None:
     """Run the HF simulation and write the HF output file.
@@ -187,9 +226,9 @@ def run_hf(
     realisation_ffp : Path
         Path to the JSON file containing realisation data.
     stoch_ffp : Path
-        Path to the input stochastic file.
-    station_file : Path
-        Path to the file containing station locations and names.
+        Path to the stoch slip model written by `generate-stoch`.
+    sites_ffp : Path
+        Path to the site table of the stations to simulate (see `workflow.sites`).
     out_file : Path
         Filepath where the HF output will be saved.
     """
@@ -206,12 +245,10 @@ def run_hf(
         realisation_ffp, metadata.defaults_version
     )
 
-    stations = pd.read_csv(
-        station_file,
-        delimiter=r"\s+",
-        header=None,
-        names=["longitude", "latitude", "station"],
-    ).set_index("station")
+    # Plain float64, as xarray cannot hold pandas' nullable extension dtypes.
+    stations = sites.read_sites(sites_ffp)[
+        ["latitude", "longitude", "kappa_s", "q_frequency_exponent"]
+    ].astype(np.float64)
 
     stations["seed"] = hf_simulation.station_seeds(
         seeds.hf_seed, stations.index.to_list()
@@ -269,9 +306,23 @@ def run_hf(
 
         # The Vs30 the HF waveforms are simulated at, which bb-sim amplifies from.
         station_inputs["vref"] = xr.full_like(
-            station_inputs["latitude"], velocity_model_1d.model["Vs"].iloc[0] * 1000
+            station_inputs["latitude"], velocity_model_1d.vs30
         )
-        dataset = xr.merge([waveform, station_inputs])
+        dataset = xr.merge(
+            [
+                waveform,
+                station_inputs[
+                    [
+                        "latitude",
+                        "longitude",
+                        "seed",
+                        "vref",
+                        "kappa_s",
+                        "q_frequency_exponent",
+                    ]
+                ],
+            ]
+        )
         dataset.attrs = {
             "start_sec": 0.0,
             "dt": hf_config.dt,

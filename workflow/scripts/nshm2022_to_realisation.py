@@ -276,7 +276,7 @@ def generate_realisation(
         The initial hypocentre strike coordinate (0 - 1). If not supplied, draw
         shypo from a truncated normal distribution.
     dhypo : float, optional
-        The initial hypocentre strike coordinate (0 - 1). If not supplied, draw
+        The initial hypocentre down-dip coordinate (0 - 1). If not supplied, draw
         dhypo from a weibull distribution.
     lat_hypo : float, optional
         The initial hypocentre latitude (degrees). Will cause an error
@@ -302,7 +302,9 @@ def generate_realisation(
     if lat_hypo is not None and (
         dhypo is not None or shypo is not None or initial_fault
     ):
-        print("Latitude and longitude are incompatible with shypo and dhypo.")
+        print(
+            "Latitude and longitude are incompatible with shypo, dhypo and initial fault."
+        )
         raise typer.Exit(code=1)
 
     metadata = RealisationMetadata(
@@ -338,7 +340,8 @@ def generate_realisation(
     rakes = {
         fault_name: fault_info.rake for fault_name, fault_info in faults_info.items()
     }
-    avg_rake = np.mean(list(rakes.values()))
+    avg_rake_vector = np.mean(list(Rakes(rakes).as_vectors().values()), axis=0)
+    avg_rake = np.degrees(np.arctan2(avg_rake_vector[1], avg_rake_vector[0]))
     components = moment.find_connected_faults(
         dict(faults), separation_distance, dip_delta, min_connected_depth
     )

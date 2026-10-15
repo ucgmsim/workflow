@@ -30,6 +30,7 @@ See the output of `im-calc --help`.
 import dataclasses
 import functools
 import warnings
+from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated
 
@@ -45,7 +46,6 @@ import oq_wrapper.xarray as oqwx
 import shapely
 import typer
 import xarray as xr
-from oq_wrapper.estimations import chiou_young_08_calc_z1p0, chiou_young_08_calc_z2p5
 
 from IM import ims, konno_ohmachi
 from IM.ims import IM
@@ -120,7 +120,7 @@ IM_METADATA = {
     IM.PGV: "Peak ground velocity",
     IM.PGD: "Peak ground displacement",
     IM.CAV: "Cumulative absolute velocity",
-    IM.CAV5: "Cumulative absolute velocity (above 5 cm/s)",
+    IM.CAV5: "Cumulative absolute velocity (above 5 cm/s^2)",
     IM.AI: "Arias intensity",
     IM.Ds575: "Significant duration (5-75%)",
     IM.Ds595: "Significant duration (5-95%)",
@@ -545,24 +545,28 @@ class SiteParameters:
         }
 
 
-def calculate_site_parameters(vs30: xr.DataArray) -> SiteParameters:
-    """Estimate site parameters from vs30.
+def read_site_parameters(broadband: xr.Dataset) -> SiteParameters:
+    """Read the site parameters `bb-sim` carries over from the site table.
 
     Parameters
     ----------
-    vs30 : xr.DataArray
-        The per-station vs30 values (m/s).
+    broadband : xr.Dataset
+        The broadband waveforms, with per-station `vs30`, `z1pt0` and
+        `z2pt5` variables.
 
     Returns
     -------
     SiteParameters
-        The site parameters, with basin depths estimated using the Chiou
-        and Youngs (2008) relations.
+        The site parameters.
     """
-    # TODO: Update these to pull in actual z1p0 values when the site database changes propagate through here.
-    z1pt0 = chiou_young_08_calc_z1p0(vs30)  # ty: ignore[invalid-argument-type]
-    z2pt5 = chiou_young_08_calc_z2p5(z1pt0)
-    return SiteParameters(vs30=vs30, z1pt0=z1pt0, z2pt5=z2pt5)
+    # One float per station; load them eagerly rather than letting them
+    # propagate as dask arrays into the distance/site coordinates.
+    return SiteParameters(
+        **{
+            field.name: broadband[field.name].astype(np.float64).load()
+            for field in dataclasses.fields(SiteParameters)
+        }
+    )
 
 
 def empirical_inputs(
@@ -721,6 +725,29 @@ def calculate_empirical(
     return empirical_results
 
 
+def _im_function_map(
+    dt: float, psa_periods: npt.NDArray[np.float64]
+) -> dict[IM, Callable[[xr.DataArray], xr.Dataset]]:
+    """Map intensity measures to their calculation functions."""
+    return {
+        IM.PGA: ims.peak_ground_acceleration,
+        IM.PGV: functools.partial(ims.peak_ground_velocity, dt=dt),
+        IM.PGD: functools.partial(ims.peak_ground_displacement, dt=dt),
+        IM.CAV: functools.partial(ims.cumulative_absolute_velocity, dt=dt),
+        IM.CAV5: functools.partial(
+            ims.cumulative_absolute_velocity, dt=dt, threshold=5.0
+        ),
+        IM.AI: functools.partial(ims.arias_intensity, dt=dt),
+        IM.Ds575: functools.partial(ims.ds575, dt=dt),
+        IM.Ds595: functools.partial(ims.ds595, dt=dt),
+        IM.pSA: functools.partial(
+            ims.pseudo_spectral_acceleration,
+            periods=psa_periods,
+            dt=dt,
+        ),
+    }
+
+
 @cli.from_docstring(app)
 def calculate_intensity_measures(
     realisation_ffp: Annotated[
@@ -756,7 +783,7 @@ def calculate_intensity_measures(
     empirical : bool, default True
         If passed, additionally estimate intensity measures from the ground
         motion models in the realisation file. Requires the broadband
-        waveforms to carry a `vs30` coordinate.
+        waveforms to carry `vs30`, `z1pt0` and `z2pt5`, as `bb-sim` writes.
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     intensity_measure_parameters = (
@@ -795,22 +822,9 @@ def calculate_intensity_measures(
 
     nyquist_frequency = 1 / (2 * dt)
 
-    im_function_map = {
-        IM.PGA: ims.peak_ground_acceleration,
-        IM.PGV: functools.partial(ims.peak_ground_velocity, dt=dt),
-        IM.PGD: functools.partial(ims.peak_ground_displacement, dt=dt),
-        IM.CAV: functools.partial(ims.cumulative_absolute_velocity, dt=dt),
-        IM.AI: functools.partial(ims.arias_intensity, dt=dt),
-        IM.Ds575: functools.partial(ims.ds575, dt=dt),
-        IM.Ds595: functools.partial(ims.ds595, dt=dt),
-        IM.pSA: functools.partial(
-            ims.pseudo_spectral_acceleration,
-            periods=psa_periods,
-            dt=dt,
-        ),
-    }
+    im_function_map = _im_function_map(dt, psa_periods)
 
-    # Built separately from the literal above so the ko_directory check narrows
+    # Built separately from _im_function_map so the ko_directory check narrows
     # away None: FAS is the only measure that needs it.
     if IM.FAS in intensity_measures:
         if ko_directory is None:
@@ -861,11 +875,7 @@ def calculate_intensity_measures(
     } | _supergrid_attributes(broadband, supergrid)
     site_parameters = None
     if empirical:
-        # vs30 is one float per station; load it eagerly rather than letting it
-        # propagate as a dask array into the distance/site coordinates below.
-        site_parameters = calculate_site_parameters(
-            broadband.vs30.astype(np.float64).load()
-        )
+        site_parameters = read_site_parameters(broadband)
 
         empirical_parameters = EmpiricalParameters.read_from_realisation_or_defaults(
             realisation_ffp, metadata.defaults_version

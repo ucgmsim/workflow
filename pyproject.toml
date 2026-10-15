@@ -12,14 +12,14 @@ dynamic = ["version"]
 dependencies = [
   # UCGMSim Dependencies
   "im-calculation>=2026.09.2",
-  "velocity-modelling>=2026.2.1",
+  "velocity-modelling>=2026.10.1",
   "nshmdb>=2026.09.1",
   "oq_wrapper>=2026.05.2",
   "qcore-utils>=2025.12.2",
-  "hf-simulation>=2026.9.1",
+  "hf-simulation>=2026.10.1",
   "site-calculation>=2026.7.1",
-  "source_modelling>=2026.09.1",
-  "nzcvm>=2026.9.1",
+  "source_modelling>=2026.10.2",
+  "nzcvm>=2026.10.7",
   # Data Formats
   "geopandas",
   "fiona",                 # Imported, undeclared, by openquake's GMMs
@@ -35,6 +35,7 @@ dependencies = [
   "scipy",
   "shapely",
   # CLI
+  "questionary>=2.1.1",
   "tqdm",
   "typer",
   # Misc.
@@ -89,6 +90,8 @@ gcmt-auto-simulate = "workflow.scripts.gcmt_auto_simulate:app"
 import-realisation = "workflow.scripts.import_realisation:app"
 lf-to-xarray = "workflow.scripts.lf_to_xarray:app"
 migrate = "workflow.scripts.migrate:app"
+copy-realisation-configs = "workflow.scripts.migrate:copy_app"
+clone-realisations = "workflow.scripts.migrate:clone_app"
 validate-sfile = "workflow.scripts.validate_sfile:app"
 create-nzvm-input = "workflow.scripts.nzvm_input_template:app"
 create-sw4-input = "workflow.scripts.sw4_template:app"

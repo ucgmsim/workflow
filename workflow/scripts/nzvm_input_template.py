@@ -45,9 +45,10 @@ from typing import Annotated
 import pyproj
 import typer
 from nzcvm.config import VelocityModelConfig
-from nzcvm.config.grids.emod3d import EMOD3DGrid, TopographyType
+from nzcvm.config.grids.emod3d import EMOD3DGrid
 from nzcvm.config.grids.model import Model
 from nzcvm.config.grids.sw4 import MeshRefinement, SW4GridConfig
+from nzcvm.config.grids.terrain import Decay, SquashedDecay, TaperedDecay
 from nzcvm.coordinates import Coordinate
 
 from qcore import cli
@@ -74,6 +75,12 @@ SW4_MODEL_SLACK_GRIDPOINTS = 4
 
 EMOD3D_FREE_SURFACE_PADDING = 1
 """Extra gridpoints in z for EMOD3D's free surface shift."""
+
+EMOD3D_DECAYS: dict[str, Decay] = {
+    "SQUASHED": SquashedDecay(),
+    "SQUASHED_TAPERED": TaperedDecay(ratio=1.0),
+}
+"""The NZCVM decay for each EMOD3D topography type NZCVM can build."""
 
 
 class GridFormat(StrEnum):
@@ -126,6 +133,7 @@ def _sw4_grid(
         ),
         surface=nzcvm_settings.surface,
         chunks=nzcvm_settings.chunks,
+        decay=nzcvm_settings.decay,
         refinements={
             f"layer_{refinement.resolution}m": MeshRefinement(
                 resolution=refinement.resolution, bottom=refinement.bottom
@@ -141,7 +149,19 @@ def _emod3d_grid(
     velocity_model_parameters: VelocityModelParameters,
     nzcvm_settings: NZCVMSettings,
 ) -> EMOD3DGrid:
-    """Build the EMOD3D uniform grid configuration."""
+    """Build the EMOD3D uniform grid configuration.
+
+    Raises
+    ------
+    ValueError
+        If the realisation's topography type has no NZCVM decay.
+    """
+    topo_type = velocity_model_parameters.topo_type.upper()
+    if topo_type not in EMOD3D_DECAYS:
+        raise ValueError(
+            f"NZCVM cannot build topography type {velocity_model_parameters.topo_type}."
+            f" Use one of {', '.join(EMOD3D_DECAYS)}."
+        )
     domain = domain_parameters.domain
     origin_lat, origin_lon = domain.origin
     return EMOD3DGrid(
@@ -157,7 +177,7 @@ def _emod3d_grid(
             crs=pyproj.CRS(NZTM_EPSG),
             azimuth=domain.great_circle_bearing,
         ),
-        topo_type=TopographyType(velocity_model_parameters.topo_type.lower()),
+        decay=EMOD3D_DECAYS[topo_type],
         # The EMOD3D grid is only ever chunked horizontally: depth is a single
         # chunk by construction, so a k chunk size would be silently ignored.
         chunks={
