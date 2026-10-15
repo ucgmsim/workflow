@@ -12,23 +12,20 @@ dynamic = ["version"]
 dependencies = [
   # UCGMSim Dependencies
   "im-calculation>=2026.09.2",
-  "velocity-modelling>=2026.2.1",
+  "velocity-modelling>=2026.10.1",
   "nshmdb>=2026.09.1",
   "oq_wrapper>=2026.05.2",
   "qcore-utils>=2025.12.2",
-  "hf-simulation>=2026.9.1",
+  "hf-simulation>=2026.10.1",
   "site-calculation>=2026.7.1",
-  "source_modelling>=2026.09.1",
-  "nzcvm>=2026.9.1",
-  "rupture-generator @ git+https://github.com/ucgmsim/rupture_generator@master",
+  "source_modelling>=2026.10.2",
+  "nzcvm>=2026.10.3",
   # Data Formats
   "geopandas",
   "fiona",                 # Imported, undeclared, by openquake's GMMs
   "netCDF4",               # Required for openquake shenanigans
   "pandas[parquet, hdf5]",
-  "pyproj",
   "pyyaml",
-  "tomli-w",         # Writing the rupture generator's input files
   "xarray[io]",
   # Numerics
   "dask",
@@ -38,6 +35,7 @@ dependencies = [
   "scipy",
   "shapely",
   # CLI
+  "questionary>=2.1.1",
   "tqdm",
   "typer",
   # Misc.
@@ -71,7 +69,7 @@ per_rule_ignores = { DEP002 = ["fiona"] }
 [project.scripts]
 nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:app"
 gcmt-to-realisation = "workflow.scripts.gcmt_to_realisation:app"
-create-rupture-input = "workflow.scripts.rupture_input_template:app"
+realisation-to-srf = "workflow.scripts.realisation_to_srf:app"
 generate-domain = "workflow.scripts.generate_domain:app"
 generate-velocity-model = "workflow.scripts.generate_velocity_model:app"
 convert-vm-hdf5-to-emod3d = "workflow.scripts.convert_vm_hdf5_to_emod3d:app"
@@ -92,8 +90,11 @@ gcmt-auto-simulate = "workflow.scripts.gcmt_auto_simulate:app"
 import-realisation = "workflow.scripts.import_realisation:app"
 lf-to-xarray = "workflow.scripts.lf_to_xarray:app"
 migrate = "workflow.scripts.migrate:app"
+copy-realisation-configs = "workflow.scripts.migrate:copy_app"
+clone-realisations = "workflow.scripts.migrate:clone_app"
 validate-sfile = "workflow.scripts.validate_sfile:app"
 create-nzvm-input = "workflow.scripts.nzvm_input_template:app"
+create-sw4-input = "workflow.scripts.sw4_template:app"
 
 [tool.setuptools.package-dir]
 workflow = "workflow"
@@ -143,7 +144,6 @@ convention = "numpy"
 known-first-party = [
   "source_modelling",
   "hf_simulation",
-  "rupture_generator",
   "workflow",
   "pygmt_helper",
   "qcore",

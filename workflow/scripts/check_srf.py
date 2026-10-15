@@ -47,12 +47,6 @@ from workflow.realisations import (
 
 app = typer.Typer()
 
-CM_TO_M = 1e-2
-"""Slip is stated in centimetres in an SRF, and the moment is summed in SI."""
-
-CM2_TO_M2 = 1e-4
-"""Subfault area is stated in square centimetres in an SRF."""
-
 
 @cli.from_docstring(app)
 @log_utils.log_call()
@@ -78,11 +72,7 @@ def check_srf(
     velocity_model = VelocityModel1D.read_from_realisation_or_defaults(
         realisation_ffp, metadata.defaults_version
     ).model
-    # In SI, because `moment_to_magnitude` takes newton-metres. The 1e9 carries the
-    # model's own units into pascals: Vs is km/s and rho is g/cm^3, so
-    # `(Vs * 1e3)^2 * (rho * 1e3)`. An SRF states area in cm^2 and slip in cm, and both
-    # are converted where the moment is summed.
-    velocity_model["mu"] = velocity_model["Vs"] ** 2 * velocity_model["rho"] * 1e9
+    velocity_model["mu"] = velocity_model["Vs"] ** 2 * velocity_model["rho"] * 1e10
     velocity_model["depth"] = velocity_model["thickness"].cumsum()
 
     srf_file = srf.read_srf(srf_ffp)
@@ -91,15 +81,15 @@ def check_srf(
         np.searchsorted(velocity_model["depth"], srf_file.points["dep"]),
     )
     mu = velocity_model["mu"].iloc[indices].values
+    # SRF area (cm^2) x slip (cm) x mu (dyne/cm^2) is a moment in dyne-cm, but
+    # `moment_to_magnitude` takes Nm.
+    srf_moment_dyne_cm = (
+        np.array(srf_file.points["area"].values)
+        * np.array(srf_file.points["slip"].values)
+        * mu
+    ).sum()
     srf_magnitude = moment.moment_to_magnitude(
-        (
-            np.array(srf_file.points["area"].values)
-            * CM2_TO_M2
-            * np.array(srf_file.points["slip"].values)
-            * CM_TO_M
-            * mu
-        ).sum(),
-        bold_m=True,
+        moment.dyne_cm_to_newton_metre(srf_moment_dyne_cm), bold_m=True
     )
     logger = log_utils.get_logger("__name__")
 

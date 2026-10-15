@@ -36,6 +36,7 @@ from workflow import defaults, schemas
 from workflow.defaults import DefaultsVersion
 
 if TYPE_CHECKING:
+    from nzcvm.config.grids.terrain import Decay
     from nzcvm.config.layers import LayerConfig
 
 
@@ -121,6 +122,22 @@ class RealisationConfiguration(ABC):
         return dataclasses.asdict(self)
 
     @classmethod
+    def from_dict(cls, config: Any) -> Self:
+        """Load configuration from its dictionary form, validating it against the schema.
+
+        Parameters
+        ----------
+        config : Any
+            The configuration section, as stored in a realisation.
+
+        Returns
+        -------
+        RealisationConfiguration
+            The validated configuration.
+        """
+        return cls(**cls._schema.validate(config))
+
+    @classmethod
     def read_from_realisation(cls, realisation_ffp: Path | str) -> Self:
         """Read configuration from a realisation file.
 
@@ -150,7 +167,7 @@ class RealisationConfiguration(ABC):
                 raise RealisationParseError(
                     f"No {cls._config_key} in realisation configuration"
                 )
-        return cls(**cls._schema.validate(realisation_config[cls._config_key]))
+        return cls.from_dict(realisation_config[cls._config_key])
 
     @classmethod
     def read_from_defaults(cls, defaults_version: DefaultsVersion) -> Self:
@@ -179,7 +196,7 @@ class RealisationConfiguration(ABC):
             raise RealisationParseError(
                 f"No {cls._config_key} in defaults configuration"
             )
-        return cls(**cls._schema.validate(default_config[cls._config_key]))
+        return cls.from_dict(default_config[cls._config_key])
 
     @classmethod
     def read_from_realisation_or_defaults(
@@ -278,8 +295,10 @@ class Seeds(RealisationConfiguration):
     """The random seed for NSHM -> realisation."""
     rupture_propagation_seed: int
     """The random seed for rupture propagation."""
-    rupture_seed: int
-    """The random seed passed to the rupture generator."""
+    genslip_seed: int
+    """The random seed passed to genslip."""
+    srfgen_seed: int
+    """A second random seed for genslip, used for specific purposes in the generation process."""
     hf_seed: int
     """HF seed."""
 
@@ -334,7 +353,7 @@ class Seeds(RealisationConfiguration):
                     # The following bounds for a random integer
                     # are based on the maximum machine size
                     # integer with the "i" datatype used in
-                    # HF.
+                    # genslip and HF.
                     # See:
                     # https://stackoverflow.com/questions/13795758/what-is-sys-maxint-in-python-3/13796364#13796364
                     0,
@@ -391,42 +410,277 @@ class SourceConfig(RealisationConfiguration):
 
 @dataclasses.dataclass
 class SRFConfig(RealisationConfiguration):
-    """Kinematic rupture generation.
-
-    **Mirrors `rupture_generator.config.rupture.RuptureConfig` section for section**, so
-    this block deserialises straight into it rather than being translated. Keep it that
-    way: a translation layer between two descriptions of the same physics is the thing
-    that drifts.
-
-    The sections of that class this one does *not* carry are the ones the realisation
-    already knows. `hypocentre`, `velocity_model`, `random`, the per-fault
-    `source.magnitudes` and `source.rakes`, and `propagation.parents` all come from
-    other blocks. So does the depth-dependent rupture-speed profile
-    -- `field.velocity_fraction`, `timing.shallow_speed_factor`, `timing.deep_speed_factor`,
-    `timing.shallow_ramp` and `timing.deep_ramp` -- which lives in :class:`RuptureVelocity`
-    because `hf-sim` reads the same physical values. All of them are injected by
-    `create-rupture-input`.
-    """
+    """Configuration for SRF generation."""
 
     _config_key: ClassVar[str] = "srf"
     _schema: ClassVar[Schema] = schemas.SRF_SCHEMA
 
     resolution: float
-    """Subfault size (km) the fault is discretised at. Different, in general, from the
-    simulation resolution."""
-    source: dict[str, Any]
-    """The corner relation and rise-time scaling. See `rupture_generator.config.rupture.SourceConfig`."""
-    slip: dict[str, Any]
-    """The slip field. See `rupture_generator.config.rupture.SlipConfig`."""
-    timing: dict[str, Any]
-    """Onsets, rise times and the slip-rate shape. See `rupture_generator.config.rupture.TimingConfig`."""
-    field: dict[str, Any]
-    """The rake field's baseline. See `rupture_generator.config.rupture.FieldConfig`."""
+    """The resolution of the SRF discretisation (different, in general, from the simulation resolution)."""
 
-    @property
-    def dt(self) -> float:
-        """float: Slip-rate sample interval, seconds."""
-        return self.timing["sample_interval_s"]
+    dt: float
+    """SRF temporal resolution (timestep)."""
+
+    point_source_params: schemas.PointSourceParams | None
+    """Parameters for point source approximation, if applicable."""
+
+    alpha_rough: float
+    """Scalar indicating fault roughness (0 = disabled)"""
+
+    side_taper: float
+    """Fraction of along-strike length used to taper slip to zero at the lateral fault edges"""
+    bot_taper: float
+    """Fraction of down-dip width used to taper slip to zero at the bottom edge."""
+    top_taper: float
+    """Fraction of down-dip width used to taper slip to zero at the top (shallow)"""
+
+    gwid: list[float]
+    """Width of per-segment delay zone, see rvfac_seg"""
+    rvfac_seg: list[float]
+    """Per-segment delays for boundaries of segments"""
+    seg_delay: bool
+    """If true, enable per segment delays"""
+
+    slip_sigma: float
+    """Target SRF slip CoV"""
+
+    risetime_coef: float
+    """Constant used to scale the average slip rise time with seismic moment."""
+
+    ymag_exponent: float | None
+    """Sets correlation widths according to custom relation: clen_d = exp(bigM*(ymag_exponent*mag - ky_corner));"""
+    xmag_exponent: float | None
+    """Sets correlation lengths according to custom relation: clen_s = exp(bigM*(xmag_exponent*mag - kx_corner))"""
+    kx_corner: float | None
+    """Note: variable depends on kmodel. Corner wavenumber for along-strike correlation lengths."""
+    ky_corner: float | None
+    """Note: variable depends on kmodel. Corner wavenumber for down-dip correlation lengths."""
+
+    # Rise time and source time function values
+    beta_asp: float
+    """Minimum value of β applied to asperity patches. This functionality is not used (as asp_mask = 0)."""
+    beta_deep: float
+    """Fraction of the rise time used in the computation of the slip-rate function used for deep subfaults. Default value according to Eq. 5 in Graves and Pitarka (2022)."""
+    beta_mid: float
+    """Fraction of the rise time used in the computation of the slip-rate function for mid-crust depths. Default value according to Eq. 5 in Graves and Pitarka (2022)."""
+    beta_mid_depth: float
+    """Center depth of the mid-to-deep transition zone (km). Default value according to Eq. 5 in Graves and Pitarka (2022)."""
+    beta_mid_depth_range: float
+    """Half-width of the mid-to-deep transition zone (km)."""
+    beta_shal: float
+    """Fraction of the rise time used in the computation of the slip-rate function for shallow subfaults. Default value according to Eq. 5 in Graves and Pitarka (2022)."""
+    beta_shal_depth: float
+    """Center depth of the shallow transition zone (km)."""
+    beta_shal_depth_range: float
+    """Half-width of the shallow transition zone (km)."""
+    beta_subevt: float
+    """Minimum value of β enforced on subevent patches. This functionality is not used (as subevt_mask = 0)."""
+    deep_risetimedep: float
+    """Sets the midpoint for the deep rise time adjustment zone."""
+    deep_risetimedep_range: float
+    """Sets the range for the deep rise time adjustment zone."""
+    deep_risetimefac: float
+    """Risetime adjustment factor"""
+    risetimedep: float
+    """Center depth of the shallow transition zone (km) used for local rise time"""
+    risetimedep_range: float
+    """Half-width of the shallow transition zone (km) used for local rise time"""
+    risetimefac: float
+    """Depth-dependent scaling factor applied to the local rise time for shallow and deep depths. Value consistent with GP10 Eq. 7."""
+    rt_rand: float
+    """Scales perturbation of risetimes so they are not 1:1 correlated with slip. ln(sigma)=rt_rand*trise"""
+    rt_scalefac: float
+    """A value of 1 implies that local rise time is scaled with sqrt(slip), consistent with GP10 Eq.7."""
+    stype: schemas.Stype | None
+    """Slip function type"""
+
+    # Hybrid Correlation Length (hyb_corlen) Parameters
+    hyb_corlen_deep_wt_end: float
+    """Parameter setting the weighting in the hybrid slip approach"""
+    hyb_corlen_deep_wt_start: float
+    """Parameter setting the weighting in the hybrid slip approach"""
+    hyb_corlen_dep: float
+    """Center depth of the shallow-to-deep transition zone (km) used for the hybrid slip model"""
+    hyb_corlen_dep_range: float
+    """Half-width of the shallow-to-deep transition zone (km) used for the hybrid slip model"""
+    hyb_corlen_fac: float
+    """When using the Mai and Beroza (2022) model for both the shallow and deep regions in the hybrid slip approach, hyb_corlen_fac is the multiplicative factor used for adjusting the correlation length in the shallow region"""
+    hyb_corlen_flag: bool
+    """If enabled, incorporate hybrid correlation lengths, using two different correlation models for shallow and deep regions."""
+    hyb_corlen_kmodel: schemas.KModel
+    """Model selected for the shallow region in the hybrid slip approach. Default=5 is the Suzuki (2022) model."""
+    hyb_corlen_shal_wt_end: float
+    """Parameter setting the weighting in the hybrid slip approach"""
+    hyb_corlen_shal_wt_start: float
+    """Parameter setting the weighting in the hybrid slip approach"""
+    hyb_corlen_side_taper: float
+    """Side taper of hybrid correlation structure."""
+
+    # Rupture Velocity & Fault Dimensions
+    fdrup_scale_slip: bool
+    """Scale rslow with slip prior to computing FD times"""
+    fdrup_time: bool
+    """Calculate rupture initiation times with wavefront propagation"""
+    rupture_delay: float
+    """Scalar delay to all rupture initiation times (s)"""
+    rvfmax: float
+    """Upper bound on how much faster rupture velocity can be than the average rupture velocity. Rupture velocity is adjusted to be faster in regions of high slip."""
+    rvfmin: float
+    """Lower bound on how much faster rupture velocity can be than the average rupture velocity. Rupture velocity is adjusted to be faster in regions of high slip."""
+
+    # Tapering & Slip Level Adjustments
+    truncate_zero_slip: bool
+    """If true, truncates negative slip. This can skew the spectral distribution of slip but removes non-physical values."""
+    slip_water_level: float | None
+    """Minimum background slip level given as a percentage of the average slip amount (basically fills-in very low/zero slip patches with long rise time, low slip)."""
+    rake_sigma: float
+    """Target rake std deviation (absolute value, degrees)"""
+    fractal_rake: bool
+    """If enabled, uses a von Karman filter for rake (producing self-similar fractal rake)."""
+
+    # Time Shift Factors (tsfac)
+    tsfac1_scor: float
+    """Allow specification of correlation levels between slip and rupture time. Correlation can be between 0 (uncorrelated) and 1.0 (1:1 correlation)."""
+    tsfac1_sigma: float
+    """Adjusts stddev of risetime perturbations given by gaussian random numbers (via tsfac1_r array) with zero mean and sigma set to tsfac1_sigma*tsfac."""
+    tsfac2_lambda_max: float
+    """Maximum wavelength considered when band-pass filtering the wavenumber spectra associated with the fault roughness model, as explained in GP16. Value in km. (Not used as alpha_rough=0)"""
+    tsfac2_lambda_min: float | None
+    """Minimum wavelength considered when band-pass filtering the wavenumber spectra associated with the fault roughness model, as explained in GP16. Value in km. (Not used as alpha_rough=0)"""
+    tsfac2_scor: float
+    """Allow specification of correlation levels between roughness and rupture time. Correlation can be between 0 (uncorrelated) and 1.0 (1:1 correlation). (Not used as alpha_rough=0)"""
+    tsfac2_sigma: float
+    """The standard deviation of the rupture time perturbations due to roughness."""
+    tsfac_bzero: float
+    """Offset constant value used when scaling the rupture time perturbation with seismic moment"""
+    tsfac_coef: float
+    """Coefficient equal to 1.1 given in Eq. A2 from GP16 used to scale rupture time perturbation with seismic moment. Not used anymore in the code, as now this scaling is performed with tsfac_bzero and tsfac_slope"""
+    tsfac_main: float | None
+    """Depends on tsfac_bzero, tsfac_slope and moment"""
+    tsfac_slope: float
+    """Coefficient used to scale rupture time perturbation with seismic moment, similar to Eq A2 from GP16 but now adding an offset value of tsfac_bzero"""
+
+    # Kinematic Models & Corner Frequencies
+    circular_average: bool
+    """if set, correlation lengths are equal in both directions. only used if KModel is Mai or Sommerville."""
+    kmodel: schemas.KModel
+    """Correlation lengths relationship. Defaults to Mai 2002"""
+    kord: int
+    """The von Karman filter order. I believe this determines the rolloff from the correlation lengths"""
+    magC: float  # noqa: N815
+    """magnitude clamping for down-dip correlation lengths. only used if the KModel is Suzuki (5)."""
+    mag_area_Acoef: float | None  # noqa: N815
+    """the 'A' in M = A + B log10(area). only used if use_median_mag is true"""
+    mag_area_Bcoef: float | None  # noqa: N815
+    """the 'B' in M = A + B log10(area). only used if use_median_mag is true"""
+    mai_wt: float
+    """The weighting for Mai correlation model. Only used if KModel is set to hybrid Mai-Sommerville"""
+    modified_corners: bool
+    """another correlation model of unknown origin. overrides the value of KModel"""
+    somerville_wt: float
+    """Parameter only used if kmodel is set as MAI_SOMERVILLE_HYBRID_FLAG, which is not the default value. weight of the Sommerville model in the hybrid Sommerville and Mai correlation model"""
+    stretch_kcorner: bool
+    """Appears to be unused, purpose unknown"""
+    use_gaus: bool
+    """Unused"""
+    use_median_mag: bool
+    """If true set the magnitude of the rupture according to area"""
+
+    # Roughness & Wavelength Limits
+    lambda_max: float | None
+    """Maximum wavelength for slip correlation (None = no limit)."""
+    lambda_min: float | None
+    """Minimum wavelength for slip correlation (None = no limit)."""
+    wavelength_max: float | None
+    """Maximum wavelength considered when band-pass filtering the rake spectral distribution (only if fractal_rake=0). It is also used to bandpass filter the initial risetime, and rupture time (perturbations) in the spectral domain. When it is not set, it gets a value 80% of the Nyquist frequency, 2 * sqrt(dx * dy) / 0.8. Hardcoded, will be overridden if set."""
+    wavelength_min: float | None
+    """Minimum wavelength considered when band-pass filtering the rake spectral distribution (only if fractal_rake=0). It is also used to bandpass filter the initial risetime, and rupture time (perturbations) in the spectral domain. When it is not set, it gets a value 80% of the Nyquist frequency, 2 * sqrt(dx * dy) / 0.8."""
+
+    # Miscellaneous Slip/Rupture/Rake Vars
+    asp_taper_fac: float
+    """Size (proportion) of the asperity patch taper width."""
+    extend_fac: float | None
+    """geometric scaling variable used during multi-segment fault simulations to adjust how spatial wavenumber spectra are evaluated. It scales individual segment dimensions up to the full aggregate dimensions of the parent multi-segment fault system, ensuring long-wavelength features are not artificially truncated."""
+    flen_max: float | None
+    """Seems to be a maximum along-strike length to generate SRF output"""
+    fwid_max: float | None
+    """Seems to be a maximum down-dip width to generate SRF output"""
+    moment_fraction: float | None
+    """Scales seismic moment by fraction given"""
+    perturb_subfault_location: bool
+    """Shift subfault location according to roughness (in addition to perturbing strike and dip). Only used if alpha_rough > 0"""
+    rand_rake_degs: float
+    """Appears to be unused in code, purpose unknown"""
+    rtime1_depth: float | None
+    """This value sets the midpoint of the transition range for risetime-slip scaling. For depths above rtime_depth - rtime1_depth_range, risetime is directly proportional to slip. For depths below rtime_depth + rtime1_depth_range, risetime is correlated with slip + stochastic perturbations. The default value is set to beta_shal_depth."""
+    rtime1_depth_range: float | None
+    """The default value is set to beta_shal_depth_range. See rtime1_depth for a description."""
+    rtime1_scor: float
+    """Correlation coefficient between slip and rise time. set between 0 (uncorrelated) and 1 (perfectly correlated)"""
+    rtime1_sigma: float | None
+    """The coefficient of variation of the risetime distribution. The default value is  slip_sigma."""
+    rtime2_scor: float
+    """Correlation coefficient for additional perturbation of rise time with roughness."""
+    rtime2slip_exp: float
+    """Adjusts the power for the correlation between rise time and slip. Rise time is correlated with slip^p, defaulting to sqrt(slip)."""
+    rtime_rand: float | None
+    """If true, correlate rise time with roughness"""
+    set_rake: float | None
+    """If set, fix rake at every location"""
+    svr_wt: float
+    """Unclear to me (Jake) anyway what this does. this and a couple of other variable set rt_scalefac but so far as I can tell that variable is unused. to review further."""
+    target_savg: float | None
+    """Target slip average"""
+    use_Mw: bool  # noqa: N815
+    """If true, use Hanks and Kanamori (1979) Eq 4 for magnitude ('Mw'). Otherwise use Eq 7 ('M')."""
+
+    # Aseismic & Segment Settings
+    aseis_flag: bool
+    """If true, enable aseismogenic creep adjustments."""
+    aseis_smooth: bool
+    """If true, smooth aseismogenic factors with an averaging kernel of width 3."""
+    aseis_dep: float
+    """Terminal depth for aseismic scaling region. slip above this depth is scaled down linearly, according to asei_fac. Below this depth no adjust occurs."""
+    aseis_fac: float | None
+    """Global setting for aseismic slip adjustment. Can be per subfault if read_aseis is set. only used if aseis_flag is true"""
+    xshift: float
+    """Shift phase of slip field"""
+    yshift: float
+    """Shift phase of slip field"""
+
+    # IO settings
+    read_erf: bool
+    """If true, read an ERF file."""
+    read_gsf: bool
+    """If set, read a geometry input definition"""
+    srf_version: str
+    """Version of SRF to output (1.0 = basic, 2.0 = rho and Vs, 3.0 = Vp, rho, Vs and optional moment tensor)"""
+    write_gsf: bool
+    """Output geometry definition"""
+    write_srf: bool
+    """Output SRF"""
+    dump_last_seed: bool
+    """If true, write the final state of the SRF random seed generator to seedfile"""
+    print_command: bool
+    """If set, output SRF command to file"""
+    print_seed: bool
+    """If set, output SRF seed to file"""
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the object to a dictionary representation.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the object.
+        """
+        config_dict = dataclasses.asdict(self)
+        if self.point_source_params is not None:
+            config_dict["point_source_params"] = dataclasses.asdict(
+                self.point_source_params
+            )
+        return config_dict
 
 
 @dataclasses.dataclass
@@ -621,7 +875,7 @@ class DomainParameters(RealisationConfiguration):
     domain: BoundingBox
     """The bounding box for the domain."""
     depth: float
-    """The depth of the domain (in metres)."""
+    """The depth of the domain (in kilometres)."""
     duration: float
     """The simulation duration (in seconds)."""
 
@@ -768,6 +1022,30 @@ class NZCVMSettings(RealisationConfiguration):
     """nzcvm chunk configuration"""
     surface: Path
     """nzcvm DEM surface"""
+    decay: "Decay | None"
+    """The SW4 grid's terrain decay: None for SW4 with topography, any decay
+    for SW4 without topography, on the flat nominal model."""
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the settings to a dictionary representation.
+
+        Each layer is serialised by nzcvm itself, which leaves out the fields
+        it derives from the layer type (`provides` and `requires`). nzcvm
+        rejects those as input, so `dataclasses.asdict`, which writes every
+        field, would write a realisation nzcvm cannot read back.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the settings.
+        """
+        return {
+            "layers": [layer.to_dict() for layer in self.layers],
+            "chunks": dict(self.chunks),
+            "surface": self.surface,
+            "decay": None if self.decay is None else self.decay.to_dict(),
+        }
 
 
 @dataclasses.dataclass
@@ -814,9 +1092,23 @@ class VelocityModel1D(RealisationConfiguration):
 
     _config_key: ClassVar[str] = "velocity_model_1d"
     _schema: ClassVar[Schema] = schemas.VELOCITY_MODEL_1D_SCHEMA
+    _columns: ClassVar[tuple[str, ...]] = ("thickness", "Vp", "Vs", "rho", "Qp", "Qs")
 
     model: pd.DataFrame
     """The layers of the velocity model, one row per layer."""
+
+    @property
+    def vs30(self) -> float:
+        """float: Time-averaged shear-wave velocity in the top 30 m of the model, m/s.
+
+        The last layer is a half-space, and extends as deep as it needs to.
+        """
+        thickness_m = self.model["thickness"].to_numpy(np.float64) * 1000
+        vs_m_s = self.model["Vs"].to_numpy(np.float64) * 1000
+        top = np.concatenate(([0.0], np.cumsum(thickness_m)[:-1]))
+        bottom = np.append(top[1:], np.inf)
+        thickness_in_top_30m = np.clip(np.minimum(bottom, 30.0) - top, 0.0, None)
+        return float(30.0 / np.sum(thickness_in_top_30m / vs_m_s))
 
     def write_velocity_model(self, velocity_model_path: Path) -> None:
         """Write a 1D velocity model to the specified path.
@@ -828,7 +1120,9 @@ class VelocityModel1D(RealisationConfiguration):
         """
         with open(velocity_model_path, "w") as velocity_model:
             velocity_model.write(f"{len(self.model)}\n")
-            self.model.to_csv(velocity_model, header=False, index=False, sep=" ")
+            self.model[list(self._columns)].to_csv(
+                velocity_model, header=False, index=False, sep=" "
+            )
 
     def to_dict(self) -> dict:
         """
@@ -916,6 +1210,12 @@ class HFConfig(RealisationConfiguration):
     from the domain, and the three `source.rupture_velocity` multipliers live in
     :class:`RuptureVelocity` because SRF generation reads the same physical values. Both
     are injected by `hf-sim`.
+
+    One field here is not in that class at all: `source.stress_drop_bars`. The
+    simulation takes the stress parameter per subfault; the realisation keeps one value,
+    and `generate-stoch` fills every subfault's stress parameter with it. The per-station
+    `kappa_s` and `q_frequency_exponent` are site parameters, read from the site table
+    (see `workflow.sites`).
     """
 
     _config_key: ClassVar[str] = "hf"
@@ -942,15 +1242,34 @@ class StochConfig(RealisationConfiguration):
 
     Not part of :class:`HFConfig`: these size the stoch grid, which is an input to the
     high-frequency simulation rather than one of its parameters.
+
+    generate-stoch picks one dx and one dy for every plane, as the HF code
+    requires, trading drift from the target resolution against padding (see
+    `generate_stoch.stoch_resolution`). A padding weight of 0 always gives the
+    target resolution, however much the planes are padded. For a single plane, a
+    weight above 1 gives srf2stoch's ``target_dx`` behaviour: the whole number
+    of cells closest to the target, with no padding. Weights in between suit
+    multi-segment ruptures, where no resolution fits every plane. The resolution
+    always lies within the bounds, which must contain the target.
     """
 
     _config_key: ClassVar[str] = "stoch"
     _schema: ClassVar[Schema] = schemas.STOCH_CONFIG_SCHEMA
 
-    stoch_dx: float
-    """stoch file resolution in x."""
-    stoch_dy: float
-    """stoch file resolution in y."""
+    stoch_target_dx: float
+    """Preferred stoch file resolution along strike (km)."""
+    stoch_min_dx: float
+    """Smallest stoch file resolution along strike (km)."""
+    stoch_max_dx: float | None
+    """Largest stoch file resolution along strike (km), or None for no limit."""
+    stoch_target_dy: float
+    """Preferred stoch file resolution down dip (km)."""
+    stoch_min_dy: float
+    """Smallest stoch file resolution down dip (km)."""
+    stoch_max_dy: float | None
+    """Largest stoch file resolution down dip (km), or None for no limit."""
+    stoch_padding_weight: float
+    """Cost of one wasted (padded) cell, measured in cells of drift from the target."""
 
 
 @dataclasses.dataclass
@@ -1242,7 +1561,7 @@ class LogEntry:
     """The version of the utility."""
     timestamp: datetime.datetime
     """The timestamp of when the utility was run."""
-    args: list[str]
+    args: list[str] = dataclasses.field(default_factory=list)
     """The arguments passed to the utility."""
 
     def __post_init__(self) -> None:

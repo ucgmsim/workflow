@@ -2,18 +2,20 @@
 
 Description
 -----------
-Filter a station list for in-domain stations to simulate high frequency and broadband output for.
+Filter a site table for in-domain stations to simulate high frequency and broadband output for.
 
 Inputs
 ------
-1. A station list and,
+1. A site table (parquet, see `workflow.sites`) and,
 2. A realisation file containing domain parameters.
 
 Outputs
 -------
-1. A station list containing only stations in-domain and with unique discretised coordinate positions in two formats:
-   - Stations in the format "longitude latitude name" format in "stations.ll",
-   - Stations in the format "x y name" format in "stations.statcord". The x and y are the discretised positions of each station in the domain.
+1. The site table restricted to in-domain stations, in "stations.parquet". For
+   EMOD3D, each station's location is that of the grid point it is snapped to.
+2. The solver's station file:
+   - EMOD3D: stations in the format "x y name" format in "stations.statcords". The x and y are the discretised positions of each station in the domain.
+   - SW4: an HDF5 station file, "stations.h5".
 
 Environment
 -----------
@@ -21,7 +23,7 @@ Can be run in the cybershake container. Can also be run from your own computer u
 
 Usage
 -----
-`generate-station-coordinates [OPTIONS] REALISATIONS_FFP STAT_FILE OUTPUT_PATH`
+`generate-station-coordinates [OPTIONS] REALISATIONS_FFP SITES_FFP OUTPUT_PATH`
 
 For More Help
 -------------
@@ -39,7 +41,7 @@ import shapely
 import typer
 
 from qcore import cli, coordinates
-from workflow import log_utils, realisations
+from workflow import log_utils, realisations, sites
 from workflow.realisations import DomainParameters, Resolution
 
 app = typer.Typer()
@@ -54,43 +56,17 @@ class Format(StrEnum):
     """SW4 HDF5 station file."""
 
 
-def write_ascii_station_locations(
-    stations: pd.DataFrame,
-    ll_out: Path,
-    lon_col: str = "lon",
-    lat_col: str = "lat",
-    name_col: str = "name",
-) -> None:
-    """Write stations to a whitespace-separated `lon lat name` file.
-
-    Both solvers take the same `.ll` station list, so it is written once
-    here from whichever coordinate columns the caller has.
-
-    Parameters
-    ----------
-    stations : pd.DataFrame
-        The stations to write.
-    ll_out : Path
-        Path of the file to write.
-    lon_col, lat_col, name_col : str, optional
-        Columns of `stations` holding the longitude, latitude and name.
-    """
-    with open(ll_out, "w", encoding="utf-8") as llf:
-        stations.apply(
-            lambda station: llf.write(
-                f"{station[lon_col]:11.5f} {station[lat_col]:11.5f} {station[name_col]}\n"
-            ),
-            axis=1,
-        )
-
-
 def write_emod3d_station_format(
     domain_parameters: DomainParameters,
     resolution_parameters: Resolution,
     stations: pd.DataFrame,
     output_path: Path,
 ) -> None:
-    """Write station coordinates in EMOD3D format to two output files.
+    """Write station coordinates in EMOD3D format.
+
+    Writes the grid point of every in-domain station to `stations.statcords`,
+    and the site table of those stations, located at their grid points, to
+    `stations.parquet`.
 
     Parameters
     ----------
@@ -99,8 +75,7 @@ def write_emod3d_station_format(
     resolution_parameters : Resolution
         Object containing the grid resolution.
     stations : pd.DataFrame
-        DataFrame with columns `lat`, `lon`, and `name`. Latitude and longitude
-        are in degrees.
+        The site table (see `workflow.sites`).
     output_path : Path
         Directory path where the output files will be written.
     """
@@ -111,16 +86,17 @@ def write_emod3d_station_format(
     mrot = domain.great_circle_bearing
     proj = coordinates.SphericalProjection(mlat=mlat, mlon=mlon, mrot=float(mrot))
 
-    # where to save gridpoint and longlat station files
     gp_out = output_path / "stations.statcords"
-    ll_out = output_path / "stations.ll"
 
     x, y = proj(
-        lat=stations["lat"].to_numpy(float), lon=stations["lon"].to_numpy(float)
+        lat=stations["latitude"].to_numpy(float),
+        lon=stations["longitude"].to_numpy(float),
     ).T
 
-    cx = nx // 2 * resolution_parameters.resolution
-    cy = ny // 2 * resolution_parameters.resolution
+    # EMOD3D centres its grid at half its length, which falls between grid
+    # points when nx or ny is odd.
+    cx = 0.5 * nx * resolution_parameters.resolution
+    cy = 0.5 * ny * resolution_parameters.resolution
 
     # translate coordinates so that top-left corner of the domain is at (0, 0)
     x += cx
@@ -132,37 +108,39 @@ def write_emod3d_station_format(
 
     in_domain_mask = (x >= 0) & (x < nx) & (y >= 0) & (y < ny)
     # filter out stations outside the domain
-    stations = stations.loc[in_domain_mask]
+    stations = sites.validate(stations.loc[in_domain_mask]).copy()
 
     if len(stations) == 0:
         raise ValueError("No stations in domain.")
+    # EMOD3D reads each name as a whitespace-delimited word.
+    if bad_names := [
+        name
+        for name in stations.index
+        if not isinstance(name, str) or name.split() != [name]
+    ]:
+        raise ValueError(
+            "EMOD3D station names must be non-empty and contain no whitespace:"
+            f" {bad_names}."
+        )
 
     x = x[in_domain_mask]
     y = y[in_domain_mask]
-    stations["x"] = x
-    stations["y"] = y
-
-    gp_x = x * resolution_parameters.resolution - cx
-    gp_y = y * resolution_parameters.resolution - cy
-    gp_lat, gp_lon = proj.inverse(gp_x, gp_y).T
-    stations["grid_lat"] = gp_lat
-    stations["grid_lon"] = gp_lon
 
     # create grid point file
     with open(gp_out, "w", encoding="utf-8") as gpf:
         # file starts with number of entries
         gpf.write(f"{len(stations)}\n")
         # x, y, z, name
-        stations.apply(
-            lambda station: gpf.write(
-                f"{station['x']:5d} {station['y']:5d} {1:5d} {station['name']}\n"
-            ),
-            axis=1,
+        gpf.writelines(
+            f"{station_x:5d} {station_y:5d} {1:5d} {name}\n"
+            for station_x, station_y, name in zip(x, y, stations.index)
         )
 
-    write_ascii_station_locations(
-        stations, ll_out, lon_col="grid_lon", lat_col="grid_lat"
-    )
+    # The simulations downstream see each station where EMOD3D records it.
+    gp_x = x * resolution_parameters.resolution - cx
+    gp_y = y * resolution_parameters.resolution - cy
+    stations["latitude"], stations["longitude"] = proj.inverse(gp_x, gp_y).T
+    sites.write_sites(stations, output_path / "stations.parquet")
 
 
 def write_sw4_station_format(
@@ -179,38 +157,37 @@ def write_sw4_station_format(
     domain_parameters : DomainParameters
         Domain definition, used to test which stations fall inside it.
     stations : pd.DataFrame
-        DataFrame with columns `lat`, `lon`, and `name`. Latitude and
-        longitude are in degrees.
+        The site table (see `workflow.sites`).
     output_path : Path
-        Directory to write `stations.h5` and `stations.ll` into.
+        Directory to write `stations.h5` and `stations.parquet` into.
     """
-    lat_lon = stations[["lat", "lon"]].to_numpy()
+    lat_lon = stations[["latitude", "longitude"]].to_numpy()
     nzvm_coordinates = coordinates.wgs_depth_to_nztm(lat_lon)
     poly = domain_parameters.domain.polygon
     mask = shapely.contains_xy(poly, nzvm_coordinates[:, 0], nzvm_coordinates[:, 1])
-    stations = stations.loc[mask]
+    stations = sites.validate(stations.loc[mask])
 
     if len(stations) == 0:
         raise ValueError("No stations in domain.")
 
     with h5py.File(output_path / "stations.h5", "w") as f:
-        for station_name, position in stations.set_index("name").iterrows():
+        for station_name, position in stations.iterrows():
             station_dset = f.create_group(station_name)
             location = station_dset.create_dataset(
                 "STLA,STLO,STDP", (3,), dtype=np.float64
             )
-            location[0] = position["lat"]
-            location[1] = position["lon"]
+            location[0] = position["latitude"]
+            location[1] = position["longitude"]
             location[2] = 0.0
 
-    write_ascii_station_locations(stations, output_path / "stations.ll")
+    sites.write_sites(stations, output_path / "stations.parquet")
 
 
 @cli.from_docstring(app)
 @log_utils.log_call()
 def generate_fd_files(
     realisation_ffp: Annotated[Path, typer.Argument(readable=True, dir_okay=False)],
-    stat_file: Annotated[Path, typer.Argument(readable=True, dir_okay=False)],
+    sites_ffp: Annotated[Path, typer.Argument(readable=True, dir_okay=False)],
     output_path: Annotated[Path, typer.Argument(file_okay=False, writable=True)],
     format: Format = Format.EMOD3D,
 ) -> None:
@@ -220,25 +197,24 @@ def generate_fd_files(
     ----------
     realisation_ffp : Path
         Path to realisation json file.
-    stat_file : Path
-        The location of the station files.
+    sites_ffp : Path
+        The site table (parquet, see `workflow.sites`) to pick stations from.
     output_path : Path
         Output path for station files.
     format : Format, optional
         The solver to write station files for. EMOD3D writes
-        `stations.statcords` and `stations.ll`; SW4 writes `stations.h5`
-        and `stations.ll`. Defaults to EMOD3D.
+        `stations.statcords`; SW4 writes `stations.h5`. Both write the
+        in-domain site table to `stations.parquet`. Defaults to EMOD3D.
     """
     output_path.mkdir(exist_ok=True)
     domain_parameters = DomainParameters.read_from_realisation(realisation_ffp)
 
-    # retrieve in station names, latitudes and longitudes
-    stations = pd.read_csv(
-        stat_file,
-        delimiter=r"\s+",
-        comment="#",
-        names=["lon", "lat", "name"],
-    )
+    # Only the stations in the domain need complete site parameters, which
+    # the writers check before writing anything. Every station needs a
+    # location to tell whether it is in the domain.
+    stations = sites.validate_structure(pd.read_parquet(sites_ffp))
+    if missing := sites.missing_values(stations[["latitude", "longitude"]]):
+        raise ValueError(f"Site table has stations missing locations: {missing}.")
 
     match format:
         case Format.EMOD3D:

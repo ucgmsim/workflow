@@ -1,6 +1,7 @@
 # NOTE: this fix contains tests that mirror the Realisations wiki. If
 # these tests fail, you should update the wiki if necesary to ensure
 # it stays consistent with the codebase.
+import dataclasses
 import json
 import struct
 from datetime import UTC, datetime
@@ -115,37 +116,122 @@ def test_srf_config_example(tmp_path: Path) -> None:
     )
     srf_config = realisations.SRFConfig(
         resolution=0.1,
-        source={"rise_time_coefficient": 1.6},
-        slip={
-            "shape": "von_karman",
-            "coefficient_of_variation": 0.9,
-            "rake_sigma_deg": 15.0,
-            "side_taper": 0.02,
-            "top_taper": 0.0,
-            "bottom_taper": 0.0,
-        },
-        timing={
-            "rupture_time_offset_s": 0.1,
-            "rupture_time_coefficient": 0.5,
-            "rupture_time_correlation": 0.8,
-            "rupture_time_blend_sigma": 4.0,
-            "rupture_velocity_min_fraction": 0.25,
-            "rupture_velocity_max_fraction": 1.414,
-            "rupture_delay_s": 0.0,
-            "rise_time_correlation": 0.9,
-            "rise_time_sigma": 0.75,
-            "slip_exponent": 0.5,
-            "shallow_rise_factor": 2.0,
-            "deep_rise_factor": 2.0,
-            "beta_shallow": 0.5,
-            "beta_mid": 0.13,
-            "beta_deep": 0.13,
-            "sample_interval_s": 0.005,
-            "rise_time_blend": {"centre_km": 2.0, "half_width_km": 1.0},
-            "beta_shallow_ramp": {"centre_km": 2.0, "half_width_km": 1.0},
-            "beta_mid_ramp": {"centre_km": 6.5, "half_width_km": 1.5},
-        },
-        field={"base_rake_deg": 175.0},
+        dt=0.005,
+        point_source_params=schemas.PointSourceParams(
+            stype=schemas.Stype.cos,
+            risetime=0.5,
+            risetimefac=1.0,
+            risetimedep=0.0,
+            inittime=0.0,
+        ),
+        side_taper=0.02,
+        bot_taper=0.02,
+        top_taper=0.0,
+        alpha_rough=0.0,
+        gwid=[],
+        rvfac_seg=[],
+        seg_delay=False,
+        slip_sigma=1.0,
+        risetime_coef=1.6,
+        ymag_exponent=None,
+        xmag_exponent=None,
+        kx_corner=None,
+        ky_corner=None,
+        beta_asp=0.3,
+        beta_deep=0.13,
+        beta_mid=0.13,
+        beta_mid_depth=6.5,
+        beta_mid_depth_range=1.5,
+        beta_shal=0.5,
+        beta_shal_depth=2.0,
+        beta_shal_depth_range=1.0,
+        beta_subevt=0.1,
+        deep_risetimedep=17.5,
+        deep_risetimedep_range=2.5,
+        deep_risetimefac=2.0,
+        risetimedep=6.5,
+        risetimedep_range=1.5,
+        risetimefac=2.0,
+        rt_rand=0.0,
+        rt_scalefac=1.0,
+        stype=None,
+        hyb_corlen_deep_wt_end=1.0,
+        hyb_corlen_deep_wt_start=0.0,
+        hyb_corlen_dep=6.5,
+        hyb_corlen_dep_range=1.5,
+        hyb_corlen_fac=2.0,
+        hyb_corlen_flag=False,
+        hyb_corlen_kmodel=schemas.KModel.SUZUKI,
+        hyb_corlen_shal_wt_end=0.0,
+        hyb_corlen_shal_wt_start=1.0,
+        hyb_corlen_side_taper=0.08,
+        fdrup_scale_slip=False,
+        fdrup_time=False,
+        rupture_delay=0.0,
+        rvfmax=1.414,
+        rvfmin=0.25,
+        truncate_zero_slip=True,
+        slip_water_level=None,
+        rake_sigma=15.0,
+        fractal_rake=False,
+        tsfac1_scor=0.8,
+        tsfac1_sigma=1.0,
+        tsfac2_lambda_max=5.0,
+        tsfac2_lambda_min=None,
+        tsfac2_scor=0.5,
+        tsfac2_sigma=1.0,
+        tsfac_bzero=-0.1,
+        tsfac_coef=1.1,
+        tsfac_main=None,
+        tsfac_slope=-0.5,
+        circular_average=False,
+        kmodel=schemas.KModel.MAI,
+        kord=4,
+        magC=6.3,
+        mag_area_Acoef=None,
+        mag_area_Bcoef=None,
+        mai_wt=0.5,
+        modified_corners=False,
+        somerville_wt=0.5,
+        stretch_kcorner=False,
+        use_gaus=True,
+        use_median_mag=False,
+        lambda_max=None,
+        lambda_min=None,
+        wavelength_max=None,
+        wavelength_min=None,
+        asp_taper_fac=0.05,
+        extend_fac=None,
+        flen_max=None,
+        fwid_max=None,
+        moment_fraction=None,
+        perturb_subfault_location=True,
+        rand_rake_degs=60.0,
+        rtime1_depth=2.0,
+        rtime1_depth_range=1.0,
+        rtime1_scor=0.8,
+        rtime1_sigma=0.85,
+        rtime2_scor=0.5,
+        rtime2slip_exp=0.5,
+        rtime_rand=None,
+        set_rake=None,
+        svr_wt=0.0,
+        target_savg=None,
+        use_Mw=True,
+        aseis_flag=False,
+        aseis_smooth=False,
+        aseis_dep=10.0,
+        aseis_fac=None,
+        xshift=0.0,
+        yshift=0.0,
+        read_erf=False,
+        read_gsf=False,
+        srf_version="1.0",
+        write_gsf=False,
+        write_srf=False,
+        dump_last_seed=False,
+        print_command=False,
+        print_seed=False,
     )
 
     realisation_ffp = tmp_path / "realisation.json"
@@ -165,42 +251,126 @@ def test_srf_config_example(tmp_path: Path) -> None:
             },
             "srf": {
                 "resolution": 0.1,
-                "source": {"rise_time_coefficient": 1.6},
-                "slip": {
-                    "shape": "von_karman",
-                    "coefficient_of_variation": 0.9,
-                    "rake_sigma_deg": 15.0,
-                    "side_taper": 0.02,
-                    "top_taper": 0.0,
-                    "bottom_taper": 0.0,
+                "dt": 0.005,
+                "point_source_params": {
+                    "stype": "cos",
+                    "risetime": 0.5,
+                    "risetimefac": 1.0,
+                    "risetimedep": 0.0,
+                    "inittime": 0.0,
                 },
-                "timing": {
-                    "rupture_time_offset_s": 0.1,
-                    "rupture_time_coefficient": 0.5,
-                    "rupture_time_correlation": 0.8,
-                    "rupture_time_blend_sigma": 4.0,
-                    "rupture_velocity_min_fraction": 0.25,
-                    "rupture_velocity_max_fraction": 1.414,
-                    "rupture_delay_s": 0.0,
-                    "rise_time_correlation": 0.9,
-                    "rise_time_sigma": 0.75,
-                    "slip_exponent": 0.5,
-                    "shallow_rise_factor": 2.0,
-                    "deep_rise_factor": 2.0,
-                    "beta_shallow": 0.5,
-                    "beta_mid": 0.13,
-                    "beta_deep": 0.13,
-                    "sample_interval_s": 0.005,
-                    "rise_time_blend": {"centre_km": 2.0, "half_width_km": 1.0},
-                    "beta_shallow_ramp": {"centre_km": 2.0, "half_width_km": 1.0},
-                    "beta_mid_ramp": {"centre_km": 6.5, "half_width_km": 1.5},
-                },
-                "field": {"base_rake_deg": 175.0},
+                "side_taper": 0.02,
+                "bot_taper": 0.02,
+                "top_taper": 0.0,
+                "alpha_rough": 0.0,
+                "slip_sigma": 1.0,
+                "risetime_coef": 1.6,
+                "gwid": [],
+                "rvfac_seg": [],
+                "seg_delay": False,
+                "ymag_exponent": None,
+                "xmag_exponent": None,
+                "kx_corner": None,
+                "ky_corner": None,
+                "beta_asp": 0.3,
+                "beta_deep": 0.13,
+                "beta_mid": 0.13,
+                "beta_mid_depth": 6.5,
+                "beta_mid_depth_range": 1.5,
+                "beta_shal": 0.5,
+                "beta_shal_depth": 2.0,
+                "beta_shal_depth_range": 1.0,
+                "beta_subevt": 0.1,
+                "deep_risetimedep": 17.5,
+                "deep_risetimedep_range": 2.5,
+                "deep_risetimefac": 2.0,
+                "risetimedep": 6.5,
+                "risetimedep_range": 1.5,
+                "risetimefac": 2.0,
+                "rt_rand": 0.0,
+                "rt_scalefac": 1.0,
+                "stype": None,
+                "hyb_corlen_deep_wt_end": 1.0,
+                "hyb_corlen_deep_wt_start": 0.0,
+                "hyb_corlen_dep": 6.5,
+                "hyb_corlen_dep_range": 1.5,
+                "hyb_corlen_fac": 2.0,
+                "hyb_corlen_flag": False,
+                "hyb_corlen_kmodel": schemas.KModel.SUZUKI,
+                "hyb_corlen_shal_wt_end": 0.0,
+                "hyb_corlen_shal_wt_start": 1.0,
+                "hyb_corlen_side_taper": 0.08,
+                "fdrup_scale_slip": False,
+                "fdrup_time": False,
+                "rupture_delay": 0.0,
+                "rvfmax": 1.414,
+                "rvfmin": 0.25,
+                "truncate_zero_slip": True,
+                "slip_water_level": None,
+                "rake_sigma": 15.0,
+                "fractal_rake": False,
+                "tsfac1_scor": 0.8,
+                "tsfac1_sigma": 1.0,
+                "tsfac2_lambda_max": 5.0,
+                "tsfac2_lambda_min": None,
+                "tsfac2_scor": 0.5,
+                "tsfac2_sigma": 1.0,
+                "tsfac_bzero": -0.1,
+                "tsfac_coef": 1.1,
+                "tsfac_main": None,
+                "tsfac_slope": -0.5,
+                "circular_average": False,
+                "kmodel": 2,
+                "kord": 4,
+                "magC": 6.3,
+                "mag_area_Acoef": None,
+                "mag_area_Bcoef": None,
+                "mai_wt": 0.5,
+                "modified_corners": False,
+                "somerville_wt": 0.5,
+                "stretch_kcorner": False,
+                "use_gaus": True,
+                "use_median_mag": False,
+                "lambda_max": None,
+                "lambda_min": None,
+                "wavelength_max": None,
+                "wavelength_min": None,
+                "asp_taper_fac": 0.05,
+                "extend_fac": None,
+                "flen_max": None,
+                "fwid_max": None,
+                "moment_fraction": None,
+                "perturb_subfault_location": True,
+                "rand_rake_degs": 60.0,
+                "rtime1_depth": 2.0,
+                "rtime1_depth_range": 1.0,
+                "rtime1_scor": 0.8,
+                "rtime1_sigma": 0.85,
+                "rtime2_scor": 0.5,
+                "rtime2slip_exp": 0.5,
+                "rtime_rand": None,
+                "set_rake": None,
+                "svr_wt": 0.0,
+                "target_savg": None,
+                "use_Mw": True,
+                "aseis_flag": False,
+                "aseis_smooth": False,
+                "aseis_dep": 10.0,
+                "aseis_fac": None,
+                "xshift": 0.0,
+                "yshift": 0.0,
+                "read_erf": False,
+                "read_gsf": False,
+                "srf_version": "1.0",
+                "write_gsf": False,
+                "write_srf": False,
+                "dump_last_seed": False,
+                "print_command": False,
+                "print_seed": False,
             },
         }
 
     assert realisations.SRFConfig.read_from_realisation(realisation_ffp) == srf_config
-    assert realisations.SRFConfig.read_from_realisation(realisation_ffp).dt == 0.005
 
 
 def test_bad_config_key(tmp_path: Path) -> None:
@@ -519,6 +689,42 @@ def test_logtrail_init_with_dicts_post_init() -> None:
     assert trail.log[1].args == ["b"]
 
 
+def test_logtrail_init_with_dict_missing_args() -> None:
+    """Test LogTrail post_init handles log entries without 'args' (schema-optional)."""
+    log_data = [
+        {
+            "utility": "util1",
+            "version": "1",
+            "timestamp": datetime.now(tz=UTC).isoformat(),
+        }
+    ]
+    trail = realisations.LogTrail(log=log_data)  # type: ignore
+    assert isinstance(trail.log[0], realisations.LogEntry)
+    assert trail.log[0].args == []
+
+
+def test_logtrail_read_from_realisation_missing_args(tmp_path: Path) -> None:
+    """Test reading a realisation with a log entry lacking 'args' does not crash."""
+    realisation_ffp = tmp_path / "realisation.json"
+    realisation_ffp.write_text(
+        json.dumps(
+            {
+                "log_trail": {
+                    "log": [
+                        {
+                            "utility": "x",
+                            "version": "1",
+                            "timestamp": "2024-01-01T00:00:00",
+                        }
+                    ]
+                }
+            }
+        )
+    )
+    trail = realisations.LogTrail.read_from_realisation(realisation_ffp)
+    assert trail.log[0].args == []
+
+
 def test_logtrail_log_entry_method() -> None:
     """Test adding an entry using the log_entry method."""
     trail = realisations.LogTrail([])
@@ -619,7 +825,8 @@ def test_seeds_from_random(tmp_path: Path) -> None:
     seeds = realisations.Seeds(
         nshm_to_realisation_seed=0,
         rupture_propagation_seed=0,
-        rupture_seed=0,
+        genslip_seed=0,
+        srfgen_seed=0,
         hf_seed=0,
     )
     seeds.write_to_realisation(realisation_file)
@@ -678,6 +885,50 @@ def test_velocity_model_1d(tmp_path: Path) -> None:
         realisations.VelocityModel1D.read_from_realisation(realisation_ffp).to_dict()
         == velocity_model_1d.to_dict()
     )
+
+
+def _velocity_model_1d(
+    thickness: list[float], vs: list[float]
+) -> realisations.VelocityModel1D:
+    layers = len(thickness)
+    return realisations.VelocityModel1D(
+        model=pd.DataFrame(
+            {
+                "thickness": thickness,
+                "Vp": [2.0] * layers,
+                "Vs": vs,
+                "Qp": [100.0] * layers,
+                "Qs": [50.0] * layers,
+                "rho": [2.0] * layers,
+            }
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "thickness, vs, expected",
+    [
+        # A top layer at least 30 m thick sets the Vs30 alone.
+        ([0.05, 1.0], [0.5, 2.0], 500.0),
+        ([0.03, 1.0], [0.5, 2.0], 500.0),
+        # 10 m at 250 m/s then 20 m at 500 m/s: 30 / (0.04 + 0.04) s.
+        ([0.01, 0.05], [0.25, 0.5], 375.0),
+        # The last layer is a half-space, however thin it is written.
+        ([0.01, 0.0], [0.25, 0.5], 375.0),
+    ],
+)
+def test_velocity_model_1d_vs30(
+    thickness: list[float], vs: list[float], expected: float
+) -> None:
+    """Vs30 is the travel-time average over the top 30 m, in m/s."""
+    assert _velocity_model_1d(thickness, vs).vs30 == pytest.approx(expected)
+
+
+def test_hf_velocity_model_1d_defaults_vs30() -> None:
+    """The shipped HF model's Vs30 is its top layer's Vs, which hf-sim used before."""
+    for version in defaults.DefaultsVersion:
+        model = realisations.HFVelocityModel1D.read_from_defaults(version)
+        assert model.vs30 == pytest.approx(model.model["Vs"].iloc[0] * 1000)
 
 
 def test_intensity_measure_calculation_parameters(tmp_path: Path) -> None:
@@ -814,21 +1065,7 @@ def test_sw4_parameters(tmp_path: Path) -> None:
     assert realisations.SW4Parameters.read_from_realisation(realisation_path) == sw4
 
 
-def test_sw4_parameters_defaults() -> None:
-    """SW4Parameters should load the expected commands from v26_7_1Hz defaults."""
-    sw4 = realisations.SW4Parameters.read_from_defaults(
-        defaults.DefaultsVersion.v26_7_1Hz
-    )
-    assert sw4.verbose == 2
-    developer = realisations.find_command(sw4.commands, "developer")
-    assert developer is not None
-    assert developer.parameters["reporttiming"] is True
-    assert developer.parameters["cfl"] == 0.9
-    assert sum(1 for command in sw4.commands if command.name == "imagehdf5") == 10
-
-
 def test_sources(tmp_path: Path) -> None:
-    realisation_ffp = tmp_path / "realisation.json"
     source_json = {
         "sources": {
             "source_geometries": {
@@ -887,7 +1124,14 @@ UNSUPPORTED_PAIRS = {
         for version in EMOD3D_VERSIONS
         for config in (realisations.Refinements, realisations.SW4Parameters)
     ),
-    (defaults.DefaultsVersion.v26_7_1Hz, realisations.Resolution),
+    *(
+        (version, realisations.Resolution)
+        for version in (
+            defaults.DefaultsVersion.v26_7_0_25Hz,
+            defaults.DefaultsVersion.v26_7_0_5Hz,
+            defaults.DefaultsVersion.v26_7_1Hz,
+        )
+    ),
 }
 
 
@@ -920,3 +1164,210 @@ def test_defaults_are_loadable(
             realisation_config.read_from_defaults(defaults_version)
     else:
         realisation_config.read_from_defaults(defaults_version)
+
+
+NZCVM_DEFAULTS_VERSIONS = [
+    version
+    for version in defaults.DefaultsVersion
+    if "nzcvm" in defaults.load_defaults(version)
+]
+
+
+@pytest.mark.parametrize("defaults_version", NZCVM_DEFAULTS_VERSIONS)
+def test_nzcvm_defaults_are_nzcvm_layers(
+    defaults_version: defaults.DefaultsVersion,
+) -> None:
+    # Straight through nzcvm, not NZCVMSettings, which tolerates the fields
+    # nzcvm derives: the defaults themselves must be configs nzcvm accepts.
+    from nzcvm.config.layers import LayerConfig
+
+    for layer in defaults.load_defaults(defaults_version)["nzcvm"]["layers"]:
+        LayerConfig.from_dict(layer)
+
+
+@pytest.mark.parametrize("defaults_version", NZCVM_DEFAULTS_VERSIONS)
+def test_nzcvm_settings_round_trip(
+    tmp_path: Path, defaults_version: defaults.DefaultsVersion
+) -> None:
+    settings = realisations.NZCVMSettings.read_from_defaults(defaults_version)
+    realisation_ffp = tmp_path / "realisation.json"
+    settings.write_to_realisation(realisation_ffp)
+
+    written = json.loads(realisation_ffp.read_text())["nzcvm"]
+    for layer in written["layers"]:
+        assert "provides" not in layer and "requires" not in layer
+    assert realisations.NZCVMSettings.read_from_realisation(realisation_ffp) == settings
+
+
+@pytest.mark.parametrize("defaults_version", NZCVM_DEFAULTS_VERSIONS)
+def test_nzcvm_settings_read_derived_layer_fields(
+    tmp_path: Path, defaults_version: defaults.DefaultsVersion
+) -> None:
+    # Realisations written before nzcvm 2026.10.1 carry every layer's
+    # `provides` and `requires`, as `dataclasses.asdict` wrote them.
+    settings = realisations.NZCVMSettings.read_from_defaults(defaults_version)
+    realisation_ffp = tmp_path / "realisation.json"
+    realisation_ffp.write_text(
+        json.dumps(
+            {"nzcvm": dataclasses.asdict(settings)},
+            default=realisations.path_serialiser,
+        )
+    )
+    assert realisations.NZCVMSettings.read_from_realisation(realisation_ffp) == settings
+
+
+def test_nzcvm_settings_round_trip_a_decay(tmp_path: Path) -> None:
+    from nzcvm.config.grids.terrain import SleveDecay
+
+    settings = dataclasses.replace(
+        realisations.NZCVMSettings.read_from_defaults(
+            defaults.DefaultsVersion.v26_7_1Hz
+        ),
+        decay=SleveDecay(scale=1000.0),
+    )
+    realisation_ffp = tmp_path / "realisation.json"
+    settings.write_to_realisation(realisation_ffp)
+
+    written = json.loads(realisation_ffp.read_text())["nzcvm"]
+    assert written["decay"] == {"type": "sleve", "scale": 1000.0}
+    assert realisations.NZCVMSettings.read_from_realisation(realisation_ffp) == settings
+
+
+def test_nzcvm_settings_require_an_explicit_decay(tmp_path: Path) -> None:
+    # SW4 with or without topography is never implied: `decay: null` states it.
+    settings = realisations.NZCVMSettings.read_from_defaults(
+        defaults.DefaultsVersion.v26_7_1Hz
+    )
+    written = settings.to_dict()
+    del written["decay"]
+    realisation_ffp = tmp_path / "realisation.json"
+    realisation_ffp.write_text(
+        json.dumps({"nzcvm": written}, default=realisations.path_serialiser)
+    )
+    with pytest.raises(schema.SchemaMissingKeyError, match="decay"):
+        realisations.NZCVMSettings.read_from_realisation(realisation_ffp)
+
+
+def test_velocity_model_column_order(tmp_path: Path) -> None:
+    velocity_model = realisations.VelocityModel1D(
+        model=pd.DataFrame(
+            [{"thickness": 0.1, "Vs": 2.5, "Vp": 3.5, "rho": 1.8, "Qp": 50, "Qs": 25}]
+        )
+    )
+    output_path = tmp_path / "velocity_model"
+    velocity_model.write_velocity_model(output_path)
+    assert output_path.read_text() == "1\n0.1 3.5 2.5 1.8 50 25\n"
+
+
+def test_random_seeds_bounds() -> None:
+    """Seeds are drawn from the full range of a C int: [0, 2**31 - 1]."""
+    with mock.patch.object(
+        realisations.random, "randint", return_value=7
+    ) as mock_randint:
+        seeds = realisations.Seeds.random_seeds()
+    assert mock_randint.call_count == len(dataclasses.fields(realisations.Seeds))
+    for call in mock_randint.call_args_list:
+        assert call.args == (0, 2**31 - 1)
+    assert set(seeds.to_dict().values()) == {7}
+
+
+def test_plane_source_to_dict() -> None:
+    """Plane sources serialise with a `plane` type and their corners."""
+    plane = schemas.PLANE_SCHEMA.validate(
+        {
+            "type": "plane",
+            "corners": [
+                {
+                    "latitude": -36.86797068168705,
+                    "longitude": 179.27706552534542,
+                    "depth": 12615.079012268625,
+                },
+                {
+                    "latitude": -36.96567964889889,
+                    "longitude": 179.24208519658814,
+                    "depth": 12615.079012268625,
+                },
+                {
+                    "latitude": -36.94379957660565,
+                    "longitude": 179.1474674643655,
+                    "depth": 13384.920987731375,
+                },
+                {
+                    "latitude": -36.84610827130364,
+                    "longitude": 179.18256725416285,
+                    "depth": 13384.920987731375,
+                },
+            ],
+        }
+    )
+    config_dict = SourceConfig(source_geometries={"plane": plane}).to_dict()
+    plane_dict = config_dict["source_geometries"]["plane"]
+    assert set(plane_dict) == {"type", "corners"}
+    assert plane_dict["type"] == "plane"
+    corners = np.array(
+        [
+            [corner["latitude"], corner["longitude"], corner["depth"]]
+            for corner in plane_dict["corners"]
+        ]
+    )
+    np.testing.assert_allclose(corners, plane.corners)
+
+
+def test_srf_config_to_dict_without_point_source_params() -> None:
+    """Finite-fault SRF configs have no point source parameters to serialise."""
+    srf_config = dataclasses.replace(
+        realisations.SRFConfig.read_from_defaults(defaults.DefaultsVersion.v24_2_2_1),
+        point_source_params=None,
+    )
+    assert srf_config.to_dict()["point_source_params"] is None
+
+
+@pytest.mark.parametrize(
+    "depth, expected",
+    [
+        # The domain bottom lands exactly on a layer bottom: stop at that layer.
+        (
+            5.0,
+            [
+                realisations.Refinement(resolution=50.0, bottom=2000.0),
+                realisations.Refinement(resolution=100.0, bottom=5000.0),
+            ],
+        ),
+        # A thin last layer is padded to two of its cells below the previous layer.
+        (
+            2.1,
+            [
+                realisations.Refinement(resolution=50.0, bottom=2000.0),
+                realisations.Refinement(resolution=100.0, bottom=2200.0),
+            ],
+        ),
+        # Refinements ending above the domain extend with the unbounded layer.
+        (
+            25.1,
+            [
+                realisations.Refinement(resolution=50.0, bottom=2000.0),
+                realisations.Refinement(resolution=100.0, bottom=5000.0),
+                realisations.Refinement(resolution=200.0, bottom=25000.0),
+                realisations.Refinement(resolution=400.0, bottom=25800.0),
+            ],
+        ),
+    ],
+)
+def test_refinements_for_depth(
+    depth: float, expected: list[realisations.Refinement]
+) -> None:
+    refinements = realisations.Refinements(
+        refinements=[
+            realisations.Refinement(resolution=50.0, bottom=2000.0),
+            realisations.Refinement(resolution=100.0, bottom=5000.0),
+            realisations.Refinement(resolution=200.0, bottom=25000.0),
+        ],
+        unbounded_refinement_resolution=400.0,
+    )
+    assert refinements.refinements_for_depth(depth) == expected
+
+
+def test_sw4_command_skips_none_between_parameters() -> None:
+    """A None parameter is omitted without dropping the parameters after it."""
+    command = SW4Command("block", {"vp": 1.0, "vs": None, "rho": 2.0})
+    assert command.render() == "block vp=1.0 rho=2.0"

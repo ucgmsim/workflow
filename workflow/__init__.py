@@ -3,24 +3,29 @@
 ## Overview
 The QuakeCoRE scientific workflow is composed of a number of independent components
 
-- `workflow` :: This module, which implements the Cybershake workflow. It defines a cylc workflow and scripts that researchers can use to build their own automated research pipeline using scientifically validated, regularly tested, well-documented components built from the software team.
+- `workflow` :: This module, which implements the Cybershake workflow stages: scripts that researchers can use to build their own automated research pipeline using scientifically validated, regularly tested, well-documented components built from the software team.
 - `source_modelling` :: A collection of modules for modelling sources.
 - `velocity_modelling` :: The next-generation velocity model.
 - `qcore` :: Utilities and common functions.
 
 ## Using the Workflow
 
-To deploy the workflow on NeSI, first clone the repository and then install the cylc workflow
+This repository provides the workflow's stages, not a workflow to run them in.
+Each stage is a command installed with the package (and in the cybershake
+container, see below), so a workflow is a sequence of these commands, run by
+hand, from a script, or as tasks in a workflow manager such as cylc. For a
+complete cylc workflow built from these stages, see the `flow.cylc` in
+[realtime_simulation_workflow](https://github.com/ucgmsim/realtime_simulation_workflow).
+
+To run a cylc workflow on NeSI, first run `cylc/workflow-setup` from this
+repository to set up your account for cylc, then install and play your workflow
 
 ```
-$ git clone https://github.com/ucgmsim/workflow
-$ # add inputs into workflow/cylc/inputs
-$ cp -r workflow/cylc ~/cylc-src/cybershake # OR a suitable name for your custom workflow
-$ cylc install cybershake
+$ cylc install cybershake # OR the name of your workflow in ~/cylc-src
 $ cylc play cybershake
 ```
 
-And that's it! You can monitor the progress of your workflow with `cylc log cybershake` and `squeue -u $USER` to see the slurm job queue for your user.
+You can monitor the progress of your workflow with `cylc log cybershake` and `squeue -u $USER` to see the slurm job queue for your user.
 
 ## The Stages
 
@@ -34,14 +39,13 @@ workflow stages, their inputs, outputs and environments.
 
 ```mermaid
 flowchart LR
-    A[NSHM To Realisation] --> B[Rupture Generator Input]
-    B --> B2[Rupture Generation]
+    A[NSHM To Realisation] --> B[SRF Generation]
     A --> C[Domain Generation]
-    B2 --> D[Stoch Generation]
+    B --> D[Stoch Generation]
     C --> E[Velocity Model Generation]
     C --> F[Station Selection]
     C --> G[Write Model Coordinates]
-    B2 --> H[Create EMOD3D Parameters]
+    B --> H[Create EMOD3D Parameters]
     E --> H
     F --> H
     G --> H
@@ -62,8 +66,7 @@ To find the documentation for a given stage, find the module that runs this stag
 | Stage                         | Module                                                |
 |:------------------------------|:------------------------------------------------------|
 | NSHM to Realisation           | `workflow.scripts.nshm2022_to_realisation`            |
-| Rupture Generator Input       | `workflow.scripts.rupture_input_template`             |
-| Rupture Generation            | See below.                                            |
+| SRF Generation                | `workflow.scripts.realisation_to_srf`                 |
 | Domain Generation             | `workflow.scripts.generate_velocity_model_parameters` |
 | Stoch Generation              | `workflow.scripts.generate_stoch`                     |
 | Velocity Model Generation     | `workflow.scripts.generate_velocity_model`            |
