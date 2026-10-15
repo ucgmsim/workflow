@@ -1409,9 +1409,7 @@ class SW4Command:
 
     name: str
     """The SW4 command name (e.g. `attenuation`, `supergrid`, `imagehdf5`)."""
-    parameters: dict[str, Any] = dataclasses.field(
-        default_factory=dict
-    )
+    parameters: dict[str, Any] = dataclasses.field(default_factory=dict)
     """The command's key=value parameters. None values are omitted."""
 
     def render(self) -> str:
