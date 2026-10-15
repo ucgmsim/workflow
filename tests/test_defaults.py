@@ -14,7 +14,7 @@ class _RecordingTraversable:
         self._wrapped = wrapped
         self._calls = calls
 
-    def __truediv__(self, name: str) -> "_RecordingTraversable":
+    def __truediv__(self, name: str) -> _RecordingTraversable:
         return _RecordingTraversable(self._wrapped / name, self._calls)
 
     def open(self, *args: Any, **kwargs: Any) -> Any:

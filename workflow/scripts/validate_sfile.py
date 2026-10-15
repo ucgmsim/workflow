@@ -118,7 +118,7 @@ class Finding:
     """Name of the check that produced this finding, filled in by `validate`."""
 
     @classmethod
-    def error(cls, message: str, **context: Any) -> "Finding":
+    def error(cls, message: str, **context: Any) -> Finding:
         """Record that the model is unusable.
 
         Parameters
@@ -136,7 +136,7 @@ class Finding:
         return cls(Severity.ERROR, message, context)
 
     @classmethod
-    def warn(cls, message: str, **context: Any) -> "Finding":
+    def warn(cls, message: str, **context: Any) -> Finding:
         """Record that the model is usable but suspicious.
 
         Parameters
@@ -154,7 +154,7 @@ class Finding:
         return cls(Severity.WARN, message, context)
 
     @classmethod
-    def info(cls, message: str, **context: Any) -> "Finding":
+    def info(cls, message: str, **context: Any) -> Finding:
         """Record a measurement of the model.
 
         Parameters
@@ -172,7 +172,7 @@ class Finding:
         return cls(Severity.INFO, message, context)
 
     @classmethod
-    def skip(cls, message: str, **context: Any) -> "Finding":
+    def skip(cls, message: str, **context: Any) -> Finding:
         """Record that a check could not run.
 
         Parameters
