@@ -214,6 +214,77 @@ srf:
     risetimefac: 1.0
     risetimedep: 0.0
     inittime: 0.0
+# The rupture generator's own tables, read by create-rupture-input and passed to it
+# unchanged. They restate `srf:` above, the genslip v5.6.2 flags realisation-to-srf
+# passes, in the generator's terms; the genslip flag each value stands for is named
+# beside it. The geometry, hypocentre, medium, magnitudes, rakes, causality tree and seed
+# come from the rest of the realisation, and the rupture-speed profile from
+# `rupture_velocity:`, as genslip had them.
+rupture_generation:
+  # srf.resolution.
+  spacing_km: 0.1
+  # kmodel=2, Mai & Beroza (2002): genslip's 10^(0.5 Mw - 2.5) km along strike and
+  # 10^(0.3333 Mw - 1.5) km down dip. genslip filters its spectrum with (1 + k^2 a^2)
+  # in cycles per km, where the generator's correlation C(r/a) has the spectrum
+  # (1 + 4 pi^2 k^2 a^2), so genslip's patches are 2 pi smaller than its lengths say.
+  # Each offset carries log10(2 pi) = 0.79818 to draw the patches genslip drew.
+  correlation:
+    strike_exponent: 0.5
+    strike_offset: 3.298179868358115
+    dip_exponent: 0.3333
+    dip_offset: 2.298179868358115
+  slip:
+    # slip_sigma. genslip clips a normal field at zero (truncate_zero_slip); this
+    # draws from a normal truncated at zero with the same spread, so no subfault
+    # has zero slip.
+    family: truncated_normal
+    coefficient_of_variation: 0.75
+    side_taper: 0.02
+    top_taper: 0.0
+    bottom_taper: 0.0
+  rise:
+    coefficient: 1.6  # risetime_coef
+    correlation: 0.9  # rtime1_scor
+    slip_exponent: 0.5  # rtime2slip_exp
+    # rtime1_sigma, which defaults to slip_sigma. genslip clips this field at zero
+    # too, and floors the zeros to a one-sample pulse; as for slip, this draws from a
+    # normal truncated at zero with the same spread instead.
+    family: truncated_normal
+    coefficient_of_variation: 0.75
+    # risetimefac and deep_risetimefac across risetimedep +/- risetimedep_range and
+    # deep_risetimedep +/- deep_risetimedep_range.
+    factor:
+      type: profile
+      depth_km: [5.0, 8.0, 15.0, 20.0]
+      values: [2.0, 1.0, 1.0, 2.0]
+    # rtime1_depth +/- rtime1_depth_range, which default to beta_shal_depth and
+    # beta_shal_depth_range: rise time follows slip exactly above 1 km, and is only
+    # correlated with it below 3 km.
+    slip_weight:
+      type: ramp
+      centre_km: 2.0
+      half_width_km: 1.0
+      shallow: 0.0
+      deep: 1.0
+  rake:
+    sigma_deg: 15.0  # rake_sigma
+  perturbation:
+    offset_s: 0.1  # -tsfac_bzero
+    coefficient: 0.5  # -tsfac_slope
+    correlation: 0.8  # tsfac1_scor
+    # How far the front travels before it carries the full displacement, in units of
+    # its spread. genslip has no counterpart: its displacement starts at full strength
+    # at the hypocentre.
+    blend_sigma: 4.0
+  pulse:
+    dt_s: 0.005  # srf.dt
+    # genslip's default stype, OliuP2, the Liu-Archuleta-Hartzell pulse with beta_shal,
+    # beta_mid and beta_deep across beta_shal_depth +/- beta_shal_depth_range and
+    # beta_mid_depth +/- beta_mid_depth_range.
+    beta:
+      type: profile
+      depth_km: [1.0, 3.0, 5.0, 8.0]
+      values: [0.5, 0.13, 0.13, 0.13]
 nzcvm:
   surface: /nzcvm/resources/dem.zarr
   # SW4 runs with topography. Set a decay (e.g. `{type: sleve, scale: 1000.0}`)

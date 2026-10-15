@@ -228,7 +228,7 @@ class RealisationConfiguration(ABC):
         realisation_ffp = Path(realisation_ffp)
         try:
             return cls.read_from_realisation(realisation_ffp)
-        except (RealisationParseError, FileNotFoundError):
+        except RealisationParseError, FileNotFoundError:
             default_config = cls.read_from_defaults(defaults_version)
             default_config.write_to_realisation(realisation_ffp)
             return default_config
@@ -333,7 +333,7 @@ class Seeds(RealisationConfiguration):
         """
         try:
             return cls.read_from_realisation(realisation_ffp)
-        except (RealisationParseError, FileNotFoundError):
+        except RealisationParseError, FileNotFoundError:
             config = cls.random_seeds()
             config.write_to_realisation(realisation_ffp)
             return config
@@ -684,6 +684,46 @@ class SRFConfig(RealisationConfiguration):
 
 
 @dataclasses.dataclass
+class RuptureGenerationConfig(RealisationConfiguration):
+    """Kinematic rupture generation with the `rupture_generator` package.
+
+    The successor to :class:`SRFConfig`, which drives genslip and stays alongside it
+    until the genslip path is retired. Its defaults are the `srf` defaults restated in
+    the generator's terms.
+
+    **Mirrors `rupture_generator.config.RuptureConfig` table for table**: each group here
+    is that file's table of the same name, deserialised by the generator's own strict
+    decoder rather than translated. Keep it that way: a translation layer between two
+    descriptions of the same physics is the thing that drifts.
+
+    The tables of that file this one does *not* carry are the ones the realisation
+    already knows. `geometry`, `hypocentre`, `medium`, `source` (the per-fault
+    magnitudes and rakes), `propagation` (the causality tree) and the seed all come from
+    other sections. So does `speed`: genslip read the rupture-speed profile from
+    :class:`RuptureVelocity`, which `hf-sim` shares. All of them are injected by
+    `create-rupture-input`.
+    """
+
+    _config_key: ClassVar[str] = "rupture_generation"
+    _schema: ClassVar[Schema] = schemas.RUPTURE_GENERATION_SCHEMA
+
+    spacing_km: float
+    """Subfault size (km). Different, in general, from the simulation resolution."""
+    correlation: dict[str, Any]
+    """Slip correlation lengths against magnitude. The generator's `[source.correlation]`."""
+    slip: dict[str, Any]
+    """The slip field. The generator's `[slip]`."""
+    rise: dict[str, Any]
+    """Rise time. The generator's `[rise]`."""
+    rake: dict[str, Any]
+    """Rake. The generator's `[rake]`."""
+    perturbation: dict[str, Any]
+    """Onset displacement off the coherent front. The generator's `[perturbation]`."""
+    pulse: dict[str, Any]
+    """Slip-rate sampling and shape. The generator's `[pulse]`."""
+
+
+@dataclasses.dataclass
 class Rakes(RealisationConfiguration):
     """Configuration for fault rakes."""
 
@@ -1016,13 +1056,13 @@ class NZCVMSettings(RealisationConfiguration):
     _config_key: ClassVar[str] = "nzcvm"
     _schema: ClassVar[Schema] = schemas.NZCVM_SCHEMA
 
-    layers: list["LayerConfig"]
+    layers: list[LayerConfig]
     """nzcvm layer config"""
     chunks: dict[Coordinate, int]
     """nzcvm chunk configuration"""
     surface: Path
     """nzcvm DEM surface"""
-    decay: "Decay | None"
+    decay: Decay | None
     """The SW4 grid's terrain decay: None for SW4 with topography, any decay
     for SW4 without topography, on the flat nominal model."""
 
@@ -1451,7 +1491,7 @@ class SW4Command:
             parts.append(f"{key}={value}")
         return " ".join(parts)
 
-    def merged(self, **overrides: str | float | bool | None) -> "SW4Command":
+    def merged(self, **overrides: str | float | bool | None) -> SW4Command:
         """Return a copy of this command with `overrides` merged into its parameters.
 
         Parameters
@@ -1661,7 +1701,7 @@ def append_log_entry(realisation_ffp: Path | str) -> None:
     try:
         log_trail = LogTrail.read_from_realisation(realisation_ffp)
         log_trail.log_entry(utility, args)
-    except (RealisationParseError, FileNotFoundError):
+    except RealisationParseError, FileNotFoundError:
         log_trail = LogTrail(log=[log_entry])
 
     log_trail.write_to_realisation(realisation_ffp)

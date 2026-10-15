@@ -78,7 +78,7 @@ class PointSourceParams:
     """Initial time for generic_slip2srf"""
 
     @classmethod
-    def from_dict(cls, params_dict: dict) -> "PointSourceParams":
+    def from_dict(cls, params_dict: dict) -> PointSourceParams:
         """Create PointSourceParams from a dictionary.
 
         This class method is necessary because the schema library passes validated
@@ -980,7 +980,7 @@ VELOCITY_MODEL_SCHEMA = Schema(
 )
 
 
-def _build_layer(config: dict) -> "LayerConfig":
+def _build_layer(config: dict) -> LayerConfig:
     """Build a layer from a config dictionary"""
 
     # NOTE: This method exists because the LayerConfig import is relatively
@@ -1002,7 +1002,7 @@ def _build_layer(config: dict) -> "LayerConfig":
     )
 
 
-def _build_decay(config: dict) -> "Decay":
+def _build_decay(config: dict) -> Decay:
     """Build a terrain decay from a config dictionary."""
     # Imported lazily, like `LayerConfig` in `_build_layer`.
     from nzcvm.config.grids.terrain import Decay
@@ -1085,6 +1085,34 @@ REALISATION_METADATA_SCHEMA = Schema(
         Literal(
             "defaults_version", description="Simulation default parameters version."
         ): And(str, Use(DefaultsVersion)),
+    }
+)
+
+_RUPTURE_GENERATOR_TABLE = {str: object}
+"""One of the rupture generator's own tables, which its decoder checks key by key."""
+
+RUPTURE_GENERATION_SCHEMA = Schema(
+    {
+        Literal(
+            "spacing_km",
+            description="Subfault size (km). Not the simulation grid spacing.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "correlation",
+            description="Slip correlation lengths against magnitude ([source.correlation])",
+        ): _RUPTURE_GENERATOR_TABLE,
+        Literal(
+            "slip", description="The slip field ([slip])"
+        ): _RUPTURE_GENERATOR_TABLE,
+        Literal("rise", description="Rise time ([rise])"): _RUPTURE_GENERATOR_TABLE,
+        Literal("rake", description="Rake ([rake])"): _RUPTURE_GENERATOR_TABLE,
+        Literal(
+            "perturbation",
+            description="Onset displacement off the coherent front ([perturbation])",
+        ): _RUPTURE_GENERATOR_TABLE,
+        Literal(
+            "pulse", description="Slip-rate sampling and shape ([pulse])"
+        ): _RUPTURE_GENERATOR_TABLE,
     }
 )
 
