@@ -2939,8 +2939,8 @@ wheels = [
 
 [[package]]
 name = "rupture-generator"
-version = "0.0.1.dev201+g0f01a6437"
-source = { git = "https://github.com/ucgmsim/rupture_generator?rev=0f01a6437474525bad099a1ae3bdf91fa08c4bc3#0f01a6437474525bad099a1ae3bdf91fa08c4bc3" }
+version = "2026.10.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "h5netcdf", extra = ["h5py"] },
     { name = "mashumaro", extra = ["toml"] },
@@ -2949,6 +2949,13 @@ dependencies = [
     { name = "scipy" },
     { name = "ucgmsim-srf" },
     { name = "xarray" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/23/de/b49ef4ac6c6b6d54dba865ba2efe7d1be402dbb35a49349449ca24506c49/rupture_generator-2026.10.1.tar.gz", hash = "sha256:ea1ac629218250c1e1bb7c13ea4bab2c65a10a0a91ce4bdbbe3aa2afb0ac8e57", size = 3099611, upload-time = "2026-10-15T20:17:32.466Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3f/8b/7581bb454242d5dbd2d238df608153000143db715d6be0c77b6a774e9d49/rupture_generator-2026.10.1-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:33858dbf7aabb7472d3779a32e852fe2f5605f939f58941dd8e7456448760390", size = 723355, upload-time = "2026-10-15T20:17:25.989Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/ff/54b03c9052c1119bd409a737dc4560aa65ab6f08f2d5268d3ba94b3891cb/rupture_generator-2026.10.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:d6e725e49576c0216fac07ebfd1741d7e72f3dfe78aeff4f7004db7063220b03", size = 615507, upload-time = "2026-10-15T20:17:27.653Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/1f/52905caafecafaaccb455db60eb1ec07ea03d0a1c467598ef2c5135e3e2b/rupture_generator-2026.10.1-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:c630fa381b51da532dffcf2bdae0e25a7171c4607875bcb25658af05489bb4fc", size = 807728, upload-time = "2026-10-15T20:17:29.492Z" },
+    { url = "https://files.pythonhosted.org/packages/9d/00/1cbc5cfb0e3b08c76648e8d2c55f8d3917df17266ff20c6207224094e908/rupture_generator-2026.10.1-cp314-cp314-win_amd64.whl", hash = "sha256:7e8156b3f831b057f20067287e4534c44cbf9865b18deb7140539c849a01b542", size = 612169, upload-time = "2026-10-15T20:17:30.838Z" },
 ]
 
 [[package]]
@@ -3592,7 +3599,7 @@ requires-dist = [
     { name = "requests" },
     { name = "rich", specifier = ">=14.3.2" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16.5" },
-    { name = "rupture-generator", git = "https://github.com/ucgmsim/rupture_generator?rev=0f01a6437474525bad099a1ae3bdf91fa08c4bc3" },
+    { name = "rupture-generator", specifier = ">=2026.10.1" },
     { name = "schema" },
     { name = "scipy" },
     { name = "scipy-stubs", marker = "extra == 'types'" },

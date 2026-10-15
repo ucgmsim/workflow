@@ -20,7 +20,7 @@ dependencies = [
   "site-calculation>=2026.7.1",
   "source_modelling>=2026.10.2",
   "nzcvm>=2026.10.3",
-  "rupture-generator",     # Pinned in [tool.uv.sources] until its first release
+  "rupture-generator>=2026.10.1",
   # Data Formats
   "geopandas",
   "fiona",                 # Imported, undeclared, by openquake's GMMs
@@ -59,9 +59,6 @@ test = [
 ]
 types = ["pandas-stubs", "types-geopandas", "types-requests", "scipy-stubs"]
 dev = ["ruff>=0.16.5", "deptry", "ty>=0.0.75", "npdlint"]
-
-[tool.uv.sources]
-rupture-generator = { git = "https://github.com/ucgmsim/rupture_generator", rev = "0f01a6437474525bad099a1ae3bdf91fa08c4bc3" }
 
 [tool.ty.src]
 # Generated/dynamic schema definitions that ty cannot usefully analyse.
