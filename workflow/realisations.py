@@ -1409,7 +1409,7 @@ class SW4Command:
 
     name: str
     """The SW4 command name (e.g. `attenuation`, `supergrid`, `imagehdf5`)."""
-    parameters: dict[str, str | int | float | bool | None] = dataclasses.field(
+    parameters: dict[str, Any] = dataclasses.field(
         default_factory=dict
     )
     """The command's key=value parameters. None values are omitted."""
@@ -1432,7 +1432,7 @@ class SW4Command:
             parts.append(f"{key}={value}")
         return " ".join(parts)
 
-    def merged(self, **overrides: str | float | bool | None) -> "SW4Command":
+    def merged(self, **overrides: Any) -> "SW4Command":
         """Return a copy of this command with `overrides` merged into its parameters.
 
         Parameters

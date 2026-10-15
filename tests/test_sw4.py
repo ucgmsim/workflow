@@ -142,7 +142,7 @@ def test_default_topography_mapping_is_fourth_order(
         SW4Parameters.read_from_defaults(version).commands, "topography"
     )
     assert topography is not None
-    assert topography.parameters["order"] >= 4
+    assert topography.parameters["order"] >= int(4)
 
 
 def test_check_lateral_gridpoints() -> None:
