@@ -171,7 +171,7 @@ def test_tools_installed() -> None:
         "gcmt-to-realisation", "generate-domain", "realisation-to-srf", "check-srf",
         "srf-to-hdf5", "generate-stoch", "generate-station-coordinates",
         "create-nzvm-input", "nzcvm", "validate-sfile", "create-sw4-input",
-        "lf-to-xarray", "hf-sim", "bb-sim", "im-calc",
+        "lf-to-xarray", "hf-sim", "bb-sim", "im-calc", "extract-subset",
     ]  # fmt: skip
     missing = [command for command in commands if shutil.which(command) is None]
     missing += [
@@ -372,3 +372,29 @@ def test_im_calc(realisation: Path, work: Path) -> None:
     assert found_stations >= set(STATIONS)
     # im-calc only warns when an empirical model fails, so check one ran.
     assert any("/empirical/" in node.path for node in intensity_measures.subtree)
+
+
+def test_extract_subset(work: Path) -> None:
+    """The waveform and IM files cut down to a subset of stations."""
+    outputs = [
+        work / "realisation.lf",
+        work / "realisation.hf",
+        work / "realisation.bb",
+        work / "intensity_measures.h5",
+    ]
+    require(*outputs)
+    # The fixture stations are named like simulated stations, so the default
+    # (observation station) pattern would select none of them.
+    subset_stations = STATIONS[:2]
+    run(
+        "extract-subset", *outputs,
+        *(f"--pattern=^{station}$" for station in subset_stations),
+    )  # fmt: skip
+
+    for output in outputs[:3]:
+        with xr.open_dataset(output.with_stem(f"{output.stem}_subset")) as subset:
+            assert subset["station"].values.tolist() == subset_stations
+    with xr.open_datatree(work / "intensity_measures_subset.h5") as subset:
+        for node in subset.subtree:
+            if "station" in node.dataset.dims:
+                assert set(node.dataset["station"].values) == set(subset_stations)
