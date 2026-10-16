@@ -11,13 +11,13 @@ requires-python = ">=3.13"
 dynamic = ["version"]
 dependencies = [
   # UCGMSim Dependencies
-  "im-calculation>=2026.09.2",
+  "im-calculation>=2026.10.2",
   "velocity-modelling>=2026.10.1",
-  "nshmdb>=2026.09.1",
+  "nshmdb>=2026.10.1",
   "oq_wrapper>=2026.05.2",
-  "qcore-utils>=2025.12.2",
+  "qcore-utils[cli]>=2026.10.1",
   "hf-simulation>=2026.10.1",
-  "site-calculation>=2026.7.1",
+  "site-calculation>=2026.10.2",
   "source_modelling>=2026.10.2",
   "nzcvm>=2026.10.7",
   # Data Formats
@@ -60,7 +60,7 @@ dev = ["ruff>=0.16.5", "deptry", "ty>=0.0.75", "npdlint"]
 
 [tool.ty.src]
 # Generated/dynamic schema definitions that ty cannot usefully analyse.
-exclude = ["workflow/schemas.py"]
+exclude = ["workflow/schemas.py", ".claude"]
 
 [tool.deptry]
 optional_dependencies_dev_groups = ["test", "dev", "types"]
