@@ -1,8 +1,9 @@
 ---
 # The 1 Hz defaults (26.7.1Hz) at half the frequency: the same source and
-# physics, with the top 5 km at 200 m (the 1 Hz run's points per
+# physics, with the top 3 km at 200 m (the 1 Hz run's points per
 # wavelength) and 400 m below, at a tenth or so of the cost. A quick look at
-# an event. The coarsest grid matches 26.7.1Hz's, so the sponge and the
+# an event. The 200 m -> 400 m transition sits on the nzcvm Vs floor at 3 km,
+# as 26.7.1Hz's 100 m -> 200 m one does; see the floor in the root defaults. The coarsest grid matches 26.7.1Hz's, so the sponge and the
 # minimum `fault_buffer` are the same.
 bb:
   flo: 0.5
@@ -11,7 +12,7 @@ velocity_model:
   # `workflow.sw4.minimum_fault_buffer_m`.
   fault_buffer: 14.0
 refinements:
-  refinements: [{ resolution: 200.0, bottom: 5000.0 }]
+  refinements: [{ resolution: 200.0, bottom: 3000.0 }]
   unbounded_refinement_resolution: 400.0
 sw4:
   verbose: 2
