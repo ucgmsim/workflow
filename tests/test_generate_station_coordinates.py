@@ -6,8 +6,8 @@ import pandas as pd
 import pytest
 
 from qcore import coordinates
-from velocity_modelling.bounding_box import BoundingBox
 from workflow import sites
+from workflow.bounding_box import BoundingBox
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import DomainParameters, RealisationMetadata, Resolution
 from workflow.scripts import generate_station_coordinates
