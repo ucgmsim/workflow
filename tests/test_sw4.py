@@ -128,6 +128,23 @@ def test_default_prefilter_matches_hf_highpass(
     )
 
 
+@pytest.mark.parametrize("version", SW4_VERSIONS)
+def test_default_topography_mapping_is_fourth_order(
+    version: defaults.DefaultsVersion,
+) -> None:
+    """The curvilinear mapping keeps SW4's 4th-order accuracy at the zeta break.
+
+    SW4's mapping is only C^(order-1) at the break, so convergence is about
+    min(order, 4): order 3 loses an order of accuracy wherever topography
+    is non-flat.
+    """
+    topography = find_command(
+        SW4Parameters.read_from_defaults(version).commands, "topography"
+    )
+    assert topography is not None
+    assert topography.parameters["order"] >= 4
+
+
 def test_check_lateral_gridpoints() -> None:
     parameters = sw4_parameters(width=12000.0)
     # 100 km domain padded to 124 km: 100 km of interior.
