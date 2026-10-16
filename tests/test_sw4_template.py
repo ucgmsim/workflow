@@ -221,16 +221,16 @@ def test_topography_deepens_a_thin_implicit_layer(
 ) -> None:
     """The worked example in `_adjust_for_topography`.
 
-    1800 m of topography puts the curvilinear bottom at 5400 m, 400 m (two
-    200 m cells) below the 5000 m refinement. That bottom is pushed down to
-    7400 m to give the implicit layer 12 cells, while the input refinements stay
+    1200 m of topography puts the curvilinear bottom at 3600 m, 600 m (three
+    200 m cells) below the 3000 m refinement. That bottom is pushed down to
+    5400 m to give the implicit layer 12 cells, while the input refinements stay
     where they are.
     """
-    commands = render(tmp_path, domain, 30.0, topography_height=1800.0)
+    commands = render(tmp_path, domain, 30.0, topography_height=1200.0)
 
     (topography,) = commands["topography"]
-    assert float(topography["zmax"]) == pytest.approx(7400.0)
-    assert [float(r["zmax"]) for r in commands["refinement"]] == [5000.0, 25000.0]
+    assert float(topography["zmax"]) == pytest.approx(5400.0)
+    assert [float(r["zmax"]) for r in commands["refinement"]] == [3000.0, 25000.0]
 
 
 def test_velocity_model_must_cover_the_padded_grid(

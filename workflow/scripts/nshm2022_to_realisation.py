@@ -340,7 +340,8 @@ def generate_realisation(
     rakes = {
         fault_name: fault_info.rake for fault_name, fault_info in faults_info.items()
     }
-    avg_rake = np.mean(list(rakes.values()))
+    avg_rake_vector = np.mean(list(Rakes(rakes).as_vectors().values()), axis=0)
+    avg_rake = np.degrees(np.arctan2(avg_rake_vector[1], avg_rake_vector[0]))
     components = moment.find_connected_faults(
         dict(faults), separation_distance, dip_delta, min_connected_depth
     )

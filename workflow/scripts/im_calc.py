@@ -46,7 +46,6 @@ import oq_wrapper.xarray as oqwx
 import shapely
 import typer
 import xarray as xr
-from oq_wrapper.estimations import chiou_young_08_calc_z1p0, chiou_young_08_calc_z2p5
 
 from IM import ims, konno_ohmachi
 from IM.ims import IM
@@ -546,24 +545,28 @@ class SiteParameters:
         }
 
 
-def calculate_site_parameters(vs30: xr.DataArray) -> SiteParameters:
-    """Estimate site parameters from vs30.
+def read_site_parameters(broadband: xr.Dataset) -> SiteParameters:
+    """Read the site parameters `bb-sim` carries over from the site table.
 
     Parameters
     ----------
-    vs30 : xr.DataArray
-        The per-station vs30 values (m/s).
+    broadband : xr.Dataset
+        The broadband waveforms, with per-station `vs30`, `z1pt0` and
+        `z2pt5` variables.
 
     Returns
     -------
     SiteParameters
-        The site parameters, with basin depths estimated using the Chiou
-        and Youngs (2008) relations.
+        The site parameters.
     """
-    # TODO: Update these to pull in actual z1p0 values when the site database changes propagate through here.
-    z1pt0 = chiou_young_08_calc_z1p0(vs30)  # ty: ignore[invalid-argument-type]
-    z2pt5 = chiou_young_08_calc_z2p5(z1pt0)
-    return SiteParameters(vs30=vs30, z1pt0=z1pt0, z2pt5=z2pt5)
+    # One float per station; load them eagerly rather than letting them
+    # propagate as dask arrays into the distance/site coordinates.
+    return SiteParameters(
+        **{
+            field.name: broadband[field.name].astype(np.float64).load()
+            for field in dataclasses.fields(SiteParameters)
+        }
+    )
 
 
 def empirical_inputs(
@@ -780,7 +783,7 @@ def calculate_intensity_measures(
     empirical : bool, default True
         If passed, additionally estimate intensity measures from the ground
         motion models in the realisation file. Requires the broadband
-        waveforms to carry a `vs30` coordinate.
+        waveforms to carry `vs30`, `z1pt0` and `z2pt5`, as `bb-sim` writes.
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     intensity_measure_parameters = (
@@ -872,11 +875,7 @@ def calculate_intensity_measures(
     } | _supergrid_attributes(broadband, supergrid)
     site_parameters = None
     if empirical:
-        # vs30 is one float per station; load it eagerly rather than letting it
-        # propagate as a dask array into the distance/site coordinates below.
-        site_parameters = calculate_site_parameters(
-            broadband.vs30.astype(np.float64).load()
-        )
+        site_parameters = read_site_parameters(broadband)
 
         empirical_parameters = EmpiricalParameters.read_from_realisation_or_defaults(
             realisation_ffp, metadata.defaults_version

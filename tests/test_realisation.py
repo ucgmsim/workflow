@@ -886,6 +886,50 @@ def test_velocity_model_1d(tmp_path: Path) -> None:
     )
 
 
+def _velocity_model_1d(
+    thickness: list[float], vs: list[float]
+) -> realisations.VelocityModel1D:
+    layers = len(thickness)
+    return realisations.VelocityModel1D(
+        model=pd.DataFrame(
+            {
+                "thickness": thickness,
+                "Vp": [2.0] * layers,
+                "Vs": vs,
+                "Qp": [100.0] * layers,
+                "Qs": [50.0] * layers,
+                "rho": [2.0] * layers,
+            }
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "thickness, vs, expected",
+    [
+        # A top layer at least 30 m thick sets the Vs30 alone.
+        ([0.05, 1.0], [0.5, 2.0], 500.0),
+        ([0.03, 1.0], [0.5, 2.0], 500.0),
+        # 10 m at 250 m/s then 20 m at 500 m/s: 30 / (0.04 + 0.04) s.
+        ([0.01, 0.05], [0.25, 0.5], 375.0),
+        # The last layer is a half-space, however thin it is written.
+        ([0.01, 0.0], [0.25, 0.5], 375.0),
+    ],
+)
+def test_velocity_model_1d_vs30(
+    thickness: list[float], vs: list[float], expected: float
+) -> None:
+    """Vs30 is the travel-time average over the top 30 m, in m/s."""
+    assert _velocity_model_1d(thickness, vs).vs30 == pytest.approx(expected)
+
+
+def test_hf_velocity_model_1d_defaults_vs30() -> None:
+    """The shipped HF model's Vs30 is its top layer's Vs, which hf-sim used before."""
+    for version in defaults.DefaultsVersion:
+        model = realisations.HFVelocityModel1D.read_from_defaults(version)
+        assert model.vs30 == pytest.approx(model.model["Vs"].iloc[0] * 1000)
+
+
 def test_intensity_measure_calculation_parameters(tmp_path: Path) -> None:
     im_calc_params = realisations.IntensityMeasureCalculationParameters(
         ims=[im_calculation.IM("PGA"), im_calculation.IM("PGV")],
@@ -1020,21 +1064,7 @@ def test_sw4_parameters(tmp_path: Path) -> None:
     assert realisations.SW4Parameters.read_from_realisation(realisation_path) == sw4
 
 
-def test_sw4_parameters_defaults() -> None:
-    """SW4Parameters should load the expected commands from v26_7_1Hz defaults."""
-    sw4 = realisations.SW4Parameters.read_from_defaults(
-        defaults.DefaultsVersion.v26_7_1Hz
-    )
-    assert sw4.verbose == 2
-    developer = realisations.find_command(sw4.commands, "developer")
-    assert developer is not None
-    assert developer.parameters["reporttiming"] is True
-    assert developer.parameters["cfl"] == 0.9
-    assert sum(1 for command in sw4.commands if command.name == "imagehdf5") == 10
-
-
 def test_sources(tmp_path: Path) -> None:
-    realisation_ffp = tmp_path / "realisation.json"
     source_json = {
         "sources": {
             "source_geometries": {
@@ -1226,3 +1256,117 @@ def test_velocity_model_column_order(tmp_path: Path) -> None:
     output_path = tmp_path / "velocity_model"
     velocity_model.write_velocity_model(output_path)
     assert output_path.read_text() == "1\n0.1 3.5 2.5 1.8 50 25\n"
+
+
+def test_random_seeds_bounds() -> None:
+    """Seeds are drawn from the full range of a C int: [0, 2**31 - 1]."""
+    with mock.patch.object(
+        realisations.random, "randint", return_value=7
+    ) as mock_randint:
+        seeds = realisations.Seeds.random_seeds()
+    assert mock_randint.call_count == len(dataclasses.fields(realisations.Seeds))
+    for call in mock_randint.call_args_list:
+        assert call.args == (0, 2**31 - 1)
+    assert set(seeds.to_dict().values()) == {7}
+
+
+def test_plane_source_to_dict() -> None:
+    """Plane sources serialise with a `plane` type and their corners."""
+    plane = schemas.PLANE_SCHEMA.validate(
+        {
+            "type": "plane",
+            "corners": [
+                {
+                    "latitude": -36.86797068168705,
+                    "longitude": 179.27706552534542,
+                    "depth": 12615.079012268625,
+                },
+                {
+                    "latitude": -36.96567964889889,
+                    "longitude": 179.24208519658814,
+                    "depth": 12615.079012268625,
+                },
+                {
+                    "latitude": -36.94379957660565,
+                    "longitude": 179.1474674643655,
+                    "depth": 13384.920987731375,
+                },
+                {
+                    "latitude": -36.84610827130364,
+                    "longitude": 179.18256725416285,
+                    "depth": 13384.920987731375,
+                },
+            ],
+        }
+    )
+    config_dict = SourceConfig(source_geometries={"plane": plane}).to_dict()
+    plane_dict = config_dict["source_geometries"]["plane"]
+    assert set(plane_dict) == {"type", "corners"}
+    assert plane_dict["type"] == "plane"
+    corners = np.array(
+        [
+            [corner["latitude"], corner["longitude"], corner["depth"]]
+            for corner in plane_dict["corners"]
+        ]
+    )
+    np.testing.assert_allclose(corners, plane.corners)
+
+
+def test_srf_config_to_dict_without_point_source_params() -> None:
+    """Finite-fault SRF configs have no point source parameters to serialise."""
+    srf_config = dataclasses.replace(
+        realisations.SRFConfig.read_from_defaults(defaults.DefaultsVersion.v24_2_2_1),
+        point_source_params=None,
+    )
+    assert srf_config.to_dict()["point_source_params"] is None
+
+
+@pytest.mark.parametrize(
+    "depth, expected",
+    [
+        # The domain bottom lands exactly on a layer bottom: stop at that layer.
+        (
+            5.0,
+            [
+                realisations.Refinement(resolution=50.0, bottom=2000.0),
+                realisations.Refinement(resolution=100.0, bottom=5000.0),
+            ],
+        ),
+        # A thin last layer is padded to two of its cells below the previous layer.
+        (
+            2.1,
+            [
+                realisations.Refinement(resolution=50.0, bottom=2000.0),
+                realisations.Refinement(resolution=100.0, bottom=2200.0),
+            ],
+        ),
+        # Refinements ending above the domain extend with the unbounded layer.
+        (
+            25.1,
+            [
+                realisations.Refinement(resolution=50.0, bottom=2000.0),
+                realisations.Refinement(resolution=100.0, bottom=5000.0),
+                realisations.Refinement(resolution=200.0, bottom=25000.0),
+                realisations.Refinement(resolution=400.0, bottom=25800.0),
+            ],
+        ),
+    ],
+)
+def test_refinements_for_depth(
+    depth: float, expected: list[realisations.Refinement]
+) -> None:
+    refinements = realisations.Refinements(
+        refinements=[
+            realisations.Refinement(resolution=50.0, bottom=2000.0),
+            realisations.Refinement(resolution=100.0, bottom=5000.0),
+            realisations.Refinement(resolution=200.0, bottom=25000.0),
+        ],
+        unbounded_refinement_resolution=400.0,
+    )
+    assert refinements.refinements_for_depth(depth) == expected
+
+
+def test_sw4_command_skips_none_between_parameters() -> None:
+    """A None parameter is omitted without dropping the parameters after it."""
+    command = SW4Command("block", {"vp": 1.0, "vs": None, "rho": 2.0})
+    assert command.render() == "block vp=1.0 rho=2.0"

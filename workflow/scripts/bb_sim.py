@@ -9,13 +9,14 @@ Inputs
 1. A realisation file containing:
    - Realisation metadata,
    - Domain parameters.
-2. Stations VS30 reference values,
+2. A site table of the simulated stations (`stations.parquet`, see `workflow.sites`),
 3. Low frequency waveform file,
 4. High frequency waveform file.
 
 Outputs
 -------
-An output broadband file in the HDF5 format.
+An output broadband file in the HDF5 format, carrying each station's `vs30`, `z1pt0`
+and `z2pt5` alongside its waveform.
 
 Environment
 -----------
@@ -27,7 +28,7 @@ running on your own computer, you need to configure a work directory
 
 Usage
 -----
-`bb-sim REALISATION_FFP STATION_VS30_FFP LOW_FREQUENCY_WAVEFORM_FILE HIGH_FREQUENCY_WAVEFORM_FILE OUTPUT_FFP`
+`bb-sim REALISATION_FFP SITES_FFP LOW_FREQUENCY_WAVEFORM_FILE HIGH_FREQUENCY_WAVEFORM_FILE OUTPUT_FFP`
 
 For More Help
 -------------
@@ -44,9 +45,9 @@ import scipy as sp
 import typer
 import xarray as xr
 
-from qcore import cli, timeseries
+from qcore import cli
 from site_calculation import amplification
-from workflow import log_utils, realisations, sw4
+from workflow import log_utils, realisations, sites, sw4
 from workflow.realisations import BroadbandParameters, RealisationMetadata
 from workflow.schemas import SiteAmpModel
 
@@ -184,9 +185,9 @@ def _broadband_component(
     hf = amplification.amplify_waveform(component["hf"].values, amp, n_fft)
     lf = component["lf"].values
     if filter_legs in (FilterLeg.HF, FilterLeg.BOTH):
-        hf = timeseries.bwfilter(hf, dt, config.flo, timeseries.Band.HIGHPASS)
+        hf = amplification.bwfilter(hf, dt, config.flo, amplification.Band.HIGHPASS)
     if filter_legs in (FilterLeg.LF, FilterLeg.BOTH):
-        lf = timeseries.bwfilter(lf, dt, config.flo, timeseries.Band.LOWPASS)
+        lf = amplification.bwfilter(lf, dt, config.flo, amplification.Band.LOWPASS)
     bb = component["lf"].copy(data=((hf + lf) * G).astype(np.float32))
     return bb.to_dataset(name="waveform")
 
@@ -226,7 +227,7 @@ def _process_bb_chunk(
 @log_utils.log_call()
 def combine_hf_and_lf(
     realisation_ffp: Annotated[Path, typer.Argument(dir_okay=False, exists=True)],
-    station_vs30_ffp: Annotated[Path, typer.Argument(dir_okay=False, exists=True)],
+    sites_ffp: Annotated[Path, typer.Argument(dir_okay=False, exists=True)],
     low_frequency_waveform_file: Annotated[
         Path, typer.Argument(dir_okay=False, exists=True)
     ],
@@ -242,8 +243,8 @@ def combine_hf_and_lf(
     ----------
     realisation_ffp : Path
         Path to the realisation file containing parameters for the simulation.
-    station_vs30_ffp : Path
-        Path to the file containing VS30 reference values for stations.
+    sites_ffp : Path
+        Path to the site table of the simulated stations (see `workflow.sites`).
     low_frequency_waveform_file : Path
         File containing low-frequency waveform data.
     high_frequency_waveform_file : Path
@@ -298,17 +299,14 @@ def combine_hf_and_lf(
 
     lf_waveform, hf_waveform = _align_datasets(lf, hf, bb_dt)
 
-    vs30_df = pd.read_csv(
-        station_vs30_ffp,
-        sep=r"\s+",
-        header=None,
-        names=["station", "vsite"],
-    ).set_index("station")
-    vs30 = xr.DataArray(
-        vs30_df.loc[common_stations, "vsite"].to_numpy(np.float32),
-        dims="station",
-        coords={"station": common_stations},
-    ).chunk(station=n_stations)
+    site_parameters = (
+        sites.read_sites(sites_ffp)
+        .loc[common_stations, ["vs30", "z1pt0", "z2pt5"]]
+        .astype(np.float32)
+        .to_xarray()
+        .chunk(station=n_stations)
+    )
+    vs30 = site_parameters["vs30"]
     # The Vs30 the HF waveforms are amplified from, as recorded by hf-sim.
     vs30_sim = hf["vref"]
 
@@ -341,7 +339,7 @@ def combine_hf_and_lf(
         if name in lf.attrs
     }
     bb = xr.Dataset(
-        {"waveform": bb_waveform, "vs30": vs30},
+        {"waveform": bb_waveform} | dict(site_parameters.data_vars),
         coords={
             "latitude": ("station", lf["latitude"].values),
             "longitude": ("station", lf["longitude"].values),

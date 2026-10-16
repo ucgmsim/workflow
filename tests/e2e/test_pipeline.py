@@ -40,6 +40,7 @@ from pathlib import Path
 
 import h5py
 import numpy as np
+import pandas as pd
 import pytest
 import xarray as xr
 
@@ -130,6 +131,14 @@ def realisation(work: Path) -> Path:
 
 
 @pytest.fixture(scope="module")
+def site_table(work: Path) -> Path:
+    """The fixture stations' site table, as the parquet the pipeline reads."""
+    sites = work / "sites.parquet"
+    pd.read_csv(DATA / "sites.csv", index_col="station").to_parquet(sites)
+    return sites
+
+
+@pytest.fixture(scope="module")
 def nzcvm_data_root(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """NZCVM's synthetic data root, laid out like the real one.
 
@@ -162,7 +171,7 @@ def test_tools_installed() -> None:
         "gcmt-to-realisation", "generate-domain", "realisation-to-srf", "check-srf",
         "srf-to-hdf5", "generate-stoch", "generate-station-coordinates",
         "create-nzvm-input", "nzcvm", "validate-sfile", "create-sw4-input",
-        "lf-to-xarray", "hf-sim", "bb-sim", "im-calc",
+        "lf-to-xarray", "hf-sim", "bb-sim", "im-calc", "extract-subset",
     ]  # fmt: skip
     missing = [command for command in commands if shutil.which(command) is None]
     missing += [
@@ -253,27 +262,30 @@ def test_srf_to_hdf5(work: Path) -> None:
 
 
 def test_generate_stoch(realisation: Path, work: Path) -> None:
-    """The stoch file the HF simulation reads."""
+    """The stoch slip model the HF simulation reads."""
     require(work / "realisation.srf")
     run(
         "generate-stoch",
         realisation,
         work / "realisation.srf",
-        work / "realisation.stoch",
+        work / "stoch.h5",
     )
 
 
-def test_generate_station_coordinates(realisation: Path, work: Path) -> None:
-    """Every fixture station lands in the domain and in SW4's station file."""
+def test_generate_station_coordinates(
+    realisation: Path, work: Path, site_table: Path
+) -> None:
+    """Every fixture station lands in the domain, SW4's station file and the site table."""
     require_domain(realisation)
     stations = work / "stations"
     stations.mkdir()
     run(
-        "generate-station-coordinates", realisation, DATA / "stations.ll", stations,
+        "generate-station-coordinates", realisation, site_table, stations,
         "--format", "sw4",
     )  # fmt: skip
     with h5py.File(stations / "stations.h5") as handle:
         assert sorted(handle) == STATIONS
+    assert sorted(pd.read_parquet(stations / "stations.parquet").index) == STATIONS
 
 
 def test_velocity_model(realisation: Path, work: Path) -> None:
@@ -318,24 +330,29 @@ def test_lf_to_xarray(work: Path) -> None:
 
 def test_hf_sim(realisation: Path, work: Path) -> None:
     """The stochastic HF simulation at every station."""
-    require(work / "realisation.stoch", work / "stations/stations.ll")
+    require(work / "stoch.h5", work / "stations/stations.parquet")
     run(
-        "hf-sim", realisation, work / "realisation.stoch", work / "stations/stations.ll",
+        "hf-sim", realisation, work / "stoch.h5", work / "stations/stations.parquet",
         work / "realisation.hf",
     )  # fmt: skip
 
 
 def test_bb_sim(realisation: Path, work: Path) -> None:
     """LF and HF merge into broadband, as SW4 runs do (LF prefiltered)."""
-    require(work / "realisation.lf", work / "realisation.hf")
+    require(
+        work / "realisation.lf",
+        work / "realisation.hf",
+        work / "stations/stations.parquet",
+    )
     run(
-        "bb-sim", realisation, DATA / "stations.vs30", work / "realisation.lf",
-        work / "realisation.hf", work / "realisation.bb", "--filter", "hf",
+        "bb-sim", realisation, work / "stations/stations.parquet",
+        work / "realisation.lf", work / "realisation.hf", work / "realisation.bb",
+        "--filter", "hf",
     )  # fmt: skip
 
 
 def test_im_calc(realisation: Path, work: Path) -> None:
-    """Intensity measures for every station, all finite."""
+    """Intensity measures for every station, all finite, with empirical estimates."""
     require(work / "realisation.bb")
     ko_matrices = work / "ko_matrices"
     ko_matrices.mkdir()
@@ -353,3 +370,31 @@ def test_im_calc(realisation: Path, work: Path) -> None:
         if "station" in node.dataset.coords:
             found_stations.update(node.dataset.coords["station"].values.tolist())
     assert found_stations >= set(STATIONS)
+    # im-calc only warns when an empirical model fails, so check one ran.
+    assert any("/empirical/" in node.path for node in intensity_measures.subtree)
+
+
+def test_extract_subset(work: Path) -> None:
+    """The waveform and IM files cut down to a subset of stations."""
+    outputs = [
+        work / "realisation.lf",
+        work / "realisation.hf",
+        work / "realisation.bb",
+        work / "intensity_measures.h5",
+    ]
+    require(*outputs)
+    # The fixture stations are named like simulated stations, so the default
+    # (observation station) pattern would select none of them.
+    subset_stations = STATIONS[:2]
+    run(
+        "extract-subset", *outputs,
+        *(f"--pattern=^{station}$" for station in subset_stations),
+    )  # fmt: skip
+
+    for output in outputs[:3]:
+        with xr.open_dataset(output.with_stem(f"{output.stem}_subset")) as subset:
+            assert subset["station"].values.tolist() == subset_stations
+    with xr.open_datatree(work / "intensity_measures_subset.h5") as subset:
+        for node in subset.subtree:
+            if "station" in node.dataset.dims:
+                assert set(node.dataset["station"].values) == set(subset_stations)
