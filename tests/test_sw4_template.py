@@ -15,8 +15,8 @@ import pytest
 from nzcvm.config.grids.terrain import Decay, SleveDecay
 from nzcvm.formats import sfile
 
-from velocity_modelling.bounding_box import BoundingBox
 from workflow import defaults, sw4
+from workflow.bounding_box import BoundingBox
 from workflow.realisations import (
     DomainParameters,
     NZCVMSettings,
