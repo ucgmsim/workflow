@@ -392,8 +392,18 @@ def test_extract_subset(work: Path) -> None:
     )  # fmt: skip
 
     for output in outputs[:3]:
-        with xr.open_dataset(output.with_stem(f"{output.stem}_subset")) as subset:
-            assert subset["station"].values.tolist() == subset_stations
+        with (
+            xr.open_dataset(output) as original,
+            xr.open_dataset(output.with_stem(f"{output.stem}_subset")) as subset,
+        ):
+            # The pipeline doesn't fix the station order in its outputs, so
+            # expect the original file's order rather than STATIONS'.
+            expected = [
+                station
+                for station in original["station"].values.tolist()
+                if station in subset_stations
+            ]
+            assert subset["station"].values.tolist() == expected
     with xr.open_datatree(work / "intensity_measures_subset.h5") as subset:
         for node in subset.subtree:
             if "station" in node.dataset.dims:
