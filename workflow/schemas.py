@@ -1088,6 +1088,38 @@ REALISATION_METADATA_SCHEMA = Schema(
     }
 )
 
+_RUPTURE_GENERATOR_TABLE = {str: object}
+"""One of the rupture generator's own tables, which its decoder checks key by key."""
+
+RUPTURE_GENERATION_SCHEMA = Schema(
+    {
+        Literal(
+            "spacing_km",
+            description="Subfault size (km). Not the simulation grid spacing.",
+        ): And(NUMBER, _is_positive),
+        Literal(
+            "correlation",
+            description="Slip correlation lengths against magnitude ([source.correlation])",
+        ): _RUPTURE_GENERATOR_TABLE,
+        Literal(
+            "slip", description="The slip field ([slip])"
+        ): _RUPTURE_GENERATOR_TABLE,
+        Literal("rise", description="Rise time ([rise])"): _RUPTURE_GENERATOR_TABLE,
+        Literal("rake", description="Rake ([rake])"): _RUPTURE_GENERATOR_TABLE,
+        Literal(
+            "perturbation",
+            description="Onset displacement off the coherent front ([perturbation])",
+        ): _RUPTURE_GENERATOR_TABLE,
+        Literal(
+            "pulse", description="Slip-rate sampling and shape ([pulse])"
+        ): _RUPTURE_GENERATOR_TABLE,
+        Literal(
+            "jump",
+            description="How readily the rupture crosses between faults ([propagation.model])",
+        ): _RUPTURE_GENERATOR_TABLE,
+    }
+)
+
 HF_CONFIG_SCHEMA = Schema(
     {
         Literal(

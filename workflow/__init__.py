@@ -67,6 +67,7 @@ To find the documentation for a given stage, find the module that runs this stag
 |:------------------------------|:------------------------------------------------------|
 | NSHM to Realisation           | `workflow.scripts.nshm2022_to_realisation`            |
 | SRF Generation                | `workflow.scripts.realisation_to_srf`                 |
+| SRF Generation (successor)    | `workflow.scripts.rupture_input`                      |
 | Domain Generation             | `workflow.scripts.generate_velocity_model_parameters` |
 | Stoch Generation              | `workflow.scripts.generate_stoch`                     |
 | Velocity Model Generation     | `workflow.scripts.generate_velocity_model`            |

@@ -684,6 +684,48 @@ class SRFConfig(RealisationConfiguration):
 
 
 @dataclasses.dataclass
+class RuptureGenerationConfig(RealisationConfiguration):
+    """Kinematic rupture generation with the `rupture_generator` package.
+
+    The successor to :class:`SRFConfig`, which drives genslip and stays alongside it
+    until the genslip path is retired. Its defaults are the `srf` defaults restated in
+    the generator's terms.
+
+    **Mirrors `rupture_generator.config.RuptureConfig` table for table**: each group here
+    is that file's table of the same name, deserialised by the generator's own strict
+    decoder rather than translated. Keep it that way: a translation layer between two
+    descriptions of the same physics is the thing that drifts.
+
+    The tables of that file this one does *not* carry are the ones the realisation
+    already knows. `geometry`, `hypocentre`, `medium`, `source` (the per-fault
+    magnitudes and rakes), `propagation` (the causality tree) and the seed all come from
+    other sections. So does `speed`: genslip read the rupture-speed profile from
+    :class:`RuptureVelocity`, which `hf-sim` shares. All of them are injected by
+    `create-rupture-input`.
+    """
+
+    _config_key: ClassVar[str] = "rupture_generation"
+    _schema: ClassVar[Schema] = schemas.RUPTURE_GENERATION_SCHEMA
+
+    spacing_km: float
+    """Subfault size (km). Different, in general, from the simulation resolution."""
+    correlation: dict[str, Any]
+    """Slip correlation lengths against magnitude. The generator's `[source.correlation]`."""
+    slip: dict[str, Any]
+    """The slip field. The generator's `[slip]`."""
+    rise: dict[str, Any]
+    """Rise time. The generator's `[rise]`."""
+    rake: dict[str, Any]
+    """Rake. The generator's `[rake]`."""
+    perturbation: dict[str, Any]
+    """Onset displacement off the coherent front. The generator's `[perturbation]`."""
+    pulse: dict[str, Any]
+    """Slip-rate sampling and shape. The generator's `[pulse]`."""
+    jump: dict[str, Any]
+    """How readily the rupture crosses between faults. The generator's `[propagation.model]`."""
+
+
+@dataclasses.dataclass
 class Rakes(RealisationConfiguration):
     """Configuration for fault rakes."""
 

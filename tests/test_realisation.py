@@ -1140,6 +1140,7 @@ UNSUPPORTED_PAIRS = {
         realisations.EMOD3DParameters,
         realisations.HFConfig,
         realisations.SRFConfig,
+        realisations.RuptureGenerationConfig,
         realisations.VelocityModelParameters,
         realisations.BroadbandParameters,
         realisations.VelocityModel1D,
