@@ -319,6 +319,13 @@ nzcvm:
           # velocity model (limited to small regions offshore, and the under
           # constrained Palmerston North Pliocene) for a ~30% reduction in
           # SW4 grid points.
+          # Every SW4 version refines by one rule: below this floor a grid
+          # of h = 1600 / (8 f) keeps 8 PPW (200 m at 1 Hz, 400 m at 0.5 Hz,
+          # capped at the shared 400 m coarsest grid), and above it the grid
+          # is the 1 Hz run's 100 m scaled by 1 / f. So each version's
+          # fine-to-coarse transition sits at this floor's 3000 m; move the
+          # floor and the refinements move with it. `tests/test_sw4.py`
+          # checks this.
           # NOTE: nzcvm elevations are positive DOWN (metres below sea
           # level), matching the SW4 refinement `bottom`.
           floors:

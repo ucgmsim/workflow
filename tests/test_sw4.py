@@ -87,6 +87,86 @@ def test_lower_frequency_coarsest_resolution_matches_1hz() -> None:
     assert sw4.coarsest_resolution(half, 3.0) == 200.0
 
 
+TARGET_POINTS_PER_WAVELENGTH = 8.0
+"""The points per wavelength SW4 keeps below the nzcvm Vs floor."""
+
+SURFACE_GRID_FREQUENCY_PRODUCT = 100.0
+"""Grid spacing times frequency (m Hz) above the Vs floor: 26.7.1Hz's 100 m
+surface grid, scaled by 1 / f for the lower-frequency versions."""
+
+
+def vs_floor(version: defaults.DefaultsVersion) -> tuple[float, float]:
+    """Read the nzcvm Vs floor the refinements are built around.
+
+    Parameters
+    ----------
+    version : DefaultsVersion
+        The defaults version.
+
+    Returns
+    -------
+    elevation : float
+        Depth at and below which the floor applies, in metres (positive down).
+    vs_min : float
+        The floor's minimum Vs, in m/s.
+    """
+    (clamp,) = (
+        layer
+        for layer in defaults.load_defaults(version)["nzcvm"]["layers"]
+        if layer["type"] == "clamp"
+    )
+    (floor,) = clamp["clamps"]["vs"]["floors"]
+    return floor["elevation"], floor["min"]
+
+
+def spacing_at(refinements: Refinements, depth_m: float) -> float:
+    """Find the grid spacing at a depth in the deepest supported domain.
+
+    Parameters
+    ----------
+    refinements : Refinements
+        The mesh refinements.
+    depth_m : float
+        The depth, in metres.
+
+    Returns
+    -------
+    float
+        The grid spacing of the layer containing `depth_m`, in metres.
+    """
+    return next(
+        refinement.resolution
+        for refinement in refinements.refinements_for_depth(DEEPEST_SUPPORTED_DOMAIN_KM)
+        if refinement.bottom > depth_m
+    )
+
+
+@pytest.mark.parametrize("version", SW4_VERSIONS)
+def test_refinements_coarsen_at_the_vs_floor(
+    version: defaults.DefaultsVersion,
+) -> None:
+    """Every version coarsens at the nzcvm Vs floor, by one rule.
+
+    With n points per wavelength a grid of spacing h resolves f where
+    Vs >= n h f. Below the floor Vs is at least the floor's minimum, so the
+    grid there is the coarsest that keeps 8 points per wavelength (capped at
+    the shared coarsest grid, which the sponge and `fault_buffer` are sized
+    for). Above it the grid is 26.7.1Hz's 100 m scaled by 1 / f. A version
+    that refines deeper than the floor pays for grid points it does not need.
+    """
+    refinements = Refinements.read_from_defaults(version)
+    flo = BroadbandParameters.read_from_defaults(version).flo
+    elevation, vs_min = vs_floor(version)
+    coarsest = refinements.unbounded_refinement_resolution
+
+    above = spacing_at(refinements, elevation - 1.0)
+    below = spacing_at(refinements, elevation)
+
+    assert above == min(SURFACE_GRID_FREQUENCY_PRODUCT / flo, coarsest)
+    assert below == min(vs_min / (TARGET_POINTS_PER_WAVELENGTH * flo), coarsest)
+    assert vs_min / (below * flo) >= TARGET_POINTS_PER_WAVELENGTH
+
+
 @pytest.mark.parametrize("version", SW4_VERSIONS)
 def test_default_fault_buffer_is_the_derived_minimum(
     version: defaults.DefaultsVersion,
