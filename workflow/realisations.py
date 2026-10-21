@@ -307,9 +307,7 @@ class Seeds(RealisationConfiguration):
     """HF seed."""
 
     @classmethod
-    def read_from_realisation_or_random(
-        cls, realisation_ffp: Path
-    ) -> Self:  # *args is to maintain compat with superclass (remove this and see the error in mypy).
+    def read_from_realisation_or_random(cls, realisation_ffp: Path | str) -> Self:
         """Read seeds configuration from a realisation file or generate random seeds if not present.
 
         This method attempts to read the seeds configuration from the specified
@@ -319,7 +317,7 @@ class Seeds(RealisationConfiguration):
 
         Parameters
         ----------
-        realisation_ffp : Path
+        realisation_ffp : Path-like
             The realisation filepath to read from.
 
         Returns
@@ -331,9 +329,9 @@ class Seeds(RealisationConfiguration):
 
         Raises
         ------
-        RealisationParseError
-            If the key in `cls._config_key` is not present in the realisation or
-            scientific defaults configuration.
+        schema.SchemaError
+            If the realisation contains a seeds configuration that does not
+            match the seeds schema.
         """
         try:
             return cls.read_from_realisation(realisation_ffp)
