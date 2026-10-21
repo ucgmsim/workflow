@@ -82,7 +82,7 @@ class RealisationParseError(Exception):
     """Realisation JSON parse error."""
 
 
-def path_serialiser(obj: Any) -> Any:
+def path_serialiser(obj: Any) -> str:
     """Serialise `Path` values, which `json` does not handle natively.
 
     Parameters
@@ -92,13 +92,17 @@ def path_serialiser(obj: Any) -> Any:
 
     Returns
     -------
-    Any
-        The string form of `obj` if it is a `Path`, and `obj` unchanged
-        otherwise.
+    str
+        The string form of `obj`.
+
+    Raises
+    ------
+    TypeError
+        If `obj` is not a `Path`.
     """
     if isinstance(obj, Path):
         return str(obj)
-    return obj
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
 @dataclasses.dataclass
