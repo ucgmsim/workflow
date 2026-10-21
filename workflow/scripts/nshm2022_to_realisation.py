@@ -314,6 +314,7 @@ def generate_realisation(
         defaults_version=defaults_version,
     )
 
+    realisation_ffp.parent.mkdir(parents=True, exist_ok=True)
     metadata.write_to_realisation(realisation_ffp)
     srf_config = SRFConfig.read_from_realisation_or_defaults(
         realisation_ffp, defaults_version
@@ -399,7 +400,6 @@ def generate_realisation(
         ),
         hypocentre=hypocentre,
     )
-    realisation_ffp.parent.mkdir(parents=True, exist_ok=True)
     for section in [source_config, rupture_propagation_config, magnitudes, rakes]:
         section.write_to_realisation(realisation_ffp)
     realisations.append_log_entry(realisation_ffp)
