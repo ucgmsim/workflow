@@ -82,7 +82,7 @@ class RealisationParseError(Exception):
     """Realisation JSON parse error."""
 
 
-def path_serialiser(obj: Any) -> Any:
+def path_serialiser(obj: Any) -> str:
     """Serialise `Path` values, which `json` does not handle natively.
 
     Parameters
@@ -92,13 +92,17 @@ def path_serialiser(obj: Any) -> Any:
 
     Returns
     -------
-    Any
-        The string form of `obj` if it is a `Path`, and `obj` unchanged
-        otherwise.
+    str
+        The string form of `obj`.
+
+    Raises
+    ------
+    TypeError
+        If `obj` is not a `Path`.
     """
     if isinstance(obj, Path):
         return str(obj)
-    return obj
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
 @dataclasses.dataclass
@@ -849,7 +853,7 @@ class RupturePropagationConfig(RealisationConfiguration):
     rupture_causality_tree: dict[str, str | None]
     """A dict where the keys are faults and the values the parent fault (i.e. if fault a triggers fault b then rupture_causality_tree[fault b] = fault a)."""
     jump_points: dict[str, JumpPair]
-    """A map from faults to pairs of fault-local coordinates representing jump points. If the rupture jumps from fault a at point a to point b on fault b then jump_points[fault a] = JumpPoint(point b, point a)."""
+    """A map from each triggered fault to its jump pair of fault-local coordinates. If the rupture jumps from point a on fault a to point b on fault b, then jump_points[fault b] = JumpPair(from_point=point a, to_point=point b)."""
     hypocentre: npt.NDArray[np.float64]
     """The hypocentre of the fault."""
 

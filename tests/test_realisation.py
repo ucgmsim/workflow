@@ -1414,3 +1414,16 @@ def test_sw4_command_without_parameters(tmp_path: Path) -> None:
     sw4 = realisations.SW4Parameters.read_from_realisation(realisation_ffp)
     assert sw4.commands == [SW4Command("x", {}), SW4Command("y", {})]
     assert sw4.commands[0].parameters is not sw4.commands[1].parameters
+
+
+def test_path_serialiser_serialises_paths() -> None:
+    """Paths are written as their string form."""
+    assert json.dumps(
+        {"a": Path("/tmp/x")}, default=realisations.path_serialiser
+    ) == json.dumps({"a": "/tmp/x"})
+
+
+def test_path_serialiser_rejects_unknown_types() -> None:
+    """Unknown types raise a TypeError naming the type, not a circular reference."""
+    with pytest.raises(TypeError, match="ndarray"):
+        json.dumps({"a": np.zeros(2)}, default=realisations.path_serialiser)
