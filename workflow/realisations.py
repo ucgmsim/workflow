@@ -849,7 +849,7 @@ class RupturePropagationConfig(RealisationConfiguration):
     rupture_causality_tree: dict[str, str | None]
     """A dict where the keys are faults and the values the parent fault (i.e. if fault a triggers fault b then rupture_causality_tree[fault b] = fault a)."""
     jump_points: dict[str, JumpPair]
-    """A map from faults to pairs of fault-local coordinates representing jump points. If the rupture jumps from fault a at point a to point b on fault b then jump_points[fault a] = JumpPoint(point b, point a)."""
+    """A map from each triggered fault to its jump pair of fault-local coordinates. If the rupture jumps from point a on fault a to point b on fault b, then jump_points[fault b] = JumpPair(from_point=point a, to_point=point b)."""
     hypocentre: npt.NDArray[np.float64]
     """The hypocentre of the fault."""
 
