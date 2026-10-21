@@ -1018,7 +1018,10 @@ class Refinements(RealisationConfiguration):
     def refinements_for_depth(self, depth: float) -> list[Refinement]:
         """Truncate or extend the refinements to cover a domain of a given depth.
 
-        The last layer is at least two cells thick.
+        When there are two or more layers, the last layer is at least two
+        cells thick. A single layer (a domain no deeper than the first
+        layer, or no refinements at all) ends at `depth` without padding,
+        so it may be thinner than two cells.
 
         Parameters
         ----------

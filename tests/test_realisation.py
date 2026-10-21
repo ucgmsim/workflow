@@ -1325,6 +1325,9 @@ def test_srf_config_to_dict_without_point_source_params() -> None:
 @pytest.mark.parametrize(
     "depth, expected",
     [
+        # A domain inside the first layer gives a single, unpadded layer.
+        (0.05, [realisations.Refinement(resolution=50.0, bottom=50.0)]),
+        (1.0, [realisations.Refinement(resolution=50.0, bottom=1000.0)]),
         # The domain bottom lands exactly on a layer bottom: stop at that layer.
         (
             5.0,
@@ -1365,6 +1368,33 @@ def test_refinements_for_depth(
         unbounded_refinement_resolution=400.0,
     )
     assert refinements.refinements_for_depth(depth) == expected
+
+
+def test_refinements_for_depth_does_not_mutate_refinements() -> None:
+    """Truncating, padding or extending the layers leaves the originals intact."""
+    refinements = realisations.Refinements(
+        refinements=[
+            realisations.Refinement(resolution=50.0, bottom=2000.0),
+            realisations.Refinement(resolution=100.0, bottom=5000.0),
+        ],
+        unbounded_refinement_resolution=400.0,
+    )
+    for depth in [0.05, 2.1, 5.0, 5.1, 40.0]:
+        refinements.refinements_for_depth(depth)
+    assert refinements.refinements == [
+        realisations.Refinement(resolution=50.0, bottom=2000.0),
+        realisations.Refinement(resolution=100.0, bottom=5000.0),
+    ]
+
+
+def test_refinements_for_depth_without_refinements() -> None:
+    """With no refinements, one unbounded layer covers the whole domain."""
+    refinements = realisations.Refinements(
+        refinements=[], unbounded_refinement_resolution=400.0
+    )
+    assert refinements.refinements_for_depth(3.0) == [
+        realisations.Refinement(resolution=400.0, bottom=3000.0)
+    ]
 
 
 def test_sw4_command_skips_none_between_parameters() -> None:
