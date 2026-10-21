@@ -44,6 +44,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
+from imdb import IMDB
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import (
     DomainParameters,
@@ -171,7 +172,7 @@ def test_tools_installed() -> None:
         "gcmt-to-realisation", "generate-domain", "realisation-to-srf", "check-srf",
         "srf-to-hdf5", "generate-stoch", "generate-station-coordinates",
         "create-nzvm-input", "nzcvm", "validate-sfile", "create-sw4-input",
-        "lf-to-xarray", "hf-sim", "bb-sim", "im-calc", "extract-subset",
+        "lf-to-xarray", "hf-sim", "bb-sim", "im-calc", "create-imdb", "extract-subset",
     ]  # fmt: skip
     missing = [command for command in commands if shutil.which(command) is None]
     missing += [
@@ -372,6 +373,18 @@ def test_im_calc(realisation: Path, work: Path) -> None:
     assert found_stations >= set(STATIONS)
     # im-calc only warns when an empirical model fails, so check one ran.
     assert any("/empirical/" in node.path for node in intensity_measures.subtree)
+
+
+def test_create_imdb(work: Path) -> None:
+    """The intensity measures collected into a valid IMDB."""
+    require(work / "intensity_measures.h5")
+    output = work / "imdb.duckdb"
+    run("create-imdb", output, work / "intensity_measures.h5")
+
+    with IMDB(output) as db:
+        assert db.validate() == []
+        assert set(db.get_sites().index) >= set(STATIONS)
+        assert set(db.get_records()["kind"]) == {"simulated", "gmm"}
 
 
 def test_extract_subset(work: Path) -> None:

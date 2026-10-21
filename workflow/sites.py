@@ -29,6 +29,10 @@ import pandas as pd
 INDEX = "station"
 """The name of the index column: the station name."""
 
+OBSERVATION_STATION_PATTERN = r"^\w{3,4}$"
+"""Matches observation station names, which are three or four characters long.
+Every other station is a virtual station on the simulation grid."""
+
 COLUMNS = (
     "latitude",
     "longitude",
