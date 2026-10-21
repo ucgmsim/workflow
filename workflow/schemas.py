@@ -454,7 +454,8 @@ SRF_SCHEMA = Schema(
             Literal(
                 "point_source_params",
                 description="Parameters for point source approximation, if applicable",
-            )
+            ),
+            default=None,
         ): Or(None, POINT_SOURCE_PARAMS_SCHEMA),
         Literal(
             "side_taper",
@@ -1063,9 +1064,12 @@ VELOCITY_MODEL_1D_SCHEMA = Schema(
 HF_VELOCITY_MODEL_1D_SCHEMA = Schema(
     {
         **VELOCITY_MODEL_1D_SCHEMA.schema,
-        Literal(
-            "vs_moho",
-            description="Shear velocity at which to truncate the model at the Moho (km/s)",
+        Optional(
+            Literal(
+                "vs_moho",
+                description="Shear velocity at which to truncate the model at the Moho (km/s)",
+            ),
+            default=999.9,
         ): And(NUMBER, _is_positive),
     }
 )
@@ -1392,7 +1396,8 @@ REFINEMENTS_SCHEMA = Schema(
 SW4_COMMAND_SCHEMA = Schema(
     {
         "name": str,
-        "parameters": {str: Or(str, int, float, bool, None)},
+        # No schema default: SW4Command's default_factory gives each command its own dict.
+        Optional("parameters"): {str: Or(str, int, float, bool, None)},
     }
 )
 

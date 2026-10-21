@@ -1371,3 +1371,46 @@ def test_sw4_command_skips_none_between_parameters() -> None:
     """A None parameter is omitted without dropping the parameters after it."""
     command = SW4Command("block", {"vp": 1.0, "vs": None, "rho": 2.0})
     assert command.render() == "block vp=1.0 rho=2.0"
+
+
+def test_srf_config_without_point_source_params(tmp_path: Path) -> None:
+    """An SRF config without `point_source_params` reads it as None."""
+    srf = realisations.SRFConfig.read_from_defaults(list(defaults.DefaultsVersion)[-1])
+    srf_dict = srf.to_dict()
+    srf_dict.pop("point_source_params", None)
+    realisation_ffp = tmp_path / "realisation.json"
+    realisation_ffp.write_text(json.dumps({"srf": srf_dict}))
+    srf_config = realisations.SRFConfig.read_from_realisation(realisation_ffp)
+    assert srf_config.point_source_params is None
+
+
+def test_hf_velocity_model_1d_without_vs_moho(tmp_path: Path) -> None:
+    """An HF velocity model without `vs_moho` reads the dataclass default."""
+    model_dict = realisations.HFVelocityModel1D.read_from_defaults(
+        list(defaults.DefaultsVersion)[-1]
+    ).to_dict()
+    model_dict.pop("vs_moho")
+    realisation_ffp = tmp_path / "realisation.json"
+    realisation_ffp.write_text(json.dumps({"hf_velocity_model_1d": model_dict}))
+    model = realisations.HFVelocityModel1D.read_from_realisation(realisation_ffp)
+    assert model.vs_moho == 999.9
+
+
+def test_sw4_command_without_parameters(tmp_path: Path) -> None:
+    """An SW4 command without `parameters` reads them as an empty dict."""
+    realisation_ffp = tmp_path / "realisation.json"
+    realisation_ffp.write_text(
+        json.dumps(
+            {
+                "sw4": {
+                    "verbose": 2,
+                    "printcycle": 10,
+                    "nz_min": 12,
+                    "commands": [{"name": "x"}, {"name": "y"}],
+                }
+            }
+        )
+    )
+    sw4 = realisations.SW4Parameters.read_from_realisation(realisation_ffp)
+    assert sw4.commands == [SW4Command("x", {}), SW4Command("y", {})]
+    assert sw4.commands[0].parameters is not sw4.commands[1].parameters
