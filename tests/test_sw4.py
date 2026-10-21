@@ -4,8 +4,11 @@ import numpy as np
 import pytest
 
 from workflow import defaults, sw4
+from workflow.bounding_box import BoundingBox
 from workflow.realisations import (
     BroadbandParameters,
+    DomainParameters,
+    Refinement,
     Refinements,
     SW4Command,
     SW4Parameters,
@@ -247,3 +250,104 @@ def test_absorbed_period() -> None:
         0.69, abs=5e-3
     )
     assert sw4.absorbed_period(parameters, 400.0, 3.5, 90.0) == pytest.approx(0.0)
+
+
+@pytest.mark.parametrize(
+    "gridpoints, resolution, expected",
+    [(20, 400.0, 8000.0), (45, 200.0, 9000.0), (1, 100.0, 100.0)],
+)
+def test_supergrid_width_reads_gp(
+    gridpoints: int, resolution: float, expected: float
+) -> None:
+    """A non-default `gp=` is used instead of SW4's default thickness."""
+    parameters = sw4_parameters(gp=gridpoints)
+    assert sw4.supergrid_width(parameters, resolution) == expected
+    assert sw4.minimum_fault_buffer_m(parameters, resolution) == expected + (
+        sw4.STENCIL_MARGIN_GRIDPOINTS * resolution
+    )
+
+
+def test_check_fault_buffer_just_below_minimum() -> None:
+    """A buffer a few metres short of the minimum is rejected, with every
+    quantity in the message converted to kilometres."""
+    parameters = sw4_parameters(gp=20)
+    # Sponge 20 * 400 m = 8 km, plus 5 * 400 m = 2 km of stencil margin.
+    sw4.check_fault_buffer(10.0, parameters, 400.0)
+    with pytest.raises(ValueError) as error:
+        sw4.check_fault_buffer(9.995, parameters, 400.0)
+    assert str(error.value) == (
+        "The fault buffer of 9.995 km is smaller than the 10.000 km needed to "
+        "keep sources out of the SW4 supergrid absorbing layer. On a 400 m "
+        "coarsest grid the sponge is 8.000 km wide, and a source needs a further "
+        "5 grid points (2.000 km) of clearance for its own stencil and the "
+        "dissipation operator. Inside the layer SW4 solves a damped, "
+        "coordinate-stretched equation, so the result is not a ground motion. "
+        "Raise velocity_model.fault_buffer to at least 10.000 km, or narrow the "
+        "supergrid."
+    )
+
+
+@pytest.mark.parametrize("axis", ["x", "y"])
+def test_check_lateral_gridpoints_names_the_narrow_axis(axis: str) -> None:
+    """With `gp=` the sponge scales with the grid, and the error names the
+    axis that is too narrow."""
+    parameters = sw4_parameters(gp=20)
+    # Two 8 km sponges plus 10 * 400 m of interior.
+    sw4.check_lateral_gridpoints(20000.0, 20000.0, parameters, 400.0)
+    extents = {"x": 20000.0, "y": 20000.0}
+    extents[axis] = 19600.0
+    with pytest.raises(ValueError) as error:
+        sw4.check_lateral_gridpoints(extents["x"], extents["y"], parameters, 400.0)
+    assert str(error.value) == (
+        f"The SW4 grid's {axis} extent of 19.600 km leaves only 3.600 km between "
+        "its two 8.000 km supergrid sponges, but at least 4.000 km (10 grid points "
+        "on a 400 m grid) is needed for a usable interior. Widen the domain or "
+        "narrow the supergrid."
+    )
+
+
+def domain_parameters(depth: float) -> DomainParameters:
+    """Build a 10 km by 20 km (200 km^2) domain of the given depth."""
+    return DomainParameters(
+        domain=BoundingBox.from_centroid_bearing_extents(
+            centroid=np.array([-43.53092, 172.63701]),
+            bearing=0.0,
+            extent_x=10.0,
+            extent_y=20.0,
+        ),
+        depth=depth,
+        duration=60.0,
+    )
+
+
+@pytest.mark.parametrize(
+    "depth, expected",
+    [
+        # 1 km at 100 m, 2 km at 200 m, then 2 km at the unbounded 400 m:
+        # 2e11 / 1e6 + 4e11 / 8e6 + 4e11 / 6.4e7.
+        pytest.param(5.0, 200000 + 50000 + 6250, id="extends-below-refinements"),
+        # The 200 m layer is truncated to the 2 km domain depth.
+        pytest.param(2.0, 200000 + 25000, id="truncated-to-depth"),
+        # The only layer is truncated to 150 m.
+        pytest.param(0.15, 30000, id="single-layer"),
+    ],
+)
+def test_gridpoints_from_domain(depth: float, expected: int) -> None:
+    refinements = Refinements(
+        refinements=[Refinement(100.0, 1000.0), Refinement(200.0, 3000.0)],
+        unbounded_refinement_resolution=400.0,
+    )
+    gridpoints = sw4.gridpoints_from_domain(domain_parameters(depth), refinements)
+    assert isinstance(gridpoints, int)
+    assert gridpoints == expected
+
+
+def test_gridpoints_from_domain_floors_each_layer() -> None:
+    """Each layer's count is floored on its own before summing."""
+    refinements = Refinements(
+        refinements=[Refinement(300.0, 1000.0), Refinement(600.0, 3000.0)],
+        unbounded_refinement_resolution=600.0,
+    )
+    # 2e11 / 2.7e7 = 7407.4 and 4e11 / 2.16e8 = 1851.9: floored separately
+    # that is 9258, not the 9259 of flooring the sum.
+    assert sw4.gridpoints_from_domain(domain_parameters(3.0), refinements) == 9258
