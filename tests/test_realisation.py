@@ -1371,3 +1371,16 @@ def test_sw4_command_skips_none_between_parameters() -> None:
     """A None parameter is omitted without dropping the parameters after it."""
     command = SW4Command("block", {"vp": 1.0, "vs": None, "rho": 2.0})
     assert command.render() == "block vp=1.0 rho=2.0"
+
+
+def test_path_serialiser_serialises_paths() -> None:
+    """Paths are written as their string form."""
+    assert json.dumps(
+        {"a": Path("/tmp/x")}, default=realisations.path_serialiser
+    ) == json.dumps({"a": "/tmp/x"})
+
+
+def test_path_serialiser_rejects_unknown_types() -> None:
+    """Unknown types raise a TypeError naming the type, not a circular reference."""
+    with pytest.raises(TypeError, match="ndarray"):
+        json.dumps({"a": np.zeros(2)}, default=realisations.path_serialiser)
