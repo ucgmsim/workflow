@@ -1602,8 +1602,9 @@ hf_velocity_model_1d:
       rho: 3.33
       Qp: 394.80
       Qs: 197.40
-    # This layer is duplicated to prevent a crash in the HF fortran code
-    # when raycasting travels through the last layer.
+    # This layer is duplicated because hf-sim zeroes the last layer's
+    # thickness to mark it as the half-space; the copy keeps the layer
+    # above it at full thickness for the ray tracer.
     - thickness: 999.999
       Vp: 8.10
       Vs: 4.60

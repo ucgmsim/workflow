@@ -70,7 +70,7 @@ jobs:
         if: steps.emod3d-cache.outputs.cache-hit != 'true'
         working-directory: EMOD3D
         run: |
-          cmake -B build -DHF_TIME_WINDOW=off -DUSE_FFTW=on \
+          cmake -B build \
             -DCMAKE_C_FLAGS="-march=x86-64 -mtune=generic -std=gnu89" .
           cmake --build build -j "$(nproc)" --target genslip_v5.6.2 generic_slip2srf
 

@@ -17,6 +17,7 @@ import pandas as pd
 from nzcvm.coordinates import Coordinate
 from schema import And, Literal, Optional, Or, Schema, Use
 
+from hf_simulation import PathDurationModel, Ray
 from IM import im_calculation
 from source_modelling import rupture_propagation, sources
 from workflow.bounding_box import BoundingBox
@@ -1124,6 +1125,12 @@ RUPTURE_GENERATION_SCHEMA = Schema(
     }
 )
 
+
+def _codes(codes: type[IntEnum]) -> str:
+    """Describe the integer codes of an `hf_simulation` enum, e.g. ``1: DIRECT``."""
+    return ", ".join(f"{code.value}: {code.name}" for code in codes)
+
+
 HF_CONFIG_SCHEMA = Schema(
     {
         Literal(
@@ -1147,11 +1154,13 @@ HF_CONFIG_SCHEMA = Schema(
             },
         },
         Literal("path", description="Which rays, and how the medium attenuates"): {
-            Literal("rayset", description="ray types 1: direct, 2: moho"): [Or(1, 2)],
+            Literal("rayset", description=f"Ray paths to sum over ({_codes(Ray)})"): [
+                Or(*Ray)
+            ],
             Literal(
                 "path_duration_model",
-                description="0: GP2010, 1: WUS, 2: ENA, 11: BT2014, 12: BT2015",
-            ): Or(0, 1, 2, 11, 12),
+                description=f"How record duration grows with distance ({_codes(PathDurationModel)})",
+            ): Or(*PathDurationModel),
         },
         Literal("site", description="The near-surface"): {
             Literal("fmax_hz", description="High-frequency cutoff"): And(
