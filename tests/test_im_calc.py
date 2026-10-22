@@ -22,3 +22,12 @@ def test_cav5_uses_a_5_cm_per_s_squared_threshold() -> None:
     cav5_function = function_map[IM.CAV5]
     assert isinstance(cav5_function, functools.partial)
     assert cav5_function.keywords["threshold"] == 5.0
+
+
+def test_rx_is_described_as_strike_normal_and_ry_as_strike_parallel() -> None:
+    # Rx (GC2 T) is measured perpendicular to strike; Ry (GC2 U) along strike.
+    rx_description = im_calc.COORDINATE_METADATA["rx"]["description"]
+    ry_description = im_calc.COORDINATE_METADATA["ry"]["description"]
+
+    assert "strike-normal" in rx_description
+    assert "strike-parallel" in ry_description
