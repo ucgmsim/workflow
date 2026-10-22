@@ -69,7 +69,7 @@ from workflow.realisations import (
 from workflow.realisations import (
     HFConfig as HFConfigDefaults,
 )
-from workflow.waveforms import Component
+from workflow.waveforms import Component, time_axis
 
 app = typer.Typer()
 
@@ -267,7 +267,7 @@ def run_hf(
     nt = int(np.float32(domain_parameters.duration) / np.float32(hf_config.dt))
     # The record starts at the origin time. This was a configurable `t_sec` that every
     # realisation set to zero.
-    time = np.arange(nt) * hf_config.dt
+    time = time_axis(np.arange(nt) * hf_config.dt, metadata.event_time)
 
     num_workers = utils.get_available_cores()
     memory_chunk = TARGET_CHUNK_BYTES // (len(COMPONENTS) * nt * np.float32().itemsize)

@@ -8,6 +8,7 @@ suite; it is deliberately written against the layout documented in Section
 reusable for any other SW4-read test.
 """
 
+import datetime
 from pathlib import Path
 
 import h5py
@@ -15,6 +16,8 @@ import numpy as np
 import pytest
 import xarray as xr
 
+from workflow.defaults import DefaultsVersion
+from workflow.realisations import RealisationMetadata
 from workflow.scripts import lf_to_xarray
 from workflow.waveforms import Component
 
@@ -48,11 +51,14 @@ def write_sw4_station_file(
     return path
 
 
-def convert(sw4_ffp: Path) -> xr.Dataset:
+def convert(sw4_ffp: Path, realisation_ffp: Path | None = None) -> xr.Dataset:
     """Run `lf-to-xarray` on an SW4 station file and read the result back."""
     output = sw4_ffp.with_suffix(".nc")
     lf_to_xarray.convert_lf_to_xarray_dataset(
-        sw4_ffp, output, format=lf_to_xarray.Format.SW4
+        sw4_ffp,
+        output,
+        format=lf_to_xarray.Format.SW4,
+        realisation_ffp=realisation_ffp,
     )
     with xr.open_dataset(output, mask_and_scale=False) as dataset:
         return dataset.load()
@@ -160,3 +166,28 @@ def test_components_are_stored_north_east_up(tmp_path: Path) -> None:
     east = float(first.sel(component=Component.EAST))
     assert float(first.sel(component=Component.NORTH)) == pytest.approx(2 * east)
     assert float(first.sel(component=Component.UP)) == pytest.approx(3 * east)
+
+
+def test_an_event_time_stamps_the_time_axis(tmp_path: Path) -> None:
+    """The time axis becomes timestamps, with the acceleration unchanged."""
+    event_time = datetime.datetime(2010, 9, 3, 16, 35, 46, tzinfo=datetime.UTC)
+    realisation = tmp_path / "realisation.json"
+    RealisationMetadata(
+        name="Darfield",
+        version="1",
+        defaults_version=DefaultsVersion.v24_2_2_1,
+        event_time=event_time,
+    ).write_to_realisation(realisation)
+    sw4_ffp = write_sw4_station_file(tmp_path / "out.h5", {"CHCH": None}, dt=0.05)
+
+    seconds = convert(sw4_ffp)
+    stamped = convert(sw4_ffp, realisation)
+
+    assert stamped["time"].values[0] == np.datetime64("2010-09-03T16:35:46", "ns")
+    # SW4 stores dt in float32, so the steps are 50 ms to within a nanosecond.
+    np.testing.assert_allclose(
+        np.diff(stamped["time"].values).astype(np.int64), 50_000_000, atol=1
+    )
+    np.testing.assert_array_equal(
+        stamped["waveform"].values, seconds["waveform"].values
+    )

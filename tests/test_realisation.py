@@ -421,6 +421,7 @@ def test_metadata(tmp_path: Path) -> None:
                 "version": "1",
                 "defaults_version": "24.2.2.1",
                 "tag": None,
+                "event_time": None,
             },
         }
 
@@ -428,6 +429,47 @@ def test_metadata(tmp_path: Path) -> None:
         realisations.RealisationMetadata.read_from_realisation(realisation_ffp)
         == metadata
     )
+
+
+def test_metadata_event_time_round_trips_as_iso_8601(tmp_path: Path) -> None:
+    metadata = realisations.RealisationMetadata(
+        name="Darfield",
+        version="1",
+        defaults_version=defaults.DefaultsVersion.v24_2_2_1,
+        event_time=datetime(2010, 9, 3, 16, 35, 46, tzinfo=UTC),
+    )
+    realisation_ffp = tmp_path / "realisation.json"
+    metadata.write_to_realisation(realisation_ffp)
+
+    assert (
+        json.loads(realisation_ffp.read_text())["metadata"]["event_time"]
+        == "2010-09-03T16:35:46+00:00"
+    )
+    assert (
+        realisations.RealisationMetadata.read_from_realisation(realisation_ffp)
+        == metadata
+    )
+
+
+def test_metadata_without_event_time_reads_as_none() -> None:
+    """Realisations written before `event_time` existed still load."""
+    metadata = realisations.RealisationMetadata.from_dict(
+        {"name": "old", "version": "1", "defaults_version": "24.2.2.1"}
+    )
+    assert metadata.event_time is None
+
+
+@pytest.mark.parametrize("event_time", ["2010-09-03T16:35:46", "not a time"])
+def test_metadata_event_time_needs_a_timezone_aware_timestamp(event_time: str) -> None:
+    with pytest.raises(schema.SchemaError):
+        realisations.RealisationMetadata.from_dict(
+            {
+                "name": "Darfield",
+                "version": "1",
+                "defaults_version": "24.2.2.1",
+                "event_time": event_time,
+            }
+        )
 
 
 def test_velocity_model(tmp_path: Path) -> None:

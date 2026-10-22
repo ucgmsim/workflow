@@ -7,6 +7,7 @@ for a description of realisations and the schemas.
 """
 
 import dataclasses
+import datetime
 import math
 from enum import IntEnum, StrEnum
 from pathlib import Path
@@ -1089,6 +1090,20 @@ REALISATION_METADATA_SCHEMA = Schema(
         Literal(
             "defaults_version", description="Simulation default parameters version."
         ): And(str, Use(DefaultsVersion)),
+        Optional(
+            Literal(
+                "event_time",
+                description="The event origin time, as a timezone-aware ISO 8601 timestamp. When set, waveform time axes are timestamps rather than seconds from the origin.",
+            )
+        ): Or(
+            None,
+            And(
+                str,
+                Use(datetime.datetime.fromisoformat),
+                lambda event_time: event_time.tzinfo is not None,
+                error="event_time must be an ISO 8601 timestamp with a UTC offset",
+            ),
+        ),
     }
 )
 
