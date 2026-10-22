@@ -86,8 +86,11 @@ COORDINATE_METADATA = {
     "hyp": {"description": "Hypocentral distance", "units": "km"},
     "rrup": {"description": "Rupture distance", "units": "km"},
     "rjb": {"description": "Joyner-Boore distance", "units": "km"},
-    "rx": {"description": "Generalised strike-parallel distance", "units": "km"},
-    "ry": {"description": "Generalised strike-normal distance", "units": "km"},
+    "rx": {"description": "Generalised strike-normal distance (GC2 T)", "units": "km"},
+    "ry": {
+        "description": "Generalised strike-parallel coordinate (GC2 U)",
+        "units": "km",
+    },
     "supergrid_depth": {
         "description": (
             "Penetration of the station into the solver's absorbing layer. "
@@ -327,9 +330,9 @@ class Distances:
     epi: xr.DataArray
     """Distance to the epicentre."""
     rx: xr.DataArray | None = None
-    """Strike-parallel distance. Only defined for planar sources."""
+    """Strike-normal distance (GC2 T). Only defined for planar sources."""
     ry: xr.DataArray | None = None
-    """Strike-normal distance. Only defined for planar sources."""
+    """Strike-parallel coordinate (GC2 U). Only defined for planar sources."""
 
     def as_dict(self) -> dict[str, xr.DataArray]:
         """Map distance measure name to distances, omitting undefined measures.
