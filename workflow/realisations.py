@@ -1217,6 +1217,23 @@ class RealisationMetadata(RealisationConfiguration):
     tag: str | None = None
     """Metadata tag for the realisation used to specify the origin or
     category of the realisation (e.g. NSHM, GCMT or custom)."""
+    event_time: datetime.datetime | None = None
+    """The (timezone-aware) origin time of the event. When set, the LF, HF and
+    BB waveform time axes are timestamps rather than seconds from the origin."""
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the object to a dictionary representation.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the object.
+        """
+        config_dict = dataclasses.asdict(self)
+        if self.event_time is not None:
+            config_dict["event_time"] = self.event_time.isoformat()
+        return config_dict
 
 
 @dataclasses.dataclass
