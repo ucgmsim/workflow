@@ -157,6 +157,20 @@ EMPIRICAL_IM_NAMES = {
 }
 
 
+EMPIRICAL_COMPONENTS = {
+    IM.PGA: "rotd50",
+    IM.PGV: "rotd50",
+    IM.pSA: "rotd50",
+    IM.CAV: "geom",
+    IM.AI: "geom",
+    IM.Ds575: "geom",
+    IM.Ds595: "geom",
+}
+"""The component each ground motion model's estimate of an IM describes.
+Amplitude models predict RotD50; duration and energy models predict the
+geometric mean."""
+
+
 EMPIRICAL_STATISTIC_METADATA = {
     "mean": "Mean of the natural logarithm of {description}",
     "std_Total": "Total standard deviation of the natural logarithm of {description}",
@@ -166,12 +180,15 @@ EMPIRICAL_STATISTIC_METADATA = {
 
 
 def _supergrid_coordinates(dataset: xr.Dataset) -> dict[str, xr.DataArray]:
-    """Extract the absorbing-layer penetration coordinates from a waveform file."""
+    """Extract the absorbing-layer penetration coordinates from a waveform file, NaN where unreported."""
 
     return {
-        name: (dataset.coords[name].astype(np.float32).compute())
+        name: (
+            dataset.coords[name].astype(np.float32).compute()
+            if name in dataset.coords
+            else xr.full_like(dataset.station, np.nan, dtype=np.float32)
+        )
         for name in sw4.SUPERGRID_DEPTH_COORDINATES.values()
-        if name in dataset.coords
     }
 
 
@@ -648,6 +665,7 @@ def annotate_empirical(dataset: xr.Dataset, im_name: IM, model_name: str) -> xr.
 
     dataset.attrs["intensity_measure"] = str(im_name)
     dataset.attrs["model"] = model_name
+    dataset.attrs["component"] = EMPIRICAL_COMPONENTS[im_name]
     dataset.attrs["description"] = (
         f"{description} predicted by the {model_name} ground motion model"
     )
@@ -774,7 +792,8 @@ def calculate_intensity_measures(
     realisation_ffp : Path
         Path to the realisation file.
     broadband_simulation_ffp : Path
-        Path to the broadband simulation waveforms.
+        Path to the broadband simulation waveforms, carrying each station's
+        `vs30`, `z1pt0` and `z2pt5`, as `bb-sim` writes.
     output_path : Path
         Output directory for IM calc summary statistics.
     simulated_stations : bool, default True
@@ -785,8 +804,7 @@ def calculate_intensity_measures(
         Intensity measures to calculate. If not set, reads from the realisation file.
     empirical : bool, default True
         If passed, additionally estimate intensity measures from the ground
-        motion models in the realisation file. Requires the broadband
-        waveforms to carry `vs30`, `z1pt0` and `z2pt5`, as `bb-sim` writes.
+        motion models in the realisation file.
     """
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     intensity_measure_parameters = (
@@ -876,12 +894,12 @@ def calculate_intensity_measures(
         "zbot": source_parameters.avg_zbot,
         "hypo_depth": source_parameters.hypo_depth,
     } | _supergrid_attributes(broadband, supergrid)
+
+    site_parameters = read_site_parameters(broadband)
     if metadata.event_time is not None:
         attributes["event_time"] = metadata.event_time.isoformat()
-    site_parameters = None
-    if empirical:
-        site_parameters = read_site_parameters(broadband)
 
+    if empirical:
         empirical_parameters = EmpiricalParameters.read_from_realisation_or_defaults(
             realisation_ffp, metadata.defaults_version
         )
@@ -902,7 +920,7 @@ def calculate_intensity_measures(
     dtree = add_station_parameters(
         dtree,
         distances.as_dict()
-        | ((site_parameters).as_dict() if site_parameters else {})
+        | site_parameters.as_dict()
         | {"latitude": broadband["latitude"], "longitude": broadband["longitude"]}
         | supergrid,
     )
