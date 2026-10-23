@@ -46,7 +46,7 @@ import xarray as xr
 
 from qcore import cli
 from site_calculation import amplification
-from workflow import log_utils, realisations, sites, sw4
+from workflow import log_utils, realisations, sites, sw4, waveforms
 from workflow.realisations import BroadbandParameters, RealisationMetadata
 from workflow.schemas import SiteAmpModel
 
@@ -344,6 +344,10 @@ def combine_hf_and_lf(
             "longitude": ("station", lf["longitude"].values),
         },
         attrs=attributes,
+    )
+    # Alignment works in seconds from the origin; stamp the axis only on output.
+    bb = bb.assign_coords(
+        time=waveforms.time_axis(bb["time"].values, metadata.event_time)
     )
 
     bb.to_netcdf(

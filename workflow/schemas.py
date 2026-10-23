@@ -7,6 +7,7 @@ for a description of realisations and the schemas.
 """
 
 import dataclasses
+import datetime
 import math
 from enum import IntEnum, StrEnum
 from pathlib import Path
@@ -454,7 +455,8 @@ SRF_SCHEMA = Schema(
             Literal(
                 "point_source_params",
                 description="Parameters for point source approximation, if applicable",
-            )
+            ),
+            default=None,
         ): Or(None, POINT_SOURCE_PARAMS_SCHEMA),
         Literal(
             "side_taper",
@@ -1063,9 +1065,12 @@ VELOCITY_MODEL_1D_SCHEMA = Schema(
 HF_VELOCITY_MODEL_1D_SCHEMA = Schema(
     {
         **VELOCITY_MODEL_1D_SCHEMA.schema,
-        Literal(
-            "vs_moho",
-            description="Shear velocity at which to truncate the model at the Moho (km/s)",
+        Optional(
+            Literal(
+                "vs_moho",
+                description="Shear velocity at which to truncate the model at the Moho (km/s)",
+            ),
+            default=999.9,
         ): And(NUMBER, _is_positive),
     }
 )
@@ -1085,6 +1090,20 @@ REALISATION_METADATA_SCHEMA = Schema(
         Literal(
             "defaults_version", description="Simulation default parameters version."
         ): And(str, Use(DefaultsVersion)),
+        Optional(
+            Literal(
+                "event_time",
+                description="The event origin time, as a timezone-aware ISO 8601 timestamp. When set, waveform time axes are timestamps rather than seconds from the origin.",
+            )
+        ): Or(
+            None,
+            And(
+                str,
+                Use(datetime.datetime.fromisoformat),
+                lambda event_time: event_time.tzinfo is not None,
+                error="event_time must be an ISO 8601 timestamp with a UTC offset",
+            ),
+        ),
     }
 )
 
@@ -1392,7 +1411,8 @@ REFINEMENTS_SCHEMA = Schema(
 SW4_COMMAND_SCHEMA = Schema(
     {
         "name": str,
-        "parameters": {str: Or(str, int, float, bool, None)},
+        # No schema default: SW4Command's default_factory gives each command its own dict.
+        Optional("parameters"): {str: Or(str, int, float, bool, None)},
     }
 )
 

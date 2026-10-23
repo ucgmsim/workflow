@@ -30,6 +30,7 @@ interface that broke. A stage whose inputs were never written is skipped.
 """
 
 import dataclasses
+import datetime
 import json
 import os
 import shlex
@@ -49,6 +50,7 @@ from workflow.defaults import DefaultsVersion
 from workflow.realisations import (
     DomainParameters,
     NZCVMSettings,
+    RealisationMetadata,
     Refinement,
     Refinements,
     SW4Parameters,
@@ -65,6 +67,11 @@ DATA = Path(__file__).parent / "data"
 FAKE_SW4 = Path(__file__).parent / "fake_sw4.py"
 
 EVENT = "e2esmoke"
+# In NZST, so the stages must convert it to UTC.
+EVENT_TIME = datetime.datetime(
+    2026, 9, 4, 4, 35, tzinfo=datetime.timezone(datetime.timedelta(hours=12))
+)
+EVENT_TIME_UTC = np.datetime64("2026-09-03T16:35:00", "ns")
 DEFAULTS_VERSION = DefaultsVersion.v26_7_1Hz
 STATIONS = ["E2E01", "E2E02", "E2E03", "E2E04", "E2E05"]
 
@@ -190,6 +197,11 @@ def test_gcmt_to_realisation(realisation: Path) -> None:
         "--solution-origin", DATA / "cmt_solutions.csv",
     )  # fmt: skip
     assert json.loads(realisation.read_text())["metadata"]["name"] == EVENT
+    # The stages downstream stamp their time axes and IM file with this.
+    metadata = RealisationMetadata.read_from_realisation(realisation)
+    dataclasses.replace(metadata, event_time=EVENT_TIME).write_to_realisation(
+        realisation
+    )
 
 
 def test_generate_domain(realisation: Path, nzcvm_data_root: Path) -> None:
@@ -323,10 +335,13 @@ def test_sw4(realisation: Path, work: Path) -> None:
     assert (sw4_work / "out.h5").exists()
 
 
-def test_lf_to_xarray(work: Path) -> None:
+def test_lf_to_xarray(realisation: Path, work: Path) -> None:
     """SW4's station recording becomes the workflow's LF waveform dataset."""
     require(work / "sw4/out.h5")
-    run("lf-to-xarray", work / "sw4/out.h5", work / "realisation.lf", "--format", "sw4")
+    run(
+        "lf-to-xarray", work / "sw4/out.h5", work / "realisation.lf", "--format", "sw4",
+        "--realisation-ffp", realisation,
+    )  # fmt: skip
 
 
 def test_hf_sim(realisation: Path, work: Path) -> None:
@@ -350,6 +365,8 @@ def test_bb_sim(realisation: Path, work: Path) -> None:
         work / "realisation.lf", work / "realisation.hf", work / "realisation.bb",
         "--filter", "hf",
     )  # fmt: skip
+    with xr.open_dataset(work / "realisation.bb") as broadband:
+        assert broadband["time"].values[0] == EVENT_TIME_UTC
 
 
 def test_im_calc(realisation: Path, work: Path) -> None:
@@ -373,6 +390,7 @@ def test_im_calc(realisation: Path, work: Path) -> None:
     assert found_stations >= set(STATIONS)
     # im-calc only warns when an empirical model fails, so check one ran.
     assert any("/empirical/" in node.path for node in intensity_measures.subtree)
+    assert intensity_measures.attrs["event_time"] == EVENT_TIME.isoformat()
 
 
 def test_create_imdb(work: Path) -> None:

@@ -82,7 +82,7 @@ class RealisationParseError(Exception):
     """Realisation JSON parse error."""
 
 
-def path_serialiser(obj: Any) -> Any:
+def path_serialiser(obj: Any) -> str:
     """Serialise `Path` values, which `json` does not handle natively.
 
     Parameters
@@ -92,13 +92,17 @@ def path_serialiser(obj: Any) -> Any:
 
     Returns
     -------
-    Any
-        The string form of `obj` if it is a `Path`, and `obj` unchanged
-        otherwise.
+    str
+        The string form of `obj`.
+
+    Raises
+    ------
+    TypeError
+        If `obj` is not a `Path`.
     """
     if isinstance(obj, Path):
         return str(obj)
-    return obj
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
 @dataclasses.dataclass
@@ -303,9 +307,7 @@ class Seeds(RealisationConfiguration):
     """HF seed."""
 
     @classmethod
-    def read_from_realisation_or_random(
-        cls, realisation_ffp: Path
-    ) -> Self:  # *args is to maintain compat with superclass (remove this and see the error in mypy).
+    def read_from_realisation_or_random(cls, realisation_ffp: Path | str) -> Self:
         """Read seeds configuration from a realisation file or generate random seeds if not present.
 
         This method attempts to read the seeds configuration from the specified
@@ -315,7 +317,7 @@ class Seeds(RealisationConfiguration):
 
         Parameters
         ----------
-        realisation_ffp : Path
+        realisation_ffp : Path-like
             The realisation filepath to read from.
 
         Returns
@@ -327,9 +329,9 @@ class Seeds(RealisationConfiguration):
 
         Raises
         ------
-        RealisationParseError
-            If the key in `cls._config_key` is not present in the realisation or
-            scientific defaults configuration.
+        schema.SchemaError
+            If the realisation contains a seeds configuration that does not
+            match the seeds schema.
         """
         try:
             return cls.read_from_realisation(realisation_ffp)
@@ -849,7 +851,7 @@ class RupturePropagationConfig(RealisationConfiguration):
     rupture_causality_tree: dict[str, str | None]
     """A dict where the keys are faults and the values the parent fault (i.e. if fault a triggers fault b then rupture_causality_tree[fault b] = fault a)."""
     jump_points: dict[str, JumpPair]
-    """A map from faults to pairs of fault-local coordinates representing jump points. If the rupture jumps from fault a at point a to point b on fault b then jump_points[fault a] = JumpPoint(point b, point a)."""
+    """A map from each triggered fault to its jump pair of fault-local coordinates. If the rupture jumps from point a on fault a to point b on fault b, then jump_points[fault b] = JumpPair(from_point=point a, to_point=point b)."""
     hypocentre: npt.NDArray[np.float64]
     """The hypocentre of the fault."""
 
@@ -1014,7 +1016,10 @@ class Refinements(RealisationConfiguration):
     def refinements_for_depth(self, depth: float) -> list[Refinement]:
         """Truncate or extend the refinements to cover a domain of a given depth.
 
-        The last layer is at least two cells thick.
+        When there are two or more layers, the last layer is at least two
+        cells thick. A single layer (a domain no deeper than the first
+        layer, or no refinements at all) ends at `depth` without padding,
+        so it may be thinner than two cells.
 
         Parameters
         ----------
@@ -1212,6 +1217,23 @@ class RealisationMetadata(RealisationConfiguration):
     tag: str | None = None
     """Metadata tag for the realisation used to specify the origin or
     category of the realisation (e.g. NSHM, GCMT or custom)."""
+    event_time: datetime.datetime | None = None
+    """The (timezone-aware) origin time of the event. When set, the LF, HF and
+    BB waveform time axes are timestamps rather than seconds from the origin."""
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the object to a dictionary representation.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the object.
+        """
+        config_dict = dataclasses.asdict(self)
+        if self.event_time is not None:
+            config_dict["event_time"] = self.event_time.isoformat()
+        return config_dict
 
 
 @dataclasses.dataclass

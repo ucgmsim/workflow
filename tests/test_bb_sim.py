@@ -1,3 +1,4 @@
+import datetime
 from pathlib import Path
 
 import numpy as np
@@ -8,7 +9,7 @@ from workflow import sites
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import RealisationMetadata
 from workflow.scripts import bb_sim, im_calc
-from workflow.waveforms import Component
+from workflow.waveforms import Component, time_axis
 
 STATIONS = ["CHCH", "RICC"]
 
@@ -78,3 +79,45 @@ def test_site_parameters_reach_im_calc(tmp_path: Path) -> None:
             rtol=1e-6,
             err_msg=name,
         )
+
+
+def test_an_event_time_stamps_the_broadband_time_axis(tmp_path: Path) -> None:
+    """Timestamped LF and HF inputs give the same broadband, on a timestamped axis."""
+    event_time = datetime.datetime(2010, 9, 3, 16, 35, 46, tzinfo=datetime.UTC)
+    sites_ffp = tmp_path / "stations.parquet"
+    sites.write_sites(site_table(), sites_ffp)
+
+    def broadband(
+        name: str, metadata_event_time: datetime.datetime | None
+    ) -> xr.Dataset:
+        directory = tmp_path / name
+        directory.mkdir()
+        realisation = directory / "realisation.json"
+        RealisationMetadata(
+            name="Test_REL01",
+            version="1",
+            defaults_version=DefaultsVersion.v24_2_2_1,
+            event_time=metadata_event_time,
+        ).write_to_realisation(realisation)
+        lf = waveforms(dt=0.02, nt=500, seed=1).drop_vars("vref")
+        hf = waveforms(dt=0.01, nt=1000, seed=2)
+        for dataset, ffp in ((lf, directory / "lf.nc"), (hf, directory / "hf.nc")):
+            dataset.assign_coords(
+                time=time_axis(dataset["time"].values, metadata_event_time)
+            ).to_netcdf(ffp, engine="h5netcdf")
+        bb_ffp = directory / "bb.nc"
+        bb_sim.combine_hf_and_lf(
+            realisation, sites_ffp, directory / "lf.nc", directory / "hf.nc", bb_ffp
+        )
+        with xr.open_dataset(bb_ffp) as dataset:
+            return dataset.load()
+
+    seconds = broadband("seconds", None)
+    stamped = broadband("stamped", event_time)
+
+    np.testing.assert_array_equal(
+        stamped["time"].values, time_axis(seconds["time"].values, event_time)
+    )
+    np.testing.assert_array_equal(
+        stamped["waveform"].values, seconds["waveform"].values
+    )

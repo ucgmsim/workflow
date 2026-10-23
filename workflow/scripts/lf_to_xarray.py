@@ -37,7 +37,8 @@ import xarray as xr
 
 from qcore import cli, timeseries
 from workflow import log_utils, sw4
-from workflow.waveforms import Component
+from workflow.realisations import RealisationMetadata
+from workflow.waveforms import Component, time_axis
 
 app = typer.Typer()
 
@@ -219,6 +220,9 @@ def convert_lf_to_xarray_dataset(
     low_frequency_path: Annotated[Path, typer.Argument(exists=True)],
     output_ffp: Annotated[Path, typer.Argument(writable=True, dir_okay=False)],
     format: Format = Format.EMOD3D,
+    realisation_ffp: Annotated[
+        Path | None, typer.Option(exists=True, dir_okay=False)
+    ] = None,
 ) -> None:
     """Merge low-frequency outputs into an xarray dataset.
 
@@ -234,7 +238,15 @@ def convert_lf_to_xarray_dataset(
         (Section 12.9 of the SW4 User Guide). If format is instead EMOD3D, the
         low frequency path should be a directory containing LFSeis files.
         Defaults to EMOD3D.
+    realisation_ffp : Path, optional
+        The realisation simulated. If its metadata has an event time, the time
+        axis is written as timestamps rather than seconds from the origin.
     """
+    event_time = (
+        RealisationMetadata.read_from_realisation(realisation_ffp).event_time
+        if realisation_ffp
+        else None
+    )
     match format:
         case Format.EMOD3D if low_frequency_path.is_dir():
             # qcore names the station coordinates lat/lon, and labels the
@@ -249,11 +261,18 @@ def convert_lf_to_xarray_dataset(
                 )
                 .sel(component=list(Component))
             )
+            lf_dataset = lf_dataset.assign_coords(
+                time=time_axis(lf_dataset["time"].values, event_time)
+            )
             lf_dataset.to_netcdf(output_ffp, engine="h5netcdf")
         case Format.EMOD3D:
             raise ValueError("EMOD3D format requires directory containing LFSeis files")
         case Format.SW4 if low_frequency_path.is_file():
+            # Stamped after conversion, which differentiates in seconds.
             lf_dataset = _convert_sw4_station_recording(low_frequency_path)
+            lf_dataset = lf_dataset.assign_coords(
+                time=time_axis(lf_dataset["time"].values, event_time)
+            )
             lf_dataset.to_netcdf(output_ffp, engine="h5netcdf")
         case Format.SW4:
             raise ValueError("SW4 format requires station recording file.")

@@ -421,6 +421,7 @@ def test_metadata(tmp_path: Path) -> None:
                 "version": "1",
                 "defaults_version": "24.2.2.1",
                 "tag": None,
+                "event_time": None,
             },
         }
 
@@ -428,6 +429,47 @@ def test_metadata(tmp_path: Path) -> None:
         realisations.RealisationMetadata.read_from_realisation(realisation_ffp)
         == metadata
     )
+
+
+def test_metadata_event_time_round_trips_as_iso_8601(tmp_path: Path) -> None:
+    metadata = realisations.RealisationMetadata(
+        name="Darfield",
+        version="1",
+        defaults_version=defaults.DefaultsVersion.v24_2_2_1,
+        event_time=datetime(2010, 9, 3, 16, 35, 46, tzinfo=UTC),
+    )
+    realisation_ffp = tmp_path / "realisation.json"
+    metadata.write_to_realisation(realisation_ffp)
+
+    assert (
+        json.loads(realisation_ffp.read_text())["metadata"]["event_time"]
+        == "2010-09-03T16:35:46+00:00"
+    )
+    assert (
+        realisations.RealisationMetadata.read_from_realisation(realisation_ffp)
+        == metadata
+    )
+
+
+def test_metadata_without_event_time_reads_as_none() -> None:
+    """Realisations written before `event_time` existed still load."""
+    metadata = realisations.RealisationMetadata.from_dict(
+        {"name": "old", "version": "1", "defaults_version": "24.2.2.1"}
+    )
+    assert metadata.event_time is None
+
+
+@pytest.mark.parametrize("event_time", ["2010-09-03T16:35:46", "not a time"])
+def test_metadata_event_time_needs_a_timezone_aware_timestamp(event_time: str) -> None:
+    with pytest.raises(schema.SchemaError):
+        realisations.RealisationMetadata.from_dict(
+            {
+                "name": "Darfield",
+                "version": "1",
+                "defaults_version": "24.2.2.1",
+                "event_time": event_time,
+            }
+        )
 
 
 def test_velocity_model(tmp_path: Path) -> None:
@@ -1325,6 +1367,9 @@ def test_srf_config_to_dict_without_point_source_params() -> None:
 @pytest.mark.parametrize(
     "depth, expected",
     [
+        # A domain inside the first layer gives a single, unpadded layer.
+        (0.05, [realisations.Refinement(resolution=50.0, bottom=50.0)]),
+        (1.0, [realisations.Refinement(resolution=50.0, bottom=1000.0)]),
         # The domain bottom lands exactly on a layer bottom: stop at that layer.
         (
             5.0,
@@ -1367,7 +1412,183 @@ def test_refinements_for_depth(
     assert refinements.refinements_for_depth(depth) == expected
 
 
+def test_refinements_for_depth_does_not_mutate_refinements() -> None:
+    """Truncating, padding or extending the layers leaves the originals intact."""
+    refinements = realisations.Refinements(
+        refinements=[
+            realisations.Refinement(resolution=50.0, bottom=2000.0),
+            realisations.Refinement(resolution=100.0, bottom=5000.0),
+        ],
+        unbounded_refinement_resolution=400.0,
+    )
+    for depth in [0.05, 2.1, 5.0, 5.1, 40.0]:
+        refinements.refinements_for_depth(depth)
+    assert refinements.refinements == [
+        realisations.Refinement(resolution=50.0, bottom=2000.0),
+        realisations.Refinement(resolution=100.0, bottom=5000.0),
+    ]
+
+
+def test_refinements_for_depth_without_refinements() -> None:
+    """With no refinements, one unbounded layer covers the whole domain."""
+    refinements = realisations.Refinements(
+        refinements=[], unbounded_refinement_resolution=400.0
+    )
+    assert refinements.refinements_for_depth(3.0) == [
+        realisations.Refinement(resolution=400.0, bottom=3000.0)
+    ]
+
+
 def test_sw4_command_skips_none_between_parameters() -> None:
     """A None parameter is omitted without dropping the parameters after it."""
     command = SW4Command("block", {"vp": 1.0, "vs": None, "rho": 2.0})
     assert command.render() == "block vp=1.0 rho=2.0"
+
+
+def test_srf_config_without_point_source_params(tmp_path: Path) -> None:
+    """An SRF config without `point_source_params` reads it as None."""
+    srf = realisations.SRFConfig.read_from_defaults(list(defaults.DefaultsVersion)[-1])
+    srf_dict = srf.to_dict()
+    srf_dict.pop("point_source_params", None)
+    realisation_ffp = tmp_path / "realisation.json"
+    realisation_ffp.write_text(json.dumps({"srf": srf_dict}))
+    srf_config = realisations.SRFConfig.read_from_realisation(realisation_ffp)
+    assert srf_config.point_source_params is None
+
+
+def test_hf_velocity_model_1d_without_vs_moho(tmp_path: Path) -> None:
+    """An HF velocity model without `vs_moho` reads the dataclass default."""
+    model_dict = realisations.HFVelocityModel1D.read_from_defaults(
+        list(defaults.DefaultsVersion)[-1]
+    ).to_dict()
+    model_dict.pop("vs_moho")
+    realisation_ffp = tmp_path / "realisation.json"
+    realisation_ffp.write_text(json.dumps({"hf_velocity_model_1d": model_dict}))
+    model = realisations.HFVelocityModel1D.read_from_realisation(realisation_ffp)
+    assert model.vs_moho == 999.9
+
+
+def test_sw4_command_without_parameters(tmp_path: Path) -> None:
+    """An SW4 command without `parameters` reads them as an empty dict."""
+    realisation_ffp = tmp_path / "realisation.json"
+    realisation_ffp.write_text(
+        json.dumps(
+            {
+                "sw4": {
+                    "verbose": 2,
+                    "printcycle": 10,
+                    "nz_min": 12,
+                    "commands": [{"name": "x"}, {"name": "y"}],
+                }
+            }
+        )
+    )
+    sw4 = realisations.SW4Parameters.read_from_realisation(realisation_ffp)
+    assert sw4.commands == [SW4Command("x", {}), SW4Command("y", {})]
+    assert sw4.commands[0].parameters is not sw4.commands[1].parameters
+
+
+def test_path_serialiser_serialises_paths() -> None:
+    """Paths are written as their string form."""
+    assert json.dumps(
+        {"a": Path("/tmp/x")}, default=realisations.path_serialiser
+    ) == json.dumps({"a": "/tmp/x"})
+
+
+def test_path_serialiser_rejects_unknown_types() -> None:
+    """Unknown types raise a TypeError naming the type, not a circular reference."""
+    with pytest.raises(TypeError, match="ndarray"):
+        json.dumps({"a": np.zeros(2)}, default=realisations.path_serialiser)
+
+
+def test_rakes_lookup_and_unit_vectors() -> None:
+    rakes = realisations.Rakes(rakes={"A": 0.0, "B": 90.0, "C": 180.0, "D": -135.0})
+    assert rakes["B"] == 90.0
+    assert rakes["D"] == -135.0
+    with pytest.raises(KeyError):
+        rakes["E"]
+
+    vectors = rakes.as_vectors()
+    assert set(vectors) == {"A", "B", "C", "D"}
+    np.testing.assert_allclose(vectors["A"], [1.0, 0.0], atol=1e-12)
+    np.testing.assert_allclose(vectors["B"], [0.0, 1.0], atol=1e-12)
+    np.testing.assert_allclose(vectors["C"], [-1.0, 0.0], atol=1e-12)
+    np.testing.assert_allclose(
+        vectors["D"], [-np.sqrt(2) / 2, -np.sqrt(2) / 2], atol=1e-12
+    )
+    for vector in vectors.values():
+        assert np.linalg.norm(vector) == pytest.approx(1.0)
+
+
+def test_rakes_vectors_average_across_the_wraparound() -> None:
+    """The docstring's example: -179 and 179 degrees average to 180, not 0."""
+    vectors = realisations.Rakes(rakes={"A": -179.0, "B": 179.0}).as_vectors()
+    mean = (vectors["A"] + vectors["B"]) / 2
+    assert abs(np.degrees(np.arctan2(mean[1], mean[0]))) == pytest.approx(180.0)
+
+
+def test_magnitudes_moments() -> None:
+    # A magnitude 2/3 larger has exactly ten times the moment.
+    magnitudes = realisations.Magnitudes(
+        magnitudes={
+            "A": magnitude_scaling.BoldM(6.0),
+            "B": magnitude_scaling.BoldM(6.0 + 2 / 3),
+        }
+    )
+    assert magnitudes["A"] == 6.0
+    with pytest.raises(KeyError):
+        magnitudes["C"]
+
+    moments = magnitudes.moments
+    assert set(moments) == {"A", "B"}
+    assert moments["B"] / moments["A"] == pytest.approx(10.0)
+    assert magnitudes.total_moment == pytest.approx(11 * moments["A"])
+    assert magnitudes.total_magnitude == pytest.approx(6.0 + 2 / 3 * np.log10(11))
+
+
+def test_magnitudes_single_fault_total_magnitude() -> None:
+    magnitudes = realisations.Magnitudes(magnitudes={"A": magnitude_scaling.BoldM(7.2)})
+    assert magnitudes.total_magnitude == pytest.approx(7.2)
+
+
+def test_magnitudes_moment_averaged() -> None:
+    magnitudes = realisations.Magnitudes(
+        magnitudes={
+            "A": magnitude_scaling.BoldM(6.0),
+            "B": magnitude_scaling.BoldM(6.0 + 2 / 3),
+        }
+    )
+    # The moment weights are 1 and 10.
+    assert magnitudes.moment_averaged({"A": 0.0, "B": 11.0}) == pytest.approx(10.0)
+    # Faults outside the realisation are ignored.
+    assert magnitudes.moment_averaged({"A": 0.0, "B": 11.0, "Z": 1e9}) == pytest.approx(
+        10.0
+    )
+    # Arrays are averaged elementwise, keeping their shape.
+    averaged = magnitudes.moment_averaged(
+        {"A": np.array([11.0, 0.0, 5.0]), "B": np.array([0.0, 11.0, 5.0])}
+    )
+    assert averaged.shape == (3,)
+    np.testing.assert_allclose(averaged, [1.0, 10.0, 5.0])
+    # Every fault in the realisation must be present.
+    with pytest.raises(KeyError):
+        magnitudes.moment_averaged({"A": 1.0})
+
+
+def test_hf_config_dt() -> None:
+    hf_config = realisations.HFConfig.read_from_defaults(
+        defaults.DefaultsVersion.v24_2_2_1
+    )
+    assert hf_config.dt == hf_config.record["dt"] == 0.01
+    hf_config.record["dt"] = 0.005
+    assert hf_config.dt == 0.005
+
+
+def test_logtrail_init_none() -> None:
+    """A LogTrail built without a log starts empty and can be appended to."""
+    trail = realisations.LogTrail(log=None)  # ty: ignore[invalid-argument-type] # __post_init__ accepts None
+    assert trail.log == []
+    trail.log_entry("utility", ["--flag"])
+    assert len(trail.log) == 1
+    assert trail.log[0].utility == "utility"
+    assert trail.log[0].args == ["--flag"]
