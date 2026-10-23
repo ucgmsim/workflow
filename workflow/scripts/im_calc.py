@@ -894,11 +894,11 @@ def calculate_intensity_measures(
         "zbot": source_parameters.avg_zbot,
         "hypo_depth": source_parameters.hypo_depth,
     } | _supergrid_attributes(broadband, supergrid)
-    
+
     site_parameters = read_site_parameters(broadband)
     if metadata.event_time is not None:
         attributes["event_time"] = metadata.event_time.isoformat()
-        
+
     if empirical:
         empirical_parameters = EmpiricalParameters.read_from_realisation_or_defaults(
             realisation_ffp, metadata.defaults_version

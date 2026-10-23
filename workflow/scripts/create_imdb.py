@@ -151,13 +151,10 @@ def read_stations(dtree: xr.DataTree) -> pd.DataFrame:
         penetration, indexed by station name.
     """
     dataset = next(node.dataset for node in dtree.subtree if node.has_data)
-    return pd.DataFrame(
-        {
-            name: coordinate.values
-            for name, coordinate in dataset.coords.items()
-            if coordinate.dims == ("station",) and name != "station"
-        },
-        index=pd.Index(dataset.station.values, name="station"),
+    return (
+        dataset.coords.to_dataset()
+        .drop_dims(set(dataset.dims) - {"station"})
+        .to_dataframe()
     )
 
 
