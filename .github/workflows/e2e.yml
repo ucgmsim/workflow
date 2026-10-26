@@ -88,11 +88,16 @@ jobs:
           uv sync --extra test
 
       # Kept in step with UCGMSIM_PACKAGES in realtime_simulation_workflow's flow.cylc.
+      # oq-wrapper's master needs openquake-engine >= 3.27, which depends on the
+      # gdal Python bindings. These have no Linux wheels and need a matching
+      # system libgdal, and only openquake.sep (unused here) imports them, so
+      # drop gdal the same way oq-wrapper's own pyproject.toml does.
       - name: Install dependencies (heads)
         if: matrix.deps == 'heads'
         run: |
           uv sync --frozen --extra test
-          uv pip install \
+          echo "gdal; sys_platform == 'never'" > "$RUNNER_TEMP/overrides.txt"
+          uv pip install --overrides "$RUNNER_TEMP/overrides.txt" \
             "qcore-utils[cli] @ git+https://github.com/ucgmsim/qcore.git@master" \
             "source-modelling @ git+https://github.com/ucgmsim/source_modelling.git@main" \
             "velocity-modelling @ git+https://github.com/ucgmsim/velocity_modelling.git@main" \
