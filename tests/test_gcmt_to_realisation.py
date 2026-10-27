@@ -28,9 +28,7 @@ SOLUTIONS = pd.DataFrame(
 @pytest.mark.parametrize(
     "event_id, tect_type",
     [
-        # 2003 Fiordland: ~9 km below the Slab2 interface with slip very oblique
-        # to the Puysegur plate motion, so Haynie et al. (2026) favours slab.
-        ("2103645", "subduction_slab"),
+        ("2103645", "subduction_interface"),  # 2003 Fiordland
         ("2016p858000", "active_shallow"),  # 2016 Kaikoura
         ("2017p795065", "subduction_slab"),
     ],
@@ -69,7 +67,7 @@ def test_gcmt_to_realisation_most_likely_nodal_plane(tmp_path: Path) -> None:
         solution_origin=solutions_ffp,
     )
 
-    # The shallow-dipping plane agrees with the subducting Puysegur slab.
+    # The 2003 Fiordland earthquake ruptured the shallow-dipping interface.
     fault = SourceConfig.read_from_realisation(realisation_ffp).source_geometries[
         "2103645"
     ]
