@@ -164,8 +164,9 @@ def gcmt_to_realisation(
         Defaults to `MOST_LIKELY`.
     tectonic_type : focal_mechanism.TectonicType | None
         The tectonic type used to select the empirical ground motion models.
-        If not provided, it is classified from the solution with the NZ NSHM
-        2022 rule (see `source_modelling.focal_mechanism`).
+        If not provided, it is classified from the solution with the
+        Haynie et al. (2026) interface/intraslab classification (see
+        `source_modelling.focal_mechanism`).
     solution_origin : Path | None
         If provided, use a supplied CSV of CMT solutions to lookup geometry.
         Must follow the format of the Geonet CMT solutions file.
