@@ -89,8 +89,10 @@ def write_recording(commands: dict[str, list[dict[str, str]]]) -> Path:
             group.create_dataset("STLA,STLO,STDP", data=station["STLA,STLO,STDP"][:])
             group.create_dataset("NPTS", data=np.array([npts], dtype=np.int32))
             group.create_dataset("ISNSEW", data=np.array([1], dtype=np.int32))
-            group.create_dataset("SGDEPTH", data=np.array([supergrid_width]))
-            group.create_dataset("SGDEPTHGP", data=np.array([1.0]))
+            # The fixture stations all lie inside the domain interior, so none
+            # penetrate the supergrid sponge.
+            group.create_dataset("SGDEPTH", data=np.array([0.0]))
+            group.create_dataset("SGDEPTHGP", data=np.array([0.0]))
             for j, component in enumerate(("EW", "NS", "UP")):
                 phase = 0.3 * i + 0.7 * j
                 waveform = 0.01 * np.exp(-time / 3) * np.sin(2 * np.pi * time + phase)
