@@ -59,6 +59,11 @@ test = [
 types = ["pandas-stubs", "types-geopandas", "types-requests", "scipy-stubs"]
 dev = ["ruff>=0.16.5", "deptry", "ty>=0.0.75", "npdlint"]
 
+[tool.uv.sources]
+# Slip's hybrid noise default (ucgmsim/rupture_generator#39). Drop this, and raise the
+# floor on rupture-generator above, once a release carries it.
+rupture-generator = { git = "https://github.com/ucgmsim/rupture_generator", rev = "015607360bb44e90666d04503e239c4609f0e1cf" }
+
 [tool.ty.src]
 # Generated/dynamic schema definitions that ty cannot usefully analyse.
 exclude = ["workflow/schemas.py", ".claude"]

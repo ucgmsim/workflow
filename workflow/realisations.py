@@ -691,7 +691,9 @@ class RuptureGenerationConfig(RealisationConfiguration):
 
     The successor to :class:`SRFConfig`, which drives genslip and stays alongside it
     until the genslip path is retired. Its defaults are the `srf` defaults restated in
-    the generator's terms.
+    the generator's terms, except for the correlation lengths, which are the
+    generator's own: slip's is Graves & Pitarka's depth-dependent hybrid. A `noise`
+    list in `slip`, `rake` or `perturbation` overrides them.
 
     **Mirrors `rupture_generator.config.RuptureConfig` table for table**: each group here
     is that file's table of the same name, deserialised by the generator's own strict
@@ -711,8 +713,6 @@ class RuptureGenerationConfig(RealisationConfiguration):
 
     spacing_km: float
     """Subfault size (km). Different, in general, from the simulation resolution."""
-    correlation: dict[str, Any]
-    """Slip correlation lengths against magnitude. The generator's `[source.correlation]`."""
     slip: dict[str, Any]
     """The slip field. The generator's `[slip]`."""
     rise: dict[str, Any]

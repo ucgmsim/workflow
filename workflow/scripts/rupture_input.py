@@ -405,7 +405,6 @@ def build_rupture(
                 for name, magnitude in magnitudes.magnitudes.items()
             },
             "rakes": {name: float(rake) for name, rake in rakes.rakes.items()},
-            "correlation": rupture_generation.correlation,
         },
         "slip": rupture_generation.slip,
         "rise": rupture_generation.rise,
