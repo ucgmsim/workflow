@@ -40,11 +40,9 @@ import xarray as xr
 
 from qcore import cli
 from workflow import log_utils
+from workflow.sites import OBSERVATION_STATION_PATTERN
 
 app = typer.Typer()
-
-OBSERVATION_STATION_PATTERN = r"^\w{3,4}$"
-"""Matches observation station names, which are three or four characters long."""
 
 SUBSET_SUFFIX = "_subset"
 """Suffix added to the stem of each input file to name its subset."""

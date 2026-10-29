@@ -22,3 +22,7 @@ def test_cav5_uses_a_5_cm_per_s_squared_threshold() -> None:
     cav5_function = function_map[IM.CAV5]
     assert isinstance(cav5_function, functools.partial)
     assert cav5_function.keywords["threshold"] == 5.0
+
+
+def test_every_empirical_im_has_a_component() -> None:
+    assert set(im_calc.EMPIRICAL_COMPONENTS) == set(im_calc.EMPIRICAL_IM_NAMES)

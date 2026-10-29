@@ -12,7 +12,7 @@ dynamic = ["version"]
 dependencies = [
   # UCGMSim Dependencies
   "im-calculation>=2026.10.3",
-  "velocity-modelling>=2026.10.1",
+  "velocity-modelling>=2026.10.2",
   "nshmdb>=2026.10.1",
   "oq_wrapper>=2026.10.1",
   "qcore-utils[cli]>=2026.10.1",
@@ -21,6 +21,7 @@ dependencies = [
   "source_modelling>=2026.10.2",
   "nzcvm>=2026.10.7",
   "rupture-generator>=2026.10.1",
+  "ucgmsim-imdb>=2026.9.2",
   # Data Formats
   "geopandas",
   "fiona",                 # Imported, undeclared, by openquake's GMMs
@@ -86,6 +87,7 @@ merge-ts = "workflow.scripts.merge_ts:app"
 hf-sim = "workflow.scripts.hf_sim:app"
 bb-sim = "workflow.scripts.bb_sim:app"
 im-calc = "workflow.scripts.im_calc:app"
+create-imdb = "workflow.scripts.create_imdb:app"
 check-srf = "workflow.scripts.check_srf:app"
 check-domain = "workflow.scripts.check_domain:app"
 gcmt-auto-simulate = "workflow.scripts.gcmt_auto_simulate:app"
@@ -157,6 +159,7 @@ known-first-party = [
   "mera",
   "velocity_modelling",
   "site_calculation",
+  "imdb",
 ]
 
 [tool.ruff.lint.per-file-ignores]
