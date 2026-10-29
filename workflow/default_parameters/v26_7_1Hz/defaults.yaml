@@ -63,7 +63,7 @@ sw4:
           mode: "mag",
           z: 0.0,
           file: "surf_mag",
-          timeInterval: 0.5,
+          timeInterval: 0.1,
           precision: "float",
         }
     - name: "imagehdf5"
