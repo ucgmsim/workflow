@@ -225,7 +225,13 @@ srf:
 # takes Graves & Pitarka's hybrid as genslip v5.6.3 configures it (Suzuki et al. (2022)
 # above 5 km, Mai & Beroza (2002) below 8 km), and rake and the onset perturbation take
 # Mai & Beroza (2002) everywhere. A `noise` list in `slip`, `rake` or `perturbation`
-# overrides them, as the generator's `[[<model>.noise]]` does.
+# overrides them, as the generator's `[[<model>.noise]]` does. Like genslip, the
+# generator draws patches 2 pi shorter than these relations' published lengths.
+#
+# The mean rise time and its power of slip are the generator's defaults too: genslip
+# v5.6.3's risetime_coef_savg and rtime2slip_exp, which scale the mean with the mean
+# slip and make rise time proportional to slip. `srf.risetime_coef` scales the mean with
+# the moment, as genslip did before v5.6.3, and has no counterpart here.
 rupture_generation:
   # srf.resolution.
   spacing_km: 0.1
@@ -239,9 +245,7 @@ rupture_generation:
     top_taper: 0.0
     bottom_taper: 0.0
   rise:
-    coefficient: 1.6  # risetime_coef
     correlation: 0.9  # rtime1_scor
-    slip_exponent: 0.5  # rtime2slip_exp
     # rtime1_sigma, which defaults to slip_sigma. genslip clips this field at zero
     # too, and floors the zeros to a one-sample pulse; as for slip, this draws from a
     # normal truncated at zero with the same spread instead.

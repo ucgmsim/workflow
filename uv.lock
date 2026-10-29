@@ -2944,8 +2944,8 @@ wheels = [
 
 [[package]]
 name = "rupture-generator"
-version = "2026.10.2.dev13+g015607360"
-source = { git = "https://github.com/ucgmsim/rupture_generator?rev=015607360bb44e90666d04503e239c4609f0e1cf#015607360bb44e90666d04503e239c4609f0e1cf" }
+version = "2026.10.2.dev14+gd8657714d"
+source = { git = "https://github.com/ucgmsim/rupture_generator?rev=d8657714df4127a9d8cc85af12d9cdf768703215#d8657714df4127a9d8cc85af12d9cdf768703215" }
 dependencies = [
     { name = "h5netcdf", extra = ["h5py"] },
     { name = "mashumaro", extra = ["toml"] },
@@ -3610,7 +3610,7 @@ requires-dist = [
     { name = "requests" },
     { name = "rich", specifier = ">=14.3.2" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16.5" },
-    { name = "rupture-generator", git = "https://github.com/ucgmsim/rupture_generator?rev=015607360bb44e90666d04503e239c4609f0e1cf" },
+    { name = "rupture-generator", git = "https://github.com/ucgmsim/rupture_generator?rev=d8657714df4127a9d8cc85af12d9cdf768703215" },
     { name = "schema" },
     { name = "scipy" },
     { name = "scipy-stubs", marker = "extra == 'types'" },

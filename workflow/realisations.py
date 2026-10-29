@@ -691,9 +691,10 @@ class RuptureGenerationConfig(RealisationConfiguration):
 
     The successor to :class:`SRFConfig`, which drives genslip and stays alongside it
     until the genslip path is retired. Its defaults are the `srf` defaults restated in
-    the generator's terms, except for the correlation lengths, which are the
-    generator's own: slip's is Graves & Pitarka's depth-dependent hybrid. A `noise`
-    list in `slip`, `rake` or `perturbation` overrides them.
+    the generator's terms, except where they follow genslip v5.6.3 through the
+    generator's own defaults: the correlation lengths, slip's being Graves & Pitarka's
+    depth-dependent hybrid, and the rise time, whose mean scales with the mean slip. A
+    `noise` list in `slip`, `rake` or `perturbation` overrides the lengths.
 
     **Mirrors `rupture_generator.config.RuptureConfig` table for table**: each group here
     is that file's table of the same name, deserialised by the generator's own strict
