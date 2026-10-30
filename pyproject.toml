@@ -18,9 +18,11 @@ dependencies = [
   "qcore-utils[cli]>=2026.10.1",
   "hf-simulation>=2026.10.2",
   "site-calculation>=2026.10.3",
-  "source_modelling>=2026.10.2",
+  "source_modelling>=2026.10.4",
   "nzcvm>=2026.10.7",
   "rupture-generator>=2026.10.1",
+  # HACK: Required to stop ucgmsim-imdb throwing errors
+  "duckdb<2",
   "ucgmsim-imdb>=2026.9.2",
   # Data Formats
   "geopandas",
@@ -71,7 +73,7 @@ exclude = ["workflow/schemas.py", ".claude"]
 
 [tool.deptry]
 optional_dependencies_dev_groups = ["test", "dev", "types"]
-per_rule_ignores = { DEP002 = ["fiona"] }
+per_rule_ignores = { DEP002 = ["fiona", "duckdb"] }
 
 [project.scripts]
 nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:app"
