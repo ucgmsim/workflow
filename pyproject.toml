@@ -20,7 +20,7 @@ dependencies = [
   "site-calculation>=2026.10.3",
   "source_modelling>=2026.10.4",
   "nzcvm>=2026.10.7",
-  "rupture-generator>=2026.10.1",
+  "rupture-generator>=2026.10.2",
   # HACK: Required to stop ucgmsim-imdb throwing errors
   "duckdb<2",
   "ucgmsim-imdb>=2026.9.2",
@@ -61,11 +61,6 @@ test = [
 ]
 types = ["pandas-stubs", "types-geopandas", "types-requests", "scipy-stubs"]
 dev = ["ruff>=0.16.5", "deptry", "ty>=0.0.75", "npdlint"]
-
-[tool.uv.sources]
-# Slip's hybrid noise default (ucgmsim/rupture_generator#39). Drop this, and raise the
-# floor on rupture-generator above, once a release carries it.
-rupture-generator = { git = "https://github.com/ucgmsim/rupture_generator", rev = "d8657714df4127a9d8cc85af12d9cdf768703215" }
 
 [tool.ty.src]
 # Generated/dynamic schema definitions that ty cannot usefully analyse.
