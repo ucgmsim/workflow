@@ -350,6 +350,9 @@ class Distances:
     """Strike-normal distance (GC2 T). Only defined for planar sources."""
     ry: xr.DataArray | None = None
     """Strike-parallel coordinate (GC2 U). Only defined for planar sources."""
+    ry0: xr.DataArray | None = None
+    """Modified Strike-parallel coordinate (GC2 U). Offsets ry from minimum ry. Only defined for planar sources."""
+
 
     def as_dict(self) -> dict[str, xr.DataArray]:
         """Map distance measure name to distances, omitting undefined measures.
@@ -448,9 +451,14 @@ def calculate_distances(
         for source in source_geometries.source_geometries.values()
     )
     if all_faults_have_rx_ry:
+        faults = list(source_geometries.source_geometries.values())
         rx, ry = sources.multi_fault_rx_ry_distance(
-            list(source_geometries.source_geometries.values()),  # ty: ignore[invalid-argument-type]
+            faults,  # ty: ignore[invalid-argument-type]
             station_locations,
+        )
+        ry0 = sources.ry0_distance(
+            faults, # ty: ignore[invalid-argument-type]
+            station_locations
         )
         rx /= 1000.0
         ry /= 1000.0
@@ -462,6 +470,10 @@ def calculate_distances(
         distances.ry = xr.DataArray(
             ry, dims="station", coords={"station": broadband.station}
         )
+        distances.ry0 = xr.DataArray(
+            ry0, dims="station", coords={"station": broadband.station}
+        )
+
     return distances
 
 
