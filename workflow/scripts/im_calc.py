@@ -455,10 +455,13 @@ def calculate_distances(
             faults,  # ty: ignore[invalid-argument-type]
             station_locations,
         )
-        ry0 = sources.ry0_distance(
-            faults, # ty: ignore[invalid-argument-type]
-            station_locations
-        ) / 1000.0
+        ry0 = (
+            sources.ry0_distance(
+                faults,  # ty: ignore[invalid-argument-type]
+                station_locations,
+            )
+            / 1000.0
+        )
         distances.rx = xr.DataArray(
             rx,
             dims="station",
