@@ -261,8 +261,9 @@ def convert_lf_to_xarray_dataset(
                 )
                 .sel(component=list(Component))
             )
+            start = lf_dataset.attrs["start_sec"]
             lf_dataset = lf_dataset.assign_coords(
-                time=time_axis(lf_dataset["time"].values, event_time)
+                time=time_axis(start + lf_dataset["time"].values, event_time)
             )
             lf_dataset.to_netcdf(output_ffp, engine="h5netcdf")
         case Format.EMOD3D:
