@@ -91,6 +91,10 @@ COORDINATE_METADATA = {
         "description": "Generalised strike-parallel coordinate (GC2 U)",
         "units": "km",
     },
+    "ry0": {
+        "description": "Strike-parallel distance off the end of the rupture",
+        "units": "km",
+    },
     "supergrid_depth": {
         "description": (
             "Penetration of the station into the solver's absorbing layer. "
@@ -351,7 +355,7 @@ class Distances:
     ry: xr.DataArray | None = None
     """Strike-parallel coordinate (GC2 U). Only defined for planar sources."""
     ry0: xr.DataArray | None = None
-    """Modified Strike-parallel coordinate (GC2 U). Offsets ry from minimum ry. Only defined for planar sources."""
+    """Strike-parallel distance off the end of the rupture (0 within its along-strike extent). Only defined for planar sources."""
 
     def as_dict(self) -> dict[str, xr.DataArray]:
         """Map distance measure name to distances, omitting undefined measures.
@@ -455,6 +459,8 @@ def calculate_distances(
             faults,  # ty: ignore[invalid-argument-type]
             station_locations,
         )
+        rx /= 1000.0
+        ry /= 1000.0
         ry0 = (
             sources.ry0_distance(
                 faults,  # ty: ignore[invalid-argument-type]
