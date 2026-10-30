@@ -3026,7 +3026,7 @@ wheels = [
 
 [[package]]
 name = "rupture-generator"
-version = "2026.10.2"
+version = "2026.10.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "h5netcdf", extra = ["h5py"] },
@@ -3037,12 +3037,12 @@ dependencies = [
     { name = "ucgmsim-srf" },
     { name = "xarray" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5c/a3/ec31ec3fbe6d003359d960da4ae327210e32efe1abeac5689b4baf474e30/rupture_generator-2026.10.2.tar.gz", hash = "sha256:062c6bfa8cdb47daa42c40b00fe53d08c3e89eb5a35b69437d5f497838a1b6f0", size = 3110259, upload-time = "2026-10-29T01:08:04.766Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/53/c2/2c7a6c3df0de36cd14a4e31fbecb945dc7aef22fc598101ee568487262c0/rupture_generator-2026.10.3.tar.gz", hash = "sha256:246650dac883e35f5092bcf7cb440bb5fcf7ab67fbcd60e6f1553febad7d5842", size = 3112813, upload-time = "2026-10-30T10:09:46.879Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ec/64/ceb3b31963b7dad48cae47883c5b85600b486dc8b6a4d9a17d8bbf6355a1/rupture_generator-2026.10.2-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:92f4b65cecaaf936ab1dbb9555d83230349c259533307b403e8243690ebc27f6", size = 727295, upload-time = "2026-10-29T01:07:57.426Z" },
-    { url = "https://files.pythonhosted.org/packages/1c/2c/be77daa37126401d58a33e8809361f1a89b4ffece49291bb7ae35e08e7ec/rupture_generator-2026.10.2-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:7fc957125a21a9e8775bac0903db0d270861ad0cf02970d9ff9ec3b1fa13938c", size = 619290, upload-time = "2026-10-29T01:07:59.554Z" },
-    { url = "https://files.pythonhosted.org/packages/a4/95/64e98617ed6096ec81b5f98e77b8f957d4bc4a24eb13c35c7f8880545668/rupture_generator-2026.10.2-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:21a1d113da6584309515c4aa3c78d39a2d5bf50fbbf68e7bd593c0aea5efa96e", size = 812267, upload-time = "2026-10-29T01:08:01.283Z" },
-    { url = "https://files.pythonhosted.org/packages/1b/1a/aa6b5c3f2786f0185e9af0b522a2e08354d9f78a6b6dfae54bf2dcdd0f87/rupture_generator-2026.10.2-cp314-cp314-win_amd64.whl", hash = "sha256:e44c512e55e6fa7696358d895f54c35159d4f003e36a3114c828595ab4cbbfc3", size = 616410, upload-time = "2026-10-29T01:08:02.996Z" },
+    { url = "https://files.pythonhosted.org/packages/be/80/a2c1fd5ebf4c0fbfe1efa9cf2baf226b0a0932734da0d8d8971d3294fc89/rupture_generator-2026.10.3-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:d1e02baf16d00508dc3b78612db95b960ab4ce8220bd3c19a0efe6f79274e2a8", size = 728434, upload-time = "2026-10-30T10:09:39.61Z" },
+    { url = "https://files.pythonhosted.org/packages/c5/cb/e72e41cd7eaf6439b1cf622a4591509f4f24590402ebd87510244674f76d/rupture_generator-2026.10.3-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:e56052ceb372050864048981910f3de679fd313cac7d45d1eb0cae3c016c655c", size = 620429, upload-time = "2026-10-30T10:09:41.293Z" },
+    { url = "https://files.pythonhosted.org/packages/94/f5/6c87aa41f3c0525c96236647243d277fc7d12dffb1c4cd36a3f72f92b494/rupture_generator-2026.10.3-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:679fb579d71a195230cb387ad41548940df40410b95377b2cb88f93a20a5c7ba", size = 813406, upload-time = "2026-10-30T10:09:42.996Z" },
+    { url = "https://files.pythonhosted.org/packages/44/b3/0f8780516537e50569733d2f6e143a31f591be1dd3b1445219ecaafb4ea4/rupture_generator-2026.10.3-cp314-cp314-win_amd64.whl", hash = "sha256:340be7c774bd02defd00375b33fcdd46de652cc2f47c9b24291b7b6a42a5c339", size = 617579, upload-time = "2026-10-30T10:09:44.622Z" },
 ]
 
 [[package]]
@@ -3725,7 +3725,7 @@ requires-dist = [
     { name = "requests" },
     { name = "rich", specifier = ">=14.3.2" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16.5" },
-    { name = "rupture-generator", specifier = ">=2026.10.2" },
+    { name = "rupture-generator", specifier = ">=2026.10.3" },
     { name = "schema" },
     { name = "scipy" },
     { name = "scipy-stubs", marker = "extra == 'types'" },

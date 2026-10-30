@@ -294,6 +294,16 @@ rupture_generation:
   # at its jump point plus the gap at 3.5 km/s. Shaw & Dieterich (2007): a gap under
   # delta_km is crossed for certain, wider ones with a probability decaying over d0_km,
   # and none wider than max_jump_km.
+  #
+  # `reach` (absent, so "sampled") draws how far each jump reaches; "reference" takes
+  # that draw's mean, so where each child fault starts no longer depends on the jump's
+  # random stream.
+  #
+  # Which fault triggers which is `propagation` beside this table (absent, so
+  # "predetermined": the realisation's causality tree). "sampled" has the generator
+  # draw a tree from this model with the seed, and "likeliest" takes the model's
+  # likeliest tree; both root it at the realisation's hypocentre and ignore the
+  # realisation's tree.
   jump:
     d0_km: 3.0
     delta_km: 1.0

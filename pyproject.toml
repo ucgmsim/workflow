@@ -20,7 +20,7 @@ dependencies = [
   "site-calculation>=2026.10.3",
   "source_modelling>=2026.10.4",
   "nzcvm>=2026.10.7",
-  "rupture-generator>=2026.10.2",
+  "rupture-generator>=2026.10.3",
   # HACK: Required to stop ucgmsim-imdb throwing errors
   "duckdb<2",
   "ucgmsim-imdb>=2026.9.2",

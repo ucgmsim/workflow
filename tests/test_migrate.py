@@ -523,3 +523,29 @@ def test_remembered_selection_asks_again_for_new_keys(
     # fmax was not in the remembered selection, so the question is asked again.
     assert sum("values in bb" in prompt for prompt in picker.prompts) == 2
     assert second.migrated["bb"]["fmax"] == 50.0
+
+
+def test_check_passes_for_rupture_generation_without_new_keys(tmp_path: Path) -> None:
+    """A section written before `propagation` and `reach` existed needs no migration."""
+    data = {
+        "metadata": {"name": "event", "version": "1", "defaults_version": str(NEW)},
+        **copy.deepcopy(migrate._default_sections(NEW)),
+    }
+    assert "propagation" not in data["rupture_generation"]
+    assert "reach" not in data["rupture_generation"]["jump"]
+    path = write(tmp_path / "realisation.json", data)
+    assert run_cli(path, "--check").exit_code == 0
+
+
+def test_check_passes_for_rupture_generation_with_new_keys(tmp_path: Path) -> None:
+    """Choosing a propagation and reach is not a difference from the defaults."""
+    data: dict[str, Any] = {
+        "metadata": {"name": "event", "version": "1", "defaults_version": str(NEW)},
+        **copy.deepcopy(migrate._default_sections(NEW)),
+    }
+    data["rupture_generation"]["propagation"] = "likeliest"
+    data["rupture_generation"]["jump"]["reach"] = "reference"
+    path = write(tmp_path / "realisation.json", data)
+    result = run_cli(path, "--check")
+    assert result.exit_code == 0, result.output
+    assert read(path) == data

@@ -16,6 +16,10 @@ that describe them. A point source is drawn on the patch it carries, and the fau
 rupture starts on has its deep rise-time and rupture-speed tapers moved below the
 hypocentre, as genslip moved them. The realisation's jump points are not used.
 
+With `rupture_generation.propagation` set to `sampled` or `likeliest`, the generator
+chooses the tree from its jump model instead, rooted at the realisation's hypocentre, and
+the realisation's causality tree is not used for the SRF.
+
 This is the successor to `realisation-to-srf`, which drives genslip from the `srf`
 section, and runs beside it until that path is retired.
 
@@ -436,23 +440,64 @@ def build_rupture(
     if overrides:
         rupture["segments"] = {initial_fault: overrides}
 
-    parents = {
-        child: parent
-        for child, parent in rupture_propagation.rupture_causality_tree.items()
-        if parent is not None
-    }
-    # Stated rather than sampled, because the hazard model chose which fault triggers
-    # which. The realisation's jump points are not used: the generator finds where each
-    # fault starts from its parent's solved onsets, under its own jump model. A single
-    # fault has no tree to state.
-    if parents:
-        rupture["propagation"] = {
-            "type": "predetermined",
-            "parents": parents,
-            "model": rupture_generation.jump,
-        }
+    propagation = propagation_table(
+        rupture_generation, rupture_propagation, len(geometries)
+    )
+    if propagation is not None:
+        rupture["propagation"] = propagation
 
     return rupture
+
+
+def propagation_table(
+    rupture_generation: RuptureGenerationConfig,
+    rupture_propagation: RupturePropagationConfig,
+    fault_count: int,
+) -> dict[str, Any] | None:
+    """The generator's `[propagation]` table: which fault triggers which.
+
+    By default the tree is stated rather than drawn, because the hazard model chose which
+    fault triggers which. `rupture_generation.propagation` can instead have the generator
+    draw a tree from its jump model (`sampled`, with the realisation's seed) or take the
+    jump model's likeliest (`likeliest`). Either way the tree is rooted at the fault the
+    realisation's hypocentre is on. The realisation's jump points are never used: the
+    generator finds where each fault starts from its parent's solved onsets, under its
+    own jump model.
+
+    Parameters
+    ----------
+    rupture_generation : RuptureGenerationConfig
+        Supplies the propagation type and the jump model.
+    rupture_propagation : RupturePropagationConfig
+        Supplies the causality tree, for `predetermined`.
+    fault_count : int
+        How many faults the realisation has.
+
+    Returns
+    -------
+    dict or None
+        The table, or None for a single fault, which has no tree to state.
+    """
+    if fault_count < 2:
+        return None
+    propagation = rupture_generation.propagation
+    if propagation == "predetermined":
+        return {
+            "type": "predetermined",
+            "parents": {
+                child: parent
+                for child, parent in rupture_propagation.rupture_causality_tree.items()
+                if parent is not None
+            },
+            "model": rupture_generation.jump,
+        }
+    log_utils.get_logger(__name__).warning(
+        "The rupture generator chooses its own tree: the SRF will not follow "
+        "rupture_propagation.rupture_causality_tree, only its hypocentre",
+        propagation=propagation,
+        initial_fault=rupture_propagation.initial_fault,
+    )
+    return {"type": propagation, "model": rupture_generation.jump}
 
 
 @cli.from_docstring(app)
