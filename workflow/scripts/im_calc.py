@@ -353,7 +353,6 @@ class Distances:
     ry0: xr.DataArray | None = None
     """Modified Strike-parallel coordinate (GC2 U). Offsets ry from minimum ry. Only defined for planar sources."""
 
-
     def as_dict(self) -> dict[str, xr.DataArray]:
         """Map distance measure name to distances, omitting undefined measures.
 
@@ -457,8 +456,8 @@ def calculate_distances(
             station_locations,
         )
         ry0 = sources.ry0_distance(
-            faults, # ty: ignore[invalid-argument-type]
-            station_locations
+            faults,  # ty: ignore[invalid-argument-type]
+            station_locations,
         )
         rx /= 1000.0
         ry /= 1000.0
