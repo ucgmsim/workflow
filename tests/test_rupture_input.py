@@ -3,8 +3,12 @@
 import dataclasses
 import io
 import json
+import subprocess
+import sys
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -13,7 +17,7 @@ import pytest
 from qcore import coordinates
 from rupture_generator import config as rupture_config
 from rupture_generator.geometry import geometry_from_geojson
-from rupture_generator.rupture.generator import generate
+from rupture_generator.rupture.generator import first_arrival, generate
 from rupture_generator.rupture.source import magnitude_from_moment
 from source_modelling import sources
 from source_modelling.magnitude_scaling import BoldM
@@ -336,3 +340,193 @@ def test_slip_dependent_rupture_speed_is_refused(tmp_path: Path) -> None:
             Seeds.random_seeds(),
             Path("faults.geojson"),
         )
+
+
+def _two_fault_rupture(
+    rupture_generation: RuptureGenerationConfig,
+) -> dict:
+    rupture_velocity = RuptureVelocity.read_from_defaults(VERSION)
+    return rupture_input.build_rupture(
+        rupture_generation,
+        {"sw": SOUTH_WEST, "ne": NORTH_EAST},
+        RupturePropagationConfig(
+            rupture_causality_tree={"sw": None, "ne": "sw"},
+            jump_points={},
+            hypocentre=np.array([0.3, 0.6]),
+        ),
+        Magnitudes(magnitudes={"sw": BoldM(6.5), "ne": BoldM(6.0)}),
+        Rakes(rakes={"sw": 90.0, "ne": 90.0}),
+        VelocityModel1D.read_from_defaults(VERSION),
+        rupture_velocity,
+        Seeds.random_seeds(),
+        Path("faults.geojson"),
+    )
+
+
+@pytest.mark.parametrize("propagation", ["predetermined", "sampled", "likeliest"])
+def test_propagation_type_is_written(propagation: str) -> None:
+    """Only `predetermined` states the realisation's tree; the others leave it out."""
+    rupture_generation = dataclasses.replace(
+        RuptureGenerationConfig.read_from_defaults(VERSION), propagation=propagation
+    )
+    rupture = _two_fault_rupture(rupture_generation)
+    expected = {"type": propagation, "model": rupture_generation.jump}
+    if propagation == "predetermined":
+        expected["parents"] = {"ne": "sw"}
+    assert rupture["propagation"] == expected
+    # The hypocentre, the generator's root, is the realisation's either way.
+    assert rupture["hypocentre"]["segment"] == "sw"
+    rupture_config._DECODER.decode(rupture | {"seed": 1})
+
+
+@pytest.mark.parametrize("propagation", ["predetermined", "sampled", "likeliest"])
+def test_single_fault_has_no_propagation(propagation: str) -> None:
+    """A single fault has no tree, whatever the propagation type."""
+    rupture_generation = dataclasses.replace(
+        RuptureGenerationConfig.read_from_defaults(VERSION), propagation=propagation
+    )
+    assert (
+        rupture_input.propagation_table(
+            rupture_generation,
+            RupturePropagationConfig(
+                rupture_causality_tree={"a": None},
+                jump_points={},
+                hypocentre=np.array([0.5, 0.5]),
+            ),
+            1,
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize("reach", ["sampled", "reference"])
+def test_reach_passes_through(reach: str) -> None:
+    """The jump table's `reach` reaches the generator's model unchanged."""
+    defaults_ = RuptureGenerationConfig.read_from_defaults(VERSION)
+    rupture_generation = dataclasses.replace(
+        defaults_, jump=defaults_.jump | {"reach": reach}
+    )
+    rupture = _two_fault_rupture(rupture_generation)
+    assert rupture["propagation"]["model"]["reach"] == reach
+    decoded = rupture_config._DECODER.decode(rupture | {"seed": 1})
+    assert decoded.propagation is not None
+    assert decoded.propagation.model.reach == reach
+
+
+def test_defaults_leave_propagation_and_reach_to_the_generator() -> None:
+    """No defaults version sets either key, so each reads as before they existed."""
+    for version in defaults.DefaultsVersion:
+        rupture_generation = RuptureGenerationConfig.read_from_defaults(version)
+        assert rupture_generation.propagation == "predetermined"
+        assert "reach" not in rupture_generation.jump
+        assert "propagation" not in rupture_generation.to_dict()
+
+
+def test_old_realisation_reads_as_predetermined(tmp_path: Path) -> None:
+    """A section written before `propagation` existed states the realisation's tree."""
+    realisation_ffp = tmp_path / "realisation.json"
+    _write_realisation(
+        realisation_ffp, {"sw": SOUTH_WEST, "ne": NORTH_EAST}, {"sw": None, "ne": "sw"}
+    )
+    section = json.loads(realisation_ffp.read_text())["rupture_generation"]
+    assert "propagation" not in section
+    assert "reach" not in section["jump"]
+
+    rupture_path = tmp_path / "rupture.toml"
+    rupture_input.generate_rupture_input(
+        realisation_ffp, tmp_path / "faults.geojson", rupture_path
+    )
+    propagation = tomllib.loads(rupture_path.read_text())["propagation"]
+    assert propagation["type"] == "predetermined"
+    assert propagation["parents"] == {"ne": "sw"}
+    assert "reach" not in propagation["model"]
+
+
+def test_chosen_propagation_round_trips(tmp_path: Path) -> None:
+    """A non-default propagation is written to the realisation and read back."""
+    realisation_ffp = tmp_path / "realisation.json"
+    RealisationMetadata(
+        name="test", version="1", tag="test", defaults_version=VERSION
+    ).write_to_realisation(realisation_ffp)
+    defaults_ = RuptureGenerationConfig.read_from_defaults(VERSION)
+    chosen = dataclasses.replace(
+        defaults_, propagation="likeliest", jump=defaults_.jump | {"reach": "reference"}
+    )
+    chosen.write_to_realisation(realisation_ffp)
+    section = json.loads(realisation_ffp.read_text())["rupture_generation"]
+    assert section["propagation"] == "likeliest"
+    assert section["jump"]["reach"] == "reference"
+    assert RuptureGenerationConfig.read_from_realisation(realisation_ffp) == chosen
+
+
+def _write_multi_fault_input(
+    tmp_path: Path, propagation: str, reach: str | None = None
+) -> Path:
+    """Write a two-fault realisation with these keys, and its generator input."""
+    realisation_ffp = tmp_path / "realisation.json"
+    # The realisation's tree starts on `sw`, which the generator roots its own at.
+    _write_realisation(
+        realisation_ffp, {"sw": SOUTH_WEST, "ne": NORTH_EAST}, {"sw": None, "ne": "sw"}
+    )
+    rupture_generation = RuptureGenerationConfig.read_from_realisation(realisation_ffp)
+    jump = rupture_generation.jump | ({} if reach is None else {"reach": reach})
+    dataclasses.replace(
+        rupture_generation, propagation=propagation, jump=jump
+    ).write_to_realisation(realisation_ffp)
+    rupture_path = tmp_path / "rupture.toml"
+    rupture_input.generate_rupture_input(
+        realisation_ffp, tmp_path / "faults.geojson", rupture_path
+    )
+    return rupture_path
+
+
+@pytest.mark.parametrize("propagation", ["sampled", "likeliest"])
+def test_generator_draws_its_own_tree(tmp_path: Path, propagation: str) -> None:
+    """`rupture-generator` draws the input end to end, with every fault in the SRF."""
+    rupture_path = _write_multi_fault_input(tmp_path, propagation, "reference")
+    srf_path = tmp_path / "realisation.srf"
+    subprocess.run(
+        [sys.executable, "-m", "rupture_generator.cli", rupture_path, srf_path],
+        check=True,
+    )
+    assert srf_path.stat().st_size > 0
+
+    scenario = rupture_config.build(rupture_config.load(rupture_path))
+    # Two faults have one tree, rooted at the realisation's hypocentre.
+    assert dict(scenario.realisation.tree) == {"sw": None, "ne": "sw"}
+
+
+def _jumping_with(seed: int) -> Callable[..., Any]:
+    """A jump rule drawing from its own generator, in place of the jump stream's."""
+
+    def rule(*args: Any) -> Any:
+        return first_arrival(*args[:-1], np.random.default_rng(seed))
+
+    return rule
+
+
+@pytest.mark.parametrize("reach", ["sampled", "reference"])
+def test_reference_reach_starts_children_whatever_the_jump_stream(
+    tmp_path: Path, reach: str
+) -> None:
+    """Under `reach = "reference"` the child's onsets don't depend on the jump's draws.
+
+    Under `"sampled"` they do, so the comparison has something to fix.
+    """
+    scenario = rupture_config.build(
+        rupture_config.load(_write_multi_fault_input(tmp_path, "likeliest", reach))
+    )
+    onsets = [
+        generate(
+            scenario.realisation,
+            scenario.medium,
+            scenario.sources,
+            scenario.model,
+            seed=scenario.seed,
+            jump_rule=_jumping_with(jump_seed),
+            jump_propagation_model=scenario.jump_model,
+        )["ne"].onset_s
+        for jump_seed in range(4)
+    ]
+    same = [np.array_equal(onsets[0], other) for other in onsets[1:]]
+    assert all(same) if reach == "reference" else not all(same)

@@ -18,7 +18,7 @@ from abc import ABC
 from collections.abc import Sequence
 from importlib import metadata
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Self
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
 
 import numpy as np
 import numpy.typing as npt
@@ -703,10 +703,11 @@ class RuptureGenerationConfig(RealisationConfiguration):
 
     The tables of that file this one does *not* carry are the ones the realisation
     already knows. `geometry`, `hypocentre`, `medium`, `source` (the per-fault
-    magnitudes and rakes), `propagation` (the causality tree) and the seed all come from
-    other sections. So does `speed`: genslip read the rupture-speed profile from
-    :class:`RuptureVelocity`, which `hf-sim` shares. All of them are injected by
-    `create-rupture-input`.
+    magnitudes and rakes) and the seed all come from other sections. So does `speed`:
+    genslip read the rupture-speed profile from :class:`RuptureVelocity`, which `hf-sim`
+    shares. All of them are injected by `create-rupture-input`. `[propagation]` is
+    split: `propagation` is its `type`, `jump` its `model`, and under `predetermined`
+    its `parents` are the realisation's causality tree.
     """
 
     _config_key: ClassVar[str] = "rupture_generation"
@@ -725,7 +726,43 @@ class RuptureGenerationConfig(RealisationConfiguration):
     pulse: dict[str, Any]
     """Slip-rate sampling and shape. The generator's `[pulse]`."""
     jump: dict[str, Any]
-    """How readily the rupture crosses between faults. The generator's `[propagation.model]`."""
+    """How readily the rupture crosses between faults. The generator's `[propagation.model]`.
+
+    Its `reach` is `"sampled"` (the generator's default) to draw the widest gap each
+    jump crosses, or `"reference"` to take that draw's mean. Under `"reference"`, where
+    and when each child fault starts follows from its parent's rupture alone, and not
+    from the jump's own random stream.
+    """
+    propagation: Literal["predetermined", "sampled", "likeliest"] = "predetermined"
+    """Which fault triggers which. The generator's `[propagation]` `type`.
+
+    - `"predetermined"`: the realisation's `rupture_propagation.rupture_causality_tree`.
+    - `"sampled"`: a tree the generator draws from `jump` with the realisation's seed.
+    - `"likeliest"`: `jump`'s maximum-likelihood tree.
+
+    Under `"sampled"` and `"likeliest"` the SRF does not follow the realisation's tree.
+    The hypocentre and the fault it is on still come from the realisation, as the root
+    of the generator's tree, and every fault still ruptures. A single fault has no tree,
+    whatever this says.
+    """
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the object to a dictionary representation.
+
+        `propagation` is left out when it is `"predetermined"`, the value a section
+        without it reads as, so `migrate` has no key to add to realisations written
+        before it existed.
+
+        Returns
+        -------
+        dict
+            Dictionary representation of the object.
+        """
+        config_dict = dataclasses.asdict(self)
+        if self.propagation == "predetermined":
+            del config_dict["propagation"]
+        return config_dict
 
 
 @dataclasses.dataclass

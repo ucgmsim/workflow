@@ -1110,6 +1110,12 @@ REALISATION_METADATA_SCHEMA = Schema(
 _RUPTURE_GENERATOR_TABLE = {str: object}
 """One of the rupture generator's own tables, which its decoder checks key by key."""
 
+JUMP_REACHES = ("sampled", "reference")
+"""The jump model's reaches: the generator's `[propagation.model]` `reach`."""
+
+RUPTURE_PROPAGATIONS = ("predetermined", "sampled", "likeliest")
+"""Where the rupture's tree comes from: the generator's `[propagation]` `type`."""
+
 RUPTURE_GENERATION_SCHEMA = Schema(
     {
         Literal(
@@ -1131,7 +1137,23 @@ RUPTURE_GENERATION_SCHEMA = Schema(
         Literal(
             "jump",
             description="How readily the rupture crosses between faults ([propagation.model])",
-        ): _RUPTURE_GENERATOR_TABLE,
+        ): {
+            Optional(
+                Literal(
+                    "reach",
+                    description="Draw the widest gap each jump crosses, or take its mean: where each child fault starts no longer depends on the jump's random stream (sampled when absent)",
+                )
+            ): Or(*JUMP_REACHES),
+            # Optional, so a table that only sets `reach` is still a table.
+            Optional(str): object,
+        },
+        Optional(
+            Literal(
+                "propagation",
+                description="Which fault triggers which ([propagation] type): the realisation's causality tree (predetermined), a tree drawn from the jump model with the seed (sampled), or the jump model's likeliest tree",
+            ),
+            default="predetermined",
+        ): Or(*RUPTURE_PROPAGATIONS),
     }
 )
 
