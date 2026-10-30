@@ -82,7 +82,11 @@ def test_section_rebuilds_the_realisation_corners(fault: sources.Fault) -> None:
 def test_defaults_are_rupture_generator_tables(
     defaults_version: defaults.DefaultsVersion,
 ) -> None:
-    """Every defaults version's tables pass the generator's strict reader."""
+    """Every defaults version's tables pass the generator's strict reader.
+
+    The correlation lengths are the generator's own defaults: Graves & Pitarka's hybrid
+    for slip, and Mai & Beroza (2002) everywhere for rake and the perturbation.
+    """
     rupture_generation = RuptureGenerationConfig.read_from_defaults(defaults_version)
     decoded = rupture_config._DECODER.decode(
         {
@@ -98,7 +102,6 @@ def test_defaults_are_rupture_generator_tables(
                 "type": "finite",
                 "magnitude": 6.0,
                 "rake_deg": 90.0,
-                "correlation": rupture_generation.correlation,
             },
             **{
                 table: getattr(rupture_generation, table)
@@ -108,6 +111,9 @@ def test_defaults_are_rupture_generator_tables(
         }
     )
     assert decoded.perturbation.blend_sigma == 4.0
+    assert decoded.slip.noise == rupture_config.GP_HYBRID
+    assert decoded.rake.noise == rupture_config.STATIONARY
+    assert decoded.perturbation.noise == rupture_config.STATIONARY
 
 
 def _write_realisation(

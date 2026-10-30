@@ -220,19 +220,21 @@ srf:
 # beside it. The geometry, hypocentre, medium, magnitudes, rakes, causality tree and seed
 # come from the rest of the realisation, and the rupture-speed profile from
 # `rupture_velocity:`, as genslip had them.
+#
+# The correlation lengths are the generator's own defaults, and none are set here: slip
+# takes Graves & Pitarka's hybrid as genslip v5.6.3 configures it (Suzuki et al. (2022)
+# above 5 km, Mai & Beroza (2002) below 8 km), and rake and the onset perturbation take
+# Mai & Beroza (2002) everywhere. A `noise` list in `slip`, `rake` or `perturbation`
+# overrides them, as the generator's `[[<model>.noise]]` does. Like genslip, the
+# generator draws patches 2 pi shorter than these relations' published lengths.
+#
+# The mean rise time and its power of slip are the generator's defaults too: genslip
+# v5.6.3's risetime_coef_savg and rtime2slip_exp, which scale the mean with the mean
+# slip and make rise time proportional to slip. `srf.risetime_coef` scales the mean with
+# the moment, as genslip did before v5.6.3, and has no counterpart here.
 rupture_generation:
   # srf.resolution.
   spacing_km: 0.1
-  # kmodel=2, Mai & Beroza (2002): genslip's 10^(0.5 Mw - 2.5) km along strike and
-  # 10^(0.3333 Mw - 1.5) km down dip. genslip filters its spectrum with (1 + k^2 a^2)
-  # in cycles per km, where the generator's correlation C(r/a) has the spectrum
-  # (1 + 4 pi^2 k^2 a^2), so genslip's patches are 2 pi smaller than its lengths say.
-  # Each offset carries log10(2 pi) = 0.79818 to draw the patches genslip drew.
-  correlation:
-    strike_exponent: 0.5
-    strike_offset: 3.298179868358115
-    dip_exponent: 0.3333
-    dip_offset: 2.298179868358115
   slip:
     # slip_sigma. genslip clips a normal field at zero (truncate_zero_slip); this
     # draws from a normal truncated at zero with the same spread, so no subfault
@@ -243,9 +245,7 @@ rupture_generation:
     top_taper: 0.0
     bottom_taper: 0.0
   rise:
-    coefficient: 1.6  # risetime_coef
     correlation: 0.9  # rtime1_scor
-    slip_exponent: 0.5  # rtime2slip_exp
     # rtime1_sigma, which defaults to slip_sigma. genslip clips this field at zero
     # too, and floors the zeros to a one-sample pulse; as for slip, this draws from a
     # normal truncated at zero with the same spread instead.

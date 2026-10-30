@@ -1117,10 +1117,6 @@ RUPTURE_GENERATION_SCHEMA = Schema(
             description="Subfault size (km). Not the simulation grid spacing.",
         ): And(NUMBER, _is_positive),
         Literal(
-            "correlation",
-            description="Slip correlation lengths against magnitude ([source.correlation])",
-        ): _RUPTURE_GENERATOR_TABLE,
-        Literal(
             "slip", description="The slip field ([slip])"
         ): _RUPTURE_GENERATOR_TABLE,
         Literal("rise", description="Rise time ([rise])"): _RUPTURE_GENERATOR_TABLE,
