@@ -99,7 +99,7 @@ def check_srf(
 
     if (srf_file.points["dep"] < 0).any():
         logger.error(
-            "Negative SRF depth detected", min_depth=srf_file.points["depth"].min()
+            "Negative SRF depth detected", min_depth=srf_file.points["dep"].min()
         )
         raise typer.Exit(code=1)
 
@@ -150,6 +150,6 @@ def check_srf(
         pass
 
     if srf_magnitude >= 11:
-        logger.error("Implausible SRF magnitude", srf_magnitude=magnitude)
+        logger.error("Implausible SRF magnitude", srf_magnitude=srf_magnitude)
         raise typer.Exit(code=1)
     realisations.append_log_entry(realisation_ffp)
