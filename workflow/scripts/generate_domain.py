@@ -37,7 +37,7 @@ import pandas as pd
 import shapely
 import typer
 
-from qcore import cli, geo
+from qcore import cli
 from source_modelling import magnitude_scaling, moment, sources
 from workflow import bounding_box, log_utils, realisations, sw4, utils
 from workflow.bounding_box import BoundingBox
@@ -233,7 +233,7 @@ def average_rake(rakes: Rakes, magnitudes: Magnitudes) -> float:
     Returns
     -------
     float
-        The moment-weighted average rake.
+        The moment-weighted average rake, in degrees in the range (-180, 180].
     """
     moments = {
         k: moment.magnitude_to_moment(magnitude, bold_m=True)
@@ -241,11 +241,18 @@ def average_rake(rakes: Rakes, magnitudes: Magnitudes) -> float:
     }
     max_moment = max(moments.values())
     # re-normalise for debugging purposes and to maybe improve
-    # floating-point accuracy in the avg wbearing function.
+    # floating-point accuracy in the weighted circular mean.
     moments = {k: moment / max_moment for k, moment in moments.items()}
 
-    weighted_rakes = list(utils.dict_zip(rakes.rakes, moments).values())
-    return geo.avg_wbearing(weighted_rakes)  # ty: ignore[invalid-argument-type]
+    rake_values, weights = np.array(
+        list(utils.dict_zip(rakes.rakes, moments).values())
+    ).T
+    return float(
+        np.angle(
+            np.average(np.exp(1j * np.radians(rake_values)), weights=weights),
+            deg=True,
+        )
+    )
 
 
 def estimate_simulation_duration(
