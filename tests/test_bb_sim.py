@@ -3,11 +3,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 import xarray as xr
 
+from site_calculation import amplification
 from workflow import sites
 from workflow.defaults import DefaultsVersion
-from workflow.realisations import RealisationMetadata
+from workflow.realisations import BroadbandParameters, RealisationMetadata
 from workflow.scripts import bb_sim, im_calc
 from workflow.waveforms import Component, time_axis
 
@@ -121,3 +123,175 @@ def test_an_event_time_stamps_the_broadband_time_axis(tmp_path: Path) -> None:
     np.testing.assert_array_equal(
         stamped["waveform"].values, seconds["waveform"].values
     )
+
+
+def sine_dataset(frequency: float, dt: float, nt: int, start_sec: float) -> xr.Dataset:
+    """A single-station, single-component sine wave starting at `start_sec`."""
+    time = start_sec + np.arange(nt) * dt
+    return xr.Dataset(
+        {
+            "waveform": (
+                ("component", "station", "time"),
+                np.sin(2 * np.pi * frequency * time)[np.newaxis, np.newaxis, :],
+            )
+        },
+        coords={"component": ["000"], "station": ["CHCH"], "time": time},
+        attrs={"dt": dt, "start_sec": start_sec, "nt": nt},
+    ).chunk(time=-1)
+
+
+def test_resampling_keeps_the_signal_and_its_start_time() -> None:
+    """Resampling a sine spans the input's time range and matches it before the taper."""
+    frequency, old_dt, dt, nt, start_sec = 0.5, 0.02, 0.005, 2000, -3.0
+
+    resampled = bb_sim._resample_signal(
+        sine_dataset(frequency, old_dt, nt, start_sec), dt
+    ).compute()
+
+    time = resampled["time"].values
+    expected_nt = round((nt - 1) * old_dt / dt) + 1
+    assert resampled.sizes["time"] == expected_nt
+    assert resampled.attrs["dt"] == dt
+    np.testing.assert_allclose(time, start_sec + np.arange(expected_nt) * dt)
+    np.testing.assert_allclose(time[-1], start_sec + (nt - 1) * old_dt)
+    # Outside the tapered tail, and the first few samples that ring where
+    # the FFT resampling wraps the tail round to the start, the resampled
+    # signal is the analytic sine.
+    core = slice(
+        int(0.01 * expected_nt),
+        int(expected_nt * (1 - bb_sim.TAIL_TAPER_FRACTION)),
+    )
+    np.testing.assert_allclose(
+        resampled["waveform"].values[0, 0, core],
+        np.sin(2 * np.pi * frequency * time[core]),
+        atol=1e-3,
+    )
+
+
+def test_alignment_pads_each_leg_at_its_original_times() -> None:
+    """LF and HF with different starts and lengths share an axis spanning both."""
+    dt = 0.01
+    lf = sine_dataset(1.0, dt, nt=100, start_sec=-3.0)
+    hf = sine_dataset(2.0, dt, nt=500, start_sec=0.0)
+
+    lf_aligned, hf_aligned = (
+        waveform.compute() for waveform in bb_sim._align_datasets(lf, hf, dt)
+    )
+
+    # From the LF start at -3 s to the HF end at 4.99 s.
+    common_nt = 800
+    common_time = -3.0 + np.arange(common_nt) * dt
+    for aligned in (lf_aligned, hf_aligned):
+        assert aligned.sizes["time"] == common_nt
+        np.testing.assert_allclose(aligned["time"].values, common_time)
+    # The LF occupies the first 100 samples, the HF the last 500.
+    np.testing.assert_array_equal(lf_aligned.values[..., :100], lf["waveform"].values)
+    np.testing.assert_array_equal(lf_aligned.values[..., 100:], 0.0)
+    np.testing.assert_array_equal(hf_aligned.values[..., :300], 0.0)
+    np.testing.assert_array_equal(hf_aligned.values[..., 300:], hf["waveform"].values)
+
+
+BB_CONFIG = BroadbandParameters.read_from_defaults(DefaultsVersion.v24_2_2_1)
+BB_DT = 0.01
+BB_NT = 6000
+
+
+def broadband_chunk(
+    lf: np.ndarray,
+    hf: np.ndarray,
+    filter_legs: bb_sim.FilterLeg,
+    pga: float = 100.0,
+) -> np.ndarray:
+    """The broadband of one station and component from LF and HF in cm/s^2."""
+    coords = {
+        "component": ["000"],
+        "station": ["CHCH"],
+        "time": np.arange(BB_NT) * BB_DT,
+    }
+    dims = ("component", "station", "time")
+    station = {"station": ["CHCH"]}
+    bb = bb_sim._process_bb_chunk(
+        xr.DataArray(lf[np.newaxis, np.newaxis, :], coords=coords, dims=dims),
+        xr.DataArray(hf[np.newaxis, np.newaxis, :], coords=coords, dims=dims),
+        xr.DataArray([400.0], coords=station, dims="station"),
+        xr.DataArray([500.0], coords=station, dims="station"),
+        xr.DataArray(
+            [[pga]],
+            coords={"component": ["000"]} | station,
+            dims=("component", "station"),
+        ),
+        dt=BB_DT,
+        config=BB_CONFIG,
+        filter_legs=filter_legs,
+    )
+    return bb.values[0, 0]
+
+
+@pytest.mark.parametrize("filter_legs", list(bb_sim.FilterLeg))
+def test_filter_legs_filter_only_the_chosen_legs(
+    filter_legs: bb_sim.FilterLeg,
+) -> None:
+    """Each `--filter` choice low-passes the LF and high-passes the HF only as asked."""
+    rng = np.random.default_rng(3)
+    lf = rng.normal(size=BB_NT)
+    hf = rng.normal(size=BB_NT)
+    zero = np.zeros(BB_NT)
+
+    lf_only = broadband_chunk(lf, zero, filter_legs)
+    hf_only = broadband_chunk(zero, hf, filter_legs)
+    amplified_hf = broadband_chunk(zero, hf, bb_sim.FilterLeg.NONE).astype(np.float64)
+
+    # The output is in g, from LF and HF in cm/s^2.
+    expected_lf = lf * bb_sim.G
+    if filter_legs in (bb_sim.FilterLeg.LF, bb_sim.FilterLeg.BOTH):
+        expected_lf = amplification.bwfilter(
+            expected_lf, BB_DT, BB_CONFIG.flo, amplification.Band.LOWPASS
+        )
+    expected_hf = amplified_hf
+    if filter_legs in (bb_sim.FilterLeg.HF, bb_sim.FilterLeg.BOTH):
+        expected_hf = amplification.bwfilter(
+            expected_hf, BB_DT, BB_CONFIG.flo, amplification.Band.HIGHPASS
+        )
+    np.testing.assert_allclose(lf_only, expected_lf, rtol=1e-4, atol=1e-7)
+    np.testing.assert_allclose(hf_only, expected_hf, rtol=1e-4, atol=1e-7)
+    # The broadband is the sum of the two legs.
+    np.testing.assert_allclose(
+        broadband_chunk(lf, hf, filter_legs), lf_only + hf_only, rtol=1e-4, atol=1e-7
+    )
+
+
+def test_both_filters_pass_a_low_frequency_lf() -> None:
+    """An LF well below the merge frequency passes the low-pass mostly unchanged."""
+    time = np.arange(BB_NT) * BB_DT
+    lf = np.sin(2 * np.pi * 0.1 * time)
+
+    bb = broadband_chunk(lf, np.zeros(BB_NT), bb_sim.FilterLeg.BOTH)
+
+    # Away from the edges of the record.
+    core = slice(BB_NT // 4, 3 * BB_NT // 4)
+    np.testing.assert_allclose(bb[core], lf[core] * bb_sim.G, atol=0.02 * bb_sim.G)
+
+
+def test_the_amplification_model_gets_the_hf_pga_in_g(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The site amplification model gets the HF PGA converted from cm/s^2 to g."""
+    amp_model_fn, amp_model_freqs = bb_sim.SITE_AMP_MODELS[BB_CONFIG.site_amp_version]
+    pgas = []
+
+    def recording_amp_model(
+        vs30: np.ndarray, vs30_sim: np.ndarray, pga: np.ndarray
+    ) -> np.ndarray:
+        pgas.append(pga)
+        return amp_model_fn(vs30, vs30_sim, pga)
+
+    monkeypatch.setitem(
+        bb_sim.SITE_AMP_MODELS,
+        BB_CONFIG.site_amp_version,
+        (recording_amp_model, amp_model_freqs),
+    )
+
+    broadband_chunk(np.zeros(BB_NT), np.zeros(BB_NT), bb_sim.FilterLeg.BOTH, pga=490.5)
+
+    assert len(pgas) == 1
+    np.testing.assert_allclose(pgas[0], [0.5])
