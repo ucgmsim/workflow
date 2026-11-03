@@ -2,6 +2,7 @@ import contextlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import numpy as np
 import pytest
@@ -96,12 +97,13 @@ def test_boundary_distance_is_farthest_corner_distance() -> None:
 
     value = generate_domain.boundary_distance(domain, [fault])
 
+    fault_polygon = cast(shapely.Polygon, fault.geometry)
     farthest_corner = max(
-        fault.geometry.distance(shapely.Point(corner)) for corner in domain.bounds
+        fault_polygon.distance(shapely.Point(corner)) for corner in domain.bounds
     )
     nearest_boundary = max(
         domain.polygon.exterior.distance(shapely.Point(coord))
-        for coord in fault.geometry.exterior.coords
+        for coord in fault_polygon.exterior.coords
     )
     assert value == pytest.approx(farthest_corner, rel=1e-6)
     assert value > nearest_boundary
