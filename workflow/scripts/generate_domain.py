@@ -113,12 +113,17 @@ def get_significant_duration(
 def boundary_distance(
     domain: BoundingBox, sources: Iterable[sources.IsSource]
 ) -> float:
-    r"""Compute the distance from source to boundary.
+    r"""Compute the distance from the sources to the farthest point of the domain.
 
-    The largest distance between the fault geometry and the domain
-    boundary is the Hausdorff distance, that is max_{x \in F_g}
-    (min_{y \in D} d(x, y)) where F_g is the fault geometry, and D is
-    the domain boundary.
+    This is the (symmetric) Hausdorff distance between the source
+    geometry and the domain polygon. Because the domain contains the
+    sources, it is dominated by the direction max_{y \in D} (min_{x
+    \in F_g} d(x, y)) where F_g is the source geometry and D is the
+    domain, i.e. the distance from the sources to the farthest point
+    of the domain (in practice, a domain corner). This is the distance
+    S-waves must travel to reach the whole domain. It is *not* the
+    distance from the sources to the nearest point of the domain
+    boundary.
 
     Parameters
     ----------
@@ -130,7 +135,8 @@ def boundary_distance(
     Returns
     -------
     float
-        The Hausdorff distance between the sources and the boundary (in meters).
+        The distance from the sources to the farthest point of the
+        domain (in meters).
     """
     source_geometry = shapely.union_all([source.geometry for source in sources])
     bounding_box_geometry = domain.polygon

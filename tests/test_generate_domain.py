@@ -11,6 +11,7 @@ from hypothesis import strategies as st
 
 from source_modelling import magnitude_scaling, sources
 from workflow import defaults
+from workflow.bounding_box import BoundingBox
 from workflow.realisations import (
     Magnitudes,
     Rakes,
@@ -82,6 +83,28 @@ def test_estimate_domain_contains_fault_geometry() -> None:
         f"Fault bounds: {fault_geom.bounds}\n"
         f"Domain bounds: {result_domain.polygon.bounds}"
     )
+
+
+def test_boundary_distance_is_farthest_corner_distance() -> None:
+    """boundary_distance is the distance from the fault to the farthest domain corner."""
+    fault = sources.Plane.from_centroid_strike_dip(
+        np.array([-43.5, 172.6, 10.0]), 60.0, 20.0, 10.0, strike=45.0
+    )
+    domain = BoundingBox.from_centroid_bearing_extents(
+        np.array([-43.5, 172.6]), 45.0, 100.0, 60.0
+    )
+
+    value = generate_domain.boundary_distance(domain, [fault])
+
+    farthest_corner = max(
+        fault.geometry.distance(shapely.Point(corner)) for corner in domain.bounds
+    )
+    nearest_boundary = max(
+        domain.polygon.exterior.distance(shapely.Point(coord))
+        for coord in fault.geometry.exterior.coords
+    )
+    assert value == pytest.approx(farthest_corner, rel=1e-6)
+    assert value > nearest_boundary
 
 
 # Slow because of openquake import
