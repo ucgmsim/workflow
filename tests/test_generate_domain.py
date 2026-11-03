@@ -179,7 +179,8 @@ def test_sw4_domains_keep_sources_out_of_the_sponge(
 def test_average_rake_single_fault_returns_input_rake(rake: float) -> None:
     """Averaging a single rake gives back that rake, in the range (-180, 180]."""
     avg = generate_domain.average_rake(
-        Rakes(rakes={"A": rake}), Magnitudes(magnitudes={"A": 7.0})
+        Rakes(rakes={"A": rake}),
+        Magnitudes(magnitudes={"A": magnitude_scaling.BoldM(7.0)}),
     )
     assert avg == pytest.approx(rake)
 
@@ -188,12 +189,22 @@ def test_average_rake_is_moment_weighted() -> None:
     """Rakes are averaged on the circle, weighted by seismic moment."""
     avg = generate_domain.average_rake(
         Rakes(rakes={"A": -80.0, "B": -100.0}),
-        Magnitudes(magnitudes={"A": 7.0, "B": 7.0}),
+        Magnitudes(
+            magnitudes={
+                "A": magnitude_scaling.BoldM(7.0),
+                "B": magnitude_scaling.BoldM(7.0),
+            }
+        ),
     )
     assert avg == pytest.approx(-90.0)
     avg = generate_domain.average_rake(
         Rakes(rakes={"A": -80.0, "B": -100.0}),
-        Magnitudes(magnitudes={"A": 7.0, "B": 5.0}),
+        Magnitudes(
+            magnitudes={
+                "A": magnitude_scaling.BoldM(7.0),
+                "B": magnitude_scaling.BoldM(5.0),
+            }
+        ),
     )
     assert -90.0 < avg < -80.0
 
@@ -203,7 +214,8 @@ def test_average_rake_is_moment_weighted() -> None:
 def test_normal_fault_uses_normal_faulting_duration() -> None:
     """A normal fault's averaged rake selects the normal-faulting Ds595."""
     rake = generate_domain.average_rake(
-        Rakes(rakes={"A": -90.0}), Magnitudes(magnitudes={"A": 7.0})
+        Rakes(rakes={"A": -90.0}),
+        Magnitudes(magnitudes={"A": magnitude_scaling.BoldM(7.0)}),
     )
     ds_avg = generate_domain.get_significant_duration(7.0, 50.0, 500.0, rake, 0.3)
     ds_normal = generate_domain.get_significant_duration(7.0, 50.0, 500.0, -90.0, 0.3)
