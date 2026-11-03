@@ -125,14 +125,20 @@ def test_an_event_time_stamps_the_broadband_time_axis(tmp_path: Path) -> None:
     )
 
 
+def onset_sine(frequency: float, time: np.ndarray, start_sec: float) -> np.ndarray:
+    """A sine that rises smoothly from rest at `start_sec`, as a simulated record does."""
+    onset = 1 - np.exp(-(((time - start_sec) / 2.0) ** 2))
+    return onset * np.sin(2 * np.pi * frequency * time)
+
+
 def sine_dataset(frequency: float, dt: float, nt: int, start_sec: float) -> xr.Dataset:
-    """A single-station, single-component sine wave starting at `start_sec`."""
+    """A single-station, single-component `onset_sine` starting at `start_sec`."""
     time = start_sec + np.arange(nt) * dt
     return xr.Dataset(
         {
             "waveform": (
                 ("component", "station", "time"),
-                np.sin(2 * np.pi * frequency * time)[np.newaxis, np.newaxis, :],
+                onset_sine(frequency, time, start_sec)[np.newaxis, np.newaxis, :],
             )
         },
         coords={"component": ["000"], "station": ["CHCH"], "time": time},
@@ -154,17 +160,16 @@ def test_resampling_keeps_the_signal_and_its_start_time() -> None:
     assert resampled.attrs["dt"] == dt
     np.testing.assert_allclose(time, start_sec + np.arange(expected_nt) * dt)
     np.testing.assert_allclose(time[-1], start_sec + (nt - 1) * old_dt)
-    # Outside the tapered tail, and the first few samples that ring where
-    # the FFT resampling wraps the tail round to the start, the resampled
-    # signal is the analytic sine.
-    core = slice(
-        int(0.01 * expected_nt),
-        int(expected_nt * (1 - bb_sim.TAIL_TAPER_FRACTION)),
-    )
+    # Outside the tapered tail the resampled signal is the analytic one from
+    # the first sample on. The record starts from rest and the taper brings the
+    # tail to rest, so the periodic FFT wraps smoothly from end to start. A
+    # record that starts abruptly (non-zero value or slope) would ring at its
+    # start under any band-limited resampler, wrap or no wrap.
+    core = slice(0, int(expected_nt * (1 - bb_sim.TAIL_TAPER_FRACTION)))
     np.testing.assert_allclose(
         resampled["waveform"].values[0, 0, core],
-        np.sin(2 * np.pi * frequency * time[core]),
-        atol=1e-3,
+        onset_sine(frequency, time[core], start_sec),
+        atol=1e-5,
     )
 
 
