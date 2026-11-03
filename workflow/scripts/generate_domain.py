@@ -121,9 +121,7 @@ def boundary_distance(
     \in F_g} d(x, y)) where F_g is the source geometry and D is the
     domain, i.e. the distance from the sources to the farthest point
     of the domain (in practice, a domain corner). This is the distance
-    S-waves must travel to reach the whole domain. It is *not* the
-    distance from the sources to the nearest point of the domain
-    boundary.
+    S-waves must travel to reach the whole domain.
 
     Parameters
     ----------
