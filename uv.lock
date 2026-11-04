@@ -10,6 +10,9 @@ resolution-markers = [
     "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
+[manifest]
+constraints = [{ name = "zfpy", specifier = "!=1.0.1.post0" }]
+
 [[package]]
 name = "alpha-shapes"
 version = "1.1.1"
