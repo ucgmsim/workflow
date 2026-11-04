@@ -31,6 +31,7 @@ def read_nz_coastline() -> gpd.GeoDataFrame:
         urllib.request.urlopen(NZ_COASTLINE_URL) as source,
     ):
         f.write(source.read())
+        f.flush()
         return gpd.read_file(f.name)
 
 

@@ -1,4 +1,6 @@
+import io
 import os
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import geopandas as gpd
@@ -182,3 +184,16 @@ def test_stable_hash_collision(value_a: str, value_b: str, size: int) -> None:
     hash_a = utils.stable_hash(value_a, size=size // 8)
     hash_b = utils.stable_hash(value_b, size=size // 8)
     assert hash_a != hash_b
+
+
+def test_read_nz_coastline_small_payload(tmp_path: Path) -> None:
+    """A download smaller than the write buffer must still be read."""
+    gdf = gpd.GeoDataFrame(geometry=[shapely.box(0, 0, 1, 1)], crs="4326")
+    path = tmp_path / "small.gmt"
+    gdf.to_file(path, driver="OGR_GMT")
+    data = path.read_bytes()
+
+    with patch("urllib.request.urlopen", return_value=io.BytesIO(data)):
+        coastline = utils.read_nz_coastline()
+
+    assert len(coastline) == 1
