@@ -1,3 +1,5 @@
+import hashlib
+import io
 import os
 from unittest.mock import Mock, patch
 
@@ -182,3 +184,167 @@ def test_stable_hash_collision(value_a: str, value_b: str, size: int) -> None:
     hash_a = utils.stable_hash(value_a, size=size // 8)
     hash_b = utils.stable_hash(value_b, size=size // 8)
     assert hash_a != hash_b
+
+
+def _bumped_rectangle(
+    x: float, y: float, width: float, height: float, bump: float
+) -> shapely.LinearRing:
+    """A rectangle whose top edge has a vertex pushed out by ``bump`` metres."""
+    return shapely.LinearRing(
+        [
+            (x, y),
+            (x + width, y),
+            (x + width, y + height),
+            (x + width / 2, y + height + bump),
+            (x, y + height),
+        ]
+    )
+
+
+@pytest.mark.parametrize("bumped_island", ["south", "north"])
+def test_get_nz_outline_polygon_simplify_tolerance_is_100m(bumped_island: str) -> None:
+    """Each island is simplified with a 100 m tolerance: a 100.5 m feature survives.
+
+    A tolerance of even 101 m would remove the bump and shrink the outline by
+    at least half a square kilometre.
+    """
+    x = 5180826
+    y = 1567688
+    # The larger polygon is treated as the South Island.
+    south = _bumped_rectangle(
+        x, y, 20000, 10000, 100.5 if bumped_island == "south" else 0
+    )
+    north = _bumped_rectangle(
+        x + 50000, y, 10000, 10000, 100.5 if bumped_island == "north" else 0
+    )
+    # A third, smaller island that must be dropped.
+    tiny = shapely.box(x + 100000, y, x + 100500, y + 500).exterior
+
+    dummy_gdf = gpd.GeoDataFrame(geometry=[tiny, north, south], crs="2193").to_crs(
+        "4326"
+    )
+    with patch("workflow.utils.read_nz_coastline", return_value=dummy_gdf):
+        result = utils.get_nz_outline_polygon()
+
+    expected = shapely.union(
+        shapely.Polygon(south.coords).simplify(100),
+        shapely.Polygon(north.coords).simplify(100),
+    )
+    expected = shapely.transform(expected, lambda c: c[:, ::-1])
+    # The bump alone covers 0.5 * width * 100.5 m^2 (>= 500,000 m^2).
+    assert shapely.area(shapely.symmetric_difference(result, expected)) < 10
+    assert shapely.area(result) == pytest.approx(shapely.area(expected), abs=10)
+
+
+def test_get_available_cores_slurm_cpus_on_node_takes_priority() -> None:
+    """SLURM_CPUS_ON_NODE wins over SLURM_NPROCS and the CPU affinity."""
+    with (
+        patch.dict(os.environ, {"SLURM_CPUS_ON_NODE": "3", "SLURM_NPROCS": "17"}),
+        patch("psutil.Process.cpu_affinity", return_value=list(range(5))),
+    ):
+        assert utils.get_available_cores() == 3
+
+
+def test_get_available_cores_slurm_nprocs_over_affinity() -> None:
+    """SLURM_NPROCS is used ahead of the CPU affinity when present alone."""
+    env = {k: v for k, v in os.environ.items() if k != "SLURM_CPUS_ON_NODE"}
+    env["SLURM_NPROCS"] = "17"
+    with (
+        patch.dict(os.environ, env, clear=True),
+        patch("psutil.Process.cpu_affinity", return_value=list(range(5))),
+    ):
+        assert utils.get_available_cores() == 17
+
+
+def test_raises_exact_message_when_no_cpu_info() -> None:
+    mock_process = Mock()
+    del mock_process.cpu_affinity
+    slurm_vars = ("SLURM_CPUS_ON_NODE", "SLURM_NPROCS")
+    env = {k: v for k, v in os.environ.items() if k not in slurm_vars}
+    with (
+        patch.dict(os.environ, env, clear=True),
+        patch("psutil.Process", return_value=mock_process),
+        patch("psutil.cpu_count", return_value=None),
+        pytest.raises(RuntimeError, match=r"^Cannot determine CPU count\.$"),
+    ):
+        utils.get_available_cores()
+
+
+def test_dict_zip_is_strict_by_default() -> None:
+    """Without an explicit ``strict`` argument mismatched keys are an error."""
+    with pytest.raises(
+        ValueError, match=r"^Keys in dictionaries are not all the same\.$"
+    ):
+        utils.dict_zip({"a": 1, "b": 2}, {"a": 3})
+
+
+def test_dict_zip_non_strict_disjoint_keys_is_empty() -> None:
+    assert utils.dict_zip({"a": 1}, {"b": 2}, {"a": 3}, strict=False) == {}
+
+
+def test_merge_dictionaries_deep_merges_in_place() -> None:
+    dict_a = {"x": 1, "nested": {"keep": 1, "override": 2}, "replaced": {"a": 1}}
+    dict_b = {"nested": {"override": 20, "new": 30}, "replaced": 5, "y": 2}
+    original_b = {"nested": {"override": 20, "new": 30}, "replaced": 5, "y": 2}
+
+    assert utils.merge_dictionaries(dict_a, dict_b) is None
+    assert dict_a == {
+        "x": 1,
+        "nested": {"keep": 1, "override": 20, "new": 30},
+        "replaced": 5,
+        "y": 2,
+    }
+    assert dict_b == original_b
+
+
+@given(value=st.text(max_size=64))
+def test_stable_hash_default_size_is_four_bytes(value: str) -> None:
+    """The default digest size is 4 bytes (a signed 32-bit integer)."""
+    result = utils.stable_hash(value)
+    assert result == utils.stable_hash(value, size=4)
+    assert -(1 << 31) <= result < (1 << 31)
+
+
+@pytest.mark.parametrize("value", ["", "realisation", "Ōtautahi"])
+@pytest.mark.parametrize("size", [1, 4, 8])
+def test_stable_hash_matches_signed_blake2b_of_utf8(value: str, size: int) -> None:
+    """The hash is the signed big-endian integer of the UTF-8 BLAKE2b digest."""
+    expected = int.from_bytes(
+        hashlib.blake2b(value.encode("utf-8"), digest_size=size).digest(),
+        byteorder="big",
+        signed=True,
+    )
+    assert utils.stable_hash(value, size=size) == expected
+
+
+def test_stable_hash_known_values() -> None:
+    """Pin exact outputs so hashes stay stable across releases."""
+    assert utils.stable_hash("") == 309448485
+    assert utils.stable_hash("realisation") == 1579675602
+
+
+GMT_TRIANGLE = b"""# @VGMT1.0 @GPOLYGON
+# @R170/171/-42/-41
+# FEATURE_DATA
+>
+170 -42
+171 -42
+171 -41
+170 -42
+"""
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="read_nz_coastline reads the temp file before flushing it (#251)",
+)
+def test_read_nz_coastline_parses_downloaded_gmt() -> None:
+    """The downloaded GMT bytes are parsed into a GeoDataFrame of polygons."""
+    source = io.BytesIO(GMT_TRIANGLE)
+    with patch("urllib.request.urlopen", return_value=source) as urlopen:
+        gdf = utils.read_nz_coastline()
+    urlopen.assert_called_once_with(utils.NZ_COASTLINE_URL)
+    assert len(gdf) == 1
+    assert gdf.geometry.iloc[0].equals(
+        shapely.Polygon([(170, -42), (171, -42), (171, -41)])
+    )
