@@ -334,10 +334,6 @@ GMT_TRIANGLE = b"""# @VGMT1.0 @GPOLYGON
 """
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="read_nz_coastline reads the temp file before flushing it (#251)",
-)
 def test_read_nz_coastline_parses_downloaded_gmt() -> None:
     """The downloaded GMT bytes are parsed into a GeoDataFrame of polygons."""
     source = io.BytesIO(GMT_TRIANGLE)
