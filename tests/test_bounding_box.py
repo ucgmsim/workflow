@@ -78,3 +78,110 @@ def test_minimum_area_bounding_box_for_polygons_masked() -> None:
     )
     assert isinstance(box, BoundingBox)
     assert box.area == pytest.approx(2.0)
+
+
+REFERENCE_CENTROID = (-43.5, 172.6)
+
+
+def _map_view_signed_area(bounds: np.ndarray) -> float:
+    """Shoelace area of NZTM (northing, easting) bounds in (easting, northing) axes.
+
+    Positive means the corners run counter-clockwise on a map.
+    """
+    east, north = bounds[:, 1], bounds[:, 0]
+    return 0.5 * float(np.sum(east * np.roll(north, -1) - np.roll(east, -1) * north))
+
+
+@given(centroid=CENTROIDS, bearing=BEARINGS, extent_x=EXTENTS, extent_y=EXTENTS)
+def test_from_centroid_bearing_extents_invariants(
+    centroid: tuple[float, float], bearing: float, extent_x: float, extent_y: float
+) -> None:
+    """Whatever the bearing, the box is centred on the centroid, has the
+    requested side lengths, and lists its corners counter-clockwise starting
+    from a bottom-left corner."""
+    box = BoundingBox.from_centroid_bearing_extents(
+        centroid, bearing, extent_x, extent_y
+    )
+    np.testing.assert_allclose(box.origin, centroid, atol=1e-8)
+    assert sorted([box.extent_x, box.extent_y]) == pytest.approx(
+        sorted([extent_x, extent_y])
+    )
+    assert box.area == pytest.approx(extent_x * extent_y)
+    assert _map_view_signed_area(box.bounds) == pytest.approx(extent_x * extent_y * 1e6)
+    centred_sums = (box.bounds - box.bounds.mean(axis=0)).sum(axis=1)
+    assert centred_sums[0] <= centred_sums.min() + 1e-6
+
+
+@pytest.mark.parametrize(
+    ("bearing", "extent_x", "extent_y", "expected"),
+    [
+        (30.0, 100.0, 50.0, (30.0, 100.0, 50.0)),
+        (90.0, 100.0, 50.0, (0.0, 50.0, 100.0)),
+        (180.0, 100.0, 50.0, (0.0, 100.0, 50.0)),
+        (210.0, 100.0, 50.0, (30.0, 100.0, 50.0)),
+        (300.0, 100.0, 50.0, (30.0, 50.0, 100.0)),
+        (120.0, 100.0, 50.0, (30.0, 50.0, 100.0)),
+        (60.0, 100.0, 50.0, (330.0, 50.0, 100.0)),
+    ],
+)
+def test_from_centroid_bearing_extents_canonical_form(
+    bearing: float,
+    extent_x: float,
+    extent_y: float,
+    expected: tuple[float, float, float],
+) -> None:
+    """Corners are stored counter-clockwise from the bottom-left corner.
+
+    Equal rectangles therefore get one canonical (bearing, extent_x, extent_y).
+    """
+    box = BoundingBox.from_centroid_bearing_extents(
+        REFERENCE_CENTROID, bearing, extent_x, extent_y
+    )
+    assert (box.bearing, box.extent_x, box.extent_y) == pytest.approx(
+        expected, abs=1e-6
+    )
+    np.testing.assert_allclose(box.origin, REFERENCE_CENTROID, atol=1e-9)
+    assert box.area == pytest.approx(extent_x * extent_y)
+    assert _map_view_signed_area(box.bounds) > 0
+    centred = box.bounds - box.bounds.mean(axis=0)
+    assert int(centred.sum(axis=1).argmin()) == 0
+
+
+def test_constructor_reorders_corners() -> None:
+    """Corners given in any order are stored counter-clockwise from bottom-left."""
+    expected = np.array([[0.0, 0.0], [0.0, 2000.0], [1000.0, 2000.0], [1000.0, 0.0]])
+    for permutation in [[0, 1, 2, 3], [2, 0, 3, 1], [3, 2, 1, 0], [1, 3, 0, 2]]:
+        box = BoundingBox(expected[permutation])
+        np.testing.assert_array_equal(box.bounds, expected)
+        assert box.extent_x == pytest.approx(2.0)
+        assert box.extent_y == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize(
+    ("geometry", "axis_aligned"),
+    [
+        (shapely.Point(0, 0), False),
+        (shapely.Point(0, 0), True),
+        (shapely.LineString([(0, 0), (1000, 1000)]), False),
+        (shapely.MultiPoint([(0, 0), (500, 500), (1000, 1000)]), False),
+        (shapely.LineString([(0, 0), (1000, 0)]), True),
+        pytest.param(
+            shapely.LineString([(0, 0), (0, 1000)]),
+            True,
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason="GEOS returns a zero-area 4-corner envelope (issue #259)",
+            ),
+        ),
+    ],
+)
+def test_bounding_box_for_degenerate_geometry_raises(
+    geometry: shapely.Geometry, axis_aligned: bool
+) -> None:
+    """Points and lines have no well-defined enclosing rectangle.
+
+    A diagonal line has a proper axis-aligned envelope, so only lines along an
+    axis are degenerate in that mode.
+    """
+    with pytest.raises(ValueError, match=r"^Ill-defined geometry for bounding box\.$"):
+        BoundingBox.bounding_box_for_geometry(geometry, axis_aligned=axis_aligned)
