@@ -198,3 +198,53 @@ def test_sw4_station_names_may_contain_spaces(
         "CH CH",
         "RICC",
     ]
+
+
+@pytest.mark.parametrize("offset", [0.6, 0.9, 1.4])
+def test_emod3d_drops_stations_just_outside_every_edge(
+    realisation: Path, tmp_path: Path, offset: float
+) -> None:
+    """Stations more than half a cell beyond any edge are dropped alike."""
+    domain = DomainParameters.read_from_realisation(realisation)
+    nx = domain.nx(RESOLUTION)
+    ny = domain.ny(RESOLUTION)
+    mlat, mlon = domain.domain.origin
+    proj = coordinates.SphericalProjection(
+        mlat=mlat, mlon=mlon, mrot=float(domain.domain.great_circle_bearing)
+    )
+    # Continuous grid positions of each station.
+    positions = {
+        "CENT": (nx / 2, ny / 2),
+        "LOWX": (-offset, ny / 2),
+        "HIGX": (nx - 1 + offset, ny / 2),
+        "LOWY": (nx / 2, -offset),
+        "HIGY": (nx / 2, ny - 1 + offset),
+    }
+    grid = np.array(list(positions.values()))
+    lat, lon = proj.inverse(
+        (grid[:, 0] - nx / 2) * RESOLUTION, (grid[:, 1] - ny / 2) * RESOLUTION
+    ).T
+    table = pd.DataFrame(
+        {
+            "latitude": lat,
+            "longitude": lon,
+            "vs30": 400.0,
+            "z1pt0": 0.2,
+            "z2pt5": 1.2,
+            "kappa_s": 0.045,
+            "q_frequency_exponent": 0.6,
+        },
+        index=pd.Index(list(positions), name="station"),
+    )
+    sites_ffp = tmp_path / "sites.parquet"
+    table.to_parquet(sites_ffp)
+    output = tmp_path / "stations"
+
+    generate_station_coordinates.generate_fd_files(
+        realisation, sites_ffp, output, format=Format.EMOD3D
+    )
+
+    lines = (output / "stations.statcords").read_text().splitlines()
+    assert lines[0] == "1"
+    assert [line.split()[-1] for line in lines[1:]] == ["CENT"]
+    assert list(sites.read_sites(output / "stations.parquet").index) == ["CENT"]

@@ -102,9 +102,10 @@ def write_emod3d_station_format(
     x += cx
     y += cy
 
-    # C-compatible rounding of the continuous coordinates into grid point coordinates
-    x = (x / resolution_parameters.resolution + 0.5).astype(int)
-    y = (y / resolution_parameters.resolution + 0.5).astype(int)
+    # Round the continuous coordinates to the nearest grid point. Floor, not
+    # truncation, so that stations beyond the low edges stay negative.
+    x = np.floor(x / resolution_parameters.resolution + 0.5).astype(int)
+    y = np.floor(y / resolution_parameters.resolution + 0.5).astype(int)
 
     in_domain_mask = (x >= 0) & (x < nx) & (y >= 0) & (y < ny)
     # filter out stations outside the domain
