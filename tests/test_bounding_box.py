@@ -165,14 +165,9 @@ def test_constructor_reorders_corners() -> None:
         (shapely.LineString([(0, 0), (1000, 1000)]), False),
         (shapely.MultiPoint([(0, 0), (500, 500), (1000, 1000)]), False),
         (shapely.LineString([(0, 0), (1000, 0)]), True),
-        pytest.param(
-            shapely.LineString([(0, 0), (0, 1000)]),
-            True,
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="GEOS returns a zero-area 4-corner envelope (issue #259)",
-            ),
-        ),
+        # GEOS gives these a zero-area envelope with four corners (#259).
+        (shapely.LineString([(0, 0), (0, 1000)]), True),
+        (shapely.MultiPoint([(5, 5), (5, 7)]), True),
     ],
 )
 def test_bounding_box_for_degenerate_geometry_raises(
