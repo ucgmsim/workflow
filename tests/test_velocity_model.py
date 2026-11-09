@@ -7,6 +7,7 @@ import pyproj
 import pytest
 import shapely
 from nzcvm.config.layers.backus import BackusAveragedLayerConfig
+from nzcvm.models.surface import Surface
 
 from workflow import velocity_model
 from workflow.realisations import NZCVMSettings
@@ -54,3 +55,28 @@ def test_query_reads_a_column(query: velocity_model.PointQuery) -> None:
     assert vs[0] == vs[1] >= 500.0
     assert np.all(np.diff(vs[2:]) > 0.0)
     assert np.all(np.diff(rho[2:]) > 0.0)
+
+
+def test_query_below_ground_hangs_from_the_topography(
+    nzcvm_settings: NZCVMSettings, query: velocity_model.PointQuery
+) -> None:
+    """Depth below the ground reads the rock at the ground's elevation plus that
+    depth, which inland, above sea level, is shallower than the same number read as
+    elevation."""
+    below = velocity_model.point_query(
+        nzcvm_settings,
+        shapely.Point(EASTING, NORTHING).buffer(5000.0),
+        exclude=(BackusAveragedLayerConfig,),
+        below_ground=True,
+    )
+    ground = Surface.load(nzcvm_settings.surface).transform(
+        np.array([EASTING]), np.array([NORTHING]), extrapolate=True
+    )
+    assert ground[0] < -100.0  # elevations are positive down
+    depths = np.array([100.0, 1000.0, 5000.0])
+    e, n = np.full(3, EASTING), np.full(3, NORTHING)
+    for name in ("vs", "rho"):
+        np.testing.assert_allclose(
+            below(e, n, depths)[name], query(e, n, ground + depths)[name], rtol=1e-6
+        )
+    assert not np.allclose(below(e, n, depths)["vs"], query(e, n, depths)["vs"])

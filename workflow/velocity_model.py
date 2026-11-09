@@ -59,6 +59,7 @@ def point_query(
     settings: NZCVMSettings,
     geometry: shapely.Geometry,
     exclude: tuple[type[LayerConfig], ...] = (),
+    below_ground: bool = False,
 ) -> PointQuery:
     """Build the realisation's layer pipeline once, to read at arbitrary points.
 
@@ -74,6 +75,10 @@ def point_query(
         NZTM outline every queried point lies in, which picks the models to load.
     exclude : tuple of type
         Layer config types to leave out of the pipeline.
+    below_ground : bool
+        Read the query's z as depth below the topography rather than as elevation.
+        SW4 places a rupture's points by their depth below the topography, so a
+        rupture's rock is read this way.
 
     Returns
     -------
@@ -86,6 +91,16 @@ def point_query(
 
     def query(x: np.ndarray, y: np.ndarray, z: np.ndarray) -> dict[str, np.ndarray]:
         shape = np.broadcast_shapes(np.shape(x), np.shape(y), np.shape(z))
+        if below_ground:
+            # Elevations are positive down, so the ground's elevation plus a depth
+            # below it is the point's elevation.
+            x, y = np.broadcast_to(x, shape), np.broadcast_to(y, shape)
+            ground = surface.transform(
+                x.ravel().astype(np.float64),
+                y.ravel().astype(np.float64),
+                extrapolate=True,
+            )
+            z = np.asarray(z) + ground.reshape(shape)
         qualities = pipeline(points_grid(x, y, z, surface, projection))
         return {
             str(name): qualities[name].values.reshape(shape)
