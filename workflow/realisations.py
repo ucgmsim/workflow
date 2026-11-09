@@ -705,7 +705,7 @@ class RuptureGenerationConfig(RealisationConfiguration):
     already knows. `geometry`, `hypocentre`, `medium`, `source` (the per-fault
     magnitudes and rakes) and the seed all come from other sections. So does `speed`:
     genslip read the rupture-speed profile from :class:`RuptureVelocity`, which `hf-sim`
-    shares. All of them are injected by `create-rupture-input`. `[propagation]` is
+    shares. All of them are injected by `generate-rupture`. `[propagation]` is
     split: `propagation` is its `type`, `jump` its `model`, and under `predetermined`
     its `parents` are the realisation's causality tree.
     """
