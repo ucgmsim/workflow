@@ -192,6 +192,7 @@ class BoundingBox:
         if not (
             isinstance(bounding_box_polygon, shapely.Polygon)
             and len(bounding_box_polygon.exterior.coords) - 1 == 4
+            and bounding_box_polygon.area > 0
         ):
             raise ValueError("Ill-defined geometry for bounding box.")
         return cls(np.array(bounding_box_polygon.exterior.coords)[:-1])
