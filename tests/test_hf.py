@@ -179,7 +179,7 @@ def test_simulate_chunk_passes_each_station_its_own_kappa_and_q() -> None:
         coords={"station": names},
     )
     # The default 0.005 s sample interval over the 40 s record.
-    time = np.arange(8000) * 0.005
+    time = np.arange(hf_simulation.n_samples(40.0, 0.005)) * 0.005
 
     chunked = hf_sim._simulate_chunk(chunk, time, simulator)
     direct = simulator.run_stations(
