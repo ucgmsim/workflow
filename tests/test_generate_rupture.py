@@ -13,6 +13,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import pytest
+import shapely
+from nzcvm.config.layers.backus import BackusAveragedLayerConfig
+from nzcvm.models.surface import Surface
 
 from qcore import coordinates
 from rupture_generator import config as rupture_config
@@ -21,7 +24,7 @@ from rupture_generator.rupture.generator import first_arrival, generate
 from rupture_generator.rupture.source import magnitude_from_moment
 from source_modelling import sources, srf
 from source_modelling.magnitude_scaling import BoldM
-from workflow import defaults
+from workflow import defaults, velocity_model
 from workflow.realisations import (
     Magnitudes,
     NZCVMSettings,
@@ -573,9 +576,17 @@ def test_srf_carries_the_velocity_model(
     northing, easting, depth = coordinates.wgs_depth_to_nztm(
         points[["lat", "lon", "dep"]].to_numpy() * [1.0, 1.0, 1000.0]
     ).T
-    expected = generate_rupture.nzcvm_query(nzcvm_settings, np.c_[easting, northing])(
-        easting, northing, depth
+    # SW4 hangs the SRF's depths from the topography, so the rock is read at the
+    # ground's elevation (positive down) plus each point's depth.
+    ground = Surface.load(nzcvm_settings.surface).transform(
+        easting, northing, extrapolate=True
     )
+    assert np.median(ground) < -50.0  # inland and above sea level, so it matters
+    expected = velocity_model.point_query(
+        nzcvm_settings,
+        shapely.MultiPoint(np.c_[easting, northing]).convex_hull.buffer(1000.0),
+        exclude=(BackusAveragedLayerConfig,),
+    )(easting, northing, ground + depth)
     # The SRF holds cm/s and g/cm^3, to a few significant figures.
     np.testing.assert_allclose(points["vs"] / 100.0, expected["vs"], rtol=1e-3)
     np.testing.assert_allclose(points["den"], expected["rho"] / 1000.0, rtol=1e-3)

@@ -587,7 +587,8 @@ def nzcvm_query(
     """Load the NZCVM layers around some positions, to query at points.
 
     Backus averaging is left out: it averages over a grid's cells, and has no meaning
-    at a point.
+    at a point. Depths are below the topography, where SW4 places the rupture, so the
+    rock read is the rock SW4 simulates with (clamps and the Ely taper included).
 
     Parameters
     ----------
@@ -600,12 +601,13 @@ def nzcvm_query(
     Returns
     -------
     PointQuery
-        The velocity model's query.
+        The velocity model's query, its z the depth below the topography in metres.
     """
     return velocity_model.point_query(
         settings,
         shapely.MultiPoint(east_north_m).convex_hull.buffer(1000.0),
         exclude=(BackusAveragedLayerConfig,),
+        below_ground=True,
     )
 
 
@@ -684,7 +686,7 @@ def generate_rupture(realisation_ffp: Path, srf_ffp: Path) -> None:
         drawn,
         comments=[
             *run_record(rupture_ffp, config).splitlines(),
-            "medium = NZCVM (realisation nzcvm layers, less backus), not [medium]",
+            "medium = NZCVM (nzcvm layers less backus, below topography), not [medium]",
         ],
     )
     log_utils.get_logger(__name__).info("Wrote SRF", srf=str(srf_ffp))
