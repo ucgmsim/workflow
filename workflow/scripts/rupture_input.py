@@ -20,6 +20,9 @@ With `rupture_generation.propagation` set to `sampled` or `likeliest`, the gener
 chooses the tree from its jump model instead, rooted at the realisation's hypocentre, and
 the realisation's causality tree is not used for the SRF.
 
+`generate-rupture` draws the rupture file in the realisation's NZCVM velocity model
+instead of its 1D `[medium]`.
+
 This is the successor to `realisation-to-srf`, which drives genslip from the `srf`
 section, and runs beside it until that path is retired.
 
