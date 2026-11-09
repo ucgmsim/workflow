@@ -11,6 +11,7 @@ from collections.abc import Callable
 import numpy as np
 import shapely
 from nzcvm.config.layers import LayerConfig
+from nzcvm.coordinates import Coordinate
 from nzcvm.grids.grid import Grid
 from nzcvm.layers.pipeline import build_pipeline
 from nzcvm.models.surface import Surface
@@ -19,6 +20,9 @@ from workflow.realisations import NZCVMSettings
 
 NZTM_EPSG = 2193
 """The projected CRS (NZTM2000) the workflow places NZCVM grids in."""
+
+COLUMN_DIMS = (Coordinate.I, Coordinate.J, Coordinate.K)
+"""A grid's dimensions; each queried point is its own one-sample column."""
 
 type PointQuery = Callable[[np.ndarray, np.ndarray, np.ndarray], dict[str, np.ndarray]]
 """Given NZTM x (easting) and y (northing) and elevation z, all in metres with z
@@ -88,11 +92,11 @@ def point_query(
         depth = np.maximum(z - surface.transform(x, y, extrapolate=True), 0.0)
         grid = Grid(
             {
-                name: (("i", "j", "k"), values.reshape(-1, 1, 1))
+                name: (COLUMN_DIMS, values.reshape(-1, 1, 1))
                 for name, values in (("x", x), ("y", y), ("z", z), ("depth", depth))
             },
             # The Ely taper reads, then drops, each column's top level by `k`.
-            coords={"k": [0]},
+            coords={Coordinate.K: [0]},
         )
         qualities = pipeline(grid)
         return {
