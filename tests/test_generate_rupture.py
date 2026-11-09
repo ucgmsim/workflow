@@ -1,4 +1,4 @@
-"""Tests for `create-rupture-input`, which writes the rupture generator's input."""
+"""Tests for `generate-rupture`, which draws a realisation's rupture with the generator."""
 
 import dataclasses
 import io
@@ -13,17 +13,21 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import pytest
+import shapely
+from nzcvm.config.layers.backus import BackusAveragedLayerConfig
+from nzcvm.models.surface import Surface
 
 from qcore import coordinates
 from rupture_generator import config as rupture_config
 from rupture_generator.geometry import geometry_from_geojson
 from rupture_generator.rupture.generator import first_arrival, generate
 from rupture_generator.rupture.source import magnitude_from_moment
-from source_modelling import sources
+from source_modelling import sources, srf
 from source_modelling.magnitude_scaling import BoldM
-from workflow import defaults
+from workflow import defaults, velocity_model
 from workflow.realisations import (
     Magnitudes,
+    NZCVMSettings,
     Rakes,
     RealisationMetadata,
     RuptureGenerationConfig,
@@ -33,7 +37,7 @@ from workflow.realisations import (
     SourceConfig,
     VelocityModel1D,
 )
-from workflow.scripts import rupture_input
+from workflow.scripts import generate_rupture
 
 VERSION = defaults.DefaultsVersion.v26_7_1Hz
 
@@ -62,7 +66,7 @@ VERTICAL = _fault([(-42.0, 172.0), (-42.05, 172.1)], 90.0, 0.0)
 )
 def test_section_rebuilds_the_realisation_corners(fault: sources.Fault) -> None:
     """The generator hangs the section where source_modelling hung the fault."""
-    feature = rupture_input.fault_section("fault", fault)
+    feature = generate_rupture.fault_section("fault", fault)
     charts = geometry_from_geojson(
         io.StringIO(json.dumps({"type": "FeatureCollection", "features": [feature]})),
         "EPSG:2193",
@@ -153,7 +157,7 @@ def test_generated_rupture_matches_realisation(tmp_path: Path, initial: str) -> 
     rupture_path = tmp_path / "rupture.toml"
     geometry_path.parent.mkdir()
 
-    rupture_input.generate_rupture_input(realisation_ffp, geometry_path, rupture_path)
+    generate_rupture.write_rupture_input(realisation_ffp, geometry_path, rupture_path)
 
     document = tomllib.loads(rupture_path.read_text())
     assert document["geometry"]["path"] == "rupture/faults.geojson"
@@ -211,7 +215,7 @@ def _point(depth_m: float, dip: float = 60.0) -> sources.Point:
 def test_point_source_is_drawn_on_its_patch(dip: float) -> None:
     """A point source becomes the plane it stands for, centred on it."""
     point = _point(5000.0, dip)
-    plane = rupture_input.point_plane(point)
+    plane = generate_rupture.point_plane(point)
     assert plane.length == pytest.approx(3.0)
     assert plane.width == pytest.approx(2.0)
     assert plane.strike == pytest.approx(40.0, abs=0.1)
@@ -224,7 +228,7 @@ def test_point_source_is_drawn_on_its_patch(dip: float) -> None:
 
 def test_shallow_point_source_patch_stays_underground() -> None:
     """A patch that would break the surface is lowered until its top is at it."""
-    plane = rupture_input.point_plane(_point(500.0))
+    plane = generate_rupture.point_plane(_point(500.0))
     assert plane.top_m == pytest.approx(0.0, abs=1e-6)
     assert plane.width == pytest.approx(2.0)
 
@@ -234,7 +238,7 @@ def test_point_source_realisation_draws(tmp_path: Path) -> None:
     realisation_ffp = tmp_path / "realisation.json"
     _write_realisation(realisation_ffp, {"point": _point(8000.0)}, {"point": None})
     rupture_path = tmp_path / "rupture.toml"
-    rupture_input.generate_rupture_input(
+    generate_rupture.write_rupture_input(
         realisation_ffp, tmp_path / "faults.geojson", rupture_path
     )
     scenario = rupture_config.build(rupture_config.load(rupture_path))
@@ -270,7 +274,7 @@ def test_deepened_taper(
     profile: dict, depth_km: float, expected: list[float] | None
 ) -> None:
     """The deep taper starts no shallower than the hypocentre, and keeps its width."""
-    deepened = rupture_input.deepened_taper(profile, depth_km)
+    deepened = generate_rupture.deepened_taper(profile, depth_km)
     if expected is None:
         assert deepened is None
     else:
@@ -281,7 +285,7 @@ def test_deep_hypocentre_moves_initial_fault_tapers() -> None:
     """Only the fault the rupture starts on has its deep tapers moved."""
     deep = _fault([(-42.0, 172.0), (-42.05, 172.1)], 90.0, 0.0, bottom_km=30.0)
     rupture_velocity = RuptureVelocity.read_from_defaults(VERSION)
-    rupture = rupture_input.build_rupture(
+    rupture = generate_rupture.build_rupture(
         RuptureGenerationConfig.read_from_defaults(VERSION),
         {"deep": deep, "other": NORTH_EAST},
         RupturePropagationConfig(
@@ -314,7 +318,7 @@ def test_slip_dependent_rupture_speed_is_refused(tmp_path: Path) -> None:
     """genslip's rvfrac_slip_sig has no counterpart in the generator."""
     rupture_velocity = RuptureVelocity.read_from_defaults(VERSION)
     with pytest.raises(ValueError, match="rvfrac_slip_sig"):
-        rupture_input.build_rupture(
+        generate_rupture.build_rupture(
             RuptureGenerationConfig.read_from_defaults(VERSION),
             {"a": NORTH_EAST},
             RupturePropagationConfig(
@@ -346,7 +350,7 @@ def _two_fault_rupture(
     rupture_generation: RuptureGenerationConfig,
 ) -> dict:
     rupture_velocity = RuptureVelocity.read_from_defaults(VERSION)
-    return rupture_input.build_rupture(
+    return generate_rupture.build_rupture(
         rupture_generation,
         {"sw": SOUTH_WEST, "ne": NORTH_EAST},
         RupturePropagationConfig(
@@ -386,7 +390,7 @@ def test_single_fault_has_no_propagation(propagation: str) -> None:
         RuptureGenerationConfig.read_from_defaults(VERSION), propagation=propagation
     )
     assert (
-        rupture_input.propagation_table(
+        generate_rupture.propagation_table(
             rupture_generation,
             RupturePropagationConfig(
                 rupture_causality_tree={"a": None},
@@ -433,7 +437,7 @@ def test_old_realisation_reads_as_predetermined(tmp_path: Path) -> None:
     assert "reach" not in section["jump"]
 
     rupture_path = tmp_path / "rupture.toml"
-    rupture_input.generate_rupture_input(
+    generate_rupture.write_rupture_input(
         realisation_ffp, tmp_path / "faults.geojson", rupture_path
     )
     propagation = tomllib.loads(rupture_path.read_text())["propagation"]
@@ -474,7 +478,7 @@ def _write_multi_fault_input(
         rupture_generation, propagation=propagation, jump=jump
     ).write_to_realisation(realisation_ffp)
     rupture_path = tmp_path / "rupture.toml"
-    rupture_input.generate_rupture_input(
+    generate_rupture.write_rupture_input(
         realisation_ffp, tmp_path / "faults.geojson", rupture_path
     )
     return rupture_path
@@ -530,3 +534,60 @@ def test_reference_reach_starts_children_whatever_the_jump_stream(
     ]
     same = [np.array_equal(onsets[0], other) for other in onsets[1:]]
     assert all(same) if reach == "reference" else not all(same)
+
+
+def test_medium_converts_units_and_reads_once() -> None:
+    """Shear speed and density at the same positions cost one query, in km/s and
+    g/cm^3, with positions passed on as NZTM metres."""
+    calls = []
+
+    def query(x: np.ndarray, y: np.ndarray, z: np.ndarray) -> dict[str, np.ndarray]:
+        calls.append(np.stack([x, y, z], axis=-1))
+        return {"vs": np.full(x.shape, 3500.0), "rho": np.full(x.shape, 2700.0)}
+
+    medium = generate_rupture.nzcvm_medium(query)
+    positions = np.array([[[1570.0, 5180.0, 10.0]]])
+    np.testing.assert_allclose(medium.rigidity_pa(positions), 2.7 * 3.5**2 * 1e9)
+    np.testing.assert_allclose(calls, [positions * 1000.0])
+    medium.shear_speed_km_s(positions + 1.0)
+    assert len(calls) == 2
+
+
+def test_srf_carries_the_velocity_model(
+    tmp_path: Path, nzcvm_settings: NZCVMSettings
+) -> None:
+    """Every SRF point has the shear speed and density NZCVM gives at it."""
+    realisation_ffp = tmp_path / "realisation.json"
+    # Two faults in NZCVM's synthetic world, so the rupture jumps between them.
+    _write_realisation(
+        realisation_ffp,
+        {
+            "sw": _fault([(-43.50, 172.20), (-43.55, 172.30)], 60.0, 200.0),
+            "ne": _fault([(-43.58, 172.35), (-43.63, 172.45)], 45.0, 30.0),
+        },
+        {"sw": None, "ne": "sw"},
+    )
+    nzcvm_settings.write_to_realisation(realisation_ffp)
+    srf_ffp = tmp_path / "realisation.srf"
+    generate_rupture.generate_rupture(realisation_ffp, srf_ffp)
+    assert srf_ffp.with_suffix(".toml").exists()
+
+    points = srf.read_srf(srf_ffp).points
+    northing, easting, depth = coordinates.wgs_depth_to_nztm(
+        points[["lat", "lon", "dep"]].to_numpy() * [1.0, 1.0, 1000.0]
+    ).T
+    # SW4 hangs the SRF's depths from the topography, so the rock is read at the
+    # ground's elevation (positive down) plus each point's depth.
+    ground = Surface.load(nzcvm_settings.surface).transform(
+        easting, northing, extrapolate=True
+    )
+    assert np.median(ground) < -50.0  # inland and above sea level, so it matters
+    expected = velocity_model.point_query(
+        nzcvm_settings,
+        shapely.MultiPoint(np.c_[easting, northing]).convex_hull.buffer(1000.0),
+        exclude=(BackusAveragedLayerConfig,),
+    )(easting, northing, ground + depth)
+    # The SRF holds cm/s and g/cm^3, to a few significant figures.
+    np.testing.assert_allclose(points["vs"] / 100.0, expected["vs"], rtol=1e-3)
+    np.testing.assert_allclose(points["den"], expected["rho"] / 1000.0, rtol=1e-3)
+    assert points["vs"].nunique() > 1

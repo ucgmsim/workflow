@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Rupture generator input configuration.
+"""Rupture generation.
 
 Description
 -----------
-Write the fault system and rupture file `rupture-generator` reads, from a realisation.
+Draw a realisation's rupture with the rupture generator, in the realisation's NZCVM
+velocity model.
 
-    rupture-generator rupture.toml realisation.srf
+    generate-rupture realisation.json realisation.srf
 
 The realisation's `rupture_generation` section mirrors the generator's own tables, and is
 passed through unchanged. Everything else the generator needs the realisation already
@@ -20,33 +21,36 @@ With `rupture_generation.propagation` set to `sampled` or `likeliest`, the gener
 chooses the tree from its jump model instead, rooted at the realisation's hypocentre, and
 the realisation's causality tree is not used for the SRF.
 
+The draw reads shear speed and density from the realisation's `nzcvm` layers less Backus
+averaging, at every subfault and along every crossing between faults, rather than from
+the rupture file's 1D `[medium]`.
+
 This is the successor to `realisation-to-srf`, which drives genslip from the `srf`
 section, and runs beside it until that path is retired.
 
 Inputs
 ------
 1. A realisation with source geometries (faults, planes or points), magnitudes, rakes, a
-   rupture propagation tree, a 1D velocity model, seeds, and `rupture_generation` and
-   `rupture_velocity` sections.
+   rupture propagation tree, a 1D velocity model, seeds, and `rupture_generation`,
+   `rupture_velocity` and `nzcvm` sections.
 
 Outputs
 -------
-1. The fault system (GeoJSON), one section per fault.
-2. The rupture file (TOML) `rupture-generator` reads, naming the fault system.
+1. The SRF, its header comments carrying the run record.
+2. Beside it, the fault system (`.geojson`) and the rupture file (`.toml`) it was drawn
+   from.
 
 Environment
 -----------
-Can be run in the cybershake container. Can also be run from your own computer using the
-`create-rupture-input` command after
-`pip install workflow@git+https://github.com/ucgmsim/workflow`.
+Can be run in the cybershake container, which holds NZCVM's data root.
 
 Usage
 -----
-`create-rupture-input [OPTIONS] REALISATION_FFP GEOMETRY_OUTPUT_PATH RUPTURE_OUTPUT_PATH`
+`generate-rupture [OPTIONS] REALISATION_FFP SRF_FFP`
 
 For More Help
 -------------
-See the output of `create-rupture-input --help`.
+See the output of `generate-rupture --help`.
 """
 
 import json
@@ -56,15 +60,20 @@ from typing import Any
 
 import numpy as np
 import pyproj
+import shapely
 import tomli_w
 import typer
+from nzcvm.config.layers.backus import BackusAveragedLayerConfig
 
 from qcore import cli, coordinates
+from rupture_generator import Medium, generate, write_rupture
 from rupture_generator import config as rupture_config
+from rupture_generator.record import run_record
 from source_modelling import sources
-from workflow import log_utils, realisations
+from workflow import log_utils, realisations, velocity_model
 from workflow.realisations import (
     Magnitudes,
+    NZCVMSettings,
     Rakes,
     RuptureGenerationConfig,
     RupturePropagationConfig,
@@ -76,6 +85,19 @@ from workflow.realisations import (
 from workflow.velocity_model import NZTM_EPSG
 
 app = typer.Typer()
+
+MAX_SHEAR_SPEED_KM_S = 7.0
+"""A conservative bound on any shear speed NZCVM returns.
+
+The fastest model nodes are the EP2020 tomography's mantle, 6.2 km/s at 750 km, and
+EP2010, EP2025 and the Chow 2020 mix share that reference. Basins stay below 3.2 km/s
+and the default offshore 1D model below 4.7 km/s, the query only interpolates and
+blends between nodes, and the clamps only raise Vs to their floors. So 7.0 km/s leaves
+margin for a future model while staying finite.
+
+The jump search prunes crossings by it, and a crossing that reads a faster one fails
+rather than drawing a wrong rupture.
+"""
 
 VERTICAL_DIP_TOLERANCE_DEG = 1e-6
 """How close to 90 degrees counts as vertical.
@@ -494,13 +516,12 @@ def propagation_table(
     return {"type": propagation, "model": rupture_generation.jump}
 
 
-@cli.from_docstring(app)
-def generate_rupture_input(
+def write_rupture_input(
     realisation_ffp: Path,
     geometry_output_path: Path,
     rupture_output_path: Path,
 ) -> None:
-    """Generate the rupture generator's input files from a realisation file.
+    """Write the rupture generator's input files from a realisation file.
 
     Parameters
     ----------
@@ -559,4 +580,114 @@ def generate_rupture_input(
         rupture=str(rupture_output_path),
     )
 
+
+def nzcvm_query(
+    settings: NZCVMSettings, east_north_m: np.ndarray
+) -> velocity_model.PointQuery:
+    """Load the NZCVM layers around some positions, to query at points.
+
+    Backus averaging is left out: it averages over a grid's cells, and has no meaning
+    at a point. Depths are below the topography, where SW4 places the rupture, so the
+    rock read is the rock SW4 simulates with (clamps and the Ely taper included).
+
+    Parameters
+    ----------
+    settings : NZCVMSettings
+        The realisation's NZCVM settings.
+    east_north_m : np.ndarray
+        NZTM positions, ``(n, 2)``, easting and northing in metres, that every later
+        query lies within 1 km of.
+
+    Returns
+    -------
+    PointQuery
+        The velocity model's query, its z the depth below the topography in metres.
+    """
+    return velocity_model.point_query(
+        settings,
+        shapely.MultiPoint(east_north_m).convex_hull.buffer(1000.0),
+        exclude=(BackusAveragedLayerConfig,),
+        below_ground=True,
+    )
+
+
+def nzcvm_medium(query: velocity_model.PointQuery) -> Medium:
+    """Wrap a velocity model query as the rupture generator's medium.
+
+    The generator reads shear speed and density at the same positions in turn, so the
+    last positions' read is kept for the second.
+
+    Parameters
+    ----------
+    query : PointQuery
+        The velocity model, in NZTM metres and NZCVM's units.
+
+    Returns
+    -------
+    Medium
+        Shear speed (km/s) and density (g/cm^3) at chart positions (NZTM km).
+    """
+    cache: dict[str, np.ndarray] = {}
+
+    def read(positions_km: np.ndarray, component: str) -> np.ndarray:
+        if not (cache and np.array_equal(cache["at"], positions_km)):
+            east, north, depth = np.moveaxis(positions_km * 1000.0, -1, 0)
+            qualities = query(east, north, depth)
+            # NZCVM's m/s and kg/m^3 are a thousand km/s and g/cm^3.
+            cache.update(
+                at=positions_km.copy(),
+                vs=qualities["vs"] / 1000.0,
+                rho=qualities["rho"] / 1000.0,
+            )
+        return cache[component]
+
+    return Medium(
+        shear_speed_km_s=lambda positions_km: read(positions_km, "vs"),
+        density_g_cm3=lambda positions_km: read(positions_km, "rho"),
+        max_shear_speed_km_s=MAX_SHEAR_SPEED_KM_S,
+    )
+
+
+@cli.from_docstring(app)
+def generate_rupture(realisation_ffp: Path, srf_ffp: Path) -> None:
+    """Draw a realisation's rupture in its NZCVM velocity model.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        Path to the realisation file to read.
+    srf_ffp : Path
+        Path to write the SRF. The fault system (`.geojson`) and rupture file
+        (`.toml`) it is drawn from are written beside it.
+    """
+    rupture_ffp = srf_ffp.with_suffix(".toml")
+    write_rupture_input(realisation_ffp, srf_ffp.with_suffix(".geojson"), rupture_ffp)
+    metadata = realisations.RealisationMetadata.read_from_realisation(realisation_ffp)
+    settings = NZCVMSettings.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    )
+    config = rupture_config.load(rupture_ffp)
+    scenario = rupture_config.build(config)
+    nodes_km = [
+        chart.nodes[..., :2].reshape(-1, 2) for chart in scenario.realisation.values()
+    ]
+    # The `per_fault` source takes no medium, so the 1D `[medium]` the rupture file
+    # states is read nowhere and the draw reads only NZCVM.
+    drawn = generate(
+        scenario.realisation,
+        nzcvm_medium(nzcvm_query(settings, np.concatenate(nodes_km) * 1000.0)),
+        scenario.sources,
+        scenario.model,
+        seed=scenario.seed,
+        jump_propagation_model=scenario.jump_model,
+    )
+    write_rupture(
+        str(srf_ffp),
+        drawn,
+        comments=[
+            *run_record(rupture_ffp, config).splitlines(),
+            "medium = NZCVM (nzcvm layers less backus, below topography), not [medium]",
+        ],
+    )
+    log_utils.get_logger(__name__).info("Wrote SRF", srf=str(srf_ffp))
     realisations.append_log_entry(realisation_ffp)

@@ -214,7 +214,7 @@ srf:
     risetimefac: 1.0
     risetimedep: 0.0
     inittime: 0.0
-# The rupture generator's own tables, read by create-rupture-input and passed to it
+# The rupture generator's own tables, read by generate-rupture and passed to it
 # unchanged. They restate `srf:` above, the genslip v5.6.2 flags realisation-to-srf
 # passes, in the generator's terms; the genslip flag each value stands for is named
 # beside it. The geometry, hypocentre, medium, magnitudes, rakes, causality tree and seed
@@ -254,7 +254,7 @@ rupture_generation:
     # risetimefac and deep_risetimefac across risetimedep +/- risetimedep_range and
     # deep_risetimedep +/- deep_risetimedep_range. As in genslip, the deep taper (the
     # last two points of a four-point profile) starts no shallower than the hypocentre
-    # on the fault the rupture starts on; create-rupture-input moves it, and does the
+    # on the fault the rupture starts on; generate-rupture moves it, and does the
     # same to the rupture-speed taper from `rupture_velocity:`.
     factor:
       type: profile
