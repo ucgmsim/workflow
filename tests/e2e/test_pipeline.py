@@ -146,33 +146,6 @@ def site_table(work: Path) -> Path:
     return sites
 
 
-@pytest.fixture(scope="module")
-def nzcvm_data_root(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """NZCVM's synthetic data root, laid out like the real one.
-
-    Built with the installed nzcvm, the way nzcvm's own `just synthetic`
-    recipe builds it, minus the basins (which need nzcvm's meshing extra).
-    """
-    root = tmp_path_factory.mktemp("nzcvm")
-    scratch = tmp_path_factory.mktemp("nzcvm-inputs")
-    (root / "resources").mkdir()
-    (root / "models").mkdir()
-    run("nzcvm", "synthetic", "dem", scratch / "dem.h5")
-    run("nzcvm", "surface", "convert", scratch / "dem.h5", root / "resources/dem.zarr")
-    run("nzcvm", "synthetic", "vs30", scratch / "vs30.h5")
-    run(
-        "nzcvm", "surface", "convert", scratch / "vs30.h5",
-        root / "resources/vs30.zarr", "--scalar-key", "vs30", "--no-flip",
-    )  # fmt: skip
-    run("nzcvm", "synthetic", "coastline", root / "resources/coastline.wkb.gz")
-    run("nzcvm", "synthetic", "tomography", scratch / "tomography.csv")
-    run(
-        "nzcvm", "tomography", "convert", scratch / "tomography.csv",
-        root / "models/tomography.zarr",
-    )  # fmt: skip
-    return root
-
-
 def test_tools_installed() -> None:
     """The container provides every tool the pipeline calls."""
     commands = [

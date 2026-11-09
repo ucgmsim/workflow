@@ -52,7 +52,7 @@ from nzcvm.config.grids.terrain import Decay, SquashedDecay, TaperedDecay
 from nzcvm.coordinates import Coordinate
 
 from qcore import cli
-from workflow import sw4
+from workflow import sw4, velocity_model
 from workflow.realisations import (
     DomainParameters,
     NZCVMSettings,
@@ -64,8 +64,6 @@ from workflow.realisations import (
 )
 
 app = typer.Typer()
-
-NZTM_EPSG = 2193
 
 SW4_DEPTH_OFFSET_KM = 10.0
 """Extra depth (km) modelled below the domain so SW4 refinement adjustment has room."""
@@ -128,7 +126,7 @@ def _sw4_grid(
         orientation=Model(
             origin_lon=origin_lon,
             origin_lat=origin_lat,
-            crs=pyproj.CRS(NZTM_EPSG),
+            crs=pyproj.CRS(velocity_model.NZTM_EPSG),
             azimuth=domain.great_circle_bearing,
         ),
         surface=nzcvm_settings.surface,
@@ -174,7 +172,7 @@ def _emod3d_grid(
         orientation=Model(
             origin_lon=origin_lon,
             origin_lat=origin_lat,
-            crs=pyproj.CRS(NZTM_EPSG),
+            crs=pyproj.CRS(velocity_model.NZTM_EPSG),
             azimuth=domain.great_circle_bearing,
         ),
         decay=EMOD3D_DECAYS[topo_type],
@@ -211,8 +209,7 @@ def generate_template(
         realisation_ffp, metadata.defaults_version
     )
 
-    if not nzcvm_settings.layers:
-        raise ValueError("NZCVM requires at least one defined layer.")
+    layers = velocity_model.layers(nzcvm_settings)
 
     match format:
         case GridFormat.SW4:
@@ -240,7 +237,7 @@ def generate_template(
 
     config = VelocityModelConfig(
         grid=grid,
-        layers=nzcvm_settings.layers,
+        layers=layers,
     )
 
     output_path.write_text(

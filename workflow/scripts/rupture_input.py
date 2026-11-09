@@ -73,15 +73,9 @@ from workflow.realisations import (
     SourceConfig,
     VelocityModel1D,
 )
+from workflow.velocity_model import NZTM_EPSG
 
 app = typer.Typer()
-
-NZTM_EPSG = 2193
-"""The projected CRS the generator builds its charts in.
-
-`source_modelling` holds plane bounds in this frame, so every plane comes back out of the
-generator where the realisation put it.
-"""
 
 VERTICAL_DIP_TOLERANCE_DEG = 1e-6
 """How close to 90 degrees counts as vertical.
