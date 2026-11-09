@@ -578,8 +578,24 @@ def write_rupture_input(
 def nzcvm_query(
     settings: NZCVMSettings, east_north_m: np.ndarray
 ) -> velocity_model.PointQuery:
-    """The NZCVM layers less Backus averaging, which averages over a grid's cells and
-    has no meaning at a point, loaded around the given NZTM positions."""
+    """Load the NZCVM layers around some positions, to query at points.
+
+    Backus averaging is left out: it averages over a grid's cells, and has no meaning
+    at a point.
+
+    Parameters
+    ----------
+    settings : NZCVMSettings
+        The realisation's NZCVM settings.
+    east_north_m : np.ndarray
+        NZTM positions, ``(n, 2)``, easting and northing in metres, that every later
+        query lies within 1 km of.
+
+    Returns
+    -------
+    PointQuery
+        The velocity model's query.
+    """
     return velocity_model.point_query(
         settings,
         shapely.MultiPoint(east_north_m).convex_hull.buffer(1000.0),
@@ -588,10 +604,20 @@ def nzcvm_query(
 
 
 def nzcvm_medium(query: velocity_model.PointQuery) -> Medium:
-    """The query as the generator's medium: NZTM km in, km/s and g/cm^3 out.
+    """Wrap a velocity model query as the rupture generator's medium.
 
     The generator reads shear speed and density at the same positions in turn, so the
     last positions' read is kept for the second.
+
+    Parameters
+    ----------
+    query : PointQuery
+        The velocity model, in NZTM metres and NZCVM's units.
+
+    Returns
+    -------
+    Medium
+        Shear speed (km/s) and density (g/cm^3) at chart positions (NZTM km).
     """
     cache: dict[str, np.ndarray] = {}
 
