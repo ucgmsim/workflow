@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Annotated
 
 import numpy as np
+import pandas as pd
 import typer
 
 from qcore import cli
@@ -46,6 +47,44 @@ from workflow.realisations import (
 )
 
 app = typer.Typer()
+
+
+def srf_rigidity(realisation_ffp: Path, points: pd.DataFrame) -> np.ndarray:
+    """Return the shear modulus at each SRF point.
+
+    A version 2.0 SRF records the shear-wave speed (``vs``, cm/s) and density
+    (``den``, g/cm^3) its moment was computed with, so the rigidity comes from
+    those columns. Genslip fills them from the realisation's 1D velocity model
+    and ``generate-rupture`` from the NZCVM. A version 1.0 SRF has no such
+    columns, so its rigidity falls back to the realisation's 1D velocity model.
+
+    Parameters
+    ----------
+    realisation_ffp : Path
+        The path to the realisation for the SRF.
+    points : pd.DataFrame
+        The SRF points, with a ``dep`` column (km) and, for a version 2.0 SRF,
+        ``vs`` and ``den`` columns.
+
+    Returns
+    -------
+    np.ndarray
+        The shear modulus at each point (dyne/cm^2).
+    """
+    if {"vs", "den"} <= set(points.columns) and (
+        (points["vs"] > 0) & (points["den"] > 0)
+    ).all():
+        return (points["vs"].to_numpy() ** 2) * points["den"].to_numpy()
+
+    metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
+    velocity_model = VelocityModel1D.read_from_realisation_or_defaults(
+        realisation_ffp, metadata.defaults_version
+    ).model
+    # Vs (km/s) -> cm/s is 1e5, so Vs^2 rho picks up 1e10 to be dyne/cm^2.
+    mu = velocity_model["Vs"].to_numpy() ** 2 * velocity_model["rho"].to_numpy() * 1e10
+    depth = velocity_model["thickness"].cumsum().to_numpy()
+    indices = np.minimum(len(depth) - 1, np.searchsorted(depth, points["dep"]))
+    return mu[indices]
 
 
 @cli.from_docstring(app)
@@ -68,19 +107,8 @@ def check_srf(
     typer.Exit
         If any of the checks fail.
     """
-    metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
-    velocity_model = VelocityModel1D.read_from_realisation_or_defaults(
-        realisation_ffp, metadata.defaults_version
-    ).model
-    velocity_model["mu"] = velocity_model["Vs"] ** 2 * velocity_model["rho"] * 1e10
-    velocity_model["depth"] = velocity_model["thickness"].cumsum()
-
     srf_file = srf.read_srf(srf_ffp)
-    indices = np.minimum(
-        len(velocity_model["depth"]) - 1,
-        np.searchsorted(velocity_model["depth"], srf_file.points["dep"]),
-    )
-    mu = velocity_model["mu"].iloc[indices].values
+    mu = srf_rigidity(realisation_ffp, srf_file.points)
     # SRF area (cm^2) x slip (cm) x mu (dyne/cm^2) is a moment in dyne-cm, but
     # `moment_to_magnitude` takes Nm.
     srf_moment_dyne_cm = (
