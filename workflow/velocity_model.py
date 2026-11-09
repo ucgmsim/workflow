@@ -9,10 +9,11 @@ set of points instead.
 from collections.abc import Callable
 
 import numpy as np
+import pyproj
 import shapely
+from nzcvm.config.grids.model import Projection
 from nzcvm.config.layers import LayerConfig
-from nzcvm.coordinates import Coordinate
-from nzcvm.grids.grid import Grid
+from nzcvm.grids.points import points_grid
 from nzcvm.layers.pipeline import build_pipeline
 from nzcvm.models.surface import Surface
 
@@ -20,9 +21,6 @@ from workflow.realisations import NZCVMSettings
 
 NZTM_EPSG = 2193
 """The projected CRS (NZTM2000) the workflow places NZCVM grids in."""
-
-COLUMN_DIMS = (Coordinate.I, Coordinate.J, Coordinate.K)
-"""A grid's dimensions; each queried point is its own one-sample column."""
 
 type PointQuery = Callable[[np.ndarray, np.ndarray, np.ndarray], dict[str, np.ndarray]]
 """Given NZTM x (easting) and y (northing) and elevation z, all in metres with z
@@ -64,8 +62,9 @@ def point_query(
 ) -> PointQuery:
     """Build the realisation's layer pipeline once, to read at arbitrary points.
 
-    Each point is a column of one sample, so a layer that reads a node's vertical
-    neighbours (Backus averaging) sees none: exclude it.
+    Each point is a column of one sample (`nzcvm.grids.points.points_grid`), so a
+    layer that reads a node's vertical neighbours (Backus averaging) sees none:
+    exclude it. A point above the ground reads the ground beneath it.
 
     Parameters
     ----------
@@ -83,22 +82,11 @@ def point_query(
     """
     pipeline = build_pipeline(geometry, layers(settings, exclude))
     surface = Surface.load(settings.surface)
+    projection = Projection(crs=pyproj.CRS(NZTM_EPSG))
 
     def query(x: np.ndarray, y: np.ndarray, z: np.ndarray) -> dict[str, np.ndarray]:
-        shape = np.shape(x)
-        x, y, z = (np.asarray(v, dtype=np.float32).ravel() for v in (x, y, z))
-        # Elevations are positive down, so depth below the topography is z less
-        # the surface's elevation. A point above the ground reads the ground.
-        depth = np.maximum(z - surface.transform(x, y, extrapolate=True), 0.0)
-        grid = Grid(
-            {
-                name: (COLUMN_DIMS, values.reshape(-1, 1, 1))
-                for name, values in (("x", x), ("y", y), ("z", z), ("depth", depth))
-            },
-            # The Ely taper reads, then drops, each column's top level by `k`.
-            coords={Coordinate.K: [0]},
-        )
-        qualities = pipeline(grid)
+        shape = np.broadcast_shapes(np.shape(x), np.shape(y), np.shape(z))
+        qualities = pipeline(points_grid(x, y, z, surface, projection))
         return {
             str(name): qualities[name].values.reshape(shape)
             for name in qualities.data_vars

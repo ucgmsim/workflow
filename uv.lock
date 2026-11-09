@@ -2152,7 +2152,7 @@ wheels = [
 
 [[package]]
 name = "nzcvm"
-version = "2026.11.1"
+version = "2026.11.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "dask", extra = ["array", "diagnostics", "distributed"] },
@@ -2174,16 +2174,16 @@ dependencies = [
     { name = "zarr" },
     { name = "zfpy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ab/a3/f74f89d7ac7ac66824e4662e05de62cadaaca13c05496b011cd815a24d2c/nzcvm-2026.11.1.tar.gz", hash = "sha256:7581230965d1edf21a45200dc714d2df85e38b3568e76e23af7f7d0317238433", size = 232386, upload-time = "2026-11-06T02:54:11.652Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/46/7e/0ef0ad153df304b7e6c8a64c522725f09c73bb53988ae5600deddeaa96b4/nzcvm-2026.11.2.tar.gz", hash = "sha256:359840e8c59d59c76300e627996476347a22ef99dc8aa347526829d4bfc67a41", size = 233883, upload-time = "2026-11-09T03:06:08.507Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3d/d6/9234726197d575bb560bae8fe3376360de03643570bb2c368c6121155b6a/nzcvm-2026.11.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:a09a4da6d1e844e08414c74d68f3484ab18a33a0dfd0ad2f7ab38545c8416933", size = 604535, upload-time = "2026-11-06T02:54:00.527Z" },
-    { url = "https://files.pythonhosted.org/packages/59/4f/bd3e582d682725b367c6a5a5a53b42444063f9b0eba5a317e5bcb10cadf5/nzcvm-2026.11.1-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:34b22eb823be20a90c9b5c9bf293db18f9ae3b2702b20e5d476180463a3f6d61", size = 626629, upload-time = "2026-11-06T02:54:02.045Z" },
-    { url = "https://files.pythonhosted.org/packages/61/d1/0e843aeb3b44223203391f6b22f9e4745a65a0b51d24d332bca716ec2445/nzcvm-2026.11.1-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:ff8a5d70f4fd2be1d2848457a4050c4c1f591741d1b35a79fb6b72712adc3894", size = 664390, upload-time = "2026-11-06T02:54:03.524Z" },
-    { url = "https://files.pythonhosted.org/packages/f7/3b/18b0c81fe0b177dc2d4817ca488d8ac0f1d5fe5303432da45cdeed106a19/nzcvm-2026.11.1-cp313-cp313-win_amd64.whl", hash = "sha256:2847723314efc7dbe917982d1ceb180f17ffad9addf4a74c75d164d7f1b643b9", size = 527738, upload-time = "2026-11-06T02:54:04.758Z" },
-    { url = "https://files.pythonhosted.org/packages/99/26/b99003f40a9ea5d1f7e33ce8b6dbfc47fea83a6964f43c218db333338316/nzcvm-2026.11.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:64adbc93280af2c23d0a3bae3db2481f0ba362b716acfcfcaa359a74aaf225dc", size = 604033, upload-time = "2026-11-06T02:54:06.054Z" },
-    { url = "https://files.pythonhosted.org/packages/07/26/eea44b22d35c6172fbb3589293c6edae0adffb512f61b0e8eac0cd626695/nzcvm-2026.11.1-cp314-cp314-macosx_11_0_x86_64.whl", hash = "sha256:c421023581967bc8e4dc338cb720cb0dc853aaf1aa3ab351527732e683d871c5", size = 626310, upload-time = "2026-11-06T02:54:07.305Z" },
-    { url = "https://files.pythonhosted.org/packages/89/49/98d2d10c70b5678207ddc305c45fd3b8f331f52f26d3cef78903db197b35/nzcvm-2026.11.1-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:c5c0715e071c26b5f85da880c191ce76bcd27792838eb05f78d5e9c5ee31a98c", size = 664293, upload-time = "2026-11-06T02:54:08.797Z" },
-    { url = "https://files.pythonhosted.org/packages/05/37/da51306560e1cd14503c5dcd2b8f0dcd93699aa9696cef65e28d27d2f1d5/nzcvm-2026.11.1-cp314-cp314-win_amd64.whl", hash = "sha256:25105fee5674fbeaf825772469a53b38978a56b0103491ced864f98cb6c0ba57", size = 540400, upload-time = "2026-11-06T02:54:10.181Z" },
+    { url = "https://files.pythonhosted.org/packages/38/0b/b2706fcd0559df5062e4fff38a56e4b7c5db2c3df23f3db65cc79018f4c2/nzcvm-2026.11.2-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:2ef5b7fdd6b658cfc38cf5136471d9a44204f3209404b6138c7df0af5584f926", size = 606661, upload-time = "2026-11-09T03:05:56.801Z" },
+    { url = "https://files.pythonhosted.org/packages/71/37/fbec79de3d8407a0a4585de7057fadfb61a1f07fd219b91398b6408c45c8/nzcvm-2026.11.2-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:0f458a0033f6635ce21412367e7390cc8f83b9bcdb26cc03d7821c9576a02319", size = 628756, upload-time = "2026-11-09T03:05:58.22Z" },
+    { url = "https://files.pythonhosted.org/packages/6e/11/c7d217a5ed52f97a8911f1a4d92314237c20178cd4c23074ed87db4d141b/nzcvm-2026.11.2-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:d5f852948a77c4fb13a62fcdc6560ac1f05dfc99579988caacc872e8e9524b07", size = 666520, upload-time = "2026-11-09T03:05:59.533Z" },
+    { url = "https://files.pythonhosted.org/packages/94/14/8517f0cbf506211b52ea39ced2cc436bf2b7e21b0aa528f20b51521e9ff8/nzcvm-2026.11.2-cp313-cp313-win_amd64.whl", hash = "sha256:c336d1635c0e477d76b468523af36fa6139bbbe081537da49b9ca2d250f218c0", size = 529887, upload-time = "2026-11-09T03:06:01.017Z" },
+    { url = "https://files.pythonhosted.org/packages/1f/bb/96d2224c95ee39d3d49334c6bf9c56789fc747b58ead77c5a8fd49a5aa68/nzcvm-2026.11.2-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:5de2e612ed677717fb93930c12f8ee207804a990449c3d3b60ba85a6cde238cf", size = 606158, upload-time = "2026-11-09T03:06:02.416Z" },
+    { url = "https://files.pythonhosted.org/packages/46/ac/7ff0f56e0f5e5b8e7b112ce2bcfdc025f42d11f3ae3a809f20e218122388/nzcvm-2026.11.2-cp314-cp314-macosx_11_0_x86_64.whl", hash = "sha256:1e3f4d72f88cf3ac0899c0f2dab3536babcfc35e3f7cf3d0b757cbcd1ad3cfe7", size = 628435, upload-time = "2026-11-09T03:06:03.8Z" },
+    { url = "https://files.pythonhosted.org/packages/70/7b/214a3c1ed1681e6a99917c3d21ef77ffc06d45465419b973bb2e81f18681/nzcvm-2026.11.2-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:977eb9bdbcca621510505cc6e09ff00c85c4e3883300141bed0f3da594c9cc4a", size = 666421, upload-time = "2026-11-09T03:06:05.093Z" },
+    { url = "https://files.pythonhosted.org/packages/2c/6a/a057734498073886d7c8caeac42ef937f7178bbe2ec83dd8fb7e74714f79/nzcvm-2026.11.2-cp314-cp314-win_amd64.whl", hash = "sha256:7f5c4c9a5d53e36e0b694f695cf25673d75c40c8cb9828196b8f14d64d5f38fb", size = 542549, upload-time = "2026-11-09T03:06:06.977Z" },
 ]
 
 [[package]]
@@ -3759,7 +3759,7 @@ requires-dist = [
     { name = "npdlint", marker = "extra == 'dev'" },
     { name = "nshmdb", specifier = ">=2026.10.2" },
     { name = "numpy" },
-    { name = "nzcvm", specifier = ">=2026.11.1" },
+    { name = "nzcvm", specifier = ">=2026.11.2" },
     { name = "oq-wrapper", specifier = ">=2026.10.1" },
     { name = "pandas", extras = ["hdf5", "parquet"] },
     { name = "pandas-stubs", marker = "extra == 'types'" },
