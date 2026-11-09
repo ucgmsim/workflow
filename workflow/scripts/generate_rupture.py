@@ -86,8 +86,14 @@ from workflow.velocity_model import NZTM_EPSG
 
 app = typer.Typer()
 
-MAX_SHEAR_SPEED_KM_S = 5.0
-"""No shear speed in NZCVM is faster: the deepest offshore layer is 4.6 km/s.
+MAX_SHEAR_SPEED_KM_S = 7.0
+"""A conservative bound on any shear speed NZCVM returns.
+
+The fastest model nodes are the EP2020 tomography's mantle, 6.2 km/s at 750 km, and
+EP2010, EP2025 and the Chow 2020 mix share that reference. Basins stay below 3.2 km/s
+and the default offshore 1D model below 4.7 km/s, the query only interpolates and
+blends between nodes, and the clamps only raise Vs to their floors. So 7.0 km/s leaves
+margin for a future model while staying finite.
 
 The jump search prunes crossings by it, and a crossing that reads a faster one fails
 rather than drawing a wrong rupture.
