@@ -1643,12 +1643,10 @@ class EmpiricalParameters(RealisationConfiguration):
     _config_key: ClassVar[str] = "empirical"
     _schema: ClassVar[Schema] = schemas.EMPIRICAL_PARAMETERS
 
-    # Types here are not explicitly declared so we do not pay the openquake tax
-    # importing this module.
-    tect_type: Any
-    """The tectonic type of the source (an `oq_wrapper.constants.TectType`)."""
-    models: list[Any]
-    """The ground motion models or logic trees to evaluate."""
+    tect_type: str
+    """The tectonic type of the source (a key of `workflow.gmm.TECT_TYPES`)."""
+    models: list[str]
+    """The ground motion models or logic trees to evaluate (keys of `workflow.gmm.MODELS`)."""
 
 
 @dataclasses.dataclass

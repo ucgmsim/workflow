@@ -34,15 +34,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated
 
-# NOTE: netCDF4 must be imported before OpenQuake (which oq_wrapper imports).
-# OpenQuake pulls in h5py, which is linked against a different build of HDF5
-# than netCDF4 is. Whichever of the two loads second fails to open our
-# waveform files, so the import order here is load bearing.
-import netCDF4  # noqa: F401
 import numpy as np
 import numpy.typing as npt
-import oq_wrapper as oqw
-import oq_wrapper.xarray as oqwx
 import shapely
 import typer
 import xarray as xr
@@ -52,7 +45,7 @@ from IM.ims import IM
 from qcore import cli, coordinates
 from source_modelling import sources
 from source_modelling.sources import IsSource
-from workflow import realisations, sw4
+from workflow import gmm, realisations, sw4
 from workflow.realisations import (
     DomainParameters,
     EmpiricalParameters,
@@ -626,9 +619,9 @@ def empirical_inputs(
     Returns
     -------
     xr.Dataset
-        A dataset of OpenQuake rupture context variables. Site and distance
-        variables vary over the station dimension, rupture variables are
-        scalars.
+        A dataset of the rupture and site variables `gm_models` reads. Site
+        and distance variables vary over the station dimension, rupture
+        variables are scalars.
     """
     return xr.Dataset(
         {
@@ -646,7 +639,18 @@ def empirical_inputs(
             "backarc": False,
         }
         | distances.as_dict()
+        # `gm_models` names the hypocentral distance `rhypo` (BCH_16 slab).
+        | {"rhypo": distances.hyp}
     )
+
+
+EMPIRICAL_STATISTIC_NAMES = {
+    "ln_mean": "mean",
+    "std_total": "std_Total",
+    "std_inter": "std_Inter",
+    "std_intra": "std_Intra",
+}
+"""The output name of each `gm_models` statistic kept in the IM file."""
 
 
 def annotate_empirical(dataset: xr.Dataset, im_name: IM, model_name: str) -> xr.Dataset:
@@ -659,7 +663,7 @@ def annotate_empirical(dataset: xr.Dataset, im_name: IM, model_name: str) -> xr.
     Parameters
     ----------
     dataset : xr.Dataset
-        The dataset of statistics returned by `oq_wrapper`.
+        The dataset of statistics, named as in `EMPIRICAL_STATISTIC_NAMES`.
     im_name : IM
         The intensity measure the dataset describes.
     model_name : str
@@ -725,8 +729,11 @@ def calculate_empirical(
         A map from data tree path (`{im}/empirical/{model}`) to the log-mean
         and log-standard deviation of that intensity measure.
     """
-    inputs = empirical_inputs(source_parameters, site_parameters, distances)
-    tect_type = oqw.constants.TectType(empirical_config.tect_type)
+    inputs = (
+        empirical_inputs(source_parameters, site_parameters, distances)
+        .to_dataframe()
+        .rename_axis("station")
+    )
 
     empirical_results: dict[str, xr.Dataset] = {}
     model_ims = [im for im in intensity_measures if im in EMPIRICAL_IM_NAMES]
@@ -734,29 +741,27 @@ def calculate_empirical(
     for model_name in empirical_config.models:
         for im_name in model_ims:
             try:
-                if model_name in oqw.constants.GMMLogicTree.__members__:
-                    dataset = oqwx.run_gmm_logic_tree_xarray(
-                        oqw.constants.GMMLogicTree[model_name],
-                        tect_type,
-                        inputs,
-                        EMPIRICAL_IM_NAMES[im_name],
-                        periods=periods.tolist(),
-                    )
-                else:
-                    dataset = oqwx.run_gmm_xarray(
-                        oqw.constants.GMM[model_name],
-                        tect_type,
-                        inputs,
-                        EMPIRICAL_IM_NAMES[im_name],
-                        periods=periods.tolist(),
-                    )
-            except (ValueError, KeyError, AttributeError) as e:
+                dataset = gmm.run_model(
+                    model_name,
+                    empirical_config.tect_type,
+                    inputs,
+                    EMPIRICAL_IM_NAMES[im_name],
+                    periods=periods.tolist(),
+                )
+            except (ValueError, KeyError) as e:
                 warnings.warn(
                     f"Skipping empirical {im_name} for {model_name}: {e}",
                     stacklevel=1,
                 )
                 continue
 
+            statistics = {
+                name: output_name
+                for name, output_name in EMPIRICAL_STATISTIC_NAMES.items()
+                if name in dataset
+            }
+            dataset = dataset[list(statistics)].rename(statistics)
+            dataset.attrs = {}
             empirical_results[f"{im_name}/empirical/{model_name}"] = annotate_empirical(
                 dataset, im_name, model_name
             )

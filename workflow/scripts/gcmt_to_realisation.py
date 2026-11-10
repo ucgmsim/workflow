@@ -59,7 +59,7 @@ TECT_TYPES = {
     focal_mechanism.TectonicType.INTERFACE: "subduction_interface",
     focal_mechanism.TectonicType.SLAB: "subduction_slab",
 }
-"""The `oq_wrapper.constants.TectType` value for each tectonic type."""
+"""The `workflow.gmm.TECT_TYPES` name for each tectonic type."""
 app = typer.Typer()
 
 

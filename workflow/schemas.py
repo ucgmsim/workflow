@@ -20,6 +20,7 @@ from schema import And, Literal, Optional, Or, Schema, Use
 
 from IM import im_calculation
 from source_modelling import rupture_propagation, sources
+from workflow import gmm
 from workflow.bounding_box import BoundingBox
 from workflow.defaults import DefaultsVersion
 
@@ -1347,22 +1348,19 @@ EMPIRICAL_PARAMETERS = Schema(
     {
         Literal(
             "tect_type",
-            description="Tectonic type of the source (one of oq_wrapper.constants.TectType)",
-        ): str,
+            description=(
+                f"Tectonic type of the source (one of {', '.join(gmm.TECT_TYPES)})"
+            ),
+        ): Or(*gmm.TECT_TYPES),
         Literal(
             "models",
             description=(
                 "Ground motion models or ground motion model logic trees to "
-                "evaluate (members of oq_wrapper.constants.GMM or "
-                "oq_wrapper.constants.GMMLogicTree)"
+                f"evaluate (any of {', '.join(gmm.MODELS)})"
             ),
-        ): [str],
+        ): [Or(*gmm.MODELS)],
     }
 )
-# NOTE: The values of this schema are validated as plain strings rather than
-# `oq_wrapper.constants` enum members. Importing `oq_wrapper.constants` pulls in
-# OpenQuake, which is expensive (and must be precompiled), so the strings are
-# only resolved to enum members inside the IM calculation stage.
 
 
 LOG_ENTRY_SCHEMA = Schema(

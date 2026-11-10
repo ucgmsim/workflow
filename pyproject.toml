@@ -14,11 +14,11 @@ dependencies = [
   "im-calculation>=2026.10.3",
   "velocity-modelling>=2026.10.2",
   "nshmdb>=2026.10.2",
-  "oq_wrapper>=2026.10.1",
+  "gm-models",
   "qcore-utils[cli]>=2026.10.1",
   "hf-simulation>=2026.11.1",
   "site-calculation>=2026.10.3",
-  "source_modelling>=2026.11.3",
+  "source_modelling[fiona]>=2026.11.3",
   "nzcvm>=2026.11.2",
   "rupture-generator>=2026.11.1",
   # HACK: Required to stop ucgmsim-imdb throwing errors
@@ -26,8 +26,6 @@ dependencies = [
   "ucgmsim-imdb>=2026.10.1",
   # Data Formats
   "geopandas",
-  "fiona",                 # Imported, undeclared, by openquake's GMMs
-  "netCDF4",               # Required for openquake shenanigans
   "pandas[parquet, hdf5]",
   "pyyaml",
   "tomli-w",               # Writing the rupture generator's config
@@ -68,13 +66,19 @@ dev = ["ruff>=0.16.5", "deptry", "ty>=0.0.75", "npdlint"]
 # zfpy arrives transitively via nzcvm. Drop once numcodecs parses versions properly.
 constraint-dependencies = ["zfpy!=1.0.1.post0"]
 
+[tool.uv.sources]
+# gm-models (the Rust ground motion models in Empirical_Engine) is not on PyPI
+# yet, and the models the workflow uses land in Empirical_Engine#188. Drop this
+# for a PyPI version floor once gm-models is released.
+gm-models = { git = "https://github.com/ucgmsim/Empirical_Engine.git", branch = "other_models", subdirectory = "gm_models" }
+
 [tool.ty.src]
 # Generated/dynamic schema definitions that ty cannot usefully analyse.
 exclude = ["workflow/schemas.py", ".claude"]
 
 [tool.deptry]
 optional_dependencies_dev_groups = ["test", "dev", "types"]
-per_rule_ignores = { DEP002 = ["fiona", "duckdb"] }
+per_rule_ignores = { DEP002 = ["duckdb"] }
 
 [project.scripts]
 nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:app"
@@ -161,7 +165,7 @@ known-first-party = [
   "workflow",
   "pygmt_helper",
   "qcore",
-  "empirical",
+  "gm_models",
   "nshmdb",
   "IM",
   "mera",

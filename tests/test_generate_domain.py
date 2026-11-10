@@ -25,10 +25,8 @@ from workflow.scripts import generate_domain
 from workflow.scripts.generate_domain import Solver
 
 
-# Slow because of openquake import
-@pytest.mark.slow
 def test_significant_duration_calculation() -> None:
-    """Basic integration test for OQW, tests that the interface works as we expect still."""
+    """Basic integration test for gm_models, tests that the interface works as we expect still."""
     ds595 = generate_domain.get_significant_duration(
         magnitude=6.5, distance=100.0, vs30=500.0, rake=180.0, z1pt0=5.0
     )
@@ -109,8 +107,6 @@ def test_boundary_distance_is_farthest_corner_distance() -> None:
     assert value > nearest_boundary
 
 
-# Slow because of openquake import
-@pytest.mark.slow
 def test_generate_domain() -> None:
     """Basic E2E test to check that domain generation works without crashing or producing a silly domain."""
     source = sources.Point(
@@ -144,8 +140,6 @@ def test_generate_domain() -> None:
     assert shapely.contains(domain_parameters.domain.polygon, source.geometry)
 
 
-# Slow because of openquake import
-@pytest.mark.slow
 @pytest.mark.parametrize(
     ("solver", "defaults_version", "fault_buffer", "error"),
     [
@@ -234,8 +228,6 @@ def test_average_rake_is_moment_weighted() -> None:
     assert -90.0 < avg < -80.0
 
 
-# Slow because of openquake import
-@pytest.mark.slow
 def test_normal_fault_uses_normal_faulting_duration() -> None:
     """A normal fault's averaged rake selects the normal-faulting Ds595."""
     rake = generate_domain.average_rake(

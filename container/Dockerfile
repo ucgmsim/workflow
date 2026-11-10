@@ -74,8 +74,6 @@ ENV LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
 # Setup Virtual Environment and Install via pip
-# openquake.engine 3.26+ requires gdal~=3.13.1, which is sdist-only and refuses to
-# build against the libgdal 3.12.2 that Ubuntu ships. Cap it until libgdal catches up.
 # Dependencies are constrained to the versions in uv.lock, the set CI tested,
 # rather than whatever is newest on PyPI on the day the image is built. Make
 # the constraints file with:
@@ -85,7 +83,7 @@ COPY container/constraints.txt /tmp/constraints.txt
 RUN test -n "${WORKFLOW_VERSION}" || { echo "WORKFLOW_VERSION build arg is required" >&2; exit 1; } && \
     python3 -m venv $VIRTUAL_ENV && \
     pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir "ucgmsim-workflow==${WORKFLOW_VERSION}" "openquake.engine<3.26" \
+    pip install --no-cache-dir "ucgmsim-workflow==${WORKFLOW_VERSION}" \
         --constraint /tmp/constraints.txt --no-binary=h5py && \
     rm /tmp/constraints.txt && \
     chmod -R a+rX /sw
