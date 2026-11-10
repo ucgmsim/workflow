@@ -9,6 +9,7 @@ import xarray as xr
 from IM.ims import IM
 from qcore import coordinates
 from source_modelling import sources
+from source_modelling.magnitude_scaling import BoldM
 from workflow import realisations
 from workflow.scripts import im_calc
 
@@ -65,3 +66,66 @@ def test_calculate_distances_reports_rx_ry_ry0_in_km() -> None:
     assert distances.ry0.sel(station="EAST").item() == pytest.approx(0.0, abs=0.1)
     assert distances.ry0.sel(station="NRTH").item() == pytest.approx(20.0, abs=0.1)
     assert set(distances.as_dict()) <= set(im_calc.COORDINATE_METADATA)
+
+
+def test_source_parameters_moment_average_the_width() -> None:
+    # Two vertical planes, 10 km and 20 km wide. The wider plane is 1.5
+    # magnitude units larger (~178x the moment), so the averaged width sits
+    # just under 20 km rather than at the 15 km arithmetic mean.
+    def plane(northing: float, width: float) -> sources.Plane:
+        return sources.Plane.from_centroid_strike_dip(
+            coordinates.nztm_to_wgs_depth(np.array([northing, 1_570_000.0, 12_000.0])),
+            dip=90.0,
+            length=20.0,
+            width=width,
+            strike_nztm=0.0,
+        )
+
+    source_config = realisations.SourceConfig(
+        source_geometries={
+            "narrow": plane(5_150_000.0, 10.0),
+            "wide": plane(5_200_000.0, 20.0),
+        }
+    )
+    magnitudes = realisations.Magnitudes(
+        magnitudes={"narrow": BoldM(6.0), "wide": BoldM(7.5)}
+    )
+    moments = magnitudes.moments
+    expected_width = (10.0 * moments["narrow"] + 20.0 * moments["wide"]) / (
+        moments["narrow"] + moments["wide"]
+    )
+
+    source_parameters = im_calc.calculate_source_parameters(
+        source_config,
+        magnitudes,
+        realisations.Rakes(rakes={"narrow": 90.0, "wide": 90.0}),
+        np.array([-43.5, 172.6, 10_000.0]),
+    )
+
+    assert source_parameters.avg_width == pytest.approx(expected_width, rel=1e-3)
+    assert 19.0 < source_parameters.avg_width < 20.0
+
+
+def test_empirical_inputs_supply_the_width() -> None:
+    # Supplying `width` stops oq_wrapper filling it in with its ASK14
+    # magnitude-dip estimate.
+    source_parameters = im_calc.SourceParameters(
+        mag=7.0,
+        avg_rake=90.0,
+        avg_dip=45.0,
+        avg_ztor=0.0,
+        avg_zbot=15.0,
+        avg_width=21.2,
+        hypo_depth=10.0,
+    )
+    station = xr.DataArray([1.0], dims="station")
+    site_parameters = im_calc.SiteParameters(
+        vs30=400.0 * station, z1pt0=0.1 * station, z2pt5=1.0 * station
+    )
+    distances = im_calc.Distances(
+        rrup=10.0 * station, rjb=10.0 * station, hyp=10.0 * station, epi=10.0 * station
+    )
+
+    inputs = im_calc.empirical_inputs(source_parameters, site_parameters, distances)
+
+    assert inputs["width"].item() == pytest.approx(21.2)
