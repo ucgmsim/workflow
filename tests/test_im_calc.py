@@ -6,10 +6,11 @@ import numpy as np
 import pytest
 import xarray as xr
 
+from gm_models.constants import TectType
 from IM.ims import IM
 from qcore import coordinates
 from source_modelling import sources
-from workflow import gmm, realisations
+from workflow import realisations
 from workflow.scripts import im_calc
 
 
@@ -75,8 +76,10 @@ def _station_values(values: list[float]) -> xr.DataArray:
     )
 
 
-@pytest.mark.parametrize("tect_type", list(gmm.TECT_TYPES))
-def test_calculate_empirical_names_statistics_for_create_imdb(tect_type: str) -> None:
+@pytest.mark.parametrize("tect_type", list(TectType))
+def test_calculate_empirical_names_statistics_for_create_imdb(
+    tect_type: TectType,
+) -> None:
     """The NSHM 2022 logic tree runs for every tectonic type, with the statistic names create-imdb reads."""
     source_parameters = im_calc.SourceParameters(
         mag=6.5,
@@ -84,6 +87,7 @@ def test_calculate_empirical_names_statistics_for_create_imdb(tect_type: str) ->
         avg_dip=60.0,
         avg_ztor=1.0,
         avg_zbot=15.0,
+        avg_width=16.2,
         hypo_depth=8.0,
     )
     site_parameters = im_calc.SiteParameters(
@@ -121,3 +125,14 @@ def test_calculate_empirical_names_statistics_for_create_imdb(tect_type: str) ->
     assert np.isfinite(psa.to_array()).all()
     # Ground motion decays with distance.
     assert (psa["mean"].diff("station") < 0).all()
+
+
+@pytest.mark.parametrize("tect_type", ["active_shallow", "ACTIVE_SHALLOW"])
+def test_empirical_parameters_read_tect_type_case_insensitively(
+    tect_type: str,
+) -> None:
+    """Realisations written with oq_wrapper's lowercase tectonic types still load."""
+    empirical = realisations.EmpiricalParameters.from_dict(
+        {"tect_type": tect_type, "models": ["NSHM2022"]}
+    )
+    assert empirical.tect_type is TectType.ACTIVE_SHALLOW

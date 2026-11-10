@@ -18,9 +18,10 @@ import pandas as pd
 from nzcvm.coordinates import Coordinate
 from schema import And, Literal, Optional, Or, Schema, Use
 
+import gm_models
+from gm_models.constants import TectType
 from IM import im_calculation
 from source_modelling import rupture_propagation, sources
-from workflow import gmm
 from workflow.bounding_box import BoundingBox
 from workflow.defaults import DefaultsVersion
 
@@ -1344,21 +1345,27 @@ INTENSITY_MEASURE_CALCUATION_PARAMETERS = Schema(
 )
 
 
+GROUND_MOTION_MODELS = [
+    name
+    for name, value in vars(gm_models).items()
+    if isinstance(value, gm_models.Model)
+] + ["NSHM2022"]
+"""The names of the `gm_models` models and logic trees a realisation can evaluate."""
+
+
 EMPIRICAL_PARAMETERS = Schema(
     {
         Literal(
             "tect_type",
-            description=(
-                f"Tectonic type of the source (one of {', '.join(gmm.TECT_TYPES)})"
-            ),
-        ): Or(*gmm.TECT_TYPES),
+            description="Tectonic type of the source (a gm_models.constants.TectType)",
+        ): And(str, Use(str.upper), Use(TectType)),
         Literal(
             "models",
             description=(
                 "Ground motion models or ground motion model logic trees to "
-                f"evaluate (any of {', '.join(gmm.MODELS)})"
+                f"evaluate (any of {', '.join(GROUND_MOTION_MODELS)})"
             ),
-        ): [Or(*gmm.MODELS)],
+        ): [Or(*GROUND_MOTION_MODELS)],
     }
 )
 

@@ -97,7 +97,7 @@ def get_significant_duration(
         }
     )
 
-    results = gm_models.run_as16(TectType.ACTIVE_SHALLOW, ctx, "Ds595")
+    results = gm_models.AS_16.run(TectType.ACTIVE_SHALLOW, ctx, "Ds595")
 
     return float(np.exp(results["ln_mean"].values[0]))
 

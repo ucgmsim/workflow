@@ -40,12 +40,13 @@ import shapely
 import typer
 import xarray as xr
 
+import gm_models
 from IM import ims, konno_ohmachi
 from IM.ims import IM
 from qcore import cli, coordinates
 from source_modelling import sources
 from source_modelling.sources import IsSource
-from workflow import gmm, realisations, sw4
+from workflow import realisations, sw4
 from workflow.realisations import (
     DomainParameters,
     EmpiricalParameters,
@@ -490,6 +491,8 @@ class SourceParameters:
     """The moment-averaged depth to the top of the rupture (km)."""
     avg_zbot: float
     """The moment-averaged depth to the bottom of the rupture (km)."""
+    avg_width: float
+    """The moment-averaged down-dip width of the rupture (km)."""
     hypo_depth: float
     """The depth of the hypocentre (km)."""
 
@@ -541,6 +544,9 @@ def calculate_source_parameters(
     avg_zbot = magnitudes.moment_averaged(
         {k: f.bottom_m / 1000.0 for k, f in source_config.source_geometries.items()}
     )
+    avg_width = magnitudes.moment_averaged(
+        {k: f.width for k, f in source_config.source_geometries.items()}
+    )
 
     return SourceParameters(
         mag=mag,
@@ -548,6 +554,7 @@ def calculate_source_parameters(
         avg_dip=float(avg_dip),
         avg_ztor=avg_ztor,
         avg_zbot=avg_zbot,
+        avg_width=avg_width,
         hypo_depth=float(hypocentre[2]) / 1000.0,
     )
 
@@ -630,6 +637,7 @@ def empirical_inputs(
             "rake": source_parameters.avg_rake,
             "ztor": source_parameters.avg_ztor,
             "zbot": source_parameters.avg_zbot,
+            "width": source_parameters.avg_width,
             "hypo_depth": source_parameters.hypo_depth,
             "vs30": site_parameters.vs30,
             "z1pt0": site_parameters.z1pt0,
@@ -741,14 +749,18 @@ def calculate_empirical(
     for model_name in empirical_config.models:
         for im_name in model_ims:
             try:
-                dataset = gmm.run_model(
-                    model_name,
+                run = (
+                    gm_models.run_nshm2022
+                    if model_name == "NSHM2022"
+                    else getattr(gm_models, model_name).run
+                )
+                dataset = run(
                     empirical_config.tect_type,
                     inputs,
                     EMPIRICAL_IM_NAMES[im_name],
-                    periods=periods.tolist(),
+                    periods.tolist(),
                 )
-            except (ValueError, KeyError) as e:
+            except ValueError as e:
                 warnings.warn(
                     f"Skipping empirical {im_name} for {model_name}: {e}",
                     stacklevel=1,

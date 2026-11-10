@@ -801,8 +801,8 @@ wheels = [
 
 [[package]]
 name = "gm-models"
-version = "2026.10.2.dev42+gf07f7f692"
-source = { git = "https://github.com/ucgmsim/Empirical_Engine.git?subdirectory=gm_models&branch=other_models#f07f7f692e9735b3354f1bec7f9ef6ce289ec484" }
+version = "2026.10.2.dev43+gdf9f3b1ab"
+source = { git = "https://github.com/ucgmsim/Empirical_Engine.git?subdirectory=gm_models&branch=other_models#df9f3b1abf3feeda69ecc1cfb7454aefd07d2653" }
 dependencies = [
     { name = "numpy" },
     { name = "pandas" },

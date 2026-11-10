@@ -26,6 +26,7 @@ import pandas as pd
 from nzcvm.coordinates import Coordinate
 from schema import Schema
 
+from gm_models.constants import TectType
 from IM import im_calculation
 from source_modelling import moment, sources
 from source_modelling.magnitude_scaling import BoldM
@@ -1643,10 +1644,10 @@ class EmpiricalParameters(RealisationConfiguration):
     _config_key: ClassVar[str] = "empirical"
     _schema: ClassVar[Schema] = schemas.EMPIRICAL_PARAMETERS
 
-    tect_type: str
-    """The tectonic type of the source (a key of `workflow.gmm.TECT_TYPES`)."""
+    tect_type: TectType
+    """The tectonic type of the source."""
     models: list[str]
-    """The ground motion models or logic trees to evaluate (keys of `workflow.gmm.MODELS`)."""
+    """The names of the `gm_models` models or logic trees to evaluate."""
 
 
 @dataclasses.dataclass
