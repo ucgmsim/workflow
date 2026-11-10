@@ -14,7 +14,7 @@ dependencies = [
   "im-calculation>=2026.10.3",
   "velocity-modelling>=2026.10.2",
   "nshmdb>=2026.10.2",
-  "gm-models",
+  "gm-models>=2026.11.1",
   "qcore-utils[cli]>=2026.10.1",
   "hf-simulation>=2026.11.1",
   "site-calculation>=2026.10.3",
@@ -67,10 +67,10 @@ dev = ["ruff>=0.16.5", "deptry", "ty>=0.0.75", "npdlint"]
 constraint-dependencies = ["zfpy!=1.0.1.post0"]
 
 [tool.uv.sources]
-# gm-models (the Rust ground motion models in Empirical_Engine) is not on PyPI
-# yet, and the models the workflow uses land in Empirical_Engine#188. Drop this
-# for a PyPI version floor once gm-models is released.
-gm-models = { git = "https://github.com/ucgmsim/Empirical_Engine.git", branch = "other_models", subdirectory = "gm_models" }
+# gm-models 2026.11.1 is released on GitHub, but its PyPI upload failed, so
+# install it from the release tag. Replace with "gm-models>=2026.11.1" in
+# dependencies once it is on PyPI.
+gm-models = { git = "https://github.com/ucgmsim/Empirical_Engine.git", tag = "gm_models-v2026.11.1", subdirectory = "gm_models" }
 
 [tool.ty.src]
 # Generated/dynamic schema definitions that ty cannot usefully analyse.

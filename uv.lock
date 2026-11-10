@@ -758,8 +758,8 @@ wheels = [
 
 [[package]]
 name = "gm-models"
-version = "2026.10.2.dev44+g7143c279c"
-source = { git = "https://github.com/ucgmsim/Empirical_Engine.git?subdirectory=gm_models&branch=other_models#7143c279c98a8e43e169a73fcc752c95535635e5" }
+version = "2026.11.1"
+source = { git = "https://github.com/ucgmsim/Empirical_Engine.git?subdirectory=gm_models&tag=gm_models-v2026.11.1#be8893ff5d3011fe5b3ba82e7b27840609894c5a" }
 dependencies = [
     { name = "numpy" },
     { name = "pandas" },
@@ -3433,7 +3433,7 @@ requires-dist = [
     { name = "deptry", marker = "extra == 'dev'" },
     { name = "duckdb", specifier = "<2" },
     { name = "geopandas" },
-    { name = "gm-models", git = "https://github.com/ucgmsim/Empirical_Engine.git?subdirectory=gm_models&branch=other_models" },
+    { name = "gm-models", git = "https://github.com/ucgmsim/Empirical_Engine.git?subdirectory=gm_models&tag=gm_models-v2026.11.1" },
     { name = "h5py", specifier = ">=3.15.1" },
     { name = "hf-simulation", specifier = ">=2026.11.1" },
     { name = "hypothesis", extras = ["numpy"], marker = "extra == 'test'", specifier = ">=6.0.0" },
