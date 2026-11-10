@@ -25,6 +25,27 @@ from workflow.scripts import generate_domain
 from workflow.scripts.generate_domain import Solver
 
 
+@pytest.mark.parametrize(
+    ("vs30", "expected_z1pt0_km"),
+    [
+        (200.0, 0.3365530072),
+        (400.0, 0.2158956537),
+        (760.0, 0.02354497053),
+        (1500.0, 0.001756793443),
+    ],
+)
+def test_chiou_youngs_08_z1pt0(vs30: float, expected_z1pt0_km: float) -> None:
+    """Z1.0 matches Chiou & Youngs (2008), ln Z1.0[m] = 28.5 - 3.82/8 ln(Vs30^8 + 378.7^8).
+
+    Reference values were computed from the published formula independently of
+    the implementation, and match oq_wrapper's `chiou_young_08_calc_z1p0`, which
+    this replaces. They are in km, so a dropped metre-to-km conversion fails.
+    """
+    assert generate_domain.chiou_youngs_08_z1pt0(vs30) == pytest.approx(
+        expected_z1pt0_km, rel=1e-8
+    )
+
+
 def test_significant_duration_calculation() -> None:
     """Basic integration test for gm_models, tests that the interface works as we expect still."""
     ds595 = generate_domain.get_significant_duration(
