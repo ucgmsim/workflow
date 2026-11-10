@@ -18,7 +18,7 @@ dependencies = [
   "qcore-utils[cli]>=2026.10.1",
   "hf-simulation>=2026.11.1",
   "site-calculation>=2026.10.3",
-  "source_modelling[fiona]>=2026.11.3",
+  "source_modelling>=2026.11.4",
   "nzcvm>=2026.11.2",
   "rupture-generator>=2026.11.1",
   # HACK: Required to stop ucgmsim-imdb throwing errors
