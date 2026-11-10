@@ -758,7 +758,7 @@ def calculate_empirical(
                     empirical_config.tect_type,
                     inputs,
                     EMPIRICAL_IM_NAMES[im_name],
-                    periods.tolist(),
+                    periods,
                 )
             except ValueError as e:
                 warnings.warn(
