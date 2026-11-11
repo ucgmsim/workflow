@@ -18,6 +18,8 @@ import pandas as pd
 from nzcvm.coordinates import Coordinate
 from schema import And, Literal, Optional, Or, Schema, Use
 
+import gm_models
+from gm_models.constants import TectType
 from IM import im_calculation
 from source_modelling import rupture_propagation, sources
 from workflow.bounding_box import BoundingBox
@@ -1343,26 +1345,29 @@ INTENSITY_MEASURE_CALCUATION_PARAMETERS = Schema(
 )
 
 
+GROUND_MOTION_MODELS = [
+    name
+    for name, value in vars(gm_models).items()
+    if isinstance(value, gm_models.Model)
+] + ["NSHM2022"]
+"""The names of the `gm_models` models and logic trees a realisation can evaluate."""
+
+
 EMPIRICAL_PARAMETERS = Schema(
     {
         Literal(
             "tect_type",
-            description="Tectonic type of the source (one of oq_wrapper.constants.TectType)",
-        ): str,
+            description="Tectonic type of the source (a gm_models.constants.TectType)",
+        ): And(str, Use(str.upper), Use(TectType)),
         Literal(
             "models",
             description=(
                 "Ground motion models or ground motion model logic trees to "
-                "evaluate (members of oq_wrapper.constants.GMM or "
-                "oq_wrapper.constants.GMMLogicTree)"
+                f"evaluate (any of {', '.join(GROUND_MOTION_MODELS)})"
             ),
-        ): [str],
+        ): [Or(*GROUND_MOTION_MODELS)],
     }
 )
-# NOTE: The values of this schema are validated as plain strings rather than
-# `oq_wrapper.constants` enum members. Importing `oq_wrapper.constants` pulls in
-# OpenQuake, which is expensive (and must be precompiled), so the strings are
-# only resolved to enum members inside the IM calculation stage.
 
 
 LOG_ENTRY_SCHEMA = Schema(

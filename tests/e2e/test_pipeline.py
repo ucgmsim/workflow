@@ -343,7 +343,11 @@ def test_bb_sim(realisation: Path, work: Path) -> None:
 
 
 def test_im_calc(realisation: Path, work: Path) -> None:
-    """Intensity measures for every station, all finite, with empirical estimates."""
+    """Intensity measures for every station, all finite, with empirical estimates.
+
+    Empirical estimates may be NaN outside a model's period range (im-calc
+    pads them onto the simulated period axis), but not everywhere.
+    """
     require(work / "realisation.bb")
     ko_matrices = work / "ko_matrices"
     ko_matrices.mkdir()
@@ -357,7 +361,14 @@ def test_im_calc(realisation: Path, work: Path) -> None:
     found_stations: set[str] = set()
     for node in intensity_measures.subtree:
         for name, variable in node.dataset.data_vars.items():
-            assert np.isfinite(variable.values).all(), f"{node.path}/{name} has NaNs"
+            if "/empirical/" in node.path:
+                assert np.isfinite(variable.values).any(), (
+                    f"{node.path}/{name} is all NaN"
+                )
+            else:
+                assert np.isfinite(variable.values).all(), (
+                    f"{node.path}/{name} has NaNs"
+                )
         if "station" in node.dataset.coords:
             found_stations.update(node.dataset.coords["station"].values.tolist())
     assert found_stations >= set(STATIONS)

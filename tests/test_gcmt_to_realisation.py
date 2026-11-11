@@ -3,6 +3,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from gm_models.constants import TectType
 from source_modelling import focal_mechanism, sources
 from workflow.defaults import DefaultsVersion
 from workflow.realisations import EmpiricalParameters, Rakes, SourceConfig
@@ -28,13 +29,13 @@ SOLUTIONS = pd.DataFrame(
 @pytest.mark.parametrize(
     "event_id, tect_type",
     [
-        ("2103645", "subduction_interface"),  # 2003 Fiordland
-        ("2016p858000", "active_shallow"),  # 2016 Kaikoura
-        ("2017p795065", "subduction_slab"),
+        ("2103645", TectType.SUBDUCTION_INTERFACE),  # 2003 Fiordland
+        ("2016p858000", TectType.ACTIVE_SHALLOW),  # 2016 Kaikoura
+        ("2017p795065", TectType.SUBDUCTION_SLAB),
     ],
 )
 def test_gcmt_to_realisation_tectonic_type(
-    tmp_path: Path, event_id: str, tect_type: str
+    tmp_path: Path, event_id: str, tect_type: TectType
 ) -> None:
     solutions_ffp = tmp_path / "solutions.csv"
     SOLUTIONS.to_csv(solutions_ffp, index=False)
@@ -93,4 +94,4 @@ def test_gcmt_to_realisation_tectonic_type_override(tmp_path: Path) -> None:
     )
 
     empirical = EmpiricalParameters.read_from_realisation(realisation_ffp)
-    assert empirical.tect_type == "active_shallow"
+    assert empirical.tect_type is TectType.ACTIVE_SHALLOW

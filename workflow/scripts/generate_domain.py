@@ -37,6 +37,8 @@ import pandas as pd
 import shapely
 import typer
 
+import gm_models
+from gm_models.constants import TectType
 from qcore import cli
 from source_modelling import magnitude_scaling, moment, sources
 from workflow import bounding_box, log_utils, realisations, sw4, utils
@@ -85,10 +87,6 @@ def get_significant_duration(
     float
         The estimated Ds595 of the rupture (in seconds).
     """
-
-    import oq_wrapper as oqw
-
-    # Create the input context for the GMM
     ctx = pd.DataFrame(
         {
             "vs30": [vs30],
@@ -99,15 +97,25 @@ def get_significant_duration(
         }
     )
 
-    # Execute and transform from log space
-    results = oqw.run_gmm(
-        oqw.constants.GMM.AS_16,
-        oqw.constants.TectType.ACTIVE_SHALLOW,
-        ctx,
-        "Ds595",
-    )
+    results = gm_models.AS_16.run(TectType.ACTIVE_SHALLOW, ctx, "Ds595")
 
-    return np.exp(results["Ds595_mean"].iloc[0])
+    return float(np.exp(results["ln_mean"].values[0]))
+
+
+def chiou_youngs_08_z1pt0(vs30: float) -> float:
+    """Estimate Z1.0 from Vs30 using Chiou and Youngs (2008).
+
+    Parameters
+    ----------
+    vs30 : float
+        The Vs30 at the site (m/s).
+
+    Returns
+    -------
+    float
+        The estimated depth to the 1.0 km/s shear-wave velocity horizon (km).
+    """
+    return float(np.exp(28.5 - 3.82 / 8 * np.log(vs30**8 + 378.7**8)) / 1000)
 
 
 def boundary_distance(
@@ -202,14 +210,10 @@ def rupture_context_from(
         The rupture context computed from the source information and
         velocity model parameters.
     """
-    import oq_wrapper as oqw
-
     magnitude = total_magnitude(magnitudes.magnitudes.values())
     rake = average_rake(rakes, magnitudes)
 
-    z1pt0 = float(
-        oqw.estimations.chiou_young_08_calc_z1p0(velocity_model_parameters.vs30)
-    )
+    z1pt0 = chiou_youngs_08_z1pt0(velocity_model_parameters.vs30)
 
     s_wave_velocity = velocity_model_parameters.s_wave_velocity
     ds_multiplier = velocity_model_parameters.ds_multiplier

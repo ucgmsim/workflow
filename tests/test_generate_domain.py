@@ -25,10 +25,29 @@ from workflow.scripts import generate_domain
 from workflow.scripts.generate_domain import Solver
 
 
-# Slow because of openquake import
-@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("vs30", "expected_z1pt0_km"),
+    [
+        (200.0, 0.3365530072),
+        (400.0, 0.2158956537),
+        (760.0, 0.02354497053),
+        (1500.0, 0.001756793443),
+    ],
+)
+def test_chiou_youngs_08_z1pt0(vs30: float, expected_z1pt0_km: float) -> None:
+    """Z1.0 matches Chiou & Youngs (2008), ln Z1.0[m] = 28.5 - 3.82/8 ln(Vs30^8 + 378.7^8).
+
+    Reference values were computed from the published formula independently of
+    the implementation, and match oq_wrapper's `chiou_young_08_calc_z1p0`, which
+    this replaces. They are in km, so a dropped metre-to-km conversion fails.
+    """
+    assert generate_domain.chiou_youngs_08_z1pt0(vs30) == pytest.approx(
+        expected_z1pt0_km, rel=1e-8
+    )
+
+
 def test_significant_duration_calculation() -> None:
-    """Basic integration test for OQW, tests that the interface works as we expect still."""
+    """Basic integration test for gm_models, tests that the interface works as we expect still."""
     ds595 = generate_domain.get_significant_duration(
         magnitude=6.5, distance=100.0, vs30=500.0, rake=180.0, z1pt0=5.0
     )
@@ -109,8 +128,6 @@ def test_boundary_distance_is_farthest_corner_distance() -> None:
     assert value > nearest_boundary
 
 
-# Slow because of openquake import
-@pytest.mark.slow
 def test_generate_domain() -> None:
     """Basic E2E test to check that domain generation works without crashing or producing a silly domain."""
     source = sources.Point(
@@ -144,8 +161,6 @@ def test_generate_domain() -> None:
     assert shapely.contains(domain_parameters.domain.polygon, source.geometry)
 
 
-# Slow because of openquake import
-@pytest.mark.slow
 @pytest.mark.parametrize(
     ("solver", "defaults_version", "fault_buffer", "error"),
     [
@@ -234,8 +249,6 @@ def test_average_rake_is_moment_weighted() -> None:
     assert -90.0 < avg < -80.0
 
 
-# Slow because of openquake import
-@pytest.mark.slow
 def test_normal_fault_uses_normal_faulting_duration() -> None:
     """A normal fault's averaged rake selects the normal-faulting Ds595."""
     rake = generate_domain.average_rake(

@@ -37,6 +37,7 @@ import numpy as np
 import pandas as pd
 import typer
 
+from gm_models.constants import TectType
 from qcore import cli
 from qcore.uncertainties import distributions
 from source_modelling import focal_mechanism, magnitude_scaling, moment, sources
@@ -55,11 +56,11 @@ from workflow.realisations import (
 MOMENT_TENSOR_SOLUTION_URL = "https://raw.githubusercontent.com/GeoNet/data/main/moment-tensor/GeoNet_CMT_solutions.csv"
 NAN_PUBLIC_ID = "9999999"
 TECT_TYPES = {
-    focal_mechanism.TectonicType.CRUSTAL: "active_shallow",
-    focal_mechanism.TectonicType.INTERFACE: "subduction_interface",
-    focal_mechanism.TectonicType.SLAB: "subduction_slab",
+    focal_mechanism.TectonicType.CRUSTAL: TectType.ACTIVE_SHALLOW,
+    focal_mechanism.TectonicType.INTERFACE: TectType.SUBDUCTION_INTERFACE,
+    focal_mechanism.TectonicType.SLAB: TectType.SUBDUCTION_SLAB,
 }
-"""The `oq_wrapper.constants.TectType` value for each tectonic type."""
+"""The ground motion model tectonic type for each tectonic type."""
 app = typer.Typer()
 
 

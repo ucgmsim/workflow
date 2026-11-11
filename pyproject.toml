@@ -14,11 +14,11 @@ dependencies = [
   "im-calculation>=2026.10.3",
   "velocity-modelling>=2026.10.2",
   "nshmdb>=2026.10.2",
-  "oq_wrapper>=2026.10.1",
+  "ucgmsim-gmm>=2026.11.1",
   "qcore-utils[cli]>=2026.10.1",
   "hf-simulation>=2026.11.1",
   "site-calculation>=2026.10.3",
-  "source_modelling>=2026.11.3",
+  "source_modelling>=2026.11.4",
   "nzcvm>=2026.11.2",
   "rupture-generator>=2026.11.1",
   # HACK: Required to stop ucgmsim-imdb throwing errors
@@ -26,8 +26,6 @@ dependencies = [
   "ucgmsim-imdb>=2026.10.1",
   # Data Formats
   "geopandas",
-  "fiona",                 # Imported, undeclared, by openquake's GMMs
-  "netCDF4",               # Required for openquake shenanigans
   "pandas[parquet, hdf5]",
   "pyyaml",
   "tomli-w",               # Writing the rupture generator's config
@@ -74,7 +72,7 @@ exclude = ["workflow/schemas.py", ".claude"]
 
 [tool.deptry]
 optional_dependencies_dev_groups = ["test", "dev", "types"]
-per_rule_ignores = { DEP002 = ["fiona", "duckdb"] }
+per_rule_ignores = { DEP002 = ["duckdb"] }
 
 [project.scripts]
 nshm2022-to-realisation = "workflow.scripts.nshm2022_to_realisation:app"
@@ -161,7 +159,7 @@ known-first-party = [
   "workflow",
   "pygmt_helper",
   "qcore",
-  "empirical",
+  "gm_models",
   "nshmdb",
   "IM",
   "mera",

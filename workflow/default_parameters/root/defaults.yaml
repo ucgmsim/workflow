@@ -895,7 +895,7 @@ velocity_model_1d:
       Qp: 394.80
       Qs: 197.40
 empirical:
-  tect_type: "active_shallow"
+  tect_type: "ACTIVE_SHALLOW"
   models: ["NSHM2022"]
 
 im:

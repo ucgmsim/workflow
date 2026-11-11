@@ -26,6 +26,7 @@ import pandas as pd
 from nzcvm.coordinates import Coordinate
 from schema import Schema
 
+from gm_models.constants import TectType
 from IM import im_calculation
 from source_modelling import moment, sources
 from source_modelling.magnitude_scaling import BoldM
@@ -1643,12 +1644,10 @@ class EmpiricalParameters(RealisationConfiguration):
     _config_key: ClassVar[str] = "empirical"
     _schema: ClassVar[Schema] = schemas.EMPIRICAL_PARAMETERS
 
-    # Types here are not explicitly declared so we do not pay the openquake tax
-    # importing this module.
-    tect_type: Any
-    """The tectonic type of the source (an `oq_wrapper.constants.TectType`)."""
-    models: list[Any]
-    """The ground motion models or logic trees to evaluate."""
+    tect_type: TectType
+    """The tectonic type of the source."""
+    models: list[str]
+    """The names of the `gm_models` models or logic trees to evaluate."""
 
 
 @dataclasses.dataclass
