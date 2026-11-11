@@ -745,6 +745,12 @@ def calculate_empirical(
 
     empirical_results: dict[str, xr.Dataset] = {}
     model_ims = [im for im in intensity_measures if im in EMPIRICAL_IM_NAMES]
+    # HACK: gm_models rejects a whole pSA call if any period is outside the
+    # model's range, and does not yet expose that range from Python. Clip to
+    # the NSHM 2022 logic tree's [0.01, 10] s until it does, and pad the rest
+    # with NaN so the empirical node shares its parent's period axis.
+    all_periods = periods
+    periods = periods[(periods >= 0.01) & (periods <= 10.0)]
 
     for model_name in empirical_config.models:
         for im_name in model_ims:
@@ -774,6 +780,8 @@ def calculate_empirical(
             }
             dataset = dataset[list(statistics)].rename(statistics)
             dataset.attrs = {}
+            if "period" in dataset.dims:
+                dataset = dataset.reindex(period=all_periods)
             empirical_results[f"{im_name}/empirical/{model_name}"] = annotate_empirical(
                 dataset, im_name, model_name
             )
