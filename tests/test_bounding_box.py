@@ -180,3 +180,51 @@ def test_bounding_box_for_degenerate_geometry_raises(
     """
     with pytest.raises(ValueError, match=r"^Ill-defined geometry for bounding box\.$"):
         BoundingBox.bounding_box_for_geometry(geometry, axis_aligned=axis_aligned)
+
+
+@pytest.mark.parametrize("bearing", [45.0, 135.0, 225.0, 315.0])
+@pytest.mark.parametrize(
+    ("extent_x", "extent_y"), [(10.0, 10.0), (100.0, 100.0), (100.0, 50.0)]
+)
+def test_diagonal_boxes_match_velocity_modelling(
+    bearing: float, extent_x: float, extent_y: float
+) -> None:
+    """Boxes with a side along a diagonal have two corners tied for bottom-left.
+
+    Random bearings almost never land on these ties, so check them directly:
+    the vendored code must break the tie exactly as upstream does, or the
+    same realisation would describe a different (rotated by 90°) domain.
+    """
+    upstream = pytest.importorskip("velocity_modelling.bounding_box")
+    ours = BoundingBox.from_centroid_bearing_extents(
+        REFERENCE_CENTROID, bearing, extent_x, extent_y
+    )
+    theirs = upstream.BoundingBox.from_centroid_bearing_extents(
+        REFERENCE_CENTROID, bearing, extent_x, extent_y
+    )
+    np.testing.assert_array_equal(ours.bounds, theirs.bounds)
+    assert ours.bearing == theirs.bearing
+    assert (ours.extent_x, ours.extent_y) == (theirs.extent_x, theirs.extent_y)
+
+
+def test_square_at_45_degrees_keeps_requested_bearing() -> None:
+    """A square at 45° has two equally bottom-left corners; the first one wins,
+    so the box keeps the bearing it was created with."""
+    box = BoundingBox.from_centroid_bearing_extents(
+        REFERENCE_CENTROID, 45.0, 10.0, 10.0
+    )
+    assert box.bearing == pytest.approx(45.0)
+    assert box.extent_x == pytest.approx(10.0)
+    assert box.extent_y == pytest.approx(10.0)
+    np.testing.assert_allclose(box.origin, REFERENCE_CENTROID, atol=1e-9)
+
+
+@pytest.mark.parametrize("axis_aligned", [False, True])
+def test_bounding_box_for_sub_square_metre_geometry(axis_aligned: bool) -> None:
+    """Any positive area is well-defined, even a box under one square metre."""
+    geometry = shapely.box(0.0, 0.0, 0.5, 0.5)
+    box = BoundingBox.bounding_box_for_geometry(geometry, axis_aligned=axis_aligned)
+    np.testing.assert_allclose(
+        box.bounds, [[0.0, 0.0], [0.0, 0.5], [0.5, 0.5], [0.5, 0.0]], atol=1e-12
+    )
+    assert box.area == pytest.approx(0.25e-6)
