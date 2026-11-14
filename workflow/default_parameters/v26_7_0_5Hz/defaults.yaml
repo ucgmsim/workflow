@@ -36,8 +36,11 @@ sw4:
     # 15 cells of the 800 m grid; SW4 is stable down to about 12.
     - name: "supergrid"
       parameters: { width: 12000.0 }
+    # SW4 fits Q over the two decades below `maxfreq`, so 0.025-2.5 Hz covers
+    # every 26.7 version's band. With 10 Hz the fit stopped at 0.1 Hz and Q
+    # was too high below it.
     - name: "attenuation"
-      parameters: { maxfreq: 10.0, phasefreq: 0.5, nmech: 3 }
+      parameters: { maxfreq: 2.5, phasefreq: 0.5, nmech: 3 }
     - name: "developer"
       # No `failonnan`: it scans seven full arrays for NaN every step, a tenth
       # of the run time. SW4's own health check still aborts on NaN, Inf or a
