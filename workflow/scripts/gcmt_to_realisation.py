@@ -179,9 +179,13 @@ def gcmt_to_realisation(
         )
 
     if solution_origin:
-        gcmt_solutions = pd.read_csv(solution_origin).set_index("PublicID")
+        gcmt_solutions = pd.read_csv(
+            solution_origin, dtype={"PublicID": str}
+        ).set_index("PublicID")
     else:
-        gcmt_solutions = pd.read_csv(MOMENT_TENSOR_SOLUTION_URL)
+        gcmt_solutions = pd.read_csv(
+            MOMENT_TENSOR_SOLUTION_URL, dtype={"PublicID": str}
+        )
 
         gcmt_solutions = gcmt_solutions[
             gcmt_solutions["PublicID"] != NAN_PUBLIC_ID

@@ -95,3 +95,23 @@ def test_gcmt_to_realisation_tectonic_type_override(tmp_path: Path) -> None:
 
     empirical = EmpiricalParameters.read_from_realisation(realisation_ffp)
     assert empirical.tect_type is TectType.ACTIVE_SHALLOW
+
+
+def test_gcmt_to_realisation_all_numeric_public_ids(tmp_path: Path) -> None:
+    # A CSV with only numeric PublicIDs must still be looked up by string ID.
+    solutions_ffp = tmp_path / "solutions.csv"
+    SOLUTIONS[SOLUTIONS["PublicID"] == "2103645"].to_csv(solutions_ffp, index=False)
+    realisation_ffp = tmp_path / "realisation.json"
+
+    gcmt_to_realisation.gcmt_to_realisation(
+        "2103645",
+        DefaultsVersion.v24_2_2_1,
+        realisation_ffp,
+        gcmt_to_realisation.SourceType.FINITE_FAULT,
+        solution_origin=solutions_ffp,
+    )
+
+    assert (
+        "2103645"
+        in SourceConfig.read_from_realisation(realisation_ffp).source_geometries
+    )
