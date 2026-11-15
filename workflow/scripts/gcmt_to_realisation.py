@@ -3,13 +3,14 @@ Generate a realisation from a GCMT solution.
 
 Description
 -----------
-This script generates a realisation from a GCMT solution by fetching the necessary data from the GeoNet and automated GCMT solutions, selecting the most likely nodal plane, classifying the tectonic type for the empirical ground motion models, and generating a rupture geometry using CCLDpy.
+This script generates a realisation from a GCMT solution by fetching the solution from the GeoNet CMT solutions catalogue (or a user-supplied CSV via `--solution-origin`), selecting the most likely nodal plane, classifying the tectonic type for the empirical ground motion models, and generating a rupture geometry using the magnitude scaling relations in `source_modelling.magnitude_scaling`.
 
 Inputs
 ------
 1. gcmt_event_id: The GCMT event ID to source the simulation for.
 2. defaults_version: Scientific defaults to use (determines simulation resolution among many other things).
 3. realisation_ffp: Path to output realisation.
+4. source_type: The type of source to generate (finite fault or point source).
 
 Outputs
 -------
@@ -21,7 +22,7 @@ Can be run in the cybershake container. Can also be run from your own computer u
 
 Usage
 -----
-`gcmt-to-realisation [OPTIONS] GCMT_EVENT_ID DEFAULTS_VERSION REALISATION_FFP`
+`gcmt-to-realisation [OPTIONS] GCMT_EVENT_ID DEFAULTS_VERSION REALISATION_FFP SOURCE_TYPE`
 
 For More Help
 -------------
@@ -147,15 +148,15 @@ def gcmt_to_realisation(
         The type of source to generate. FINITE_FAULT creates a finite fault plane,
         POINT_SOURCE creates a point source approximation.
     hypocentre_strategy : SamplingStrategy
-        Sampling strategy for the hypocentre strike coordinate.
+        Sampling strategy for the hypocentre strike and dip coordinates.
     shypo : float, optional
         The initial hypocentre strike coordinate (0 - 1). Distribution is truncated normal with mean 0.5 and standard deviation 0.25.
     dhypo : float, optional
-        The initial hypocentre strike coordinate (0 - 1). Distribution is truncated Weibull.
+        The initial hypocentre down-dip coordinate (0 - 1). Distribution is truncated Weibull.
     lat_hypo : float, optional
         The latitude coordinate of the hypocentre. Conflicts with shypo and dhypo.
     lon_hypo : float, optional
-        The latitude coordinate of the hypocentre. Conflicts with shypo and dhypo.
+        The longitude coordinate of the hypocentre. Conflicts with shypo and dhypo.
     scaling_relation : magnitude_scaling.ScalingRelation, optional
         The magnitude scaling relation from source modelling to use.
         Defaults to Leonard2014.
@@ -207,7 +208,7 @@ def gcmt_to_realisation(
 
     else:
         raise typer.BadParameter(
-            f"GCMT event ID {gcmt_event_id} not found in either the published GCMT solutions or automated solutions.",
+            f"GCMT event ID {gcmt_event_id} not found in the GCMT solutions.",
             param_hint="GCMT_EVENT_ID",
         )
 
