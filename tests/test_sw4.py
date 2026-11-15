@@ -76,18 +76,37 @@ def test_coarsest_resolution_is_the_bottom_refinement() -> None:
     assert sw4.coarsest_resolution(refinements, DEEPEST_SUPPORTED_DOMAIN_KM) == 400.0
 
 
-def test_lower_frequency_coarsest_resolution_matches_1hz() -> None:
-    """The lower-frequency versions share 26.7.1Hz's coarsest grid, so a domain
-    sized for one clears the sponge in all of them."""
-    for version in SW4_VERSIONS:
-        refinements = Refinements.read_from_defaults(version)
-        assert (
-            sw4.coarsest_resolution(refinements, DEEPEST_SUPPORTED_DOMAIN_KM) == 400.0
-        )
-    lower = Refinements.read_from_defaults(defaults.DefaultsVersion.v26_7_0_25Hz)
-    assert sw4.coarsest_resolution(lower, 3.0) == 400.0
+def test_lower_frequency_coarsest_resolution() -> None:
+    """The lower-frequency versions coarsen to 800 m, twice 26.7.1Hz's 400 m,
+    so they need a wider `fault_buffer` to clear the same sponge."""
+    full = Refinements.read_from_defaults(defaults.DefaultsVersion.v26_7_1Hz)
+    assert sw4.coarsest_resolution(full, DEEPEST_SUPPORTED_DOMAIN_KM) == 400.0
     half = Refinements.read_from_defaults(defaults.DefaultsVersion.v26_7_0_5Hz)
     assert sw4.coarsest_resolution(half, 3.0) == 200.0
+    assert sw4.coarsest_resolution(half, 20.0) == 400.0
+    assert sw4.coarsest_resolution(half, DEEPEST_SUPPORTED_DOMAIN_KM) == 800.0
+    quarter = Refinements.read_from_defaults(defaults.DefaultsVersion.v26_7_0_25Hz)
+    assert sw4.coarsest_resolution(quarter, 3.0) == 400.0
+    assert sw4.coarsest_resolution(quarter, DEEPEST_SUPPORTED_DOMAIN_KM) == 800.0
+
+
+MINIMUM_SPONGE_GRIDPOINTS = 12
+"""The thinnest sponge, in cells of the coarsest grid, SW4's grid-interface
+solve stays stable with at CFL 1.3. With 10 it fails to converge, and with 7.5
+the solution is NaN within a few steps."""
+
+
+@pytest.mark.parametrize("version", SW4_VERSIONS)
+def test_sponge_is_resolved_on_the_coarsest_grid(
+    version: defaults.DefaultsVersion,
+) -> None:
+    refinements = Refinements.read_from_defaults(version)
+    parameters = SW4Parameters.read_from_defaults(version)
+    coarsest = sw4.coarsest_resolution(refinements, DEEPEST_SUPPORTED_DOMAIN_KM)
+    assert (
+        sw4.supergrid_width(parameters, coarsest) / coarsest
+        >= MINIMUM_SPONGE_GRIDPOINTS
+    )
 
 
 TARGET_POINTS_PER_WAVELENGTH = 8.0
@@ -152,21 +171,25 @@ def test_refinements_coarsen_at_the_vs_floor(
 
     With n points per wavelength a grid of spacing h resolves f where
     Vs >= n h f. Below the floor Vs is at least the floor's minimum, so the
-    grid there is the coarsest that keeps 8 points per wavelength (capped at
-    the shared coarsest grid, which the sponge and `fault_buffer` are sized
-    for). Above it the grid is 26.7.1Hz's 100 m scaled by 1 / f. A version
-    that refines deeper than the floor pays for grid points it does not need.
+    grid there is the coarsest that keeps 8 points per wavelength. Above it
+    the grid is 26.7.1Hz's 100 m scaled by 1 / f. SW4 needs `nz_min` cells in
+    the surface grid, so the transition sits at the floor or at that depth,
+    whichever is deeper. A version that refines deeper than that pays for
+    grid points it does not need.
     """
     refinements = Refinements.read_from_defaults(version)
     flo = BroadbandParameters.read_from_defaults(version).flo
+    nz_min = SW4Parameters.read_from_defaults(version).nz_min
     elevation, vs_min = vs_floor(version)
-    coarsest = refinements.unbounded_refinement_resolution
 
-    above = spacing_at(refinements, elevation - 1.0)
-    below = spacing_at(refinements, elevation)
+    surface = SURFACE_GRID_FREQUENCY_PRODUCT / flo
+    transition = max(elevation, nz_min * surface)
 
-    assert above == min(SURFACE_GRID_FREQUENCY_PRODUCT / flo, coarsest)
-    assert below == min(vs_min / (TARGET_POINTS_PER_WAVELENGTH * flo), coarsest)
+    above = spacing_at(refinements, transition - 1.0)
+    below = spacing_at(refinements, transition)
+
+    assert above == surface
+    assert below == vs_min / (TARGET_POINTS_PER_WAVELENGTH * flo)
     assert vs_min / (below * flo) >= TARGET_POINTS_PER_WAVELENGTH
 
 
