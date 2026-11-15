@@ -98,7 +98,7 @@ jobs:
             "velocity-modelling @ git+https://github.com/ucgmsim/velocity_modelling.git@main" \
             "nzcvm @ git+https://github.com/ucgmsim/nzcvm.git@master" \
             "nshmdb @ git+https://github.com/ucgmsim/NSHM2022DB.git@main" \
-            "gm-models @ git+https://github.com/ucgmsim/Empirical_Engine.git@master#subdirectory=gm_models" \
+            "ucgmsim-gmm @ git+https://github.com/ucgmsim/Empirical_Engine.git@master#subdirectory=gm_models" \
             "im-calculation @ git+https://github.com/ucgmsim/IM_calculation.git@master" \
             "hf-simulation @ git+https://github.com/ucgmsim/high-frequency.git@master" \
             "site-calculation @ git+https://github.com/ucgmsim/site_calculation.git@master" \
