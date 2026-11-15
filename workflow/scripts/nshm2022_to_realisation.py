@@ -140,7 +140,10 @@ def default_magnitude_estimation(
 
 
 def find_fault_and_hypocentre(
-    faults: dict[str, Fault], lat_hypo: float, lon_hypo: float
+    faults: dict[str, Fault],
+    lat_hypo: float,
+    lon_hypo: float,
+    dhypo: float | None = None,
 ) -> tuple[str, npt.NDArray[np.float64]]:
     """Find the fault and fault-local hypocentre coordinates corresponding to a hypocentre in lat, lon coordinates.
 
@@ -152,6 +155,12 @@ def find_fault_and_hypocentre(
         The hypocentre latitude.
     lon_hypo : float
         The hypocentre longitude.
+    dhypo : float, optional
+        The hypocentre down-dip coordinate (0 - 1). A lat, lon pair does not
+        determine the depth of a point on a vertical plane, so this is
+        required to locate a hypocentre on a vertical plane. It is ignored
+        for dipping planes, where the lat, lon pair determines the down-dip
+        position.
 
     Returns
     -------
@@ -161,17 +170,44 @@ def find_fault_and_hypocentre(
     Raises
     ------
     ValueError
-        If the hypocentre is not on any fault.
+        If the hypocentre is not on any fault, or if it lies only on vertical
+        planes and `dhypo` is not given.
     """
     hypocentre_wgs = np.array([lat_hypo, lon_hypo])
+    on_vertical_plane_without_depth = False
     for fault_name, fault in faults.items():
-        try:
-            hypocentre: npt.NDArray[np.float64] = (
-                fault.wgs_depth_coordinates_to_fault_coordinates(hypocentre_wgs)
-            )
+        # The left edges of each plane as a proportion of the fault length.
+        left_edges = np.insert(fault.lengths.cumsum() / fault.length, 0, 0)
+        for i, plane in enumerate(fault.planes):
+            try:
+                if plane.dip == 90:
+                    # Locate the point at the depth implied by dhypo (or the
+                    # top of the plane to check it is on the trace at all).
+                    depth = plane.top_m + (dhypo or 0.0) * (
+                        plane.bottom_m - plane.top_m
+                    )
+                    plane_coordinates = (
+                        plane.wgs_depth_coordinates_to_fault_coordinates(
+                            np.append(hypocentre_wgs, depth)
+                        )
+                    )
+                    if dhypo is None:
+                        on_vertical_plane_without_depth = True
+                        continue
+                else:
+                    plane_coordinates = (
+                        plane.wgs_depth_coordinates_to_fault_coordinates(hypocentre_wgs)
+                    )
+            except sources.CoordinatesNotOnPlaneError:
+                continue
+            hypocentre: npt.NDArray[np.float64] = np.array(
+                [left_edges[i], 0]
+            ) + plane_coordinates * np.array([left_edges[i + 1] - left_edges[i], 1])
             return fault_name, hypocentre
-        except ValueError:
-            continue
+    if on_vertical_plane_without_depth:
+        raise ValueError(
+            "A depth is required (--dhypo) for a hypocentre on a vertical fault."
+        )
     raise ValueError("Hypocentre not on any fault.")
 
 
@@ -277,15 +313,17 @@ def generate_realisation(
         shypo from a truncated normal distribution.
     dhypo : float, optional
         The initial hypocentre down-dip coordinate (0 - 1). If not supplied, draw
-        dhypo from a weibull distribution.
+        dhypo from a weibull distribution. May be combined with lat_hypo and
+        lon_hypo, where it is required to place the hypocentre on a vertical
+        fault (and ignored on dipping faults).
     lat_hypo : float, optional
         The initial hypocentre latitude (degrees). Will cause an error
         if latitude and longitude are both not supplied, or specify a
-        point not on the rupture geometry. Incompatible with shypo, dhypo and initial fault.
+        point not on the rupture geometry. Incompatible with shypo and initial fault.
     lon_hypo : float, optional
         The initial hypocentre longitude (degrees). Will cause an error
         if latitude and longitude are both not supplied, or specify a
-        point not on the rupture geometry. Incompatible with shypo, dhypo and initial fault.
+        point not on the rupture geometry. Incompatible with shypo and initial fault.
     separation_distance : float, optional
         The maximum distance between faults to consider them connected in km.
         Defaults to 5 km.
@@ -299,12 +337,8 @@ def generate_realisation(
     if (lat_hypo is None) != (lon_hypo is None):
         print("Both latitude and longitude must be supplied.")
         raise typer.Exit(code=1)
-    if lat_hypo is not None and (
-        dhypo is not None or shypo is not None or initial_fault
-    ):
-        print(
-            "Latitude and longitude are incompatible with shypo, dhypo and initial fault."
-        )
+    if lat_hypo is not None and (shypo is not None or initial_fault):
+        print("Latitude and longitude are incompatible with shypo and initial fault.")
         raise typer.Exit(code=1)
 
     metadata = RealisationMetadata(
@@ -351,7 +385,7 @@ def generate_realisation(
     )
     if lat_hypo is not None and lon_hypo is not None:
         initial_fault, hypocentre = find_fault_and_hypocentre(
-            faults, lat_hypo, lon_hypo
+            faults, lat_hypo, lon_hypo, dhypo
         )
     elif initial_fault:
         hypocentre = np.array(
