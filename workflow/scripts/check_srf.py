@@ -29,15 +29,16 @@ For More Help
 See the output of `check-srf --help`.
 """
 
+import dataclasses
 from pathlib import Path
 from typing import Annotated
 
 import numpy as np
-import pandas as pd
+import srf
 import typer
 
 from qcore import cli
-from source_modelling import moment, srf
+from source_modelling import moment
 from workflow import log_utils, realisations
 from workflow.realisations import (
     Magnitudes,
@@ -49,32 +50,36 @@ from workflow.realisations import (
 app = typer.Typer()
 
 
-def srf_rigidity(realisation_ffp: Path, points: pd.DataFrame) -> np.ndarray:
+def srf_rigidity(realisation_ffp: Path, points: srf.Points) -> np.ndarray:
     """Return the shear modulus at each SRF point.
 
     A version 2.0 SRF records the shear-wave speed (``vs``, cm/s) and density
-    (``den``, g/cm^3) its moment was computed with, so the rigidity comes from
-    those columns. Genslip fills them from the realisation's 1D velocity model
-    and ``generate-rupture`` from the NZCVM. A version 1.0 SRF has no such
-    columns, so its rigidity falls back to the realisation's 1D velocity model.
+    (``density``, g/cm^3) its moment was computed with, so the rigidity comes
+    from those columns. Genslip fills them from the realisation's 1D velocity
+    model and ``generate-rupture`` from the NZCVM. A version 1.0 SRF has no
+    such columns, so its rigidity falls back to the realisation's 1D velocity
+    model.
 
     Parameters
     ----------
     realisation_ffp : Path
         The path to the realisation for the SRF.
-    points : pd.DataFrame
+    points : srf.Points
         The SRF points, with a ``dep`` column (km) and, for a version 2.0 SRF,
-        ``vs`` and ``den`` columns.
+        ``vs`` and ``density`` columns.
 
     Returns
     -------
     np.ndarray
         The shear modulus at each point (dyne/cm^2).
     """
-    if {"vs", "den"} <= set(points.columns) and (
-        (points["vs"] > 0) & (points["den"] > 0)
-    ).all():
-        return (points["vs"].to_numpy() ** 2) * points["den"].to_numpy()
+    if (
+        points.vs is not None
+        and points.density is not None
+        and ((points.vs > 0) & (points.density > 0)).all()
+    ):
+        # The columns are single precision, as the file holds them.
+        return points.vs.astype(np.float64) ** 2 * points.density
 
     metadata = RealisationMetadata.read_from_realisation(realisation_ffp)
     velocity_model = VelocityModel1D.read_from_realisation_or_defaults(
@@ -83,7 +88,7 @@ def srf_rigidity(realisation_ffp: Path, points: pd.DataFrame) -> np.ndarray:
     # Vs (km/s) -> cm/s is 1e5, so Vs^2 rho picks up 1e10 to be dyne/cm^2.
     mu = velocity_model["Vs"].to_numpy() ** 2 * velocity_model["rho"].to_numpy() * 1e10
     depth = velocity_model["thickness"].cumsum().to_numpy()
-    indices = np.minimum(len(depth) - 1, np.searchsorted(depth, points["dep"]))
+    indices = np.minimum(len(depth) - 1, np.searchsorted(depth, points.dep))
     return mu[indices]
 
 
@@ -107,55 +112,46 @@ def check_srf(
     typer.Exit
         If any of the checks fail.
     """
-    srf_file = srf.read_srf(srf_ffp)
-    mu = srf_rigidity(realisation_ffp, srf_file.points)
+    points = srf.read(srf_ffp).points
+    mu = srf_rigidity(realisation_ffp, points)
     # SRF area (cm^2) x slip (cm) x mu (dyne/cm^2) is a moment in dyne-cm, but
     # `moment_to_magnitude` takes Nm.
     srf_moment_dyne_cm = (
-        np.array(srf_file.points["area"].values)
-        * np.array(srf_file.points["slip"].values)
-        * mu
+        points.area.astype(np.float64) * points.slip1.astype(np.float64) * mu
     ).sum()
     srf_magnitude = moment.moment_to_magnitude(
         moment.dyne_cm_to_newton_metre(srf_moment_dyne_cm), bold_m=True
     )
     logger = log_utils.get_logger("__name__")
 
-    if srf_file.points.isnull().values.any():
+    columns = (getattr(points, field.name) for field in dataclasses.fields(points))
+    if any(np.isnan(column).any() for column in columns if column is not None):
         logger.error("SRF contains NaN values")
         raise typer.Exit(code=1)
 
-    if (srf_file.points["dep"] < 0).any():
-        logger.error(
-            "Negative SRF depth detected", min_depth=srf_file.points["dep"].min()
-        )
+    if (points.dep < 0).any():
+        logger.error("Negative SRF depth detected", min_depth=points.dep.min())
         raise typer.Exit(code=1)
 
-    if not np.isclose(srf_file.points["tinit"].min(), 0):
+    if not np.isclose(points.tinit.min(), 0):
         logger.warning(
             "SRF does not begin at zero (this may not be an error depending on SRF setup)",
-            tinit=srf_file.points["tinit"].min(),
+            tinit=points.tinit.min(),
         )
         raise typer.Exit(code=1)
 
-    if (srf_file.points["lat"].abs() > 90).any():
+    if (np.abs(points.lat) > 90).any():
         logger.error(
             "SRF Latitude values out of bounds",
-            lat_range=(srf_file.points["lat"].min(), srf_file.points["lat"].max()),
+            lat_range=(points.lat.min(), points.lat.max()),
         )
         raise typer.Exit(code=1)
 
-    if (srf_file.points["lon"].abs() > 180).any():
+    if (np.abs(points.lon) > 180).any():
         logger.error(
             "SRF Longitude values out of bounds",
-            lat_range=(srf_file.points["lon"].min(), srf_file.points["lon"].max()),
+            lat_range=(points.lon.min(), points.lon.max()),
         )
-        raise typer.Exit(code=1)
-
-    try:
-        _ = srf_file.planes
-    except ValueError:
-        logger.error("SRF geometry is broken.")
         raise typer.Exit(code=1)
 
     try:

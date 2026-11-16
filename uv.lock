@@ -878,6 +878,7 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/f4/5b/e04bc5742c8356abec954045451cfa70449c59927d9e8fd3c35672ed4733/hf_simulation-2026.11.2.tar.gz", hash = "sha256:e81e26fd9cdaa4315076c9d6376d4a1483fc3e18b3bfc980961c9bcc29277d07", size = 909146, upload-time = "2026-11-11T00:55:34.059Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/78/85/4cf70a04516901c32d24c34d8ad498b45809c3e59adeaf26a80170a4f2f7/hf_simulation-2026.11.2-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:3e59ad5d4348d1c46866aa3acdfd0b02ff2cdf04d2dbb1133fb191eec67cbb4a", size = 486996, upload-time = "2026-11-11T00:54:59.805Z" },
     { url = "https://files.pythonhosted.org/packages/53/d5/65cf7fd0573f51a1917c6b80f10a70c6200d197b1c8d4ffd3856c54619b7/hf_simulation-2026.11.2-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:5fa149a4027f20f128f81018d3590f9d8c7c13a945ca77fe29c9c5d0ffff9f48", size = 693219, upload-time = "2026-11-11T00:55:01.4Z" },
@@ -888,6 +889,17 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/2a/2b/0642a209be6fb3cdd53220c4b542057057048e1220585da4be2dfd4803e9/hf_simulation-2026.11.2-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:ef037a91f39bce56c41731fb213fe5ac3fb4200df194a057c82bfe82bed239af", size = 6245999, upload-time = "2026-11-11T00:55:10.683Z" },
     { url = "https://files.pythonhosted.org/packages/c6/12/940e1bda786d8c2deab8b041d3b77d8aa225562060d2e8d698c3cf932902/hf_simulation-2026.11.2-cp314-cp314-win_amd64.whl", hash = "sha256:8caffe616c7d0266ba5253b645c7bed22ef601fd02bdf70bebbfe5992d18bc2f", size = 701494, upload-time = "2026-11-11T00:55:12.643Z" },
     { url = "https://files.pythonhosted.org/packages/6a/bd/d77de6bd7255b8ee3461e5922878cdd8693abc6e2d3dc6f7fe6de301adfd/hf_simulation-2026.11.2-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:82c153caae38227549ebc9e944b7d98f62e5247ab66d7f8d047b95866680230a", size = 482635, upload-time = "2026-11-11T00:55:14.24Z" },
+    { url = "https://files.pythonhosted.org/packages/48/88/c7da85a3ec05652f80cb21d7ef49f05e78ccc02bdf89ad6fa89ab2d0c499/hf_simulation-2026.11.2-cp314-cp314t-macosx_11_0_x86_64.whl", hash = "sha256:3eba9614739f85b9b08956417a135ef3b9ddf236624cd7a32ff4acf94f0cf18b", size = 687766, upload-time = "2026-11-11T00:55:15.855Z" },
+    { url = "https://files.pythonhosted.org/packages/4f/27/78391d4e69c7acd9dd386d2055b15230797e886bae21b6de0305ed02e181/hf_simulation-2026.11.2-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:203ef516c8d3aa16277665aae1bd23107011950e930a7e186c5972d7974ab0b0", size = 6241779, upload-time = "2026-11-11T00:55:17.598Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/59/6f91a348e274653a35218df78941ef465f1b04bb1dd26cf75a49fb90f8c1/hf_simulation-2026.11.2-cp314-cp314t-win_amd64.whl", hash = "sha256:cbcb16570f01ae6d8e51775eddbb043e32994225dba7833ca4ee67199b0276ab", size = 697932, upload-time = "2026-11-11T00:55:19.218Z" },
+    { url = "https://files.pythonhosted.org/packages/df/55/7c1748d1bbab160da139a8d6c7eaf9f3a5afbe2071d5d77c3a6aeb71e51b/hf_simulation-2026.11.2-cp315-cp315-macosx_11_0_arm64.whl", hash = "sha256:32fd118acabf4da559e1349cfaf7a2b760dc683edd3a4eb27c9bfae4c2003cc3", size = 487824, upload-time = "2026-11-11T00:55:20.653Z" },
+    { url = "https://files.pythonhosted.org/packages/fc/3e/a485cb3fa0d77f93abbf3649a3cfbd925ddd5f63f5f263ad990ce37e511e/hf_simulation-2026.11.2-cp315-cp315-macosx_11_0_x86_64.whl", hash = "sha256:7b1e5c1a9313038da219ff74e2d41e70b0f9a6187ea7319bd1b765b9820b4390", size = 694442, upload-time = "2026-11-11T00:55:22.118Z" },
+    { url = "https://files.pythonhosted.org/packages/9c/a6/272f16bde70cea5a450823e92bac6a6b8de288eaa8ef54a7eaffe9f96ebb/hf_simulation-2026.11.2-cp315-cp315-manylinux_2_28_x86_64.whl", hash = "sha256:2cc0075f6945ae0c86c30389845d6b1f9bfef935aa800322e4e23fab4ac331c1", size = 6248126, upload-time = "2026-11-11T00:55:23.88Z" },
+    { url = "https://files.pythonhosted.org/packages/4c/21/b54830044a85cafa5adf0b0df9f12dd681d8257da7eac9cf80b3ab222465/hf_simulation-2026.11.2-cp315-cp315-win_amd64.whl", hash = "sha256:4cc28f038f65e1fbc373fe8f849e89af1ad43775a42079b402a12140a56623b1", size = 701799, upload-time = "2026-11-11T00:55:25.502Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/51/3f83ec7ca1b46250fdabe11c80892d9bf7b774609a7685fd09bc1713b247/hf_simulation-2026.11.2-cp315-cp315t-macosx_11_0_arm64.whl", hash = "sha256:7f9998a102cd1f6c02e190776a06ccde6eae12e45fe5babb66ea74e440d8e674", size = 482861, upload-time = "2026-11-11T00:55:27.339Z" },
+    { url = "https://files.pythonhosted.org/packages/5e/0a/fde4daf201767075b1a34c25b8ac9646fd479943dc64f60db07714a7a221/hf_simulation-2026.11.2-cp315-cp315t-macosx_11_0_x86_64.whl", hash = "sha256:d920db96434dd8efe5119e2f538e16eadcf61487543d5b9cd80837a60cc7f706", size = 688077, upload-time = "2026-11-11T00:55:28.743Z" },
+    { url = "https://files.pythonhosted.org/packages/71/db/a387a4057a7932af71a8e6568ba45030b52e8d06658cf8ff692b5a26cf54/hf_simulation-2026.11.2-cp315-cp315t-manylinux_2_28_x86_64.whl", hash = "sha256:28fcbdc74d62db7b42f364990ede14dfd5b0ac2b77190a9e8bff4724f167146c", size = 6244624, upload-time = "2026-11-11T00:55:30.756Z" },
+    { url = "https://files.pythonhosted.org/packages/13/b9/5e84a1a84f198aa486d3bea24f7ab0cc48754942ebf9929889eb24da8423/hf_simulation-2026.11.2-cp315-cp315t-win_amd64.whl", hash = "sha256:41216726584e127af549f266063fca018c61c41aa00af455c982703e8a89d094", size = 698183, upload-time = "2026-11-11T00:55:32.408Z" },
 ]
 
 [[package]]
@@ -3414,6 +3426,7 @@ dependencies = [
     { name = "typer" },
     { name = "ucgmsim-gmm" },
     { name = "ucgmsim-imdb" },
+    { name = "ucgmsim-srf" },
     { name = "velocity-modelling" },
     { name = "xarray", extra = ["io"] },
 ]
@@ -3482,6 +3495,7 @@ requires-dist = [
     { name = "types-requests", marker = "extra == 'types'" },
     { name = "ucgmsim-gmm", specifier = ">=2026.11.1" },
     { name = "ucgmsim-imdb", specifier = ">=2026.10.1" },
+    { name = "ucgmsim-srf", specifier = ">=2026.10.2" },
     { name = "velocity-modelling", specifier = ">=2026.10.2" },
     { name = "xarray", extras = ["io"] },
 ]
