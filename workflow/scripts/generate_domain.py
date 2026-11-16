@@ -370,12 +370,24 @@ def estimate_r_surface(
     -------
     float
         The estimated horizontal surface distance (in metres).
+
+    Raises
+    ------
+    ValueError
+        If the top of the rupture is deeper than the rrup interpolated for the
+        magnitude, so that no point on the surface lies within rrup.
     """
     rrup = float(np.interp(magnitude, rrup_interpolants[0], rrup_interpolants[1]))
 
     if rrup < ztor:
         raise ValueError(
-            f"Top-of-rupture depth {ztor=} is greater than estimated rrup {rrup=}."
+            f"The top of the rupture is {float(ztor):.1f} km deep, deeper than the "
+            f"{rrup:.1f} km rupture distance (rrup) that rrup_interpolants give for "
+            f"magnitude {float(magnitude):.2f}, so no point on the surface is within "
+            "rrup and the domain's surface extent sqrt(rrup^2 - ztor^2) is undefined. "
+            "The event is too deep for its magnitude to simulate with these defaults: "
+            "filter such events out upstream (e.g. by depth) or use different "
+            "rrup_interpolants."
         )
 
     r_surface = np.sqrt(rrup**2 - ztor**2)

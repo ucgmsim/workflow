@@ -128,6 +128,20 @@ def test_boundary_distance_is_farthest_corner_distance() -> None:
     assert value > nearest_boundary
 
 
+def test_estimate_r_surface_rejects_rupture_deeper_than_rrup() -> None:
+    """A rupture top deeper than the interpolated rrup raises a readable error."""
+    rrup_interpolants = np.array([[5.0, 8.0], [50.0, 50.0]])
+    with pytest.raises(ValueError) as excinfo:
+        generate_domain.estimate_r_surface(
+            rrup_interpolants, magnitude=5.4, ztor=np.float64(51.82468269271652)
+        )
+    message = str(excinfo.value)
+    assert "51.8 km" in message
+    assert "50.0 km" in message
+    assert "magnitude 5.40" in message
+    assert "np.float64" not in message
+
+
 def test_generate_domain() -> None:
     """Basic E2E test to check that domain generation works without crashing or producing a silly domain."""
     source = sources.Point(
