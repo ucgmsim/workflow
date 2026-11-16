@@ -24,6 +24,7 @@ dependencies = [
   # HACK: Required to stop ucgmsim-imdb throwing errors
   "duckdb<2",
   "ucgmsim-imdb>=2026.10.1",
+  "ucgmsim-srf>=2026.10.2",
   # Data Formats
   "geopandas",
   "pandas[parquet, hdf5]",
