@@ -1067,7 +1067,7 @@ wheels = [
 
 [[package]]
 name = "im-calculation"
-version = "2026.11.1"
+version = "2026.11.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
@@ -1075,20 +1075,20 @@ dependencies = [
     { name = "scipy" },
     { name = "xarray" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b1/e6/480c9ef0e7461d8105b6c20d18673c63cda4618c0c3aa3c5c05087df70ff/im_calculation-2026.11.1.tar.gz", hash = "sha256:2e9e0984c88dbecd1f21d633a30e029a7acf434119426cb8254f29e9406afc8a", size = 50625, upload-time = "2026-11-11T00:51:43.434Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c5/cf/70c1c9086a2e49cad989b1a24c00a7354b8ed1b64e445f221c99abe26878/im_calculation-2026.11.2.tar.gz", hash = "sha256:5e883c2fdfe7f6c09ddebbc15b2a6068a1c34da5670f5fc2aaee24ea8dd3215e", size = 52343, upload-time = "2026-11-17T21:18:35.022Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ca/29/344e65925c5ea329dfe332906b508b5b644d7cc9786653650bb35e4b8214/im_calculation-2026.11.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:8043e9158c6fb457da3f2ce3d3adae053cb5ddba0d1a1ebb3611aa695ce93531", size = 283637, upload-time = "2026-11-11T00:51:27.946Z" },
-    { url = "https://files.pythonhosted.org/packages/fb/5a/7f1ff45bf000dd918eded61cccb1e51ad2eeb7b142ae6d177e35be287bf9/im_calculation-2026.11.1-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:26ed44231b261f754871a593d4478a5a692761a72dbe73b813b7e7afe896c5b7", size = 293425, upload-time = "2026-11-11T00:51:29.117Z" },
-    { url = "https://files.pythonhosted.org/packages/4d/b6/80e091ddd3aa305fc2dc0aed105fe8054d856b523916aebb79806aa5c31e/im_calculation-2026.11.1-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:f89035db2010c579a98a45408b4a8041300a7ca8ad1811da7315b7f82cd62441", size = 328961, upload-time = "2026-11-11T00:51:30.349Z" },
-    { url = "https://files.pythonhosted.org/packages/b9/d9/8fe0109ba70366432c5456636cfb8fd541fca540064372f5f546a93ec845/im_calculation-2026.11.1-cp313-cp313-win_amd64.whl", hash = "sha256:c248fe507687348cb3870148bea8ccc53e2ca993d4900cf7f8df933823dad013", size = 184723, upload-time = "2026-11-11T00:51:31.734Z" },
-    { url = "https://files.pythonhosted.org/packages/12/fc/f3d1483a20a9b591b347c80b96cb11962c32365f96285a263b42b1b6c21d/im_calculation-2026.11.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:10095ef0ad03439176b922cbf2145d5180b72bf068ed13aaa6c614d24e1e8a31", size = 284553, upload-time = "2026-11-11T00:51:33.147Z" },
-    { url = "https://files.pythonhosted.org/packages/66/7b/8a7d5a771387300866d996335dd7b349200e9fd4d797b27b0cc001efd3d5/im_calculation-2026.11.1-cp314-cp314-macosx_11_0_x86_64.whl", hash = "sha256:a375de9590e57671be18f4b2515c81f203ddb345a870830c9571ac85decaf29d", size = 293901, upload-time = "2026-11-11T00:51:34.713Z" },
-    { url = "https://files.pythonhosted.org/packages/1e/c8/7a8a3b03d3c177b490fdb1721e3e7213595ee5568c37a8d4b4f6a78c69d1/im_calculation-2026.11.1-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:7d6546578f290c779635874c3ceaba655eca1200b83aeec7253cb0b13018192f", size = 330413, upload-time = "2026-11-11T00:51:35.957Z" },
-    { url = "https://files.pythonhosted.org/packages/91/b6/a15b2ba1f0e93d9cb3d30c2409298e33904572ac0c5b6f24cee5c46671ba/im_calculation-2026.11.1-cp314-cp314-win_amd64.whl", hash = "sha256:5465b6a283335f2fb8943c6f783cfaffaf75e765d11b5e63f5e84380777c7dd5", size = 190866, upload-time = "2026-11-11T00:51:37.267Z" },
-    { url = "https://files.pythonhosted.org/packages/4d/c1/a0bf9094b84270a7e8e89cb9c3a4b1b2065066ae263d6594d22f5c5ca2ae/im_calculation-2026.11.1-cp315-cp315-macosx_11_0_arm64.whl", hash = "sha256:e6a7d05ffd96fdc71eb6ae2cdb8b8a7966f366f5355ee459d8bc389d67a90ebb", size = 284633, upload-time = "2026-11-11T00:51:38.414Z" },
-    { url = "https://files.pythonhosted.org/packages/82/ce/33476c313d29cdee10edcd12cb4bc545bf598135b503fe83de18c61d0acd/im_calculation-2026.11.1-cp315-cp315-macosx_11_0_x86_64.whl", hash = "sha256:beb1ab1ca32576e21a367523e35875719dc22ce83cfe06a67836a114d8b85508", size = 294189, upload-time = "2026-11-11T00:51:39.707Z" },
-    { url = "https://files.pythonhosted.org/packages/e7/73/e446890a0bf5bc96a437f0a40986b5dd65b126e5919e36c1d6279e2aa50d/im_calculation-2026.11.1-cp315-cp315-manylinux_2_28_x86_64.whl", hash = "sha256:5b9051455403c9bfa170c8f55045d0a8ffb7b0d786c0fdafde22cb5e9ec49c1d", size = 330342, upload-time = "2026-11-11T00:51:40.924Z" },
-    { url = "https://files.pythonhosted.org/packages/b1/d8/8ad0d5c4f7f69121a945219246bce98354e279cf15e5471df47f3fd9da46/im_calculation-2026.11.1-cp315-cp315-win_amd64.whl", hash = "sha256:de8ab825378e4999d9bcb338e27d4815b9913fa0537bd7586b31656a53c6848a", size = 190671, upload-time = "2026-11-11T00:51:42.281Z" },
+    { url = "https://files.pythonhosted.org/packages/49/81/9cc7c2714d8c8acfddec46f6949621a4ccf979ebed68f2984e25df1abd61/im_calculation-2026.11.2-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:dfd2654958226dc221d07adbb1102c89e28c9bc3f603b0a9f4260f97230c25fb", size = 287437, upload-time = "2026-11-17T21:18:17.82Z" },
+    { url = "https://files.pythonhosted.org/packages/6f/89/924dfff0a0403fd64212496ac318d38559640d102e2cbef9eb2463e70fdc/im_calculation-2026.11.2-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:d5ca7b2778c32da4a9dbdbce37fa74132b549d8d61bdaf880963df582bd7deb1", size = 295986, upload-time = "2026-11-17T21:18:19.307Z" },
+    { url = "https://files.pythonhosted.org/packages/d8/e9/2cd1829817d95a303e7f8f00fd724780b82c6eeab3ef5b9b4c75c7f372d6/im_calculation-2026.11.2-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:eaa9085243a8074936e16c1cc9ba71fe268471fc0333097dc2ac25afb496f955", size = 332176, upload-time = "2026-11-17T21:18:20.523Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/b4/931e69ee5d1b8dbe4b772e1e7b7583243b82e375ec20221b87f2c556f601/im_calculation-2026.11.2-cp313-cp313-win_amd64.whl", hash = "sha256:8cd442671f9e4e181c37c07e95455f01831918af810c208863c066c041e7a36e", size = 187408, upload-time = "2026-11-17T21:18:21.751Z" },
+    { url = "https://files.pythonhosted.org/packages/1f/cb/1472f119606bcbe7a42caa1f4a36fc6e20ab9282ab065e0e3399384f3b3e/im_calculation-2026.11.2-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:55587e1ed1f44755afeff9f26482a699e7edae7849d6a25abac2d72b6c1a5388", size = 288237, upload-time = "2026-11-17T21:18:22.902Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/19/17e469bd4e3106091a4cea6a6ed7844cfbe44f943c49bc196b4b38fe6afc/im_calculation-2026.11.2-cp314-cp314-macosx_11_0_x86_64.whl", hash = "sha256:4dd0ba3fc386664ad74db8a2ec0e728a6efc77383e25ba6fbb8b8e0919bf701a", size = 296541, upload-time = "2026-11-17T21:18:24.769Z" },
+    { url = "https://files.pythonhosted.org/packages/c6/69/c40355dbf2d44a9aa9bbb6550fe1315f71598ce10a056c042b0a815fbaac/im_calculation-2026.11.2-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:403c4b52b88fee2be43cdda5566f16735c2f6c6b59e73444b19746a044c7e1f4", size = 332561, upload-time = "2026-11-17T21:18:26.575Z" },
+    { url = "https://files.pythonhosted.org/packages/23/a6/f77c8b0cc220b560b5bf388a0aa6157e12a13f79cf230bee0e3a32bcd665/im_calculation-2026.11.2-cp314-cp314-win_amd64.whl", hash = "sha256:7d27fd56df4bdc68d8a57d2baa6b60f1e44f8eea74caf7603638c532ab81ab7c", size = 192773, upload-time = "2026-11-17T21:18:28.769Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/db/ef8e1e9127ba88c80dc94baf14dcbf17a43ab274385a8aca3e5e94a91961/im_calculation-2026.11.2-cp315-cp315-macosx_11_0_arm64.whl", hash = "sha256:b5cf991b8e5a98eed198fd9ae632429af72a0e683aa24fb6b77ace14c5a8e77c", size = 287659, upload-time = "2026-11-17T21:18:30.124Z" },
+    { url = "https://files.pythonhosted.org/packages/ef/1b/3630e72c1a503232e957fc425a1e6ccbd4cfabb9b19da2eee0f8103f0107/im_calculation-2026.11.2-cp315-cp315-macosx_11_0_x86_64.whl", hash = "sha256:6711e52907cc7844865aaac6dd2a4dac815fe7352fed3256c91a9abbccaedc1d", size = 296453, upload-time = "2026-11-17T21:18:31.259Z" },
+    { url = "https://files.pythonhosted.org/packages/a9/45/03050cc9fb6803ae962b071b2e0b4aa17f42f5900e98bffecdb7a1f40bcf/im_calculation-2026.11.2-cp315-cp315-manylinux_2_28_x86_64.whl", hash = "sha256:30e670a257b8f5f4fad2db04b77fb03068216d41e0a83bdd4a8d7b9cb79af800", size = 333154, upload-time = "2026-11-17T21:18:32.383Z" },
+    { url = "https://files.pythonhosted.org/packages/e4/7f/d9a6835f475932aebc408bbec571e606de7bdda5872fe503733f98a03f6a/im_calculation-2026.11.2-cp315-cp315-win_amd64.whl", hash = "sha256:c4be2dfc86db74f1e2b441b1b4f391b277bd0947252a1ff847d62a3e95ece93b", size = 192901, upload-time = "2026-11-17T21:18:33.755Z" },
 ]
 
 [[package]]
@@ -3461,7 +3461,7 @@ requires-dist = [
     { name = "h5py", specifier = ">=3.15.1" },
     { name = "hf-simulation", specifier = ">=2026.11.1" },
     { name = "hypothesis", extras = ["numpy"], marker = "extra == 'test'", specifier = ">=6.0.0" },
-    { name = "im-calculation", specifier = ">=2026.10.3" },
+    { name = "im-calculation", specifier = ">=2026.11.2" },
     { name = "npdlint", marker = "extra == 'dev'" },
     { name = "nshmdb", specifier = ">=2026.10.2" },
     { name = "numpy" },
