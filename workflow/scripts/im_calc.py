@@ -30,7 +30,7 @@ See the output of `im-calc --help`.
 import dataclasses
 import functools
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Annotated
 
@@ -127,6 +127,7 @@ IM_METADATA = {
     IM.Ds595: "Significant duration (5-95%)",
     IM.pSA: "Pseudo-spectral acceleration",
     IM.FAS: "Fourier amplitude spectrum",
+    IM.MMI: "Modified Mercalli intensity, from PGV (Worden et al. 2012)",
 }
 
 
@@ -141,6 +142,7 @@ IM_UNITS = {
     IM.Ds595: "s",
     IM.FAS: "g * s",
     IM.pSA: "g",
+    IM.MMI: "1",
 }
 
 
@@ -812,6 +814,43 @@ def _im_function_map(
     }
 
 
+def _calculate_simulated_ims(
+    waveform: xr.DataArray,
+    intensity_measures: Iterable[IM],
+    im_function_map: Mapping[IM, Callable[[xr.DataArray], xr.Dataset]],
+) -> dict[str, xr.Dataset]:
+    """Calculate the requested intensity measures from the waveforms.
+
+    MMI is derived from PGV rather than from the waveform. PGV is computed
+    once and reused for MMI. When MMI is requested without PGV, PGV is
+    computed for it but not returned.
+
+    Parameters
+    ----------
+    waveform : xr.DataArray
+        Acceleration waveforms (g), possibly dask-backed.
+    intensity_measures : iterable of IM
+        The intensity measures to calculate.
+    im_function_map : mapping of IM to callable
+        The waveform-to-dataset function for each IM except MMI.
+
+    Returns
+    -------
+    dict of str to xr.Dataset
+        One dataset per requested intensity measure.
+    """
+    intensity_measures = list(intensity_measures)
+    results: dict[str, xr.Dataset] = {
+        im: im_function_map[im](waveform) for im in intensity_measures if im != IM.MMI
+    }
+    if IM.MMI in intensity_measures:
+        pgv = results.get(IM.PGV)
+        if pgv is None:
+            pgv = im_function_map[IM.PGV](waveform)
+        results[IM.MMI] = ims.worden_mmi_from_pgv(pgv)
+    return results
+
+
 @cli.from_docstring(app)
 def calculate_intensity_measures(
     realisation_ffp: Annotated[
@@ -913,10 +952,9 @@ def calculate_intensity_measures(
         source_geometries, magnitudes, rakes, hypocentre
     )
 
-    im_results: dict[str, xr.Dataset] = {
-        im_name: im_function_map[im_name](broadband.waveform)
-        for im_name in intensity_measures
-    }
+    im_results: dict[str, xr.Dataset] = _calculate_simulated_ims(
+        broadband.waveform, intensity_measures, im_function_map
+    )
 
     attributes = {
         "hypo_lat": hypocentre[0],

@@ -1208,6 +1208,16 @@ def test_defaults_are_loadable(
         realisation_config.read_from_defaults(defaults_version)
 
 
+@pytest.mark.parametrize("defaults_version", list(defaults.DefaultsVersion))
+def test_mmi_is_a_default_intensity_measure(
+    defaults_version: defaults.DefaultsVersion,
+) -> None:
+    im_params = realisations.IntensityMeasureCalculationParameters.read_from_defaults(
+        defaults_version
+    )
+    assert im_calculation.IM.MMI in im_params.ims
+
+
 NZCVM_DEFAULTS_VERSIONS = [
     version
     for version in defaults.DefaultsVersion

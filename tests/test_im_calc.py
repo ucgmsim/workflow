@@ -7,6 +7,7 @@ import pytest
 import xarray as xr
 
 from gm_models.constants import TectType
+from IM import ims
 from IM.ims import IM
 from qcore import coordinates
 from source_modelling import sources
@@ -14,12 +15,18 @@ from workflow import realisations
 from workflow.scripts import im_calc
 
 
-def test_im_function_map_covers_every_im_except_fas() -> None:
+def test_im_function_map_covers_every_im_except_fas_and_mmi() -> None:
     # FAS is added separately by the caller because it additionally requires
-    # a KO matrix directory, so it is expected to be absent here.
+    # a KO matrix directory, and MMI is derived from the PGV result rather
+    # than from the waveform, so both are expected to be absent here.
     function_map = im_calc._im_function_map(dt=0.01, psa_periods=np.array([1.0]))
 
-    assert set(function_map) == set(IM) - {IM.FAS}
+    assert set(function_map) == set(IM) - {IM.FAS, IM.MMI}
+
+
+def test_every_im_has_units_and_a_description() -> None:
+    assert set(im_calc.IM_UNITS) == set(IM)
+    assert set(im_calc.IM_METADATA) == set(IM)
 
 
 def test_cav5_uses_a_5_cm_per_s_squared_threshold() -> None:
@@ -136,3 +143,34 @@ def test_empirical_parameters_read_tect_type_case_insensitively(
         {"tect_type": tect_type, "models": ["NSHM2022"]}
     )
     assert empirical.tect_type is TectType.ACTIVE_SHALLOW
+
+
+@pytest.mark.parametrize(
+    "requested",
+    [[IM.MMI], [IM.PGV, IM.MMI], [IM.MMI, IM.PGV]],
+    ids=["mmi-only", "pgv-then-mmi", "mmi-then-pgv"],
+)
+def test_mmi_reuses_a_single_pgv_calculation(requested: list[IM]) -> None:
+    waveform = xr.DataArray(
+        np.random.default_rng(0).normal(scale=0.1, size=(3, 2, 500)),
+        dims=("component", "station", "time"),
+    ).chunk({"station": 1})
+    function_map = im_calc._im_function_map(dt=0.01, psa_periods=np.array([1.0]))
+    pgv_calls = 0
+    pgv_function = function_map[IM.PGV]
+
+    def counting_pgv(waveform: xr.DataArray) -> xr.Dataset:
+        nonlocal pgv_calls
+        pgv_calls += 1
+        return pgv_function(waveform)
+
+    function_map[IM.PGV] = counting_pgv
+
+    results = im_calc._calculate_simulated_ims(waveform, requested, function_map)
+
+    assert pgv_calls == 1
+    assert set(results) == set(requested)
+    mmi = results[IM.MMI]
+    assert all(variable.chunks is not None for variable in mmi.data_vars.values())
+    expected = ims.worden_mmi_from_pgv(pgv_function(waveform))
+    xr.testing.assert_identical(mmi.compute(), expected.compute())
