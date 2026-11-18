@@ -21,7 +21,7 @@ class UniqueKeyLoader(yaml.SafeLoader):
 
     def construct_mapping(self, node, deep=False):
         mapping = set()
-        for key_node, value_node in node.value:
+        for key_node, _ in node.value:
             if ":merge" in key_node.tag:
                 continue
             key = self.construct_object(key_node, deep=deep)
