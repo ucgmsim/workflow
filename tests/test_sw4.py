@@ -251,6 +251,27 @@ def test_default_topography_mapping_is_fourth_order(
     assert topography.parameters["order"] >= 4
 
 
+@pytest.mark.parametrize("version", SW4_VERSIONS)
+def test_default_movie_images_are_zfp_compressed(
+    version: defaults.DefaultsVersion,
+) -> None:
+    """Every time-series image carries a numeric ZFP tolerance.
+
+    PyYAML reads `1e-4` (no decimal point) as a string, which would still pass
+    the schema, so check the type as well as the value.
+    """
+    movies = [
+        command
+        for command in SW4Parameters.read_from_defaults(version).commands
+        if command.name == "imagehdf5" and "timeInterval" in command.parameters
+    ]
+    assert movies
+    for command in movies:
+        accuracy = command.parameters["zfp-accuracy"]
+        assert isinstance(accuracy, float)
+        assert accuracy > 0.0
+
+
 def test_check_lateral_gridpoints() -> None:
     parameters = sw4_parameters(width=12000.0)
     # 100 km domain padded to 124 km: 100 km of interior.

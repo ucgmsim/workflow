@@ -1068,6 +1068,54 @@ def test_sw4_command() -> None:
     assert command.parameters["time"] is None
 
 
+@pytest.mark.parametrize("accuracy", [1.0e-4, 1.0e-5, 2.5e-7, 0.05])
+def test_sw4_command_renders_hyphenated_zfp_keys(accuracy: float) -> None:
+    """SW4's ZFP options are hyphenated, and small tolerances must survive `atof`.
+
+    Python renders tolerances below 1e-4 in exponent form (`1e-05`), which C's
+    `atof` reads, so the rendered value has to read back as the same float.
+    """
+    command = SW4Command(
+        "imagehdf5",
+        {"mode": "velmag", "timeInterval": 0.1, "zfp-accuracy": accuracy},
+    )
+    rendered = command.render()
+
+    assert rendered.startswith("imagehdf5 mode=velmag timeInterval=0.1 zfp-accuracy=")
+    _, *tokens = rendered.split(" ")
+    parameters = dict(token.split("=", 1) for token in tokens)
+    assert float(parameters["zfp-accuracy"]) == accuracy
+    # `merged` takes hyphenated keys through `**`, and keeps them.
+    assert command.merged(**{"zfp-accuracy": None}).render() == (
+        "imagehdf5 mode=velmag timeInterval=0.1"
+    )
+
+
+def test_sw4_parameters_round_trip_hyphenated_keys(tmp_path: Path) -> None:
+    """The realisation schema and JSON round trip keep hyphenated SW4 keys."""
+    sw4 = realisations.SW4Parameters(
+        verbose=2,
+        printcycle=10,
+        nz_min=12,
+        commands=[
+            SW4Command("grid", {"proj": "tmerc"}),
+            SW4Command(
+                "imagehdf5",
+                {"mode": "uz", "timeInterval": 0.1, "zfp-accuracy": 1.0e-5},
+            ),
+        ],
+    )
+
+    realisation_path = tmp_path / "realisation.json"
+    sw4.write_to_realisation(realisation_path)
+    read = realisations.SW4Parameters.read_from_realisation(realisation_path)
+
+    assert read == sw4
+    assert read.commands[1].render() == (
+        "imagehdf5 mode=uz timeInterval=0.1 zfp-accuracy=1e-05"
+    )
+
+
 def test_sw4_command_renders_bools_as_ints() -> None:
     """SW4 expects 0/1 for boolean flags, not Python's True/False."""
     command = SW4Command("developer", {"reporttiming": True, "failonnan": False})
