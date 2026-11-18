@@ -1,6 +1,7 @@
 """Functions to load default parameters for EMOD-3D simulations."""
 
 import importlib
+from collections.abc import Hashable
 from enum import StrEnum
 from importlib import resources
 from typing import Any
@@ -19,8 +20,31 @@ from workflow.default_parameters import root
 class UniqueKeyLoader(yaml.SafeLoader):
     """Subclassed YAML loader that throws a ValueError when encountering duplicate keys."""
 
-    def construct_mapping(self, node, deep=False):
-        mapping = set()
+    def construct_mapping(
+        self, node: yaml.MappingNode, deep: bool = False
+    ) -> dict[Hashable, Any]:
+        """Construct a mapping from a YAML node, rejecting duplicate keys.
+
+        Parameters
+        ----------
+        node : yaml.MappingNode
+            The mapping node to construct.
+        deep : bool, optional
+            If True, construct nested objects eagerly. Defaults to False.
+
+        Returns
+        -------
+        dict
+            The constructed mapping.
+
+        Raises
+        ------
+        ValueError
+            If the same key appears more than once in the mapping. Merge
+            keys (``<<``) are exempt, so a mapping may still override keys
+            it merges in.
+        """
+        mapping: set[Hashable] = set()
         for key_node, _ in node.value:
             if ":merge" in key_node.tag:
                 continue
@@ -47,8 +71,8 @@ def load_defaults(version: DefaultsVersion) -> dict[str, dict[str, Any]]:
 
     Parameters
     ----------
-    version : str
-        Version number of the EMOD3D parameters to load. This should be in the format 'YY.M.D.V'.
+    version : DefaultsVersion
+        Version of the default parameters to load.
 
     Returns
     -------
@@ -57,6 +81,13 @@ def load_defaults(version: DefaultsVersion) -> dict[str, dict[str, Any]]:
         realisation configuration (e.g. ``"nzcvm"``, ``"velocity_model"``),
         keyed by the configuration's name. Each section maps parameter
         names to values, which may themselves be nested lists and mappings.
+        Version-specific values override the root defaults shared by all
+        versions.
+
+    Raises
+    ------
+    ValueError
+        If either defaults file contains a duplicate key.
     """
     defaults_package = importlib.import_module(
         f"workflow.default_parameters.v{version.value.replace('.', '_')}"
