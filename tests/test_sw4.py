@@ -255,11 +255,7 @@ def test_default_topography_mapping_is_fourth_order(
 def test_default_movie_images_are_zfp_compressed(
     version: defaults.DefaultsVersion,
 ) -> None:
-    """Every time-series image carries a numeric ZFP tolerance.
-
-    PyYAML reads `1e-4` (no decimal point) as a string, which would still pass
-    the schema, so check the type as well as the value.
-    """
+    """Every time-series image carries an integer ZFP precision."""
     movies = [
         command
         for command in SW4Parameters.read_from_defaults(version).commands
@@ -267,9 +263,9 @@ def test_default_movie_images_are_zfp_compressed(
     ]
     assert movies
     for command in movies:
-        accuracy = command.parameters["zfp-accuracy"]
-        assert isinstance(accuracy, float)
-        assert accuracy > 0.0
+        precision = command.parameters["zfp-precision"]
+        assert isinstance(precision, int)
+        assert 0 < precision <= 32
 
 
 def test_check_lateral_gridpoints() -> None:

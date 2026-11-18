@@ -325,7 +325,7 @@ def test_movie_images_render_with_zfp(
 ) -> None:
     """The movie frames reach the input file compressed; one-frame images do not.
 
-    `zfp-accuracy` is not a timing key, so the peak-motion maps, which have
+    A `zfp-*` option is not a timing key, so the peak-motion maps, which have
     none, still get the simulation end time.
     """
     images = render(tmp_path, domain, 30.0, defaults_version=defaults_version)[
@@ -335,7 +335,7 @@ def test_movie_images_render_with_zfp(
     movies = [image for image in images if "timeInterval" in image]
     assert {image["mode"] for image in movies} == {"mag", "velmag", "uz"}
     for image in movies:
-        assert float(image["zfp-accuracy"]) > 0.0
+        assert int(image["zfp-precision"]) > 0
 
     stills = [image for image in images if "timeInterval" not in image]
     assert not any(key.startswith("zfp-") for image in stills for key in image)
