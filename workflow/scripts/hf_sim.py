@@ -261,10 +261,9 @@ def run_hf(
         _build_config(hf_config, rupture_velocity, domain_parameters),
     )
 
-    # float32 throughout: this mirrors how the simulation truncates duration/dt to a
-    # sample count, so the dask template matches what comes back. Rounding instead
-    # overcounts by one whenever duration/dt has a fractional part >= 0.5.
-    nt = int(np.float32(domain_parameters.duration) / np.float32(hf_config.dt))
+    # Ask hf_simulation for the sample count rather than recomputing duration/dt, so
+    # the dask template always matches the length of the records that come back.
+    nt = hf_simulation.n_samples(domain_parameters.duration, hf_config.dt)
     # The record starts at the origin time. This was a configurable `t_sec` that every
     # realisation set to zero.
     time = time_axis(np.arange(nt) * hf_config.dt, metadata.event_time)
