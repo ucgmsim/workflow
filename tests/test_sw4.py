@@ -251,6 +251,23 @@ def test_default_topography_mapping_is_fourth_order(
     assert topography.parameters["order"] >= 4
 
 
+@pytest.mark.parametrize("version", SW4_VERSIONS)
+def test_default_movie_images_are_zfp_compressed(
+    version: defaults.DefaultsVersion,
+) -> None:
+    """Every time-series image carries an integer ZFP precision."""
+    movies = [
+        command
+        for command in SW4Parameters.read_from_defaults(version).commands
+        if command.name == "imagehdf5" and "timeInterval" in command.parameters
+    ]
+    assert movies
+    for command in movies:
+        precision = command.parameters["zfp-precision"]
+        assert isinstance(precision, int)
+        assert 0 < precision <= 32
+
+
 def test_check_lateral_gridpoints() -> None:
     parameters = sw4_parameters(width=12000.0)
     # 100 km domain padded to 124 km: 100 km of interior.

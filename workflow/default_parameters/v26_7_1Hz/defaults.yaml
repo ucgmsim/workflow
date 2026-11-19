@@ -49,6 +49,9 @@ sw4:
         { order: 4, passes: 2, fc1: null, fc2: 1.11647, type: "lowpass" }
     - name: "topography"
       parameters: { order: 4 }
+    # The one-frame images (the cycle-0 surface fields here, and `hmax` and
+    # `vmax` at the end) stay uncompressed: together they are a small fraction
+    # of the movie frames, and `topo` and `grid` georeference those frames.
     - name: "imagehdf5"
       parameters:
         { mode: "topo", z: 0.0, file: "topo", cycle: 0, precision: "float" }
@@ -64,14 +67,27 @@ sw4:
     - name: "imagehdf5"
       parameters:
         { mode: "rho", z: 0.0, file: "surf_rho", cycle: 0, precision: "float" }
+    # Shake-movie frames every 0.1 s, compressed with ZFP in fixed-precision
+    # mode. This is lossy: `zfp-precision` is the number of bit planes kept in
+    # each 4 x 4 block, so the error scales with the local amplitude. The
+    # movie colours waves on a log scale relative to the event's own peak, and
+    # 12 keeps every pixel within about two of its 256 colour steps (99.9 %
+    # within half a step) for any size of event, at about 7x smaller files: a
+    # third less disk than the old uncompressed 0.5 s frames. A fixed
+    # `zfp-accuracy` is not used because it is an absolute tolerance: one that
+    # suits a Mw 6.5 speckles a small event's movie. Needs an SW4 with ZFP on
+    # `imagehdf5`: one without it warns that it is ignoring the option and
+    # writes the frames uncompressed, five times the volume of the old 0.5 s
+    # interval. Readers need the H5Z-ZFP filter (`hdf5plugin` in Python).
     - name: "imagehdf5"
       parameters:
         {
           mode: "mag",
           z: 0.0,
           file: "surf_mag",
-          timeInterval: 0.5,
+          timeInterval: 0.1,
           precision: "float",
+          zfp-precision: 12,
         }
     - name: "imagehdf5"
       parameters:
@@ -79,8 +95,9 @@ sw4:
           mode: "velmag",
           z: 0.0,
           file: "surf_velmag",
-          timeInterval: 0.5,
+          timeInterval: 0.1,
           precision: "float",
+          zfp-precision: 12,
         }
     - name: "imagehdf5"
       parameters:
@@ -88,8 +105,9 @@ sw4:
           mode: "uz",
           z: 0.0,
           file: "surf_uz",
-          timeInterval: 0.5,
+          timeInterval: 0.1,
           precision: "float",
+          zfp-precision: 12,
         }
     - name: "imagehdf5"
       parameters:

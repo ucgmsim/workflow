@@ -22,6 +22,7 @@ from workflow.realisations import (
     NZCVMSettings,
     RealisationMetadata,
     Refinements,
+    SW4Command,
     SW4Parameters,
 )
 from workflow.scripts import sw4_template
@@ -316,3 +317,66 @@ def test_without_topography_rejects_an_sfile_with_topography(
             decay=SleveDecay(scale=1000.0),
             topography_command=False,
         )
+
+
+@pytest.mark.parametrize("defaults_version", SW4_VERSIONS)
+def test_movie_images_render_with_zfp(
+    tmp_path: Path, domain: BoundingBox, defaults_version: defaults.DefaultsVersion
+) -> None:
+    """The movie frames reach the input file compressed; one-frame images do not.
+
+    A `zfp-*` option is not a timing key, so the peak-motion maps, which have
+    none, still get the simulation end time.
+    """
+    images = render(tmp_path, domain, 30.0, defaults_version=defaults_version)[
+        "imagehdf5"
+    ]
+
+    movies = [image for image in images if "timeInterval" in image]
+    assert {image["mode"] for image in movies} == {"mag", "velmag", "uz"}
+    for image in movies:
+        assert int(image["zfp-precision"]) > 0
+
+    stills = [image for image in images if "timeInterval" not in image]
+    assert not any(key.startswith("zfp-") for image in stills for key in image)
+    peaks = [image for image in stills if image["mode"] in {"hmax", "vmax"}]
+    assert len(peaks) == 2
+    # `render` writes a 10 s realisation.
+    assert all(float(image["time"]) == 10.0 for image in peaks)
+
+
+def test_zfp_key_is_not_an_image_timing_key() -> None:
+    """A compressed image with no timing key still defaults to the end time."""
+    sw4_params = SW4Parameters(
+        verbose=2,
+        printcycle=10,
+        nz_min=12,
+        commands=[
+            SW4Command("grid", {"proj": "tmerc"}),
+            SW4Command("imagehdf5", {"mode": "hmax", "zfp-accuracy": 1.0e-4}),
+            SW4Command(
+                "imagehdf5",
+                {"mode": "velmag", "timeInterval": 0.1, "zfp-accuracy": 1.0e-4},
+            ),
+        ],
+    )
+
+    _, commands = sw4_template._build_sw4_commands(
+        sw4_params,
+        x=1.0,
+        y=1.0,
+        z=1.0,
+        dx=1.0,
+        azimuth=0.0,
+        lon=172.5,
+        lat=-43.5,
+        velocity_model_name="model.sfile",
+        velocity_model_directory=Path("velocity_model"),
+        topography_zmax=None,
+        simulation_time=42.0,
+    )
+
+    assert [command.render() for command in commands] == [
+        "imagehdf5 mode=hmax zfp-accuracy=0.0001 time=42.0",
+        "imagehdf5 mode=velmag timeInterval=0.1 zfp-accuracy=0.0001",
+    ]
