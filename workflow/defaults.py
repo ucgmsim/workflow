@@ -40,15 +40,18 @@ class UniqueKeyLoader(yaml.SafeLoader):
         Raises
         ------
         ValueError
-            If the same key appears more than once in the mapping. Merge
-            keys (``<<``) are exempt, so a mapping may still override keys
-            it merges in.
+            If the same key, including the merge key ``<<``, appears more
+            than once in the mapping. Keys brought in by ``<<`` do not
+            count, so a mapping may still override keys it merges in.
         """
         mapping: set[Hashable] = set()
         for key_node, _ in node.value:
             if ":merge" in key_node.tag:
-                continue
-            key = self.construct_object(key_node, deep=deep)
+                # Count `<<` as a key so a second merge key is a duplicate
+                # too; merge several anchors with `<<: [*a, *b]` instead.
+                key = key_node.tag
+            else:
+                key = self.construct_object(key_node, deep=deep)
             if key in mapping:
                 raise ValueError(f"Duplicate {key!r} key found in YAML.")
             mapping.add(key)

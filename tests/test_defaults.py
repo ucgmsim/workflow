@@ -106,6 +106,23 @@ derived:
     assert loaded["derived"] == {"maxfreq": 2.5, "nmech": 2}
 
 
+def test_unique_key_loader_rejects_repeated_merge_keys() -> None:
+    document = """
+a: &a { maxfreq: 2.5 }
+b: &b { nmech: 3 }
+repeated: { <<: *a, <<: *b }
+"""
+    with pytest.raises(ValueError, match="Duplicate"):
+        yaml.load(document, defaults.UniqueKeyLoader)
+
+    # The supported way to merge several anchors is a single merge key.
+    loaded = yaml.load(
+        document.replace("{ <<: *a, <<: *b }", "{ <<: [*a, *b] }"),
+        defaults.UniqueKeyLoader,
+    )
+    assert loaded["repeated"] == {"maxfreq": 2.5, "nmech": 3}
+
+
 @pytest.mark.parametrize("version", list(defaults.DefaultsVersion))
 def test_load_defaults_has_no_duplicate_keys(
     version: defaults.DefaultsVersion,
