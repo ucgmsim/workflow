@@ -1,6 +1,7 @@
 """Functions to load default parameters for EMOD-3D simulations."""
 
 import importlib
+from collections.abc import Hashable
 from enum import StrEnum
 from importlib import resources
 from typing import Any
@@ -9,6 +10,52 @@ import yaml
 
 from workflow import utils
 from workflow.default_parameters import root
+
+# The following code is poached from: wangshu1331 on GH. See:
+# https://gist.github.com/pypt/94d747fe5180851196eb?permalink_comment_id=4653474#gistcomment-4653474
+# This code is added to inject additional validation for duplicate keys (and in
+# future, other parsing validation) to address issues like ucgmsim/workflow#285.
+
+
+class UniqueKeyLoader(yaml.SafeLoader):
+    """Subclassed YAML loader that throws a ValueError when encountering duplicate keys."""
+
+    def construct_mapping(
+        self, node: yaml.MappingNode, deep: bool = False
+    ) -> dict[Hashable, Any]:
+        """Construct a mapping from a YAML node, rejecting duplicate keys.
+
+        Parameters
+        ----------
+        node : yaml.MappingNode
+            The mapping node to construct.
+        deep : bool, optional
+            If True, construct nested objects eagerly. Defaults to False.
+
+        Returns
+        -------
+        dict
+            The constructed mapping.
+
+        Raises
+        ------
+        ValueError
+            If the same key, including the merge key ``<<``, appears more
+            than once in the mapping. Keys brought in by ``<<`` do not
+            count, so a mapping may still override keys it merges in.
+        """
+        mapping: set[Hashable] = set()
+        for key_node, _ in node.value:
+            if ":merge" in key_node.tag:
+                # Count `<<` as a key so a second merge key is a duplicate
+                # too; merge several anchors with `<<: [*a, *b]` instead.
+                key = key_node.tag
+            else:
+                key = self.construct_object(key_node, deep=deep)
+            if key in mapping:
+                raise ValueError(f"Duplicate {key!r} key found in YAML.")
+            mapping.add(key)
+        return super().construct_mapping(node, deep)
 
 
 class DefaultsVersion(StrEnum):
@@ -27,8 +74,8 @@ def load_defaults(version: DefaultsVersion) -> dict[str, dict[str, Any]]:
 
     Parameters
     ----------
-    version : str
-        Version number of the EMOD3D parameters to load. This should be in the format 'YY.M.D.V'.
+    version : DefaultsVersion
+        Version of the default parameters to load.
 
     Returns
     -------
@@ -37,15 +84,24 @@ def load_defaults(version: DefaultsVersion) -> dict[str, dict[str, Any]]:
         realisation configuration (e.g. ``"nzcvm"``, ``"velocity_model"``),
         keyed by the configuration's name. Each section maps parameter
         names to values, which may themselves be nested lists and mappings.
+        Version-specific values override the root defaults shared by all
+        versions.
+
+    Raises
+    ------
+    ValueError
+        If either defaults file contains a duplicate key.
     """
     defaults_package = importlib.import_module(
         f"workflow.default_parameters.v{version.value.replace('.', '_')}"
     )
     root_defaults_path = resources.files(root) / "defaults.yaml"
+
     with root_defaults_path.open(encoding="utf-8") as root_defaults_handle:
-        root_defaults = yaml.safe_load(root_defaults_handle)
+        root_defaults = yaml.load(root_defaults_handle, UniqueKeyLoader)
+
     defaults_path = resources.files(defaults_package) / "defaults.yaml"
     with defaults_path.open(encoding="utf-8") as emod3d_defaults_file_handle:
-        defaults = yaml.safe_load(emod3d_defaults_file_handle)
+        defaults = yaml.load(emod3d_defaults_file_handle, UniqueKeyLoader)
     utils.merge_dictionaries(root_defaults, defaults)
     return root_defaults
