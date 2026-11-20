@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 import shapely
-from hypothesis import given
+from hypothesis import example, given
 from hypothesis import strategies as st
 
 from workflow import bounding_box
@@ -228,3 +228,55 @@ def test_bounding_box_for_sub_square_metre_geometry(axis_aligned: bool) -> None:
         box.bounds, [[0.0, 0.0], [0.0, 0.5], [0.5, 0.5], [0.5, 0.0]], atol=1e-12
     )
     assert box.area == pytest.approx(0.25e-6)
+
+
+DIAGONAL_BEARINGS = st.sampled_from([45.0, 135.0, 225.0, 315.0])
+WHOLE_KM_EXTENTS = st.integers(min_value=1, max_value=500).map(float)
+
+
+@given(
+    centroid=CENTROIDS,
+    bearing=DIAGONAL_BEARINGS,
+    extent_x=WHOLE_KM_EXTENTS,
+    extent_y=WHOLE_KM_EXTENTS,
+)
+@example(
+    centroid=(-42.60256901008813, 169.96820464050882),
+    bearing=315.0,
+    extent_x=255.0,
+    extent_y=255.0,
+)
+@example(
+    centroid=(-40.04392657725999, 170.29683079591123),
+    bearing=45.0,
+    extent_x=241.0,
+    extent_y=211.0,
+)
+@example(
+    centroid=(-38.993421439464, 169.9676538514026),
+    bearing=135.0,
+    extent_x=21.0,
+    extent_y=88.0,
+)
+def test_diagonal_tie_break_matches_velocity_modelling_anywhere(
+    centroid: tuple[float, float], bearing: float, extent_x: float, extent_y: float
+) -> None:
+    """Diagonal boxes tie for bottom-left in exact arithmetic, so the corner
+    chosen depends on how the centred coordinate sums round.
+
+    Away from the reference centroid, centring each axis separately (as
+    upstream does) and centring on a single overall mean round differently
+    and pick different corners, giving a box rotated by 90°. Realisations must
+    describe the same domain as velocity-modelling, so the bounds must match
+    upstream bit-for-bit wherever the box is.
+    """
+    upstream = pytest.importorskip("velocity_modelling.bounding_box")
+    ours = BoundingBox.from_centroid_bearing_extents(
+        centroid, bearing, extent_x, extent_y
+    )
+    theirs = upstream.BoundingBox.from_centroid_bearing_extents(
+        centroid, bearing, extent_x, extent_y
+    )
+    np.testing.assert_array_equal(ours.bounds, theirs.bounds)
+    assert ours.bearing == theirs.bearing
+    assert (ours.extent_x, ours.extent_y) == (theirs.extent_x, theirs.extent_y)
