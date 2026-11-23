@@ -228,3 +228,58 @@ def test_bounding_box_for_sub_square_metre_geometry(axis_aligned: bool) -> None:
         box.bounds, [[0.0, 0.0], [0.0, 0.5], [0.5, 0.5], [0.5, 0.0]], atol=1e-12
     )
     assert box.area == pytest.approx(0.25e-6)
+
+
+@pytest.mark.parametrize(
+    ("centroid", "bearing", "extent_x", "extent_y", "expected"),
+    [
+        (
+            (-38.68517329001843, 172.01521859348125),
+            225.0,
+            293.6726450859402,
+            293.6726450859402,
+            (45.0, 293.6726450859402, 293.6726450859402),
+        ),
+        (
+            (-36.746492080383746, 171.2908200713385),
+            225.0,
+            487.37171362826234,
+            487.37171362826234,
+            (45.0, 487.37171362826234, 487.37171362826234),
+        ),
+        (
+            (-41.74596369510952, 170.7311438205819),
+            315.0,
+            437.3461595197941,
+            41.9404580017954,
+            (45.0, 41.9404580017954, 437.3461595197941),
+        ),
+    ],
+)
+def test_diagonal_tie_break_is_rounding_exact(
+    centroid: tuple[float, float],
+    bearing: float,
+    extent_x: float,
+    extent_y: float,
+    expected: tuple[float, float, float],
+) -> None:
+    """Diagonal boxes whose bottom-left tie is decided by float rounding.
+
+    The bottom-left corner is the one minimising the sum of its coordinates
+    after subtracting the per-axis centroid. For these boxes two corners tie
+    up to rounding, and centring with a single scalar mean instead of the
+    per-axis mean breaks the tie the other way, rotating the stored box by 90°
+    (and here also departing from upstream velocity-modelling).
+    """
+    box = BoundingBox.from_centroid_bearing_extents(
+        centroid, bearing, extent_x, extent_y
+    )
+    assert (box.bearing, box.extent_x, box.extent_y) == pytest.approx(
+        expected, abs=1e-6
+    )
+    assert _map_view_signed_area(box.bounds) > 0
+    upstream = pytest.importorskip("velocity_modelling.bounding_box")
+    theirs = upstream.BoundingBox.from_centroid_bearing_extents(
+        centroid, bearing, extent_x, extent_y
+    )
+    np.testing.assert_array_equal(box.bounds, theirs.bounds)
